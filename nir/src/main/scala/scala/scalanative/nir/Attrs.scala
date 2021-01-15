@@ -29,7 +29,9 @@ object Attr {
   final case object Stub              extends Attr
   final case object Extern            extends Attr
   final case class Link(name: String) extends Attr
-  final case object Abstract          extends Attr
+
+  final case object Abstract              extends Attr
+  final case class Struct(tys: Seq[Type]) extends Attr
 }
 
 final case class Attrs(inlineHint: Inline = MayInline,
@@ -39,6 +41,7 @@ final case class Attrs(inlineHint: Inline = MayInline,
                        isDyn: Boolean = false,
                        isStub: Boolean = false,
                        isAbstract: Boolean = false,
+                       struct: Option[Struct] = Option.empty,
                        links: Seq[Attr.Link] = Seq()) {
   def toSeq: Seq[Attr] = {
     val out = Seq.newBuilder[Attr]
@@ -50,6 +53,7 @@ final case class Attrs(inlineHint: Inline = MayInline,
     if (isDyn) out += Dyn
     if (isStub) out += Stub
     if (isAbstract) out += Abstract
+    out ++= struct
     out ++= links
 
     out.result()
@@ -66,6 +70,7 @@ object Attrs {
     var isDyn      = false
     var isStub     = false
     var isAbstract = false
+    var struct     = Option.empty[Struct]
     val links      = Seq.newBuilder[Attr.Link]
 
     attrs.foreach {
@@ -77,6 +82,7 @@ object Attrs {
       case Stub             => isStub = true
       case link: Attr.Link  => links += link
       case Abstract         => isAbstract = true
+      case attr: Struct     => struct = Some(attr)
     }
 
     new Attrs(inline,
@@ -86,6 +92,7 @@ object Attrs {
               isDyn,
               isStub,
               isAbstract,
+              struct,
               links.result())
   }
 }

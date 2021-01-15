@@ -100,11 +100,12 @@ final class BinarySerializer {
     case Attr.DidOpt       => putInt(T.DidOptAttr)
     case Attr.BailOpt(msg) => putInt(T.BailOptAttr); putUTF8tring(msg)
 
-    case Attr.Dyn      => putInt(T.DynAttr)
-    case Attr.Stub     => putInt(T.StubAttr)
-    case Attr.Extern   => putInt(T.ExternAttr)
-    case Attr.Link(s)  => putInt(T.LinkAttr); putUTF8tring(s)
-    case Attr.Abstract => putInt(T.AbstractAttr)
+    case Attr.Dyn         => putInt(T.DynAttr)
+    case Attr.Stub        => putInt(T.StubAttr)
+    case Attr.Extern      => putInt(T.ExternAttr)
+    case Attr.Link(s)     => putInt(T.LinkAttr); putUTF8tring(s)
+    case Attr.Abstract    => putInt(T.AbstractAttr)
+    case Attr.Struct(tys) => putInt(T.StructAttr); putTypes(tys)
   }
 
   private def putBin(bin: Bin) = bin match {

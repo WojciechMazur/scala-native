@@ -266,11 +266,9 @@ final class Check(implicit linked: linker.Result) {
     case Op.Sizeof(ty) =>
       ok
     case Op.Box(ty, value) =>
-      Type.unbox
-        .get(ty)
-        .fold {
-          error(s"uknown box type ${ty.show}")
-        } { unboxedty => expect(unboxedty, value) }
+      val unboxedType = Type.unbox
+        .getOrElse(ty, Type.Ptr)
+      expect(unboxedType, value)
     case Op.Unbox(ty, obj) =>
       expect(Rt.Object, obj)
     case Op.Var(ty) =>

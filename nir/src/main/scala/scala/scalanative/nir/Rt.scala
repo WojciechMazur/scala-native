@@ -48,6 +48,8 @@ object Rt {
 
   val GenericArray = Ref(Global.Top("scala.scalanative.runtime.Array"))
 
+  val ObjectType = Type(Ptr, Ptr)
+
   val arrayAlloc: Map[Sig, Global] = Seq(
     "BooleanArray",
     "CharArray",
@@ -63,4 +65,7 @@ object Rt {
     val sig = Sig.Method("alloc", Seq(Int, Ref(cls))).mangled
     sig -> cls
   }.toMap
+
+  def cStructUnderlyingField(owner: Global.Top): Global.Member =
+    owner.member(Sig.Field("_nativeUnderlyingStruct", Sig.Scope.Private(owner)))
 }

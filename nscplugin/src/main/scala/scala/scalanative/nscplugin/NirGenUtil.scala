@@ -74,7 +74,7 @@ trait NirGenUtil[G <: Global with Singleton] { self: NirGenPhase[G] =>
           case PtrTagMethod     => just(PtrClass)
           case ClassTagMethod   => just(unwrapClassTagOption(args.head).get)
           case sym if CStructTagMethod.contains(sym) =>
-            wrap(CStructClass(args.length))
+            wrap(CStructNClass(args.length))
           case CArrayTagMethod =>
             wrap(CArrayClass)
           case sym if NatBaseTagMethod.contains(sym) =>

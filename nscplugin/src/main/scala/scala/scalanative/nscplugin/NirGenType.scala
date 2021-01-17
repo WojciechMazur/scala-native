@@ -23,6 +23,20 @@ trait NirGenType[G <: Global with Singleton] { self: NirGenPhase[G] =>
     def isStruct: Boolean =
       sym.annotations.exists(_.symbol == StructClass)
 
+    def isNamedStruct: Boolean =
+      isStruct ||
+        (
+          sym.baseClasses.tail.contains(CStructClass) &&
+            !isAnonymousStruct
+        )
+
+    def isAnonymousStruct: Boolean =
+      CStructNClass.contains(sym) || {
+        sym.info.parents.exists { parent =>
+          CStructNClass.contains(parent.typeSymbol)
+        }
+      }
+
     def isField: Boolean =
       !sym.isMethod && sym.isTerm && !isScalaModule
 
@@ -59,6 +73,8 @@ trait NirGenType[G <: Global with Singleton] { self: NirGenPhase[G] =>
 
     implicit def fromSymbol(sym: Symbol): SimpleType =
       SimpleType(sym, Seq.empty)
+
+    implicit def toSymbol(st: SimpleType): Symbol = st.sym
   }
 
   def genArrayCode(st: SimpleType): Char =
@@ -82,6 +98,8 @@ trait NirGenType[G <: Global with Singleton] { self: NirGenPhase[G] =>
         nir.Type.Ptr
       case refty: nir.Type.Ref if nir.Type.boxClasses.contains(refty.name) =>
         nir.Type.unbox(nir.Type.Ref(refty.name))
+      case _ if st.isNamedStruct =>
+        genStructType(st)
       case ty =>
         ty
     }
@@ -102,13 +120,12 @@ trait NirGenType[G <: Global with Singleton] { self: NirGenPhase[G] =>
   }
 
   def genRefType(st: SimpleType): nir.Type = st.sym match {
-    case ObjectClass      => nir.Rt.Object
-    case UnitClass        => nir.Type.Unit
-    case BoxedUnitClass   => nir.Rt.BoxedUnit
-    case NullClass        => genRefType(RuntimeNullClass)
-    case ArrayClass       => nir.Type.Array(genType(st.targs.head))
-    case _ if st.isStruct => genStruct(st)
-    case _                => nir.Type.Ref(genTypeName(st.sym))
+    case ObjectClass    => nir.Rt.Object
+    case UnitClass      => nir.Type.Unit
+    case BoxedUnitClass => nir.Rt.BoxedUnit
+    case NullClass      => genRefType(RuntimeNullClass)
+    case ArrayClass     => nir.Type.Array(genType(st.targs.head))
+    case _              => nir.Type.Ref(genTypeName(st.sym))
   }
 
   def genTypeValue(st: SimpleType): nir.Val =
@@ -123,16 +140,26 @@ trait NirGenType[G <: Global with Singleton] { self: NirGenPhase[G] =>
         genTypeValue(RuntimePrimitive(code))
     }
 
-  def genStructFields(st: SimpleType): Seq[nir.Type] = {
-    for {
-      f <- st.sym.info.decls if f.isField
-    } yield {
-      genType(f.tpe)
-    }
-  }.toSeq
+  def getClassFields(st: SimpleType): Seq[Symbol] =
+    st.sym.info.decls.filter(_.isField).toSeq
 
-  def genStruct(st: SimpleType): nir.Type = {
-    val fields = genStructFields(st)
+  def genStructFieldsTypes(st: SimpleType): Seq[nir.Type] = {
+    def toStructFieldType(tpe: Type): nir.Type = tpe match {
+      case tpe if tpe.isNamedStruct => genStructType(tpe)
+      case tpe if tpe.isAnonymousStruct =>
+        val tpes = tpe.paramTypes.map(toStructFieldType)
+        nir.Type.StructValue(tpes)
+      case tpe => genType(tpe)
+    }
+
+    getClassFields(st)
+      .map(_.tpe)
+      .map(toStructFieldType)
+      .toList
+  }
+
+  def genStructType(st: SimpleType): nir.Type = {
+    val fields = genStructFieldsTypes(st)
 
     nir.Type.StructValue(fields)
   }

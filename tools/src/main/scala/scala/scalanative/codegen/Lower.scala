@@ -923,21 +923,59 @@ object Lower {
       }
     }
 
+    def withNullCheck(buf: Buffer, n: Local, resty: Type, obj: Val)(
+        block: => Val)(implicit pos: nir.Position) = {
+      val nonNullL, isNullL, mergeL = fresh()
+
+      val cond = buf.comp(Comp.Ieq, Type.Ptr, obj, Val.Null, unwind)
+      buf.branch(cond, Next(isNullL), Next(nonNullL))
+
+      buf.label(isNullL)
+      buf.jump(Next.Label(mergeL, Seq(Val.Null)))
+
+      buf.label(nonNullL)
+      buf.jump(Next.Label(mergeL, Seq(block)))
+
+      buf.label(mergeL, Seq(Val.Local(n, resty)))
+    }
+
     def genBoxOp(buf: Buffer, n: Local, op: Op.Box)(
         implicit pos: Position): Unit = {
       val Op.Box(ty, v) = op
       val from          = genVal(buf, v)
 
-      val methodName = BoxTo(ty)
-      val moduleName = methodName.top
+      def genBoxNamedStruct(): Unit = withNullCheck(buf, n, op.resty, from) {
+        val Type.Ref(name, _, _) = ty
+        assert(linked.infos(name).attrs.struct.isDefined,
+               s"boxed type $name is not struct")
 
-      val boxTy =
-        Type.Function(Seq(Type.Ref(moduleName), Type.unbox(ty)), ty)
+        val alloc = Val.Local(
+          fresh(),
+          Type.Ref(name, exact = true, nullable = false)
+        )
+        genClassallocOp(buf, alloc.name, Op.Classalloc(name))
+        val fieldPath = Seq(Val.Int(0), Val.Int(1))
+        val fieldPtr  = buf.elem(Rt.ObjectType, alloc, fieldPath, unwind)
+        buf.store(Type.Ptr, fieldPtr, from, unwind)
+        alloc
+      }
 
-      buf.let(
-        n,
-        Op.Call(boxTy, Val.Global(methodName, Type.Ptr), Seq(Val.Null, from)),
-        unwind)
+      BoxTo
+        .get(ty)
+        .fold {
+          // named struct is the only currently supported structure that can be boxed
+          genBoxNamedStruct()
+        } { methodName =>
+          val moduleName = methodName.top
+          val boxTy =
+            Type.Function(Seq(Type.Ref(moduleName), Type.unbox(ty)), ty)
+
+          buf.let(n,
+                  Op.Call(boxTy,
+                          Val.Global(methodName, Type.Ptr),
+                          Seq(Val.Null, from)),
+                  unwind)
+        }
     }
 
     def genUnboxOp(buf: Buffer, n: Local, op: Op.Unbox)(
@@ -945,16 +983,32 @@ object Lower {
       val Op.Unbox(ty, v) = op
       val from            = genVal(buf, v)
 
-      val methodName = UnboxTo(ty)
-      val moduleName = methodName.top
+      def genUnboxNamedStruct() = withNullCheck(buf, n, op.resty, from) {
+        val Type.Ref(name, _, _) = ty
+        assert(linked.infos(name).attrs.struct.isDefined,
+               s"unboxed type $name is not struct")
 
-      val unboxTy =
-        Type.Function(Seq(Type.Ref(moduleName), ty), Type.unbox(ty))
+        val fieldPath = Seq(Val.Int(0), Val.Int(1))
+        val fieldPtr  = buf.elem(Rt.ObjectType, from, fieldPath, unwind)
+        buf.load(Type.Ptr, fieldPtr, unwind)
+      }
 
-      buf.let(
-        n,
-        Op.Call(unboxTy, Val.Global(methodName, Type.Ptr), Seq(Val.Null, from)),
-        unwind)
+      UnboxTo
+        .get(ty)
+        .fold {
+          // named struct is the only currently supported structure that can be unboxed
+          genUnboxNamedStruct()
+        } { methodName =>
+          val moduleName = methodName.top
+          val unboxTy =
+            Type.Function(Seq(Type.Ref(moduleName), ty), Type.unbox(ty))
+
+          buf.let(n,
+                  Op.Call(unboxTy,
+                          Val.Global(methodName, Type.Ptr),
+                          Seq(Val.Null, from)),
+                  unwind)
+        }
     }
 
     def genModuleOp(buf: Buffer, n: Local, op: Op.Module)(

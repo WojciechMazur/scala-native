@@ -59,7 +59,9 @@ trait NirDefinitions {
       getRequiredClass("scala.scalanative.unsafe.Nat$Digit" + n)
     }
 
-    lazy val CStructClass = (0 to 22).map { n =>
+    lazy val CStructClass = getRequiredClass("scala.scalanative.unsafe.CStruct")
+
+    lazy val CStructNClass = (0 to 22).map { n =>
       getRequiredClass("scala.scalanative.unsafe.CStruct" + n)
     }
     lazy val CArrayClass =

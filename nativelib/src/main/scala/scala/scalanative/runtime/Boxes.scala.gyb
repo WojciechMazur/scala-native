@@ -26,6 +26,7 @@ package runtime
 
 import scalanative.unsigned._
 import scalanative.unsafe._
+import scalanative.runtime.Intrinsics._
 
 object Boxes {
 
@@ -58,6 +59,23 @@ object Boxes {
     if (v == null) null else new CVarArgList(v)
   @inline def unboxToCVarArgList(o: java.lang.Object): RawPtr =
     if (o == null) null else o.asInstanceOf[CVarArgList].rawptr
+
+  @inline def boxToCStruct(rawty: RawPtr, v: RawPtr): CStruct = {
+    if (rawty == null) null
+    else {
+      val alloc = GC.alloc_atomic(rawty, sizeof[ObjectType])
+      storeRawPtr(elemRawPtr(alloc, sizeof[Ptr[_]].toLong), v)
+      castRawPtrToObject(alloc).asInstanceOf[CStruct]
+    }
+  }
+  @inline def unboxToCStruct(o: Object): RawPtr = {
+    if (o == null) null
+    else {
+      val rawptr  = castObjectToRawPtr(o.asInstanceOf[CStruct])
+      val elemptr = elemRawPtr(rawptr, sizeof[Ptr[_]].toLong)
+      loadRawPtr(elemptr)
+    }
+  }
 
 % for N in range(0, 23):
 %   args      = ", ".join("arg" + str(i) + ": T" + str(i) for i in range(1, N+1))

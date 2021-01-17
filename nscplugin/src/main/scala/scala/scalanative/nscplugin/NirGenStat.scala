@@ -87,23 +87,9 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
         curClassSym := cd.symbol,
         curClassFresh := nir.Fresh()
       ) {
-        if (cd.symbol.isStruct) genStruct(cd)
-        else genNormalClass(cd)
+        genNormalClass(cd)
       }
     }
-
-    def genStruct(cd: ClassDef): Unit = {
-      val sym    = cd.symbol
-      val attrs  = genStructAttrs(sym)
-      val name   = genTypeName(sym)
-      val fields = genStructFields(sym)
-      val body   = cd.impl.body
-
-      buf += Defn.Class(attrs, name, None, Seq.empty)(cd.pos)
-      genMethods(cd)
-    }
-
-    def genStructAttrs(sym: Symbol): Attrs = Attrs.None
 
     def genNormalClass(cd: ClassDef): Unit = {
       val sym    = cd.symbol
@@ -128,14 +114,21 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       }
     }
 
-    def genClassParent(sym: Symbol): Option[nir.Global] =
-      if (sym == NObjectClass) {
-        None
-      } else if (sym.superClass == NoSymbol || sym.superClass == ObjectClass) {
-        Some(genTypeName(NObjectClass))
-      } else {
-        Some(genTypeName(sym.superClass))
-      }
+    def genClassParent(sym: Symbol): Option[nir.Global] = {
+      if (sym == NObjectClass) None
+      else
+        sym.superClass match {
+          case ObjectClass | NoSymbol | CStructClass if sym.isNamedStruct =>
+            Some(genTypeName(CStructClass))
+          case _ if sym.isNamedStruct =>
+            global.reporter.error(
+              sym.pos,
+              "Named Structs can only extend traits or CStruct class")
+            None
+          case NoSymbol | ObjectClass => Some(genTypeName(NObjectClass))
+          case parent                 => Some(genTypeName(parent))
+        }
+    }
 
     def genClassAttrs(cd: ClassDef): Attrs = {
       val sym = cd.symbol
@@ -147,6 +140,8 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
           Attr.Link(name)
         case ann if ann.symbol == StubClass =>
           Attr.Stub
+        case ann if ann.symbol == StructClass =>
+          Attr.Struct(genStructFieldsTypes(sym))
       }
       val abstractAttr =
         if (sym.isAbstract) Seq(Attr.Abstract) else Seq()
@@ -166,13 +161,18 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       val sym   = cd.symbol
       val attrs = nir.Attrs(isExtern = sym.isExternModule)
 
-      for (f <- sym.info.decls
-           if !f.isMethod && f.isTerm && !f.isModule) {
-        val ty                = genType(f.tpe)
-        val name              = genFieldName(f)
-        val pos: nir.Position = f.pos
+      if (sym.isNamedStruct) {
+        val name = Rt.cStructUnderlyingField(genTypeName(sym))
+        buf += Defn.Var(Attrs.None, name, Type.Ptr, Val.Null)(cd.pos)
+      } else {
+        for (f <- sym.info.decls
+             if !f.isMethod && f.isTerm && !f.isModule) {
+          val ty                = genType(f.tpe)
+          val name              = genFieldName(f)
+          val pos: nir.Position = f.pos
 
-        buf += Defn.Var(attrs, name, ty, Val.Zero(ty))(pos)
+          buf += Defn.Var(attrs, name, ty, Val.Zero(ty))(pos)
+        }
       }
     }
 
@@ -590,9 +590,6 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
 
           case _ if dd.name == nme.CONSTRUCTOR && owner.isExternModule =>
             validateExternCtor(dd.rhs)
-            ()
-
-          case _ if dd.name == nme.CONSTRUCTOR && owner.isStruct =>
             ()
 
           case rhs if owner.isExternModule =>

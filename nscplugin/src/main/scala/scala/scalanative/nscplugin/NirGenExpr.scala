@@ -564,10 +564,13 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
         genStaticMember(sym)
       } else if (sym.isMethod) {
         genApplyMethod(sym, statically = false, qualp, Seq())
-      } else if (owner.isStruct) {
-        val index = owner.info.decls.filter(_.isField).toList.indexOf(sym)
-        val qual  = genExpr(qualp)
-        buf.extract(qual, Seq(index), unwind)
+      } else if (owner.isNamedStruct) {
+        genCStructFieldOp(sym, qualp) {
+          case (fieldTy, Type.StructValue(_), elemPtr) =>
+            buf.box(genType(fieldTy), elemPtr, unwind)
+          case (_, ty, elemPtr) =>
+            buf.load(ty, elemPtr, unwind)
+        }
       } else {
         val ty   = genType(tree.symbol.tpe)
         val qual = genExpr(qualp)
@@ -593,26 +596,53 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
 
     def genAssign(tree: Assign): Val = {
       val Assign(lhsp, rhsp)         = tree
+      val rhs                        = genExpr(rhsp)
       implicit val pos: nir.Position = tree.pos
 
       lhsp match {
         case sel @ Select(qualp, _) =>
-          val qual = genExpr(qualp)
-          val rhs  = genExpr(rhsp)
-          val name = genFieldName(sel.symbol)
-          if (sel.symbol.owner.isExternModule) {
-            val externTy = genExternType(sel.symbol.tpe)
-            genStoreExtern(externTy, sel.symbol, rhs)
+          val sym   = sel.symbol
+          val owner = sym.owner
+
+          if (owner.isExternModule) {
+            val externTy = genExternType(sym.tpe)
+            genStoreExtern(externTy, sym, rhs)
+          } else if (owner.isNamedStruct) {
+            genCStructFieldOp(sym, qualp) {
+              case (fieldTy, ty: Type.StructValue, elemPtr) =>
+                val structFieldsPtr = buf.unbox(genType(fieldTy), rhs, unwind)
+                val structFields    = buf.load(ty, structFieldsPtr, unwind)
+                buf.store(ty, elemPtr, structFields, unwind)
+
+              case (_, ty, elemPtr) =>
+                buf.store(ty, elemPtr, rhs, unwind)
+            }
           } else {
-            val ty = genType(sel.symbol.tpe)
+            val qual = genExpr(qualp)
+            val name = genFieldName(sel.symbol)
+            val ty   = genType(sym.tpe)
             buf.fieldstore(ty, qual, name, rhs, unwind)
           }
 
         case id: Ident =>
-          val rhs  = genExpr(rhsp)
           val slot = curMethodEnv.resolve(id.symbol)
           buf.varstore(slot, rhs, unwind)
       }
+    }
+
+    private def genCStructFieldOp(field: Symbol, tree: Tree)(
+        op: (SimpleType, nir.Type, Val) => Val)(implicit fresh: Fresh,
+                                                position: nir.Position) = {
+      val owner  = field.owner
+      val fields = getClassFields(owner)
+      val tys    = genStructFieldsTypes(owner)
+      val index  = fields.indexOf(field)
+      val rawptr = buf.unbox(genType(tree.tpe), genExpr(tree), unwind)
+      val elemptr = buf.elem(Type.StructValue(tys),
+                             rawptr,
+                             Seq(Val.Int(0), Val.Int(index)),
+                             unwind)
+      op(fields(index).tpe, tys(index), elemptr)
     }
 
     def genTyped(tree: Typed): Val = tree match {
@@ -1974,8 +2004,8 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
         case SimpleType(ArrayClass, Seq(targ)) =>
           genApplyNewArray(targ, args)
 
-        case st if st.isStruct =>
-          genApplyNewStruct(st, args)
+        case st if st.isNamedStruct =>
+          genApplyNewNamedStruct(st, fun.symbol, args)
 
         case SimpleType(cls, Seq()) =>
           genApplyNew(cls, fun.symbol, args)
@@ -1985,17 +2015,19 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       }
     }
 
-    def genApplyNewStruct(st: SimpleType, argsp: Seq[Tree]): Val = {
-      val ty       = genType(st)
-      val args     = genSimpleArgs(argsp)
-      var res: Val = Val.Zero(ty)
+    def newNamedStruct(st: SimpleType)(implicit pos: nir.Position): Val = {
+      val ty    = genStructType(st)
+      val alloc = buf.stackalloc(ty, Val.Int(1), unwind)
+      buf.box(genType(st), alloc, unwind)
+    }
 
-      args.zip(argsp).zipWithIndex.foreach {
-        case ((arg, argp), idx) =>
-          res = buf.insert(res, arg, Seq(idx), unwind)(argp.pos)
-      }
-
-      res
+    def genApplyNewNamedStruct(
+        st: SimpleType,
+        ctorsym: Symbol,
+        argsp: Seq[Tree])(implicit pos: nir.Position): Val = {
+      val alloc = newNamedStruct(st)
+      genApplyMethod(ctorsym, statically = true, alloc, argsp)
+      alloc
     }
 
     def genApplyNewArray(targ: SimpleType, argsp: Seq[Tree])(

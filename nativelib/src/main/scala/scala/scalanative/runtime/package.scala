@@ -25,6 +25,9 @@ package object runtime {
     @alwaysinline def idRangeUntil: Long = self._3
   }
 
+  /** Object type information { RTTI, Array[Fields] } */
+  type ObjectType = CStruct2[Ptr[Type], Ptr[Array[Ptr[_]]]]
+
   /** Used as a stub right hand of intrinsified methods. */
   def intrinsic: Nothing = throwUndefined()
 

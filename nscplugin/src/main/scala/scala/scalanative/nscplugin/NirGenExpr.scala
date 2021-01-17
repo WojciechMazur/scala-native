@@ -455,8 +455,7 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
     def genReturn(value: Val)(implicit pos: nir.Position): Val = {
       val retv =
         if (curMethodIsExtern.get) {
-          val Type.Function(_, retty) = genExternMethodSig(curMethodSym)
-          toExtern(retty, value)
+          toExtern(curMethodSym.tpe.resultType, value)
         } else {
           value
         }
@@ -572,12 +571,11 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
             buf.load(ty, elemPtr, unwind)
         }
       } else {
-        val ty   = genType(tree.symbol.tpe)
+        val ty   = genType(sym.tpe)
         val qual = genExpr(qualp)
-        val name = genFieldName(tree.symbol)
+        val name = genFieldName(sym)
         if (sym.owner.isExternModule) {
-          val externTy = genExternType(tree.symbol.tpe)
-          genLoadExtern(ty, externTy, tree.symbol)
+          genLoadExtern(sym.tpe, sym)
         } else {
           buf.fieldload(ty, qual, name, unwind)
         }
@@ -605,8 +603,7 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
           val owner = sym.owner
 
           if (owner.isExternModule) {
-            val externTy = genExternType(sym.tpe)
-            genStoreExtern(externTy, sym, rhs)
+            genStoreExtern(sel.tpe, sym, rhs)
           } else if (owner.isNamedStruct) {
             genCStructFieldOp(sym, qualp) {
               case (fieldTy, ty: Type.StructValue, elemPtr) =>
@@ -1118,6 +1115,7 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       val sig       = genMethodSig(treeSym)
       val externSig = genExternMethodSig(treeSym)
 
+      val (paramsST, retST)              = getMethodSig(treeSym, isExtern = true)
       val Type.Function(origtys, _)      = sig
       val Type.Function(paramtys, retty) = externSig
 
@@ -1134,12 +1132,12 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
 
         val params = paramtys.map(ty => Val.Local(fresh(), ty))
         buf.label(fresh(), params)
-        val boxedParams = params.zip(origtys.tail).map {
-          case (param, ty) => buf.fromExtern(ty, param)
+        val boxedParams = params.zip(paramsST).map {
+          case (param, (_, st)) => buf.fromExtern(st, param)
         }
 
         val res        = buf.call(sig, method, methodRef +: boxedParams, Next.None)
-        val unboxedRes = buf.toExtern(retty, res)
+        val unboxedRes = buf.toExtern(retST, res)
         buf.ret(unboxedRes)
 
         buf.toSeq
@@ -2069,36 +2067,41 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
         implicit pos: nir.Position): Val = {
       argsp match {
         case Seq() =>
-          val ty       = genMethodSig(sym).ret
-          val externTy = genExternMethodSig(sym).ret
-          genLoadExtern(ty, externTy, sym)
+          genLoadExtern(sym.tpe.resultType, sym)
         case Seq(valuep) =>
-          val externTy = genExternType(sym.tpe.paramss.flatten.last.tpe)
-          genStoreExtern(externTy, sym, genExpr(valuep))
+          val tpe = sym.tpe.paramss.flatten.last.tpe
+          genStoreExtern(tpe, sym, genExpr(valuep))
       }
     }
 
-    def genLoadExtern(ty: nir.Type, externTy: nir.Type, sym: Symbol)(
+    def genLoadExtern(ty: SimpleType, sym: Symbol)(
         implicit pos: nir.Position): Val = {
       assert(sym.owner.isExternModule, "loadExtern was not extern")
 
-      val name = Val.Global(genName(sym), Type.Ptr)
+      val name     = Val.Global(genName(sym), Type.Ptr)
+      val externTy = genExternType(ty)
 
       fromExtern(ty, buf.load(externTy, name, unwind))
     }
 
-    def genStoreExtern(externTy: nir.Type, sym: Symbol, value: Val)(
+    def genStoreExtern(ty: SimpleType, sym: Symbol, value: Val)(
         implicit pos: nir.Position): Val = {
       assert(sym.owner.isExternModule, "storeExtern was not extern")
       val name        = Val.Global(genName(sym), Type.Ptr)
-      val externValue = toExtern(externTy, value)
+      val externTy    = genExternType(ty)
+      val externValue = toExtern(ty, value)
 
       buf.store(externTy, name, externValue, unwind)
     }
 
-    def toExtern(expectedTy: nir.Type, value: Val)(
-        implicit pos: nir.Position): Val =
+    def toExtern(expected: SimpleType, value: Val)(
+        implicit pos: nir.Position): Val = {
+      val expectedTy = genExternType(expected)
+
       (expectedTy, value.ty) match {
+        case (_, refty: Type.Ref) if expected.isNamedStruct =>
+          val rawptr = buf.unbox(refty, value, unwind)
+          load(genStructType(expected), rawptr, unwind)
         case (_, refty: Type.Ref)
             if Type.boxClasses.contains(refty.name)
               && Type.unbox(Type.Ref(refty.name)) == expectedTy =>
@@ -2106,10 +2109,18 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
         case _ =>
           value
       }
+    }
 
-    def fromExtern(expectedTy: nir.Type, value: Val)(
-        implicit pos: nir.Position): Val =
+    def fromExtern(expected: SimpleType, value: Val)(
+        implicit pos: nir.Position): Val = {
+      val expectedTy = genType(expected)
+
       (expectedTy, value.ty) match {
+        case (refty: nir.Type.Ref, _) if expected.isNamedStruct =>
+          val alloc  = newNamedStruct(expected)
+          val rawptr = buf.unbox(refty, alloc, unwind)
+          store(genStructType(expected), rawptr, value, unwind)
+          alloc
         case (refty: nir.Type.Ref, ty)
             if Type.boxClasses.contains(refty.name)
               && Type.unbox(Type.Ref(refty.name)) == ty =>
@@ -2117,6 +2128,7 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
         case _ =>
           value
       }
+    }
 
     def genApplyMethod(sym: Symbol,
                        statically: Boolean,
@@ -2150,8 +2162,7 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       if (!owner.isExternModule) {
         res
       } else {
-        val Type.Function(_, retty) = origSig
-        fromExtern(retty, res)
+        fromExtern(sym.tpe.resultType, res)
       }
     }
 
@@ -2163,8 +2174,7 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
 
         argsp.zip(sym.tpe.params).foreach {
           case (argp, paramSym) =>
-            val externType = genExternType(paramSym.tpe)
-            res += toExtern(externType, genExpr(argp))(argp.pos)
+            res += toExtern(paramSym.tpe, genExpr(argp))(argp.pos)
         }
 
         res.result()

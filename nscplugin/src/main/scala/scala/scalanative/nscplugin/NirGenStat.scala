@@ -708,8 +708,7 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
         if (isExtern) {
           paramSyms.zip(params).foreach {
             case (Some(sym), param) if isExtern =>
-              val ty    = genType(sym.tpe)
-              val value = buf.fromExtern(ty, param)
+              val value = buf.fromExtern(sym.tpe, param)
               curMethodEnv.enter(sym, value)
             case _ =>
               ()

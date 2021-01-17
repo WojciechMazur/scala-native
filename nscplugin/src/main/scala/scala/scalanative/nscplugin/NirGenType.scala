@@ -176,26 +176,42 @@ trait NirGenType[G <: Global with Singleton] { self: NirGenPhase[G] =>
   def genExternMethodSig(sym: Symbol): nir.Type.Function =
     genMethodSigImpl(sym, isExtern = true)
 
-  private def genMethodSigImpl(sym: Symbol,
-                               isExtern: Boolean): nir.Type.Function = {
+  def getMethodSig(
+      sym: Symbol,
+      isExtern: Boolean): (Seq[(Boolean, SimpleType)], SimpleType) = {
     require(sym.isMethod || sym.isStaticMember, "symbol is not a method")
 
-    val tpe      = sym.tpe
     val owner    = sym.owner
-    val paramtys = genMethodSigParamsImpl(sym, isExtern)
+    val paramtys = getMethodSigParams(sym)
     val selfty =
       if (isExtern || owner.isExternModule || isImplClass(owner)) None
-      else Some(genType(owner.tpe))
-    val retty =
-      if (sym.isClassConstructor) nir.Type.Unit
-      else if (isExtern) genExternType(sym.tpe.resultType)
-      else genType(sym.tpe.resultType)
+      else Some((false, SimpleType.fromType(owner.tpe)))
+    val retty: SimpleType =
+      if (sym.isClassConstructor) UnitClass
+      else sym.tpe.resultType
 
-    nir.Type.Function(selfty ++: paramtys, retty)
+    (selfty ++: paramtys, retty)
   }
 
-  private def genMethodSigParamsImpl(sym: Symbol,
-                                     isExtern: Boolean): Seq[nir.Type] = {
+  private def genMethodSigImpl(sym: Symbol,
+                               isExtern: Boolean): nir.Type.Function = {
+    val (params, ret) = getMethodSig(sym, isExtern)
+
+    val paramTys = params.map {
+      case (true, _) if sym.owner.isExternModule => nir.Type.Vararg
+      case (_, p) if isExtern                    => genExternType(p)
+      case (_, p)                                => genType(p)
+    }
+
+    val retty =
+      if (sym.isClassConstructor) nir.Type.Unit
+      else if (isExtern) genExternType(ret)
+      else genType(ret)
+
+    nir.Type.Function(paramTys, retty)
+  }
+
+  private def getMethodSigParams(sym: Symbol): Seq[(Boolean, SimpleType)] = {
     val wereRepeated = exitingPhase(currentRun.typerPhase) {
       for {
         params <- sym.tpe.paramss
@@ -205,18 +221,9 @@ trait NirGenType[G <: Global with Singleton] { self: NirGenPhase[G] =>
       }
     }.toMap
 
-    sym.tpe.params.map {
-      case p
-          if wereRepeated.getOrElse(p.name, false) &&
-            sym.owner.isExternModule =>
-        nir.Type.Vararg
-
-      case p =>
-        if (isExtern) {
-          genExternType(p.tpe)
-        } else {
-          genType(p.tpe)
-        }
+    sym.tpe.params.map { p =>
+      val paramRepeated = wereRepeated.getOrElse(p.name, false)
+      (paramRepeated, SimpleType.fromType(p.tpe))
     }
   }
 }

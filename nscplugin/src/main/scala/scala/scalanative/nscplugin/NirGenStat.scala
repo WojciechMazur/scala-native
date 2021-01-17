@@ -131,8 +131,10 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
     }
 
     def genClassAttrs(cd: ClassDef): Attrs = {
-      val sym = cd.symbol
-      val annotationAttrs = sym.annotations.collect {
+      val sym   = cd.symbol
+      val attrs = Seq.newBuilder[Attr]
+
+      attrs ++= sym.annotations.collect {
         case ann if ann.symbol == ExternClass =>
           Attr.Extern
         case ann if ann.symbol == LinkClass =>
@@ -140,13 +142,13 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
           Attr.Link(name)
         case ann if ann.symbol == StubClass =>
           Attr.Stub
-        case ann if ann.symbol == StructClass =>
-          Attr.Struct(genStructFieldsTypes(sym))
       }
-      val abstractAttr =
-        if (sym.isAbstract) Seq(Attr.Abstract) else Seq()
+      if (sym.isNamedStruct)
+        attrs += Attr.Struct(genStructFieldsTypes(sym))
+      if (sym.isAbstract)
+        attrs += Attr.Abstract
 
-      Attrs.fromSeq(annotationAttrs ++ abstractAttr)
+      Attrs.fromSeq(attrs.result())
     }
 
     def genClassInterfaces(sym: Symbol) =

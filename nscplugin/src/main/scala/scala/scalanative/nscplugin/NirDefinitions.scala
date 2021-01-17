@@ -110,8 +110,6 @@ trait NirDefinitions {
 
     // Native runtime
 
-    lazy val StructClass = getRequiredClass("scala.scalanative.runtime.struct")
-
     lazy val RuntimePackage = getPackageObject("scala.scalanative.runtime")
 
     lazy val RuntimeMonitorClass = getRequiredClass(

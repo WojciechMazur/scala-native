@@ -16,7 +16,7 @@ import scalanative.runtime.{fromRawPtr, RawPtr}
 import scalanative.runtime.Intrinsics._
 import scalanative.unsigned._
 
-sealed abstract class CStruct
+abstract class CStruct
 
 // ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CStruct.scala.gyb", line: 23)
 

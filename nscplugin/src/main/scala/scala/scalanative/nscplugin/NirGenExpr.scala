@@ -2133,7 +2133,7 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
         }
       val args = genMethodArgs(sym, argsp)
       val method =
-        if (isImplClass(owner) || statically || owner.isStruct || owner.isExternModule) {
+        if (isImplClass(owner) || statically || owner.isExternModule) {
           Val.Global(name, nir.Type.Ptr)
         } else {
           val Global.Member(_, sig) = name

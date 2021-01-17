@@ -8,8 +8,8 @@ import scalanative.unsafe._
  */
 @extern
 object LLVMIntrinsics {
-  @struct class IntOverflow(val value: Int, val flag: Boolean)
-  @struct class LongOverflow(val value: Long, val flag: Boolean)
+  class IntOverflow(val value: Int, val flag: Boolean)   extends CStruct
+  class LongOverflow(val value: Long, val flag: Boolean) extends CStruct
 
   def `llvm.sadd.with.overflow.i32`(a: Int, b: Int): IntOverflow    = extern
   def `llvm.sadd.with.overflow.i64`(a: Long, b: Long): LongOverflow = extern

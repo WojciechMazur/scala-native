@@ -20,15 +20,9 @@ trait NirGenType[G <: Global with Singleton] { self: NirGenPhase[G] =>
     def isExternModule: Boolean =
       isScalaModule && sym.annotations.exists(_.symbol == ExternClass)
 
-    def isStruct: Boolean =
-      sym.annotations.exists(_.symbol == StructClass)
-
     def isNamedStruct: Boolean =
-      isStruct ||
-        (
-          sym.baseClasses.tail.contains(CStructClass) &&
-            !isAnonymousStruct
-        )
+      sym.baseClasses.tail.contains(CStructClass) &&
+        !isAnonymousStruct
 
     def isAnonymousStruct: Boolean =
       CStructNClass.contains(sym) || {

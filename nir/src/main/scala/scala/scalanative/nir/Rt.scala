@@ -15,6 +15,8 @@ object Rt {
   val BoxedUnit       = Ref(Global.Top("scala.runtime.BoxedUnit"))
   val BoxedUnitModule = Ref(Global.Top("scala.scalanative.runtime.BoxedUnit$"))
 
+  val UnboxedObject = StructValue(Seq(Ptr, Ptr))
+
   val GetRawTypeSig    = Sig.Method("getRawType", Seq(Rt.Object, Ptr)).mangled
   val JavaEqualsSig    = Sig.Method("equals", Seq(Object, Bool)).mangled
   val JavaHashCodeSig  = Sig.Method("hashCode", Seq(Int)).mangled
@@ -47,8 +49,6 @@ object Rt {
   val StringCachedHashCodeName = StringName member Sig.Field("cachedHashCode")
 
   val GenericArray = Ref(Global.Top("scala.scalanative.runtime.Array"))
-
-  val ObjectType = Type(Ptr, Ptr)
 
   val arrayAlloc: Map[Sig, Global] = Seq(
     "BooleanArray",

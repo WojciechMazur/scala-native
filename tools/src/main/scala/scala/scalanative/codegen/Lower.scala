@@ -955,7 +955,7 @@ object Lower {
         )
         genClassallocOp(buf, alloc.name, Op.Classalloc(name))
         val fieldPath = Seq(Val.Int(0), Val.Int(1))
-        val fieldPtr  = buf.elem(Rt.ObjectType, alloc, fieldPath, unwind)
+        val fieldPtr  = buf.elem(Rt.UnboxedObject, alloc, fieldPath, unwind)
         buf.store(Type.Ptr, fieldPtr, from, unwind)
         alloc
       }
@@ -989,7 +989,7 @@ object Lower {
                s"unboxed type $name is not struct")
 
         val fieldPath = Seq(Val.Int(0), Val.Int(1))
-        val fieldPtr  = buf.elem(Rt.ObjectType, from, fieldPath, unwind)
+        val fieldPtr  = buf.elem(Rt.UnboxedObject, from, fieldPath, unwind)
         buf.load(Type.Ptr, fieldPtr, unwind)
       }
 

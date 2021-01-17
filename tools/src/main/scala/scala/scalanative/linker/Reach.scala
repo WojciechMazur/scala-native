@@ -478,6 +478,9 @@ class Reach(config: build.Config, entries: Seq[Global], loader: ClassLoader) {
                 parent.map(classInfoOrObject),
                 traits.flatMap(traitInfo),
                 isModule = false))
+    attrs.struct.foreach { _ =>
+      reachAllocation(infos(name).asInstanceOf[Class])
+    }
     reachAttrs(attrs)
   }
 

@@ -19,8 +19,8 @@ class Metadata(val linked: linker.Result, proxies: Seq[Defn]) {
   val dispatchTable  = new TraitDispatchTable(this)
   val hasTraitTables = new HasTraitTables(this)
 
-  val dynmapIndex = Val.Int(if (linked.dynsigs.isEmpty) -1 else 4)
-  val vtableIndex = Val.Int(if (linked.dynsigs.isEmpty) 4 else 5)
+  val dynmapIndex = Val.Int(if (linked.dynsigs.isEmpty) -1 else 5)
+  val vtableIndex = Val.Int(if (linked.dynsigs.isEmpty) 5 else 6)
 
   initClassMetadata()
   initTraitMetadata()

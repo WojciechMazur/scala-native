@@ -7,26 +7,38 @@ import scalanative.runtime.Intrinsics._
 package object runtime {
 
   /** Runtime Type Information. */
-  type Type = CStruct3[Int, String, Class[Any]]
+  type Type = CStruct4[Int, Int, String, Class[Any]]
 
   implicit class TypeOps(val self: Ptr[Type]) extends AnyVal {
     @alwaysinline def id: Int          = self._1
-    @alwaysinline def name: String     = self._2
+    @alwaysinline def traitId: Int     = self._2
+    @alwaysinline def name: String     = self._3
     @alwaysinline def isClass: Boolean = id >= 0
   }
 
   /** Class runtime type information. */
-  type ClassType = CStruct3[Type, Int, Int]
+  type ClassType = CStruct4[Type, Int, Int, Ptr[Byte]]
 
   implicit class ClassTypeOps(val self: Ptr[ClassType]) extends AnyVal {
     @alwaysinline def id: Int            = self._1._1
-    @alwaysinline def name: String       = self._1._2
+    @alwaysinline def name: String       = self._1._3
     @alwaysinline def size: Int          = self._2
     @alwaysinline def idRangeUntil: Long = self._3
+    @alwaysinline def structMetadata: Ptr[StructMetadata] =
+      self._4.asInstanceOf[Ptr[StructMetadata]]
   }
 
   /** Object type information { RTTI, Array[Fields] } */
   type ObjectType = CStruct2[Ptr[Type], Ptr[Array[Ptr[_]]]]
+
+  /** Underlying structure of metadata for struct values */
+  type StructMetadata = CStruct2[Int, Int]
+
+  implicit class StructMetadataOps(val self: Ptr[StructMetadata])
+      extends AnyVal {
+    @alwaysinline def size: Int      = self._1
+    @alwaysinline def alignment: Int = self._2
+  }
 
   /** Used as a stub right hand of intrinsified methods. */
   def intrinsic: Nothing = throwUndefined()

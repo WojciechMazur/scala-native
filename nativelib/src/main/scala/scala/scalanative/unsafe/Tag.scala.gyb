@@ -142,6 +142,21 @@ object Tag {
   
   private[scalanative] sealed trait StructTag
 
+  case class CStruct[T <: unsafe.CStruct](of: java.lang.Class[T])
+    extends Tag[T] {
+      @alwaysinline private def meta: StructMetadataOps = {
+        ClassTypeOps(Boxes.boxToPtr(toRawType(of))).structMetadata
+      }
+      @alwaysinline def size: CSize             = meta.size.toUInt
+      @alwaysinline def alignment: CSize        = meta.alignment.toUInt
+      @alwaysinline override def load(ptr: unsafe.Ptr[T]): T = {
+        Boxes.boxToCStruct(toRawType(of), toRawPtr(ptr)).asInstanceOf[T]
+      }
+      @alwaysinline override def store(ptr: unsafe.Ptr[T], value: T): Unit = {
+        libc.memcpy(toRawPtr(ptr), Boxes.unboxToCStruct(value), size)
+      }
+  }
+
   @alwaysinline private[scalanative] def align(offset: CSize, alignment: CSize) = {
     val alignmentMask = alignment - 1.toULong
     val zeroUL = 0.toULong
@@ -242,6 +257,10 @@ object Tag {
   @alwaysinline implicit def materializeNatDigit${N}Tag${BoundNs}: Tag.Digit${N}${JustNs} =
     Tag.Digit${N}(${tags})
   % end
+
+  @alwaysinline implicit def materializeCStructTag[T <: unsafe.CStruct: ClassTag]: Tag[T] =
+    Tag.CStruct(implicitly[ClassTag[T]].runtimeClass.asInstanceOf[java.lang.Class[T]])
+
   % for N in range(0, 23):
   %   Ts      = ["T" + str(i) for i in range(1, N + 1)]
   %   BoundTs = "" if N == 0 else "[" + ", ".join(map(lambda T: T + ": Tag", Ts)) + "]"

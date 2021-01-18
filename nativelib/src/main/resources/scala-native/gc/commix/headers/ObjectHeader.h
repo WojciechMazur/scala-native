@@ -23,6 +23,7 @@ typedef struct {
     } rt;
     int32_t size;
     int32_t idRangeUntil;
+    word_t *typeMetadata;
     int64_t *refMapStruct;
 } Rtti;
 

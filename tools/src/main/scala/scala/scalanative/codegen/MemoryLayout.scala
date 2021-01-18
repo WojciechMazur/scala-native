@@ -8,6 +8,7 @@ import scalanative.util.unsupported
 import scalanative.codegen.MemoryLayout.PositionedType
 
 final case class MemoryLayout(size: Long,
+                              alignment: Long,
                               tys: Seq[MemoryLayout.PositionedType]) {
   lazy val offsetArray: Seq[Val] = {
     val ptrOffsets =
@@ -74,6 +75,6 @@ object MemoryLayout {
 
     val alignment = if (tys.isEmpty) 1 else tys.map(alignmentOf).max
 
-    MemoryLayout(align(offset, alignment), pos)
+    MemoryLayout(align(offset, alignment), alignment, pos)
   }
 }

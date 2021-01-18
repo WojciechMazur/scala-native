@@ -1,7 +1,6 @@
 package scala.scalanative
 package codegen
 
-import scalanative.util.unreachable
 import scalanative.nir._
 import scalanative.linker.{ScopeInfo, Class, Trait}
 
@@ -21,6 +20,7 @@ class RuntimeTypeInformation(meta: Metadata, info: ScopeInfo) {
           Rt.Type,
           Type.Int, // size
           Type.Int, // idRangeUntil
+          Type.Ptr, // type metadata
           meta.layout(cls).referenceOffsetsTy
         ) ++ dynmap ++ Seq(
           meta.vtable(cls).ty
@@ -37,13 +37,24 @@ class RuntimeTypeInformation(meta: Metadata, info: ScopeInfo) {
     val typeStr = Val.String(info.name.asInstanceOf[Global.Top].id)
     val traitId = Val.Int(info match {
       case info: Class =>
-        meta.dispatchTable.traitClassIds.get(info).getOrElse(-1)
+        meta.dispatchTable.traitClassIds.getOrElse(info, -1)
       case _ =>
         -1
     })
     val base = Val.StructValue(
       Seq(typeId, traitId, typeStr, Val.Null)
     )
+
+    val metadata = info.attrs.struct.fold(Val.Null: Val) { attr =>
+      val asStruct = Type.StructValue(attr.tys)
+      val structInfo = Val.StructValue(
+        Seq(
+          Val.Int(MemoryLayout.sizeOf(asStruct).toInt),
+          Val.Int(MemoryLayout.alignmentOf(asStruct).toInt)
+        ))
+      Val.Const(structInfo)
+    }
+
     info match {
       case cls: Class =>
         val dynmap =
@@ -58,6 +69,7 @@ class RuntimeTypeInformation(meta: Metadata, info: ScopeInfo) {
             base,
             Val.Int(meta.layout(cls).size.toInt),
             Val.Int(range.last),
+            metadata,
             meta.layout(cls).referenceOffsetsValue
           ) ++ dynmap ++ Seq(
             meta.vtable(cls).value

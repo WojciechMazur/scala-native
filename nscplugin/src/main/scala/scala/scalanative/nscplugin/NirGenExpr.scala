@@ -2100,8 +2100,7 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
 
       (expectedTy, value.ty) match {
         case (_, refty: Type.Ref) if expected.isNamedStruct =>
-          val rawptr = buf.unbox(refty, value, unwind)
-          load(genStructType(expected), rawptr, unwind)
+          buf.unbox(refty, value, unwind)
         case (_, refty: Type.Ref)
             if Type.boxClasses.contains(refty.name)
               && Type.unbox(Type.Ref(refty.name)) == expectedTy =>
@@ -2116,10 +2115,13 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       val expectedTy = genType(expected)
 
       (expectedTy, value.ty) match {
-        case (refty: nir.Type.Ref, _) if expected.isNamedStruct =>
-          val alloc  = newNamedStruct(expected)
-          val rawptr = buf.unbox(refty, alloc, unwind)
-          store(genStructType(expected), rawptr, value, unwind)
+        case (Type.Ref(name: Global.Top, _, _), _) if expected.isNamedStruct =>
+          val alloc = newNamedStruct(expected)
+          buf.fieldstore(Type.Ptr,
+                         alloc,
+                         Rt.cStructUnderlyingField(name),
+                         value,
+                         unwind)
           alloc
         case (refty: nir.Type.Ref, ty)
             if Type.boxClasses.contains(refty.name)

@@ -92,8 +92,6 @@ trait NirGenType[G <: Global with Singleton] { self: NirGenPhase[G] =>
         nir.Type.Ptr
       case refty: nir.Type.Ref if nir.Type.boxClasses.contains(refty.name) =>
         nir.Type.unbox(nir.Type.Ref(refty.name))
-      case _ if st.isNamedStruct =>
-        genStructType(st)
       case ty =>
         ty
     }

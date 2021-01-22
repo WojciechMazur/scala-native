@@ -470,8 +470,8 @@ class Reach(config: build.Config, entries: Seq[Global], loader: ClassLoader) {
   }
 
   def reachClass(defn: Defn.Class): Unit = {
-    val Defn.Class(attrs, name, parent, traits) = defn
-    implicit val pos: nir.Position              = defn.pos
+    val Defn.Class(attrs, name: Global.Top, parent, traits) = defn
+    implicit val pos: nir.Position                          = defn.pos
     newInfo(
       new Class(attrs,
                 name,
@@ -480,6 +480,7 @@ class Reach(config: build.Config, entries: Seq[Global], loader: ClassLoader) {
                 isModule = false))
     attrs.struct.foreach { _ =>
       reachAllocation(infos(name).asInstanceOf[Class])
+      reachGlobal(Rt.cStructUnderlyingField(name))
     }
     reachAttrs(attrs)
   }

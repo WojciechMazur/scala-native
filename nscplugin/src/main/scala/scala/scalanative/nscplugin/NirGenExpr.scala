@@ -2013,9 +2013,11 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       }
     }
 
-    def newNamedStruct(st: SimpleType)(implicit pos: nir.Position): Val = {
+    def newNamedStruct(st: SimpleType, initValue: Option[Val])(
+        implicit pos: nir.Position): Val = {
       val ty    = genStructType(st)
       val alloc = buf.stackalloc(ty, Val.Int(1), unwind)
+      initValue.foreach { v => buf.store(ty, alloc, v, unwind) }
       buf.box(genType(st), alloc, unwind)
     }
 
@@ -2023,7 +2025,7 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
         st: SimpleType,
         ctorsym: Symbol,
         argsp: Seq[Tree])(implicit pos: nir.Position): Val = {
-      val alloc = newNamedStruct(st)
+      val alloc = newNamedStruct(st, initValue = None)
       genApplyMethod(ctorsym, statically = true, alloc, argsp)
       alloc
     }
@@ -2116,13 +2118,8 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
 
       (expectedTy, value.ty) match {
         case (Type.Ref(name: Global.Top, _, _), _) if expected.isNamedStruct =>
-          val alloc = newNamedStruct(expected)
-          buf.fieldstore(Type.Ptr,
-                         alloc,
-                         Rt.cStructUnderlyingField(name),
-                         value,
-                         unwind)
-          alloc
+          // Not true if struct size > 4 bytes (on x86_64), Check out NirGenType.genExternType comment
+          newNamedStruct(expected, Some(value))
         case (refty: nir.Type.Ref, ty)
             if Type.boxClasses.contains(refty.name)
               && Type.unbox(Type.Ref(refty.name)) == ty =>

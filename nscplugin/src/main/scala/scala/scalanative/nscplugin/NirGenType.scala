@@ -90,6 +90,22 @@ trait NirGenType[G <: Global with Singleton] { self: NirGenPhase[G] =>
     genType(st) match {
       case _ if st.isCFuncPtrClass =>
         nir.Type.Ptr
+      case _ if st.isNamedStruct =>
+        /* Invalid when struct size > 4 bytes (in x86_64), depends on target
+         * When larger or in other targets it may be passed using pointer to stack allocated value in caller,,
+         * in LLVM IR pointer might need to be annotated with `sret` attribute.
+         * Also type of struct might change based on alignment, eg.:
+         *  - {Int, Int}            -> i64
+         *  - {Int, Int, Int}       -> {i64, i32}
+         *  - {Int, Long}           -> {i64, i64}
+         *  - {Byte, Byte, Byte}    -> i24
+         *  - {Float, Double}       -> {float, double}
+         *  - {Float, Float}        -> <2 x float>    //vector
+         *  - {Float, Float, Float} -> {<2 x float>, float}
+         *  - {char [5]}            -> i40
+         *  - {char [17]}           -> i8*            // pointer to struct
+         */
+        genStructType(st)
       case refty: nir.Type.Ref if nir.Type.boxClasses.contains(refty.name) =>
         nir.Type.unbox(nir.Type.Ref(refty.name))
       case ty =>

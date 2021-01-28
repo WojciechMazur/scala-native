@@ -12,6 +12,9 @@ sealed trait NativeConfig {
   /** Compilation mode. */
   def mode: Mode
 
+  /** Build target for current compilation */
+  def buildTarget: BuildTarget
+
   /** The path to the `clang` executable. */
   def clang: Path
 
@@ -74,6 +77,9 @@ sealed trait NativeConfig {
   /** Create a new config with given compilation options. */
   def withCompileOptions(value: Seq[String]): NativeConfig
 
+  /** Create a new config with given build target */
+  def withBuildTarget(target: BuildTarget): NativeConfig
+
   /** Create a new config given a target triple. */
   def withTargetTriple(value: Option[String]): NativeConfig
 
@@ -122,6 +128,7 @@ object NativeConfig {
       gc = GC.default,
       lto = LTO.default,
       mode = Mode.default,
+      buildTarget = BuildTarget.default,
       check = false,
       checkFatalWarnings = false,
       dump = false,
@@ -139,6 +146,7 @@ object NativeConfig {
       targetTriple: Option[String],
       gc: GC,
       mode: Mode,
+                                buildTarget: BuildTarget,
       lto: LTO,
       linkStubs: Boolean,
       check: Boolean,
@@ -167,6 +175,9 @@ object NativeConfig {
     def withTargetTriple(value: String): NativeConfig = {
       withTargetTriple(Some(value))
     }
+
+    def withBuildTarget(target: BuildTarget): NativeConfig =
+      copy(buildTarget = target)
 
     def withGC(value: GC): NativeConfig =
       copy(gc = value)
@@ -222,6 +233,7 @@ object NativeConfig {
         | - linkingOptions:     $linkingOptions
         | - compileOptions:     $compileOptions
         | - targetTriple:       $targetTriple
+        | - buildTarget      $buildTarget
         | - GC:                 $gc
         | - mode:               $mode
         | - LTO:                $lto

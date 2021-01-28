@@ -8,7 +8,7 @@ import sbt._
 import sbt.complete.DefaultParsers._
 import scala.annotation.tailrec
 import scala.scalanative.util.Scope
-import scala.scalanative.build.{Build, BuildException, Discover}
+import scala.scalanative.build.{Build, BuildException, BuildTarget, Discover}
 import scala.scalanative.linker.LinkingException
 import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport._
 import scala.scalanative.sbtplugin.Utilities._
@@ -136,8 +136,14 @@ object ScalaNativePluginInternal {
       val outpath = (nativeLink / artifactPath).value
 
       val config = {
-        val mainClass = selectMainClass.value.getOrElse {
-          throw new MessageOnlyException("No main class detected.")
+        val mainClassOpt = nativeConfig.value.buildTarget match {
+          case BuildTarget.Application =>
+            selectMainClass.value
+              .map(_ + "$")
+              .orElse {
+                throw new MessageOnlyException("No main class detected.")
+              }
+          case _ => None
         }
 
         val cwd = nativeWorkdir.value.toPath

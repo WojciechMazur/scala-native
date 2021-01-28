@@ -60,7 +60,8 @@ private[scalanative] object LLVM {
         val flags = opt(config) +: "-fvisibility=hidden" +:
           stdflag ++: platformFlags ++: expectionsHandling ++: config.compileOptions
         val compilec =
-          Seq(compiler) ++ flto(config) ++ flags ++ target(config) ++
+          Seq(compiler) ++
+            buildCompileOpts(config) ++ flags ++ target(config) ++
             Seq("-c", inpath, "-o", outpath)
 
         config.logger.running(compilec)
@@ -95,25 +96,30 @@ private[scalanative] object LLVM {
       objectsPaths: Seq[Path],
       outpath: Path
   ): Path = {
-    val links = {
-      val srclinks = linkerResult.links.collect {
-        case Link("z") if config.targetsWindows => "zlib"
-        case Link(name)                         => name
-      }
-      val gclinks = config.gc.links
-      // We need extra linking dependencies for:
-      // * libdl for our vendored libunwind implementation.
-      // * libpthread for process APIs and parallel garbage collection.
-      // * Dbghelp for windows implementation of unwind libunwind API
-      val platformsLinks =
-        if (config.targetsWindows) Seq("Dbghelp")
-        else Seq("pthread", "dl")
-      platformsLinks ++ srclinks ++ gclinks
-    }
-    val linkopts = config.linkingOptions ++ links.map("-l" + _)
-    val flags = {
-      val platformFlags =
-        if (config.targetsWindows) {
+    val inputs = objectsPaths.map(_.abs)
+    val output = Seq("-o", outpath.abs)
+
+    val linkCmd = config.compilerConfig.buildTarget match {
+        case BuildTarget.Application =>
+          val links = {
+            val srclinks = linkerResult.links.collect {
+              case Link("z") if config.targetsWindows => "zlib"
+              case Link(name)                         => name
+            }
+            val gclinks = config.gc.links
+            // We need extra linking dependencies for:
+            // * libdl for our vendored libunwind implementation.
+            // * libpthread for process APIs and parallel garbage collection.
+            // * Dbghelp for windows implementation of unwind libunwind API
+            val platformsLinks =
+            if (config.targetsWindows) Seq("Dbghelp")
+            else Seq("pthread", "dl")
+            platformsLinks ++ srclinks ++ gclinks
+          }
+          val linkopts = config.linkingOptions ++ links.map("-l" + _)
+          val flags = {
+            val platformFlags =
+              if (config.targetsWindows) {
           // https://github.com/scala-native/scala-native/issues/2372
           // When using LTO make sure to use lld linker instead of default one
           // LLD might find some duplicated symbols defined in both C and C++,
@@ -123,17 +129,28 @@ private[scalanative] object LLVM {
             case _        => Seq("-fuse-ld=lld", "-Wl,/force:multiple")
           }
           Seq("-g") ++ ltoSupport
-        } else Seq("-rdynamic")
-      flto(config) ++ platformFlags ++ Seq("-o", outpath.abs) ++ target(config)
-    }
-    val paths = objectsPaths.map(_.abs)
-    val compile = config.clangPP.abs +: (flags ++ paths ++ linkopts)
+              }else Seq("-rdynamic")
+            flto(config) ++ platformFlags ++ Seq("-o", outpath.abs) ++ target(config)
+          }
+          val paths = objectsPaths.map(_.abs)
+          config.clangPP.abs +:
+            flags ++
+            inputs ++
+            output ++
+            linkopts
+
+        case BuildTarget.SharedLibrary =>
+          Seq(config.clangPP.abs, "-shared") ++
+            target(config) ++
+            inputs ++ output ++
+            config.linkingOptions
+      }
 
     config.logger.time(
-      s"Linking native code (${config.gc.name} gc, ${config.LTO.name} lto)"
+      s"Linking native code (${config.compilerConfig.buildTarget}, ${config.gc.name} gc, ${config.LTO.name} lto)"
     ) {
-      config.logger.running(compile)
-      val result = Process(compile, config.workdir.toFile) !
+      config.logger.running(linkCmd)
+      val result = Process(linkCmd, config.workdir.toFile) !
         Logger.toProcessLogger(config.logger)
       if (result != 0) {
         throw new BuildException(s"Failed to link ${outpath}")
@@ -159,5 +176,11 @@ private[scalanative] object LLVM {
       case Mode.Debug       => "-O0"
       case Mode.ReleaseFast => "-O2"
       case Mode.ReleaseFull => "-O3"
+    }
+
+  private def buildCompileOpts(config: Config): Seq[String] =
+    config.compilerConfig.buildTarget match {
+      case BuildTarget.Application   => flto(config)
+      case BuildTarget.SharedLibrary => "-fPIC" :: Nil
     }
 }

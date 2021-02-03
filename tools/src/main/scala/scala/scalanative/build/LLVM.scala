@@ -66,11 +66,11 @@ private[scalanative] object LLVM {
 
         val cmd: Seq[String] = {
           compiler ++
-            input ++ output ++
-            target(config) ++
-            flto(config) ++
-            Seq("-fvisibility=hidden") ++
             buildCompileOpts(config) ++
+            flto(config) ++
+            target(config) ++
+            Seq("-fvisibility=hidden") ++
+            input ++ output ++
             config.compileOptions
         }
         config.logger.running(cmd)
@@ -144,15 +144,16 @@ private[scalanative] object LLVM {
           config.clangPP.abs +:
             flags ++
             inputs ++
-            output ++
+            buildLinkOpts(config) ++
             linkopts
 
         case BuildTarget.SharedLibrary =>
           config.clangPP.abs +:
             "-shared" +:
             target(config) ++
-            inputs ++ output ++
-            linkopts
+        flto(config) ++
+        inputs ++ output ++
+        linkopts
       }
 
     config.logger.time(

@@ -574,6 +574,9 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
         val sig      = genMethodSig(sym)
         val isStatic = owner.isExternModule || isImplClass(owner)
 
+        lazy val linkTimeResolvedAnnotation =
+          sym.annotations.find(_.symbol == LinktimeResolvedClass)
+
         dd.rhs match {
           case EmptyTree
               if (isScala211 &&
@@ -606,6 +609,13 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
           // Have a concrete method with JavaDefaultMethodAnnotation; a blivet.
           // Do not emit, not even as abstract.
 
+          case _ if linkTimeResolvedAnnotation.isDefined =>
+            val (propertyName, retty) =
+              genLinktimeResolvedProperty(dd,
+                                          linkTimeResolvedAnnotation.get,
+                                          name)
+            genLinktimeResolvedMethod(retty, propertyName, name)
+
           case rhs =>
             scoped(
               curMethodSig := sig
@@ -615,6 +625,90 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
             }
         }
       }
+    }
+
+    def genLinktimeResolvedMethod(
+        retty: nir.Type,
+        propertyName: nir.Global,
+        methodName: nir.Global)(implicit pos: nir.Position): Unit = {
+      implicit val fresh: Fresh = Fresh()
+      val buf                   = new ExprBuffer()
+
+      buf.label(fresh())
+      val value = buf.call(Linktime.PropertyResolveFunctionTy(retty),
+                           Linktime.PropertyResolveFunction(retty),
+                           Seq(Val.Global(propertyName, retty)),
+                           Next.None)
+      buf.ret(value)
+
+      curStatBuffer.get += Defn.Define(
+        Attrs(inlineHint = Attr.AlwaysInline),
+        methodName,
+        Type.Function(Seq(), retty),
+        buf.toSeq
+      )
+    }
+
+    protected def genLinktimeResolvedProperty(
+        dd: DefDef,
+        annotationInfo: AnnotationInfo,
+        name: Global): (Global.Member, nir.Type) = {
+      require(annotationInfo.symbol == LinktimeResolvedClass,
+              "Expected linktime property class")
+
+      implicit val fresh: Fresh      = Fresh()
+      implicit val buf: ExprBuffer   = new ExprBuffer()
+      implicit val pos: nir.Position = dd.pos
+
+      def fromLiteralOrFallback(tree: Tree, checkedCase: String)(
+          fallback: PartialFunction[Tree, Val] = PartialFunction.empty)(
+          implicit buf: ExprBuffer): Val = {
+
+        def isValidLiteral(lit: Literal) = {
+          lit.value.tag != UnitTag &&
+          lit.value.tag != NullTag
+        }
+
+        tree match {
+          case lit @ Literal(Constant(_)) if isValidLiteral(lit) =>
+            buf.genLiteralValue(lit)
+          case _ if fallback.isDefinedAt(tree) => fallback(tree)
+          case _ =>
+            globalError(dd.pos,
+                        s"$checkedCase needs to be non-null literal constant")
+            Val.Null
+        }
+      }
+
+      def normalizedSymbolName(delimiter: Char): String = {
+        dd.symbol.fullName(delimiter).replace('$', delimiter)
+      }
+
+      if (dd.symbol.isConstant) {
+        globalError(
+          dd.pos,
+          "Link-time property cannot be constant value, it would be inlined by scalac compiler")
+      }
+
+      val defaultValue =
+        fromLiteralOrFallback(dd.rhs, "Default value of linktime property")()
+
+      val propertyName =
+        fromLiteralOrFallback(annotationInfo.args.head,
+                              "Name used to resolve linktime property") {
+          case tree if tree.symbol.isParamWithDefault =>
+            Val.String(normalizedSymbolName('.'))
+        }
+
+      val globalPropertyName = Linktime.nameToLinktimePropertyName(name)
+      val retty              = defaultValue.ty
+      curStatBuffer.get += Defn.Const(
+        Attrs.None,
+        globalPropertyName,
+        Type.StructValue(Seq(retty, Rt.String)),
+        Val.StructValue(Seq(defaultValue, propertyName)))
+
+      (globalPropertyName, retty)
     }
 
     def genExternMethod(attrs: nir.Attrs,

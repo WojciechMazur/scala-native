@@ -5,7 +5,10 @@ import java.nio.file.{Path, Paths}
 import scala.collection.mutable
 import scalanative.nir._
 
-class Reach(config: build.Config, entries: Seq[Global], loader: ClassLoader) {
+class Reach(protected val config: build.Config,
+            entries: Seq[Global],
+            loader: ClassLoader)
+    extends LinktimeValueResolver {
   import Reach._
 
   val unavailable = mutable.Set.empty[Global]
@@ -43,7 +46,8 @@ class Reach(config: build.Config, entries: Seq[Global], loader: ClassLoader) {
                links.toSeq,
                defns.toSeq,
                dynsigs.toSeq,
-               dynimpls.toSeq)
+               dynimpls.toSeq,
+               resolvedNirValues)
   }
 
   def cleanup(): Unit = {
@@ -107,7 +111,11 @@ class Reach(config: build.Config, entries: Seq[Global], loader: ClassLoader) {
       if (defn.attrs.isStub && !config.linkStubs) {
         reachUnavailable(name)
       } else {
-        reachDefn(defn)
+        val maybeResolvedDefn = defn match {
+          case defn: Defn.Define => resolveLinktimeDefine(defn)
+          case _                 => defn
+        }
+        reachDefn(maybeResolvedDefn)
       }
     }
     stack = stack.tail
@@ -126,7 +134,7 @@ class Reach(config: build.Config, entries: Seq[Global], loader: ClassLoader) {
         if (Rt.arrayAlloc.contains(sig)) {
           classInfo(Rt.arrayAlloc(sig)).foreach(reachAllocation)
         }
-        reachDefine(defn)
+        reachDefine(resolveLinktimeDefine(defn))
       case defn: Defn.Trait =>
         reachTrait(defn)
       case defn: Defn.Class =>
@@ -560,6 +568,8 @@ class Reach(config: build.Config, entries: Seq[Global], loader: ClassLoader) {
       reachNext(unwind)
     case Inst.Unreachable(unwind) =>
       reachNext(unwind)
+    case _: Inst.LinktimeIf =>
+      util.unreachable
   }
 
   def reachOp(op: Op)(implicit pos: Position): Unit = op match {
@@ -736,7 +746,7 @@ class Reach(config: build.Config, entries: Seq[Global], loader: ClassLoader) {
     }
   }
 
-  private def addMissing(global: Global, pos: Position): Unit = {
+  protected def addMissing(global: Global, pos: Position): Unit = {
     val prev = missing.getOrElse(global, Set.empty)
     val position = NonReachablePosition(path = Paths.get(pos.source.getPath),
                                         line = pos.line + 1)

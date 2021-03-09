@@ -191,8 +191,13 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       val thenn, elsen, mergen = fresh()
       val mergev               = Val.Local(fresh(), retty)
 
-      val cond = genExpr(condp)
-      buf.branch(cond, Next(thenn), Next(elsen))(condp.pos)
+      getLinktimeCondition(condp).fold {
+        val cond = genExpr(condp)
+        buf.branch(cond, Next(thenn), Next(elsen))(condp.pos)
+      } { cond =>
+        buf.branchLinktime(cond, Next(thenn), Next(elsen))(condp.pos)
+      }
+
       locally {
         buf.label(thenn)(thenp.pos)
         val thenv = genExpr(thenp)
@@ -1109,6 +1114,85 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
     }
 
     private final val ExternForwarderSig = Sig.Generated("$extern$forwarder")
+
+    def getLinktimeCondition(condp: Tree): Option[LinktimeCondition] = {
+      import LinktimeCondition._
+      def genComparsion(name: Name, value: Val): Comp = {
+        def intOrFloatComparison(onInt: Comp, onFloat: Comp)(
+            implicit tpe: nir.Type) =
+          if (tpe.isInstanceOf[Type.F]) onFloat else onInt
+
+        import Comp._
+        implicit val tpe: nir.Type = value.ty
+        name match {
+          case nme.EQ => intOrFloatComparison(Ieq, Feq)
+          case nme.NE => intOrFloatComparison(Ine, Fne)
+          case nme.GT => intOrFloatComparison(Sgt, Fgt)
+          case nme.GE => intOrFloatComparison(Sge, Fge)
+          case nme.LT => intOrFloatComparison(Slt, Flt)
+          case nme.LE => intOrFloatComparison(Sle, Fle)
+          case nme =>
+            globalError(condp.pos, s"Unsupported condition '$nme'"); Comp.Ine
+        }
+      }
+
+      def isLinktimeProperty(tree: Tree): Boolean =
+        tree.hasSymbolWhich(
+          _.annotations.exists(_.symbol == LinktimeResolvedClass))
+
+      def someBooleanProperty(reciverp: Tree,
+                              value: Val): Option[LinktimeCondition] = Some {
+        val name         = genName(reciverp.symbol)
+        val propertyName = Linktime.nameToLinktimePropertyName(name)
+        SimpleCondition(propertyName, Comp.Ieq, value)(reciverp.pos)
+      }
+      def someLiteralProperty(reciverp: Tree,
+                              comp: Name,
+                              arg: Literal): Option[LinktimeCondition] = Some {
+        val argValue = genLiteralValue(arg)
+        val name     = genName(reciverp.symbol)
+        SimpleCondition(Linktime.nameToLinktimePropertyName(name),
+                        genComparsion(comp, argValue),
+                        argValue)(reciverp.pos)
+      }
+
+      condp match {
+        case Apply(reciverp, List()) if isLinktimeProperty(reciverp) =>
+          someBooleanProperty(reciverp, Val.True)
+
+        case Apply(Select(Apply(reciverp, List()), nme.UNARY_!), List())
+            if isLinktimeProperty(reciverp) =>
+          someBooleanProperty(reciverp, Val.False)
+
+        case Apply(Select(reciverp, comp), List(arg @ Literal(Constant(_))))
+            if isLinktimeProperty(reciverp) =>
+          someLiteralProperty(reciverp, comp, arg)
+
+        // Same as above, but for case when condition is additionally boxed, eg.: `prop != null`
+        case Apply(Select(Apply(_, List(Apply(reciverp, List()))), comp),
+                   List(arg @ Literal(Constant(_))))
+            if isLinktimeProperty(reciverp) =>
+          someLiteralProperty(reciverp, comp, arg)
+
+        case Apply(Select(cond1, op), List(cond2)) =>
+          (getLinktimeCondition(cond1), getLinktimeCondition(cond2)) match {
+            case (Some(c1), Some(c2)) =>
+              val bin = op match {
+                case nme.ZAND => Bin.And
+                case nme.ZOR  => Bin.Or
+              }
+              Some(ComplexCondition(bin, c1, c2)(condp.pos))
+            case (None, None) => None
+            case _ =>
+              globalError(
+                condp.pos,
+                "Mixing link-time and runtime conditions is not allowed")
+              None
+          }
+
+        case _ => None
+      }
+    }
 
     def genFuncExternForwarder(funcName: Global, treeSym: Symbol)(
         implicit pos: nir.Position): Defn = {

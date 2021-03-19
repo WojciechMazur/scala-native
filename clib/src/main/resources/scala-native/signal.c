@@ -20,4 +20,10 @@ int scalanative_sigsegv() { return SIGSEGV; }
 
 int scalanative_sigterm() { return SIGTERM; }
 
-int scalanative_sigusr1() { return SIGUSR1; }
+int scalanative_sigusr1() { 
+#if defined(_WIN32) 
+    return -1;
+#else
+    return SIGUSR1;
+#endif
+}

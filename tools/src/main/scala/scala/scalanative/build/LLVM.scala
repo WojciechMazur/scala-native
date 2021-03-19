@@ -110,7 +110,7 @@ private[scalanative] object LLVM {
         case GC(SharedBy(impls) :: _) => impls.contains(config.gc.name)
 
         case Optional(_ :+ File(name, _)) =>
-        linkerResult.links.map(_.name).contains(name)
+          linkerResult.links.map(_.name).contains(name)
         case _ => true
       }
     }
@@ -126,6 +126,14 @@ private[scalanative] object LLVM {
 
     val fltoOpt   = flto(config)
     val targetOpt = target(config)
+
+    println("included")
+    includePaths.foreach(println)
+    println()
+    //    println("excluded")
+    //    excludePaths.foreach(println)
+
+    //    scala.io.StdIn.readLine()
 
     // generate .o files for all included source files in parallel
     includePaths.par.map { path =>
@@ -207,11 +215,18 @@ private[scalanative] object LLVM {
       // We need extra linking dependencies for:
       // * libdl for our vendored libunwind implementation.
       // * libpthread for process APIs and parallel garbage collection.
-      "pthread" +: "dl" +: srclinks ++: gclinks
+      val platformsLinks = 
+        if(config.targetsWindows) Seq()
+        else Seq("pthread" +: "dl")
+      platformsLinks ++ srclinks ++ gclinks
     }
     val linkopts = config.linkingOptions ++ links.map("-l" + _)
-    val flags =
-      flto(config) ++ Seq("-rdynamic", "-o", outpath.abs) ++ target(config)
+    val flags = {
+      val platformFlags = 
+        if(config.targetsWindows) Seq()
+        else Seq("rdynamic")
+      flto(config) ++ platformFlags ++ Seq("-o", outpath.abs) ++ target(config)
+    }
     val paths   = objectsPaths.map(_.abs)
     val compile = config.clangPP.abs +: (flags ++ paths ++ linkopts)
     val ltoName = lto(config).getOrElse("none")

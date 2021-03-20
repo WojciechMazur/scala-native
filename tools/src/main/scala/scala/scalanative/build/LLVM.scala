@@ -208,23 +208,22 @@ private[scalanative] object LLVM {
            linkerResult: linker.Result,
            objectsPaths: Seq[Path],
            outpath: Path): Path = {
-    val workdir = config.workdir
     val links = {
       val srclinks = linkerResult.links.map(_.name)
       val gclinks  = config.gc.links
       // We need extra linking dependencies for:
       // * libdl for our vendored libunwind implementation.
       // * libpthread for process APIs and parallel garbage collection.
-      val platformsLinks = 
-        if(config.targetsWindows) Seq()
-        else Seq("pthread" +: "dl")
+      val platformsLinks =
+        if (config.targetsWindows) Seq()
+        else Seq("pthread", "dl")
       platformsLinks ++ srclinks ++ gclinks
     }
     val linkopts = config.linkingOptions ++ links.map("-l" + _)
     val flags = {
-      val platformFlags = 
-        if(config.targetsWindows) Seq()
-        else Seq("rdynamic")
+      val platformFlags =
+        if (config.targetsWindows) Seq()
+        else Seq("-rdynamic")
       flto(config) ++ platformFlags ++ Seq("-o", outpath.abs) ++ target(config)
     }
     val paths   = objectsPaths.map(_.abs)

@@ -74,7 +74,7 @@ sealed trait Config {
   /** Shall linker dump intermediate NIR after every phase? */
   def dump: Boolean = compilerConfig.dump
 
-  private[build] lazy val targetsWindows: Boolean = {
+  private[scalanative] def targetsWindows: Boolean = {
     compilerConfig.targetTriple.fold(Platform.isWindows) { customTriple =>
       customTriple.contains("win32") ||
       customTriple.contains("windows")

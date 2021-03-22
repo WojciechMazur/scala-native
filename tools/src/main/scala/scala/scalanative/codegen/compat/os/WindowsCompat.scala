@@ -6,13 +6,13 @@ import scala.scalanative.nir.{Fresh, Next, Position, Val}
 import scala.scalanative.util.ShowBuilder
 
 private[codegen] class WindowsCompat(codegen: GenericCodeGen) extends OsCompat {
-  val ehWrapperTy       = "\"\\01??_R0?AVExceptionWrapper@scalanative@@@8\""
-  val ehWrapperName     = "c\\\".?AVExceptionWrapper@scalanative@@\\\\00\\\""
-  val ehGlobWrapperTy   = "\"\\01?eglob@@3PEAVExceptionWrapper@scalanative@@EA\""
-  val ehClassName       = "\"class.scalanative::ExceptionWrapper\""
+  val ehWrapperTy       = "\"??_R0?AVExceptionWrapper@scalanative@@@8\""
+  val ehWrapperName     = "c\".?AVExceptionWrapper@scalanative@@\\00\""
+  val ehClass           = "%\"class.scalanative::ExceptionWrapper\""
+  val typeInfo          = "\"??_7type_info@@6B@\""
   val stdExceptionClass = "\"class.std::exception\""
   val stdExceptionData  = "struct.__std_exception_data"
-  val typeInfo          = "\"\\01??_7type_info@@6B@\""
+  val typeDescriptor    = "%rtti.TypeDescriptor34"
   val ehVar             = "%eslot"
 
   override protected val osPersonalityType: String = "@__CxxFrameHandler3"
@@ -20,22 +20,22 @@ private[codegen] class WindowsCompat(codegen: GenericCodeGen) extends OsCompat {
   override def genBlockAlloca(block: Block)(implicit sb: ShowBuilder): Unit = {
     import sb._
     if (block.pred.isEmpty) {
-      line(s"$ehVar = alloca $ehClassName*")
+      newline()
+      str(s"$ehVar = alloca $ehClass*, align 8")
     }
   }
 
   override def genPrelude()(implicit sb: ShowBuilder): Unit = {
     import sb._
     line("declare i32 @llvm.eh.typeid.for(i8*)")
+    line(s"declare i32 $osPersonalityType(...)")
+    line(s"$typeDescriptor = type { i8**, i8*, [35 x i8] }")
     line(s"%$stdExceptionData = type { i8*, i8 }")
-    line(s"%$stdExceptionClass = type { i32 (...)**, %$stdExceptionClass }")
-    line(s"%$ehClassName = type { %$stdExceptionClass, i8* }")
-    line("%rtti.TypeDescriptor34 = type { i8**, i8*, [35 x i8] }")
+    line(s"%$stdExceptionClass = type { i32 (...)**, %$stdExceptionData }")
+    line(s"$ehClass = type { %$stdExceptionClass, i8* }")
     line(s"@$typeInfo = external constant i8*")
     line(s"$$$ehWrapperTy = comdat any")
-    line(
-      s"@$ehWrapperTy = linkonce_odr global %rtti.TypeDescriptor34 { i8** @$typeInfo, i8* null, [35 x i8] $ehWrapperName }, comdat")
-    line(s"@$ehGlobWrapperTy = external global %$ehClassName*")
+    line(s"@$ehWrapperTy = linkonce_odr global $typeDescriptor { i8** @$typeInfo, i8* null, [35 x i8] $ehWrapperName }, comdat")
   }
 
   override def genLandingPad(unwind: Next.Unwind)(implicit fresh: Fresh,
@@ -50,6 +50,8 @@ private[codegen] class WindowsCompat(codegen: GenericCodeGen) extends OsCompat {
 
     val exc               = "%_" + excname.id
     val rec, w1, w2, cpad = "%_" + fresh().id
+    
+    def line(s: String) = { newline(); str(s) }
 
     line(s"$excpad:")
     indent()
@@ -58,11 +60,9 @@ private[codegen] class WindowsCompat(codegen: GenericCodeGen) extends OsCompat {
 
     line(s"$excsucc:")
     indent()
-    line(
-      s"$cpad = catchpad within $rec [%rtti.TypeDescriptor34* @$ehWrapperTy, i32 8, %$ehClassName** $ehVar]")
-    line(s"$w1 = load %$ehClassName*, %$ehClassName** $ehVar")
-    line(
-      s"$w2 = getelementptr inbounds %$ehClassName, %$ehClassName* $w1, i32 0, i32 1")
+    line(s"$cpad = catchpad within $rec [$typeDescriptor* @$ehWrapperTy, i32 8, $ehClass** $ehVar]")
+    line(s"$w1 = load $ehClass*, $ehClass** $ehVar, align 8")
+    line(s"$w2 = getelementptr inbounds $ehClass, $ehClass* $w1, i32 0, i32 1")
     line(s"$exc = load i8*, i8** $w2, align 8")
     line(s"catchret from $cpad to ")
     genNext(next)

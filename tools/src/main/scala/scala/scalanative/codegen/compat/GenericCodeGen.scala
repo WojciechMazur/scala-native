@@ -169,7 +169,8 @@ private[codegen] abstract class GenericCodeGen(
     val Type.Function(argtys, retty) = sig
 
     val isDecl = insts.isEmpty
-
+    
+    newline()
     str(if (isDecl) "declare " else "define ")
     genFunctionReturnType(retty)
     str(" @")

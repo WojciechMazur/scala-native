@@ -1,6 +1,7 @@
 #include "ScalaWindows.h"
 #include <DbgHelp.h>
 #include <stdio.h>
+#include "../shared/unwind.h"
 #define MAX_LENGTH_OF_CALLSTACK 255
 
 typedef struct _UnwindContext {
@@ -11,10 +12,7 @@ typedef struct _UnwindContext {
     SYMBOL_INFOW symbol;
 } UnwindContext;
 // architecture independent register numbers
-enum {
-    UNW_REG_IP = -1, // instruction pointer
-    UNW_REG_SP = -2, // stack pointer
-};
+
 
 int scalanative_unwind_get_context(void *context) {
     return 0;

@@ -215,7 +215,7 @@ private[scalanative] object LLVM {
       // * libdl for our vendored libunwind implementation.
       // * libpthread for process APIs and parallel garbage collection.
       val platformsLinks =
-        if (config.targetsWindows) Seq()
+        if (config.targetsWindows) Seq("Dbghelp.lib")
         else Seq("pthread", "dl")
       platformsLinks ++ srclinks ++ gclinks
     }

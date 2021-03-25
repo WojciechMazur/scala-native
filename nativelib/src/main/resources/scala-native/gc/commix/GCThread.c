@@ -3,7 +3,6 @@
 #include "Sweeper.h"
 #include "Marker.h"
 #include "Phase.h"
-#include <semaphore.h>
 
 static inline void GCThread_markMaster(Heap *heap, Stats *stats) {
     Stats_RecordTime(stats, start_ns);
@@ -12,7 +11,7 @@ static inline void GCThread_markMaster(Heap *heap, Stats *stats) {
     while (!Marker_IsMarkDone(heap)) {
         Marker_MarkAndScale(heap, stats);
         if (!Marker_IsMarkDone(heap)) {
-            sched_yield();
+            thread_yield();
         }
     }
 
@@ -71,12 +70,12 @@ static inline void GCThread_sweepMaster(GCThread *thread, Heap *heap,
 void *GCThread_loop(void *arg) {
     GCThread *thread = (GCThread *)arg;
     Heap *heap = thread->heap;
-    sem_t *start = heap->gcThreads.startWorkers;
+    semaphore_t *start = heap->gcThreads.startWorkers;
     Stats *stats = Stats_OrNull(thread->stats);
 
     while (true) {
         thread->active = false;
-        sem_wait(start);
+        semaphore_wait(start);
         // hard fence before proceeding with the next phase
         atomic_thread_fence(memory_order_seq_cst);
         thread->active = true;
@@ -102,11 +101,11 @@ void *GCThread_loop(void *arg) {
 void *GCThread_loopMaster(void *arg) {
     GCThread *thread = (GCThread *)arg;
     Heap *heap = thread->heap;
-    sem_t *start = heap->gcThreads.startMaster;
+    semaphore_t *start = heap->gcThreads.startMaster;
     Stats *stats = Stats_OrNull(thread->stats);
     while (true) {
         thread->active = false;
-        sem_wait(start);
+        semaphore_wait(start);
         // hard fence before proceeding with the next phase
         atomic_thread_fence(memory_order_seq_cst);
         thread->active = true;
@@ -134,13 +133,13 @@ void GCThread_Init(GCThread *thread, int id, Heap *heap, Stats *stats) {
     thread->heap = heap;
     thread->stats = stats;
     thread->active = false;
-    // we do not use the pthread value
-    pthread_t self;
+    // we do not use the thread handle
+    thread_t self;
 
     if (id == 0) {
-        pthread_create(&self, NULL, GCThread_loopMaster, (void *)thread);
+        thread_create(&self, GCThread_loopMaster, (void *)thread);
     } else {
-        pthread_create(&self, NULL, GCThread_loop, (void *)thread);
+        thread_create(&self, GCThread_loop, (void *)thread);
     }
 }
 
@@ -169,13 +168,13 @@ int GCThread_ActiveCount(Heap *heap) {
 }
 
 INLINE void GCThread_WakeMaster(Heap *heap) {
-    sem_post(heap->gcThreads.startMaster);
+    semaphore_unlock(heap->gcThreads.startMaster);
 }
 
 INLINE void GCThread_WakeWorkers(Heap *heap, int toWake) {
-    sem_t *startWorkers = heap->gcThreads.startWorkers;
+    semaphore_t *startWorkers = heap->gcThreads.startWorkers;
     for (int i = 0; i < toWake; i++) {
-        sem_post(startWorkers);
+        semaphore_unlock(startWorkers);
     }
 }
 

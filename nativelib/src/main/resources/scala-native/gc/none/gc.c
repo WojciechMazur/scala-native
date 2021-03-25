@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include <sys/mman.h>
+#include "MemoryUtil.h"
 
 // Darwin defines MAP_ANON instead of MAP_ANONYMOUS
 #if !defined(MAP_ANONYMOUS) && defined(MAP_ANON)
@@ -22,8 +22,7 @@ void *current = 0;
 void *end = 0;
 
 void scalanative_init() {
-    current = mmap(NULL, CHUNK, DUMMY_GC_PROT, DUMMY_GC_FLAGS, DUMMY_GC_FD,
-                   DUMMY_GC_FD_OFFSET);
+    current = memoryMap(CHUNK);
     end = current + CHUNK;
 }
 

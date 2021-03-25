@@ -4,10 +4,10 @@
 #include "Allocator.h"
 #include "BlockAllocator.h"
 #include <stdio.h>
-#include <unistd.h>
+#include "util/ThreadUtil.h"
 
 void Phase_Init(Heap *heap, uint32_t initialBlockCount) {
-    pid_t pid = getpid();
+    pid_t pid = process_getid();
     // size = static part + 32 bit int as string
     char startWorkersName[32 + 10];
     char startMasterName[31 + 10];
@@ -17,14 +17,15 @@ void Phase_Init(Heap *heap, uint32_t initialBlockCount) {
              pid);
     // only reason for using named semaphores here is for compatibility with
     // MacOs we do not share them across processes
-    heap->gcThreads.startWorkers =
-        sem_open(startWorkersName, O_CREAT | O_EXCL, 0644, 0);
-    heap->gcThreads.startMaster =
-        sem_open(startMasterName, O_CREAT | O_EXCL, 0644, 0);
-    // clean up when process closes
-    // also prevents any other process from `sem_open`ing it
+    heap->gcThreads.startWorkers = semaphore_open(startWorkersName, 0U);
+    heap->gcThreads.startMaster = semaphore_open(startMasterName, 0U);
+// clean up when process closes
+// also prevents any other process from `sem_open`ing it.
+// Closing now semaphore on windows would cause undefined bevaiour.
+#ifndef _WIN32
     sem_unlink(startWorkersName);
     sem_unlink(startMasterName);
+#endif
 
     heap->sweep.cursor = initialBlockCount;
     heap->lazySweep.cursorDone = initialBlockCount;

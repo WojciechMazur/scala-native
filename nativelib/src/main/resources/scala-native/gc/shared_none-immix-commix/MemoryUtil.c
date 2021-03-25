@@ -1,6 +1,3 @@
-#ifndef IMMIX_MEMORY_H
-#define IMMIX_MEMORY_H
-
 /*
  * Author:  David Robert Nadeau
  * Site:    http://NadeauSoftware.com/
@@ -8,22 +5,8 @@
  *          http://creativecommons.org/licenses/by/3.0/deed.en_US
  */
 
-#if defined(_WIN32)
-#include <Windows.h>
-
-#elif defined(__unix__) || defined(__unix) || defined(unix) ||                 \
-    (defined(__APPLE__) && defined(__MACH__))
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/param.h>
-#if defined(BSD)
-#include <sys/sysctl.h>
-#endif
-
-#else
-#error "Unable to define getMemorySize( ) for an unknown OS."
-#endif
-
+#include "MemoryUtil.h"
+#include <stdio.h>
 /**
  * Returns the size of physical memory (RAM) in bytes.
  */
@@ -58,7 +41,7 @@ size_t getMemorySize() {
 #elif defined(HW_PHYSMEM64)
     mib[1] = HW_PHYSMEM64; /* NetBSD, OpenBSD. --------- */
 #endif
-    int64_t size = 0;    /* 64-bit */
+    int64_t size = 0; /* 64-bit */
     size_t len = sizeof(size);
     if (sysctl(mib, 2, &size, &len, NULL, 0) == 0)
         return (size_t)size;
@@ -81,7 +64,7 @@ size_t getMemorySize() {
     int mib[2];
     mib[0] = CTL_HW;
 #if defined(HW_REALMEM)
-    mib[1] = HW_REALMEM;   /* FreeBSD. ----------------- */
+    mib[1] = HW_REALMEM; /* FreeBSD. ----------------- */
 #elif defined(HW_PYSMEM)
     mib[1] = HW_PHYSMEM; /* Others. ------------------ */
 #endif
@@ -97,4 +80,34 @@ size_t getMemorySize() {
 #endif
 }
 
-#endif // IMMIX_MEMORY_H
+word_t *memoryMap(size_t memorySize) {
+#if defined(_WIN32)
+    HANDLE hMapFile;
+    hMapFile = CreateFileMappingW(
+        INVALID_HANDLE_VALUE,      // use paging file
+        NULL,                      // default security
+        PAGE_READWRITE,            // read/write access
+        (memorySize >> 32),        // maximum object size (high-order DWORD)
+        (memorySize & 0xFFFFFFFF), // maximum object size (low-order DWORD)
+        NULL);                     // name of mapping object
+
+    return (word_t *)(MapViewOfFile(hMapFile, FILE_MAP_ALL_ACCESS, 0, 0,
+                                    memorySize));
+#else
+#include <sys/mman.h>
+
+// Allow read and write
+#define HEAP_MEM_PROT (PROT_READ | PROT_WRITE)
+// Map private anonymous memory, and prevent from reserving swap
+#define HEAP_MEM_FLAGS (MAP_NORESERVE | MAP_PRIVATE | MAP_ANONYMOUS)
+// Map anonymous memory (not a file)
+#define HEAP_MEM_FD -1
+#define HEAP_MEM_FD_OFFSET 0
+
+    word_t *memoryMap(size_t memorySize) {
+        return mmap(NULL, memorySize, HEAP_MEM_PROT, HEAP_MEM_FLAGS,
+                    HEAP_MEM_FD, HEAP_MEM_FD_OFFSET);
+    }
+
+#endif
+}

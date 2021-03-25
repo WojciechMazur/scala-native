@@ -98,19 +98,33 @@ private[scalanative] object LLVM {
     val srcPatterns = NativeLib.destSrcPatterns(workdir, nativelibs)
     val paths       = IO.getAll(workdir, srcPatterns).map(_.abs)
 
+    val additionalIncludeDirs = Set.newBuilder[String]
+
     def include(path: String) = {
+      import config._
       import NativePathsExtractor._
+
+      def withIncludesDir(dir: String)(pred: => Boolean): Boolean = {
+        if (pred) additionalIncludeDirs += dir
+        pred
+      }
+
       path match {
-        case Platform("shared" :: _)              => true
-        case Platform("windows" :: _)             => config.targetsWindows
-        case Platform("posix" :: _) | PosixLib(_) => !config.targetsWindows
+        case Platform(_, "shared" :: _)  => true
+        case Platform(_, "windows" :: _) => targetsWindows
+        case Platform(_, "posix" :: _)   => !targetsWindows
 
-        case GC("shared" :: _)        => true
-        case GC(name :: _)            => name == config.gc.name
-        case GC(SharedBy(impls) :: _) => impls.contains(config.gc.name)
+        case GCShared(dirPath, sharedBy) =>
+          withIncludesDir(dirPath) {
+            sharedBy.forall(_.contains(gc.name))
+          }
+        case GC(directory, name :: _) => name == gc.name
 
-        case Optional(_ :+ File(name, _)) =>
+        case PosixLib(_, _) => !targetsWindows
+
+        case Optional(_, _ :+ File(name, _)) =>
           linkerResult.links.map(_.name).contains(name)
+
         case _ => true
       }
     }
@@ -124,16 +138,9 @@ private[scalanative] object LLVM {
         Files.delete(opath)
     }
 
-    val fltoOpt   = flto(config)
-    val targetOpt = target(config)
-
-    println("included")
-    includePaths.foreach(println)
-    println()
-    //    println("excluded")
-    //    excludePaths.foreach(println)
-
-    //    scala.io.StdIn.readLine()
+    val fltoOpt            = flto(config)
+    val targetOpt          = target(config)
+    val sharedDirsIncludes = additionalIncludeDirs.result.map("-I" + _)
 
     // generate .o files for all included source files in parallel
     includePaths.par.map { path =>
@@ -149,7 +156,7 @@ private[scalanative] object LLVM {
                         "-D_CRT_SECURE_NO_WARNINGS",
                         "-Wdeprecated-declarations") ++ config.compileOptions
         val compilec =
-          Seq(compiler) ++ fltoOpt ++ flags ++ targetOpt ++
+          Seq(compiler) ++ fltoOpt ++ flags ++ targetOpt ++ sharedDirsIncludes ++
             Seq("-c", path, "-o", opath)
 
         config.logger.running(compilec)

@@ -9,7 +9,9 @@ import scala.scalanative.posix.sys.utsname._
 import scala.scalanative.posix.sys.uname._
 import scala.scalanative.posix.pwd
 import scala.scalanative.posix.pwdOps._
+import scala.scalanative.windows.ProcessEnv
 import scala.scalanative.runtime.{time, Platform, GC, Intrinsics}
+import scala.scalanative.runtime.PlatformExt.isWindows
 
 final class System private ()
 
@@ -42,7 +44,7 @@ object System {
                          "Java Platform API Specification")
     sysProps.setProperty("line.separator", lineSeparator())
 
-    if (Platform.isWindows()) {
+    if (isWindows) {
       sysProps.setProperty("file.separator", "\\")
       sysProps.setProperty("path.separator", ";")
       val userLang    = fromCString(Platform.windowsGetUserLang())
@@ -134,34 +136,62 @@ object System {
   def gc(): Unit = GC.collect()
 
   private lazy val envVars: Map[String, String] = {
-    // workaround since `while(ptr(0) != null)` causes segfault
-    def isDefined(ptr: Ptr[CString]): Boolean = {
-      val s: CString = ptr(0)
-      s != null
+    def getEnvsUnix() = {
+      // workaround since `while(ptr(0) != null)` causes segfault
+      def isDefined(ptr: Ptr[CString]): Boolean = {
+        val s: CString = ptr(0)
+        s != null
+      }
+
+      // Count to preallocate the map
+      var size    = 0
+      var sizePtr = unistd.environ
+      while (isDefined(sizePtr)) {
+        size += 1
+        sizePtr += 1
+      }
+
+      val map               = new HashMap[String, String](10)
+      var ptr: Ptr[CString] = unistd.environ
+      while (isDefined(ptr)) {
+        val variable = fromCString(ptr(0))
+        val name     = variable.takeWhile(_ != '=')
+        val value =
+          if (name.length < variable.length)
+            variable.substring(name.length + 1, variable.length)
+          else
+            ""
+        map.put(name, value)
+        ptr = ptr + 1
+      }
+      map
     }
 
-    // Count to preallocate the map
-    var size    = 0
-    var sizePtr = unistd.environ
-    while (isDefined(sizePtr)) {
-      size += 1
-      sizePtr += 1
+    def getEnvsWindows(): Map[String, String] = {
+      val envsMap      = new HashMap[String, String]()
+      val envBlockHead = ProcessEnv.getEnvironmentStrings()
+      var blockPtr     = envBlockHead
+      var env: String  = null
+
+      while ({
+        env = fromCString(blockPtr)
+        env != null && env.nonEmpty
+      }) {
+        blockPtr += env.size + 1
+        // Block might start with some internal variables, eg.: `=::` `=C`, `=ExitCode`
+        // We don't wont to access them
+        if (env.head != '=') {
+          val Array(name, value) = env.split('=')
+          envsMap.put(name, value)
+        }
+      }
+      ProcessEnv.freeEnvironmentStrings(envBlockHead)
+      envsMap
     }
 
-    val map               = new HashMap[String, String](size)
-    var ptr: Ptr[CString] = unistd.environ
-    while (isDefined(ptr)) {
-      val variable = fromCString(ptr(0))
-      val name     = variable.takeWhile(_ != '=')
-      val value =
-        if (name.length < variable.length)
-          variable.substring(name.length + 1, variable.length)
-        else
-          ""
-      map.put(name, value)
-      ptr = ptr + 1
+    Collections.unmodifiableMap {
+      if (isWindows()) getEnvsWindows()
+      else getEnvsUnix()
     }
-
-    Collections.unmodifiableMap(map)
   }
 }

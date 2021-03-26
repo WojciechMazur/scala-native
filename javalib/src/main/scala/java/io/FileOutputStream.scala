@@ -6,7 +6,10 @@ import scalanative.unsafe._
 import scalanative.libc._
 import scalanative.posix.{fcntl, unistd}
 import scalanative.posix.sys.stat
+import scalanative.windows.{FileApi, ErrorHandling, HandleApi}
 import scalanative.runtime
+import scala.scalanative.runtime.PlatformExt.isWindows
+import scala.scalanative.windows.FileApi
 
 class FileOutputStream(fd: FileDescriptor, file: Option[File] = None)
     extends OutputStream {
@@ -16,11 +19,9 @@ class FileOutputStream(fd: FileDescriptor, file: Option[File] = None)
   def this(name: String, append: Boolean) = this(new File(name), append)
   def this(name: String) = this(new File(name))
 
-  override def close(): Unit =
-    unistd.close(fd.fd)
+  override def close(): Unit = fd.close()
 
-  override protected def finalize(): Unit =
-    close()
+  override protected def finalize(): Unit = close()
 
   final def getFD(): FileDescriptor =
     fd
@@ -45,12 +46,23 @@ class FileOutputStream(fd: FileDescriptor, file: Option[File] = None)
 
     // we use the runtime knowledge of the array layout to avoid
     // intermediate buffer, and read straight from the array memory
-    val buf        = buffer.asInstanceOf[runtime.ByteArray].at(offset)
-    val writeCount = unistd.write(fd.fd, buf, count.toUInt)
+    val buf = buffer.asInstanceOf[runtime.ByteArray].at(offset)
 
-    if (writeCount < 0) {
-      // negative value (typically -1) indicates that write failed
-      throw UnixException(file.fold("")(_.toString), errno.errno)
+    if (isWindows()) {
+      val hasSucceded =
+        FileApi.writeFile(fd.handle, buf, count.toUInt, null, null)
+      if (!hasSucceded) {
+        // Todo proper Windows exceptions handling
+        throw UnixException(file.fold("")(_.toString),
+                            ErrorHandling.getLastError().toInt)
+      }
+    } else {
+      val writeCount = unistd.write(fd.fd, buf, count.toUInt)
+
+      if (writeCount < 0) {
+        // negative value (typically -1) indicates that write failed
+        throw UnixException(file.fold("")(_.toString), errno.errno)
+      }
     }
   }
 

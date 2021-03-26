@@ -1,0 +1,52 @@
+#include "windows.h"
+
+
+unsigned int scalanative_win32_file_access_file_generic_all() {
+    return GENERIC_ALL;
+}
+
+unsigned int scalanative_win32_file_access_file_generic_execute() {
+    return FILE_GENERIC_EXECUTE;
+}
+unsigned int scalanative_win32_file_access_file_execute() {
+    return FILE_EXECUTE;
+}
+unsigned int scalanative_win32_file_access_standard_rights_execute() {
+    return STANDARD_RIGHTS_EXECUTE;
+}
+
+unsigned int scalanative_win32_file_access_file_generic_read() {
+    return FILE_GENERIC_READ;
+}
+unsigned int scalanative_win32_file_access_file_read_attributes() {
+    return FILE_READ_ATTRIBUTES;
+}
+unsigned int scalanative_win32_file_access_file_read_data() {
+    return FILE_READ_DATA;
+}
+unsigned int scalanative_win32_file_access_file_read_ea() {
+    return FILE_READ_EA;
+}
+unsigned int scalanative_win32_file_access_standard_rights_read() {
+    return STANDARD_RIGHTS_READ;
+}
+
+unsigned int scalanative_win32_file_access_file_generic_write() {
+    return FILE_GENERIC_WRITE;
+}
+unsigned int scalanative_win32_file_access_file_append_data() {
+    return FILE_APPEND_DATA;
+}
+unsigned int scalanative_win32_file_access_file_write_attributes() {
+    return FILE_WRITE_ATTRIBUTES;
+}
+unsigned int scalanative_win32_file_access_file_write_data() {
+    return FILE_WRITE_DATA;
+}
+unsigned int scalanative_win32_file_access_file_write_ea() {
+    return FILE_WRITE_EA;
+}
+unsigned int scalanative_win32_file_access_standard_rights_write() {
+    return STANDARD_RIGHTS_WRITE;
+}
+unsigned int scalanative_win32_file_access_synchronize() { return SYNCHRONIZE; }

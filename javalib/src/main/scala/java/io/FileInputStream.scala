@@ -7,6 +7,9 @@ import scalanative.libc._, stdlib._, stdio._, string._
 import scalanative.nio.fs.UnixException
 import scalanative.posix.unistd, unistd.lseek
 import scalanative.runtime
+import scala.scalanative.windows.{FileApi, ErrorHandling, ErrorCodes}
+import scala.scalanative.runtime.PlatformExt.isWindows
+import scala.annotation.switch
 
 class FileInputStream(fd: FileDescriptor, file: Option[File])
     extends InputStream {
@@ -57,18 +60,34 @@ class FileInputStream(fd: FileDescriptor, file: Option[File])
 
     // we use the runtime knowledge of the array layout to avoid
     // intermediate buffer, and write straight into the array memory
-    val buf       = buffer.asInstanceOf[runtime.ByteArray].at(offset)
-    val readCount = unistd.read(fd.fd, buf, count.toUInt)
-
-    if (readCount == 0) {
-      // end of file
-      -1
-    } else if (readCount < 0) {
-      // negative value (typically -1) indicates that read failed
-      throw UnixException(file.fold("")(_.toString), errno.errno)
+    val buf = buffer.asInstanceOf[runtime.ByteArray].at(offset)
+    if (isWindows) {
+      Zone { implicit z =>
+        val readBytes = stackalloc[UInt]
+        val hasSucceded =
+          FileApi.readFile(fd.handle, buf, count.toUInt, readBytes, null)
+        if (hasSucceded) (!readBytes).toInt
+        else {
+          (ErrorHandling.getLastError().toInt: @switch) match {
+            case ErrorCodes.ERROR_HANDLE_EOF => -1
+            case err                         =>
+              // Todo proper Windows exceptions handling
+              throw UnixException(file.fold("")(_.toString), err)
+          }
+        }
+      }
     } else {
-      // successfully read readCount bytes
-      readCount
+      val readCount = unistd.read(fd.fd, buf, count.toUInt)
+      if (readCount == 0) {
+        // end of file
+        -1
+      } else if (readCount < 0) {
+        // negative value (typically -1) indicates that read failed
+        throw UnixException(file.fold("")(_.toString), errno.errno)
+      } else {
+        // successfully read readCount bytes
+        readCount
+      }
     }
   }
 

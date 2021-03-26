@@ -728,7 +728,8 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
           ()
 
         case rhs =>
-          unsupported("methods in extern objects must have extern body")
+          globalError(rhs.pos,
+                      "methods in extern objects must have extern body")
       }
     }
 
@@ -739,14 +740,15 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
             if extern.symbol == ExternMethod =>
           ref.symbol
         case _ =>
-          unsupported(
+          globalError(
+            rhs.pos,
             "extern objects may only contain extern fields and methods")
       }.toSet
       for {
         f <- curClassSym.info.decls if f.isField
         if !externs.contains(f)
       } {
-        unsupported("extern objects may only contain extern fields")
+        globalError(rhs.pos, "extern objects may only contain extern fields")
       }
     }
 

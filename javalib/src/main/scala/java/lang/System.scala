@@ -178,11 +178,9 @@ object System {
         env != null && env.nonEmpty
       }) {
         blockPtr += env.size + 1
-        // Block might start with some internal variables, eg.: `=::` `=C`, `=ExitCode`
-        // We don't wont to access them
-        if (env.head != '=') {
-          val Array(name, value) = env.split('=')
-          envsMap.put(name, value)
+        env.split('=') match {
+          case Array(name, value) => envsMap.put(name, value)
+          case _                  => () // invalid value, more then one '=', skip
         }
       }
       ProcessEnv.freeEnvironmentStrings(envBlockHead)

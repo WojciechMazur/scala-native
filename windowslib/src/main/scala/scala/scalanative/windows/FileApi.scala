@@ -9,28 +9,27 @@ object FileApi {
   @name("scalanative_win32_file_max_path")
   final def maxAsciiPathSize: CInt = extern
 
-  type SecurityAttributes = Ptr[Byte]
 
   @name("ReadFile")
   def readFile(fileHandle: Handle,
                buffer: Ptr[Byte],
-               bytesToRead: UInt,
-               bytesReadPtr: Ptr[UInt],
+               bytesToRead: DWord,
+               bytesReadPtr: Ptr[DWord],
                overlapped: Ptr[Byte]): Boolean = extern
 
   @name("WriteFile")
   def writeFile(fileHandle: Handle,
                 buffer: Ptr[Byte],
-                bytesToRead: UInt,
-                bytesWritten: Ptr[UInt],
+                bytesToRead: DWord,
+                bytesWritten: Ptr[DWord],
                 overlapped: Ptr[Byte]): Boolean = extern
 
   @name("CreateFileA")
   def createFile(filename: CString,
-                 desiredAccess: UInt,
-                 shareMode: UInt,
+                 desiredAccess: DWord,
+                 shareMode: DWord,
                  securityAttributes: SecurityAttributes,
-                 creationDisposition: UInt,
+                 creationDisposition: DWord,
                  flagsAndAttributes: UInt,
                  templateFile: Handle): Handle = extern
 

@@ -1,5 +1,4 @@
-package java
-package lang
+package java.lang.process
 
 import java.io.{File, IOException, InputStream, OutputStream}
 import java.util.concurrent.TimeUnit
@@ -18,6 +17,7 @@ import java.lang.ProcessBuilder.Redirect
 import pthread._
 import scala.collection.mutable.ArraySeq
 import scala.scalanative.posix.sys.types.{pthread_cond_t, pthread_mutex_t}
+import java.io.FileDescriptor
 
 private[lang] class UnixProcess private (
     pid: CInt,
@@ -25,7 +25,7 @@ private[lang] class UnixProcess private (
     infds: Ptr[CInt],
     outfds: Ptr[CInt],
     errfds: Ptr[CInt]
-) extends Process {
+) extends GenericProcess {
   override def destroy(): Unit = kill(pid, 9)
 
   override def destroyForcibly(): Process = {
@@ -81,11 +81,17 @@ private[lang] class UnixProcess private (
   }
 
   private[this] val _inputStream =
-    PipeIO[PipeIO.Stream](this, !outfds, builder.redirectOutput())
+    PipeIO[PipeIO.Stream](this,
+                          new FileDescriptor(!outfds),
+                          builder.redirectOutput())
   private[this] val _errorStream =
-    PipeIO[PipeIO.Stream](this, !errfds, builder.redirectError())
+    PipeIO[PipeIO.Stream](this,
+                          new FileDescriptor(!errfds),
+                          builder.redirectError())
   private[this] val _outputStream =
-    PipeIO[OutputStream](this, !(infds + 1), builder.redirectInput())
+    PipeIO[OutputStream](this,
+                         new FileDescriptor(!(infds + 1)),
+                         builder.redirectInput())
 
   private[this] var _exitValue = -1
   private[lang] def checkResult(): CInt = {

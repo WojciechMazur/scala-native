@@ -85,6 +85,9 @@ package object unsafe {
   /** C-style string with trailing 0. */
   type CString = Ptr[CChar]
 
+  /** C-style wide string with trailing 0. */
+  type CWString = Ptr[CWideChar]
+
   /** Materialize tag for given type. */
   @alwaysinline def tagof[T](implicit tag: Tag[T]): Tag[T] = tag
 
@@ -207,6 +210,29 @@ package object unsafe {
       !(cstr + c) = 0.toByte
 
       cstr
+    }
+  }
+
+  /** Convert a java.lang.String to a CString using given charset and allocator.
+   */
+  def toCWString(str: String, charset: Charset = Charset.forName("UTF-16"))(
+      implicit z: Zone): CWString = {
+    if (str == null) {
+      null
+    } else {
+      val bytes = str.getBytes(charset)
+      val cstr  = z.alloc((bytes.length + 2).toULong)
+
+      var c = 0
+      while (c < bytes.length) {
+        !(cstr + c) = bytes(c)
+        c += 1
+      }
+
+      !(cstr + c) = 0.toByte
+      !(cstr + c + 1.toUInt) = 0.toByte
+
+      cstr.asInstanceOf[CWString]
     }
   }
 

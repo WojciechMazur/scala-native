@@ -7,6 +7,7 @@ import scalanative.libc._, stdlib._, stdio._, string._
 import scalanative.nio.fs.UnixException
 import scalanative.posix.unistd, unistd.lseek
 import scalanative.runtime
+import scala.scalanative.windows
 import scala.scalanative.windows.{FileApi, ErrorHandling, ErrorCodes}
 import scala.scalanative.runtime.PlatformExt.isWindows
 import scala.annotation.switch
@@ -25,8 +26,7 @@ class FileInputStream(fd: FileDescriptor, file: Option[File])
     (lastPosition - currentPosition).toInt
   }
 
-  override def close(): Unit =
-    unistd.close(fd.fd)
+  override def close(): Unit = fd.close()
 
   override protected def finalize(): Unit =
     close()
@@ -62,18 +62,16 @@ class FileInputStream(fd: FileDescriptor, file: Option[File])
     // intermediate buffer, and write straight into the array memory
     val buf = buffer.asInstanceOf[runtime.ByteArray].at(offset)
     if (isWindows) {
-      Zone { implicit z =>
-        val readBytes = stackalloc[UInt]
-        val hasSucceded =
-          FileApi.readFile(fd.handle, buf, count.toUInt, readBytes, null)
-        if (hasSucceded) (!readBytes).toInt
-        else {
-          (ErrorHandling.getLastError().toInt: @switch) match {
-            case ErrorCodes.ERROR_HANDLE_EOF => -1
-            case err                         =>
-              // Todo proper Windows exceptions handling
-              throw UnixException(file.fold("")(_.toString), err)
-          }
+      val readBytes = stackalloc[windows.DWord]
+      val hasSucceded =
+        FileApi.readFile(fd.handle, buf, count.toUInt, readBytes, null)
+      if (hasSucceded) (!readBytes).toInt
+      else {
+        (ErrorHandling.getLastError().toInt: @switch) match {
+          case ErrorCodes.ERROR_HANDLE_EOF => -1
+          case err =>
+            // Todo proper Windows exceptions handling
+            throw UnixException(file.fold("")(_.toString), err)
         }
       }
     } else {

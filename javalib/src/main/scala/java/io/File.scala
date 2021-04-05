@@ -12,7 +12,10 @@ import scalanative.unsafe._
 import scalanative.libc._, stdlib._, stdio._, string._
 import scalanative.nio.fs.FileHelpers
 import scalanative.runtime.{DeleteOnExit, Platform}
+import scalanative.runtime.PlatformExt.isWindows
 import unistd._
+import scala.scalanative.windows.WinBaseApi
+import scala.scalanative.windows.WinBase
 
 class File(_path: String) extends Serializable with Comparable[File] {
   import File._
@@ -345,8 +348,15 @@ object File {
 
   private def getUserDir(): String =
     Zone { implicit z =>
-      var buff: CString = alloc[CChar](4096.toUInt)
-      var res: CString  = getcwd(buff, 4095.toUInt)
+      val res = if (isWindows()) {
+        val buffSize = WinBaseApi.getCurrentDirectoryA(0.toUInt, null)
+        val buff     = alloc[CChar](buffSize + 1.toUInt)
+        WinBaseApi.getCurrentDirectoryA(buffSize, buff)
+        buff
+      } else {
+        val buff: CString = alloc[CChar](4096.toUInt)
+        getcwd(buff, 4095.toUInt)
+      }
       fromCString(res)
     }
 

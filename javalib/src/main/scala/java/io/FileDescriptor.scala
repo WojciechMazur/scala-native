@@ -4,7 +4,13 @@ import scala.scalanative.unsigned._
 import scala.scalanative.unsafe._
 import scala.scalanative.posix.{fcntl, unistd}
 import scala.scalanative.windows.{HandleApi, ConsoleExt}
-import scala.scalanative.windows.{FileApi, FileAccess, FileSharing, FileDisposition, FileFlags}
+import scala.scalanative.windows.{
+  FileApi,
+  FileAccess,
+  FileSharing,
+  FileDisposition,
+  FileFlags
+}
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.runtime.PlatformExt.isWindows
 import scala.scalanative.runtime.{Intrinsics, toRawPtr, fromRawPtr}
@@ -17,10 +23,11 @@ final class FileDescriptor(fileHandle: FileHandle, readOnly: Boolean = false) {
       if (isWindows) FileHandle(HandleApi.InvalidHandleValue)
       else FileHandle(-1)
     }
-
+  override def toString(): String =
+    s"FileDescriptor(${fd} / ${fileHandle.toInt} / ${fileHandle}, readonly=$readOnly"
   /* Unix file descriptor underlying value */
   @alwaysinline
-  private[java] def fd: Int = Intrinsics.castRawPtrToInt(toRawPtr(fileHandle))
+  private[java] def fd: Int = fileHandle.toInt
 
   /* Windows file handler underlying value */
   @alwaysinline
@@ -56,10 +63,11 @@ final class FileDescriptor(fileHandle: FileHandle, readOnly: Boolean = false) {
       fcntl.fcntl(fd, fcntl.F_GETFD, 0) != -1
     }
 
-  def close(): Unit =
+  def close(): Unit = {
     if (isWindows) HandleApi.closeHandle(handle)
     else unistd.close(fd)
-    
+  }
+
   private def throwSyncFailed(): Unit =
     throw new SyncFailedException("sync failed")
 
@@ -116,10 +124,10 @@ object FileDescriptor {
             " Unicode version of file opening function is not supported yet "
         )
         val handle = FileApi.createFile(filename,
-                                        FileAccess.FILE_GENERIC_READ.toUInt,
-                                        FileSharing.NotShared.toUInt,
+                                        FileAccess.FILE_GENERIC_READ,
+                                        FileSharing.NotShared,
                                         null,
-                                        FileDisposition.OpenExisting.toUInt,
+                                        FileDisposition.OpenExisting,
                                         0.toUInt,
                                         null)
         if (handle == HandleApi.InvalidHandleValue) {

@@ -119,17 +119,17 @@ object FileDescriptor {
 
       val fileHandle = if (isWindows) {
         assert(
-          file.getPath().size < FileApi.maxAsciiPathSize,
-          s"Paths on Windows are limmited to ${FileApi.maxAsciiPathSize}," +
+          file.getPath().size.toUInt < FileApi.MaxAnsiPathSize,
+          s"Paths on Windows are limmited to ${FileApi.MaxAnsiPathSize}," +
             " Unicode version of file opening function is not supported yet "
         )
-        val handle = FileApi.createFile(filename,
-                                        FileAccess.FILE_GENERIC_READ,
-                                        FileSharing.NotShared,
-                                        null,
-                                        FileDisposition.OpenExisting,
-                                        0.toUInt,
-                                        null)
+        val handle = FileApi.createFileA(filename,
+                                         FileAccess.FILE_GENERIC_READ,
+                                         FileSharing.NotShared,
+                                         null,
+                                         FileDisposition.OpenExisting,
+                                         0.toUInt,
+                                         null)
         if (handle == HandleApi.InvalidHandleValue) {
           fail()
         }

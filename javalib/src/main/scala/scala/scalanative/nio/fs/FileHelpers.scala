@@ -5,9 +5,11 @@ import scalanative.libc._
 import scalanative.posix.dirent._
 import scalanative.posix.{errno => e, fcntl, unistd}, e._, unistd.access
 import scalanative.unsafe._, stdlib._, stdio._, string._
+import scalanative.runtime.PlatformExt.isWindows
 import scala.collection.mutable.UnrolledBuffer
 import scala.reflect.ClassTag
 import java.io.{File, IOException}
+import scala.scalanative.windows.ShlwApi
 
 object FileHelpers {
   private[this] lazy val random = new scala.util.Random()
@@ -78,7 +80,13 @@ object FileHelpers {
     }
 
   def exists(path: String): Boolean =
-    Zone { implicit z => access(toCString(path), unistd.F_OK) == 0 }
+    Zone { implicit z =>
+      if (isWindows())
+        ShlwApi.pathFileExistsA(toCString(path))
+      else
+        access(toCString(path), unistd.F_OK) == 0
+    }
+
   private def tempDir(): String = {
     val dir = getenv(c"TMPDIR")
     if (dir == null) {

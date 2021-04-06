@@ -14,8 +14,33 @@ import scalanative.nio.fs.FileHelpers
 import scalanative.runtime.{DeleteOnExit, Platform}
 import scalanative.runtime.PlatformExt.isWindows
 import unistd._
-import scala.scalanative.windows.WinBaseApi
-import scala.scalanative.windows.WinBase
+import scala.scalanative.windows
+import scala.scalanative.windows.{WinBaseApi, SecurityBaseApi}
+import scala.scalanative.windows.SecurityBase.{
+  SecurityDescriptor,
+  SecurityDescriptorOps,
+  GenericMappingOps,
+  GenericMapping
+}
+import scala.scalanative.windows.HandleApi.Handle
+import scala.scalanative.windows.WinBase.SecurityInformation
+import scala.scalanative.windows.SecurityBase.{
+  AccessToken,
+  SecurityImpersonationLevel
+}
+import scala.scalanative.windows.{
+  ProcessThreadsApi,
+  FileAccess,
+  FileSharing,
+  FileAttributes,
+  FileDisposition,
+  ErrorCodes,
+  FileApi,
+  HandleApi
+}
+import scala.scalanative.windows.File.FinalPathFlags
+import scala.scalanative.windows.ErrorHandling.getLastError
+import scala.scalanative.annotation.alwaysinline
 
 class File(_path: String) extends Serializable with Comparable[File] {
   import File._
@@ -44,13 +69,22 @@ class File(_path: String) extends Serializable with Comparable[File] {
   }
 
   def canExecute(): Boolean =
-    Zone { implicit z => access(toCString(path), unistd.X_OK) == 0 }
+    Zone { implicit z =>
+      if (isWindows) checkWindowsAccess(FileAccess.FILE_GENERIC_EXECUTE)
+      else access(toCString(path), unistd.X_OK) == 0
+    }
 
   def canRead(): Boolean =
-    Zone { implicit z => access(toCString(path), unistd.R_OK) == 0 }
+    Zone { implicit z =>
+      if (isWindows) checkWindowsAccess(FileAccess.FILE_GENERIC_READ)
+      else access(toCString(path), unistd.R_OK) == 0
+    }
 
   def canWrite(): Boolean =
-    Zone { implicit z => access(toCString(path), unistd.W_OK) == 0 }
+    Zone { implicit z =>
+      if (isWindows) checkWindowsAccess(FileAccess.FILE_GENERIC_WRITE)
+      else access(toCString(path), unistd.W_OK) == 0
+    }
 
   def setExecutable(executable: Boolean): Boolean =
     setExecutable(executable, ownerOnly = true)
@@ -89,7 +123,13 @@ class File(_path: String) extends Serializable with Comparable[File] {
     }
 
   def exists(): Boolean =
-    Zone { implicit z => access(toCString(path), unistd.F_OK) == 0 }
+    Zone { implicit z =>
+      val filename = toCString(path)
+      if (isWindows)
+        FileApi.getFileAttributesA(filename) != FileApi.InvalidFileAttributes
+      else
+        access(filename, unistd.F_OK) == 0
+    }
 
   def toPath(): Path =
     FileSystems.getDefault().getPath(this.getPath(), Array.empty)
@@ -103,11 +143,24 @@ class File(_path: String) extends Serializable with Comparable[File] {
       deleteFileImpl()
     }
 
-  private def deleteDirImpl(): Boolean =
-    Zone { implicit z => remove(toCString(path)) == 0 }
+  private def deleteDirImpl(): Boolean = Zone { implicit z =>
+    val filename = toCString(path)
+    if (isWindows)
+      FileApi.removeDirectoryA(filename)
+    else
+      remove(toCString(path)) == 0
+  }
 
-  private def deleteFileImpl(): Boolean =
-    Zone { implicit z => unlink(toCString(path)) == 0 }
+  private def deleteFileImpl(): Boolean = Zone { implicit z =>
+    val filename = toCString(path)
+    if (isWindows) {
+      //todo if is read-only remove this attribute before
+      FileApi.deleteFileA(filename)
+    } else {
+      unlink(filename) == 0
+    }
+
+  }
 
   override def equals(that: Any): Boolean =
     that match {
@@ -138,9 +191,18 @@ class File(_path: String) extends Serializable with Comparable[File] {
    * match that of Java on non-existing file.
    */
   private def simplifyExistingPath(path: CString)(implicit z: Zone): CString = {
-    val resolvedName = alloc[Byte](limits.PATH_MAX.toUInt)
-    realpath(path, resolvedName)
-    resolvedName
+    if (isWindows) {
+      val resolvedName = alloc[Byte](FileApi.MaxAnsiPathSize)
+      FileApi.getFullPathNameA(path,
+                               FileApi.MaxAnsiPathSize,
+                               resolvedName,
+                               null)
+      resolvedName
+    } else {
+      val resolvedName = alloc[Byte](limits.PATH_MAX.toUInt)
+      realpath(path, resolvedName)
+      resolvedName
+    }
   }
 
   /**
@@ -191,13 +253,26 @@ class File(_path: String) extends Serializable with Comparable[File] {
     File.isAbsolute(path)
 
   def isDirectory(): Boolean =
-    Zone { implicit z => stat.S_ISDIR(accessMode()) != 0 }
+    Zone { implicit z =>
+      if (isWindows)
+        fileAttributeIsSet(FileAttributes.Directory)
+      else
+        stat.S_ISDIR(accessMode()) != 0
+    }
 
   def isFile(): Boolean =
-    Zone { implicit z => stat.S_ISREG(accessMode()) != 0 }
+    Zone { implicit z =>
+      if (isWindows)
+        fileAttributeIsSet(FileAttributes.Normal) || !isDirectory()
+      else
+        stat.S_ISREG(accessMode()) != 0
+    }
 
-  def isHidden(): Boolean =
-    getName().startsWith(".")
+  def isHidden(): Boolean = {
+    if (isWindows)
+      fileAttributeIsSet(FileAttributes.Hidden)
+    else getName().startsWith(".")
+  }
 
   def lastModified(): Long =
     Zone { implicit z =>
@@ -216,6 +291,12 @@ class File(_path: String) extends Serializable with Comparable[File] {
     } else {
       0.toUInt
     }
+  }
+
+  @alwaysinline
+  private def fileAttributeIsSet(attribute: windows.DWord): Boolean = Zone {
+    implicit z =>
+      (FileApi.getFileAttributesA(toCString(path)) & attribute) == attribute
   }
 
   def setLastModified(time: Long): Boolean =
@@ -336,6 +417,111 @@ class File(_path: String) extends Serializable with Comparable[File] {
     } else {
       new URI("file", null, path, null, null)
     }
+  }
+
+  private[this] def checkWindowsAccess(access: windows.DWord)(
+      implicit zone: Zone): Boolean = {
+    // based on this article https://blog.aaronballman.com/2011/08/how-to-check-access-rights/
+    val accessStatus = stackalloc[Boolean]
+
+    def withFileSecurityDescriptor(
+        fn: Ptr[SecurityDescriptor] => Unit): Unit = {
+      val neededDescriptorSize = stackalloc[windows.DWord]
+      val filename             = toCString(path)
+      val securityInfo =
+        SecurityInformation.Owner() |
+          SecurityInformation.Group |
+          SecurityInformation.DACL()
+
+      def calcDescriptorSize(): Unit = {
+        val returnsDescriptor = WinBaseApi.getFileSecurityA(
+          filename,
+          securityInfo,
+          securityDescriptor = null,
+          length = 0.toUInt,
+          neededDescriptorSize)
+
+        def failsWithUnknownError =
+          getLastError() == ErrorCodes.ERROR_INSUFFICIENT_BUFFER
+
+        if (returnsDescriptor || failsWithUnknownError) {
+          throw new IOException("Cannot retrive file security descriptor size")
+        }
+      }
+
+      calcDescriptorSize()
+      val descriptor =
+        alloc[Byte](!neededDescriptorSize).asInstanceOf[Ptr[SecurityDescriptor]]
+
+      if (WinBaseApi.getFileSecurityA(filename,
+                                      securityInfo,
+                                      descriptor,
+                                      !neededDescriptorSize,
+                                      neededDescriptorSize)) descriptor
+      else throw new IOException("Cannot retrive file security descriptor")
+
+      fn(descriptor)
+    }
+
+    def withImpersonatedToken(fn: Handle => Unit) = {
+      val tokenHandle = stackalloc[Handle]
+      if (!ProcessThreadsApi.openProcessToken(
+            ProcessThreadsApi.getCurrentProcess(),
+            AccessToken.Impersonate | AccessToken.Read | AccessToken.Duplicate,
+            tokenHandle)) {
+        throw new IOException("Cannot open thread token")
+      }
+
+      try {
+        val impersonatedToken = stackalloc[Handle]
+        if (!SecurityBaseApi.duplicateToken(
+              !tokenHandle,
+              SecurityImpersonationLevel.Impersonation(),
+              impersonatedToken)) {
+          throw new IOException("Cannot impersonate access token")
+        }
+
+        try {
+          fn(!impersonatedToken)
+        } finally HandleApi.closeHandle(!impersonatedToken)
+      } finally HandleApi.closeHandle(!tokenHandle)
+    }
+
+    withFileSecurityDescriptor { securityDescriptor =>
+      withImpersonatedToken { impersonatedToken =>
+        val genericMapping = stackalloc[GenericMapping]
+        genericMapping.genericRead = FileAccess.FILE_GENERIC_READ
+        genericMapping.genericWrite = FileAccess.FILE_GENERIC_WRITE
+        genericMapping.genericExecute = FileAccess.FILE_GENERIC_EXECUTE
+        genericMapping.genericAll = FileAccess.GENERIC_ALL
+
+        val accessMask = stackalloc[windows.DWord]
+        !accessMask = access
+
+        val privilegeSetLength = stackalloc[windows.DWord]
+        !privilegeSetLength = SecurityBaseApi.emptyPriviligesSize().toUInt
+
+        val privilegeSet = stackalloc[Byte](!privilegeSetLength)
+        memset(privilegeSet, 0, !privilegeSetLength)
+
+        val grantedAcccess = stackalloc[windows.DWord]
+        !grantedAcccess = 0.toUInt
+
+        SecurityBaseApi.mapGenericMask(accessMask, genericMapping)
+        SecurityBaseApi.accessCheck(
+          securityDescriptor = securityDescriptor,
+          clientToken = impersonatedToken,
+          desiredAccess = access,
+          genericMapping = genericMapping,
+          privilegeSet = privilegeSet,
+          privilegeSetLength = privilegeSetLength,
+          grantedAccess = grantedAcccess,
+          accessStatus = accessStatus
+        )
+      }
+    }
+
+    !accessStatus
   }
 }
 
@@ -522,14 +708,42 @@ object File {
    * Otherwise, returns `None`.
    */
   private def readLink(link: CString)(implicit z: Zone): CString = {
-    val buffer: CString = alloc[Byte](limits.PATH_MAX.toUInt)
-    readlink(link, buffer, (limits.PATH_MAX - 1).toUInt) match {
-      case -1 =>
-        null
-      case read =>
-        // readlink doesn't null-terminate the result.
-        buffer(read) = 0.toByte
-        buffer
+    val bufferSize =
+      if (isWindows) FileApi.MaxAnsiPathSize
+      else limits.PATH_MAX.toUInt
+    val buffer: CString = alloc[Byte](bufferSize)
+
+    if (isWindows) {
+      val fileHandle = FileApi.createFileA(
+        link,
+        desiredAccess = 0.toUInt,
+        shareMode =
+          FileSharing.ShareRead | FileSharing.ShareWrite | FileSharing.ShareDelete,
+        securityAttributes = null,
+        creationDisposition = FileDisposition.OpenExisting,
+        flagsAndAttributes = FileAttributes.Normal,
+        templateFile = null
+      )
+      try {
+        val finalPathFlags = FinalPathFlags.FileNameNormalized
+        val pathLength = FileApi.getFinalPathNameByHandleA(
+          fileHandle,
+          buffer = buffer,
+          bufferSize = bufferSize,
+          flags = finalPathFlags
+        )
+        if (pathLength == 0) null
+        else buffer
+      } finally HandleApi.closeHandle(fileHandle)
+    } else {
+      readlink(link, buffer, (limits.PATH_MAX - 1).toUInt) match {
+        case -1 =>
+          null
+        case read =>
+          // readlink doesn't null-terminate the result.
+          buffer(read) = 0.toByte
+          buffer
+      }
     }
   }
 

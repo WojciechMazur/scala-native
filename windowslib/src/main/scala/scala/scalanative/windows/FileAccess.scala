@@ -94,14 +94,28 @@ object FileDisposition {
 }
 
 object FileAttributes {
-  final val FILE_ATTRIBUTE_ARCHIVE   = 0x20.toUInt
-  final val FILE_ATTRIBUTE_ENCRYPTED = 0x4000.toUInt
-  final val FILE_ATTRIBUTE_HIDDEN    = 0x2.toUInt
-  final val FILE_ATTRIBUTE_NORMAL    = 0x80.toUInt
-  final val FILE_ATTRIBUTE_OFFLINE   = 0x1000.toUInt
-  final val FILE_ATTRIBUTE_READONLY  = 0x1.toUInt
-  final val FILE_ATTRIBUTE_SYSTEM    = 0x4.toUInt
-  final val FILE_ATTRIBUTE_TEMPORARY = 0x100.toUInt
+  final val ReadOnly            = 0x00000001.toUInt
+  final val Hidden              = 0x00000002.toUInt
+  final val System              = 0x00000004.toUInt
+  final val Directory           = 0x00000010.toUInt
+  final val Archive             = 0x00000020.toUInt
+  final val Device              = 0x00000040.toUInt
+  final val Normal              = 0x00000080.toUInt
+  final val Temporary           = 0x00000100.toUInt
+  final val SparseFile          = 0x00000200.toUInt
+  final val ReparsePoint        = 0x00000400.toUInt
+  final val Compressed          = 0x00000800.toUInt
+  final val Offline             = 0x00001000.toUInt
+  final val NotContextIndexed   = 0x00002000.toUInt
+  final val Encrypted           = 0x00004000.toUInt
+  final val IntegrityStream     = 0x00008000.toUInt
+  final val Virtual             = 0x00010000.toUInt
+  final val NoScrubData         = 0x00020000.toUInt
+  final val EA                  = 0x00040000.toUInt
+  final val Pinned              = 0x00080000.toUInt
+  final val Unpinned            = 0x00100000.toUInt
+  final val RecallOnOpen        = 0x00040000.toUInt
+  final val RecallOnDataAcccess = 0x00400000.toUInt
 }
 
 object FileFlags {

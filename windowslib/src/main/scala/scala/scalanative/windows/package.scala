@@ -7,6 +7,13 @@ package object windows {
   type Word      = UShort
   type DWord     = UInt
   type DWordLong = ULong
+  /* Actually large integers are union types with size of 64-bits
+    When compiler does not support large integer types it allows to store
+    low and hight parts of number in its structure fields. In all other cases
+    its recommended to use its QuadPart field directly.
+   */
+  type LargeInteger  = Long
+  type ULargeInteger = ULong
 
   type SecurityAttributes = CStruct3[DWord, Ptr[Byte], Boolean]
   implicit class SecurityAttributesOps(ref: Ptr[SecurityAttributes])(

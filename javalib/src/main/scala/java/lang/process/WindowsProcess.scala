@@ -226,9 +226,9 @@ object WindowsProcess {
     @inline def openRedirectFd(
         access: DWord,
         disposition: DWord,
-        flagsAndAttributes: DWord = FileAttributes.FILE_ATTRIBUTE_NORMAL,
+        flagsAndAttributes: DWord = FileAttributes.Normal,
         sharing: DWord = FileSharing.NotShared) = Zone { implicit z =>
-      val handle = FileApi.createFile(
+      val handle = FileApi.createFileA(
         filename = toCString(redirect.file.getAbsolutePath()),
         desiredAccess = access,
         shareMode = sharing,
@@ -271,7 +271,7 @@ object WindowsProcess {
       case ProcessBuilder.Redirect.Type.READ =>
         val fd = openRedirectFd(
           access = FileAccess.FILE_GENERIC_READ,
-          flagsAndAttributes = FileAttributes.FILE_ATTRIBUTE_READONLY,
+          flagsAndAttributes = FileAttributes.ReadOnly,
           disposition = FileDisposition.OpenExisting,
           sharing = FileSharing.ShareRead
         )

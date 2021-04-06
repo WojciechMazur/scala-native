@@ -46,6 +46,12 @@ object ProcessThreadsApi {
   @name("GetCurrentProcess")
   def getCurrentProcess(): Handle = extern
 
+  @name("GetCurrentProcessToken")
+  def getCurrentProcessToken(): Handle = extern
+
+  @name("GetCurrentThread")
+  def getCurrentThread(): Handle = extern
+
   @name("GetExitCodeProcess")
   def getExitCodeProcess(handle: Handle, exitCodePtr: Ptr[DWord]): Boolean =
     extern
@@ -56,6 +62,16 @@ object ProcessThreadsApi {
 
   @name("GetProcessId")
   def getProcessId(handle: Handle): DWord = extern
+
+  @name("OpenThreadToken")
+  def openThreadToken(thread: Handle,
+                      desiredAccess: DWord,
+                      openAsSelf: Boolean,
+                      tokenHandle: Ptr[Handle]): Boolean = extern
+  @name("OpenProcesToken")
+  def openProcessToken(process: Handle,
+                       desiredAccess: DWord,
+                       tokenHandle: Ptr[Handle]): Boolean = extern
 
   @name("TerminateProcess")
   def terminateProcess(handle: Handle, exitCode: UInt): Boolean = extern
@@ -146,7 +162,7 @@ object ProcessThreads {
     final val UseSize          = 0x00000002.toUInt
     final val UseStdHandles    = 0x00000100.toUInt
   }
-  
+
   type ProcessInformation = CStruct4[Handle, Handle, DWord, DWord]
   implicit class ProcessInformationOps(ref: Ptr[ProcessInformation])(
       implicit tag: Tag[ProcessInformation]) {

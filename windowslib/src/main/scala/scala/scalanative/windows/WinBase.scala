@@ -11,6 +11,8 @@ object WinBaseApi {
 
   type CallbackContext     = Ptr[Byte]
   type WaitOrTimerCallback = CFuncPtr2[CallbackContext, Boolean, Unit]
+  type LocalHandle         = Ptr[_]
+
   @name("GetCurrentDirectoryA")
   def getCurrentDirectoryA(bufferLength: DWord, buffer: CString): DWord = extern
 
@@ -21,6 +23,9 @@ object WinBaseApi {
                        length: DWord,
                        lengthNeeded: Ptr[DWord]): Boolean =
     extern
+
+  @name("LocalFree")
+  def localFree(ref: LocalHandle): LocalHandle = extern
 
   @name("RegisterWaitForSingleObject")
   def registerWaitForSingleObject(retHandle: Ptr[Handle],

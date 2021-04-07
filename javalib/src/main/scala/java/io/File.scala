@@ -16,6 +16,7 @@ import scalanative.runtime.PlatformExt.isWindows
 import unistd._
 import scala.scalanative.windows
 import scala.scalanative.windows.{WinBaseApi, SecurityBaseApi}
+import scala.scalanative.windows.HelperMethods._
 import scala.scalanative.windows.SecurityBase.{
   SecurityDescriptor,
   SecurityDescriptorOps,
@@ -26,8 +27,12 @@ import scala.scalanative.windows.HandleApi.Handle
 import scala.scalanative.windows.WinBase.SecurityInformation
 import scala.scalanative.windows.SecurityBase.{
   AccessToken,
-  SecurityImpersonationLevel
+  SecurityImpersonationLevel,
+  ACLPtr,
+  SIDPtr
 }
+import scala.scalanative.windows.accctrl._
+import scala.scalanative.windows.winnt.{HelperMethods => WinNtHelpers, _}
 import scala.scalanative.windows.{
   ProcessThreadsApi,
   FileAccess,
@@ -36,11 +41,16 @@ import scala.scalanative.windows.{
   FileDisposition,
   ErrorCodes,
   FileApi,
-  HandleApi
+  HandleApi,
+  AclApi,
+  Acl
 }
+import scala.scalanative.windows.winnt.TokenInformationClass
+import Acl.SecurityObjectType
 import scala.scalanative.windows.File.FinalPathFlags
 import scala.scalanative.windows.ErrorHandling.getLastError
 import scala.scalanative.annotation.alwaysinline
+import scala.scalanative.windows.HelperMethods
 
 class File(_path: String) extends Serializable with Comparable[File] {
   import File._
@@ -90,35 +100,119 @@ class File(_path: String) extends Serializable with Comparable[File] {
     setExecutable(executable, ownerOnly = true)
 
   def setExecutable(executable: Boolean, ownerOnly: Boolean): Boolean = {
-    import stat._
-    val mask = if (!ownerOnly) S_IXUSR | S_IXGRP | S_IXOTH else S_IXUSR
-    updatePermissions(mask, executable)
+    if (isWindows) {
+      val accessRights = FileAccess.FILE_GENERIC_EXECUTE
+      updatePermissionsWindows(accessRights, executable, ownerOnly)
+    } else {
+      import stat._
+      val mask = if (!ownerOnly) S_IXUSR | S_IXGRP | S_IXOTH else S_IXUSR
+      updatePermissionsUnix(mask, executable)
+    }
   }
 
   def setReadable(readable: Boolean): Boolean =
     setReadable(readable, ownerOnly = true)
 
   def setReadable(readable: Boolean, ownerOnly: Boolean): Boolean = {
-    import stat._
-    val mask = if (!ownerOnly) S_IRUSR | S_IRGRP | S_IROTH else S_IRUSR
-    updatePermissions(mask, readable)
+    if (isWindows) {
+      val accessRights = FileAccess.FILE_GENERIC_READ
+      updatePermissionsWindows(accessRights, readable, ownerOnly)
+    } else {
+      import stat._
+      val mask = if (!ownerOnly) S_IRUSR | S_IRGRP | S_IROTH else S_IRUSR
+      updatePermissionsUnix(mask, readable)
+    }
   }
 
   def setWritable(writable: Boolean): Boolean =
     setWritable(writable, ownerOnly = true)
 
   def setWritable(writable: Boolean, ownerOnly: Boolean = true): Boolean = {
-    import stat._
-    val mask = if (!ownerOnly) S_IWUSR | S_IWGRP | S_IWOTH else S_IWUSR
-    updatePermissions(mask, writable)
+    if (isWindows) {
+      val accessRights = FileAccess.FILE_GENERIC_WRITE
+      updatePermissionsWindows(accessRights, writable, ownerOnly)
+    } else {
+      import stat._
+      val mask = if (!ownerOnly) S_IWUSR | S_IWGRP | S_IWOTH else S_IWUSR
+      updatePermissionsUnix(mask, writable)
+    }
   }
 
-  private def updatePermissions(mask: stat.mode_t, grant: Boolean): Boolean =
+  private def updatePermissionsUnix(mask: stat.mode_t,
+                                    grant: Boolean): Boolean =
     Zone { implicit z =>
       if (grant) {
         stat.chmod(toCString(path), accessMode() | mask) == 0
       } else {
         stat.chmod(toCString(path), accessMode() & (~mask)) == 0
+      }
+    }
+
+  private def updatePermissionsWindows(accessRights: windows.DWord,
+                                       grant: Boolean,
+                                       ownerOnly: Boolean): Boolean =
+    Zone { implicit z =>
+      val filename              = toCString(path)
+      val securityDescriptorPtr = stackalloc[Ptr[SecurityDescriptor]]
+      val previousDacl, newDacl = stackalloc[ACLPtr]
+      val usersGroupSid         = stackalloc[SIDPtr]
+
+      val accessMode: AccessMode.Type =
+        if (grant) AccessMode.GrantAccess
+        else AccessMode.DenyAccess
+
+      def getSecurityDescriptor() =
+        AclApi.getNamedSecurityInfoA(
+          filename,
+          SecurityObjectType.FileObject,
+          SecurityInformation.DACL,
+          sidOwner = null,
+          sidGroup = null,
+          dacl = previousDacl,
+          sacl = null,
+          securityDescriptor = securityDescriptorPtr
+        ) == 0.toUInt
+
+      def setupNewAclEntry() = {
+        val ea = alloc[ExplicitAccess]
+        ea.accessPermisions = accessRights
+        ea.accessMode = accessMode
+        ea.inheritence = InheritFlags.NoPropagateInheritAce
+        ea.trustee.trusteeForm = TrusteeForm.TrusteeIsSid
+
+        if (ownerOnly) {
+          withUserToken(AccessToken.Query) { userToken =>
+            withTokenInformation(userToken, TokenInformationClass.User) {
+              data: Ptr[SidAndAttributes] =>
+                ea.trustee.trusteeType = TrusteeType.TrusteeIsUser
+                ea.trustee.sid = data.sid
+            }
+          }
+        } else {
+          WinNtHelpers.setupUserGroupSid(usersGroupSid)
+          ea.trustee.trusteeType = TrusteeType.TrusteeIsWellKnownGroup
+          ea.trustee.sid = !usersGroupSid
+        }
+
+        AclApi.setEntriesInAclA(1.toUInt, ea, !previousDacl, newDacl) == 0.toUInt
+      }
+
+      def assignNewSecurityInfo() =
+        AclApi.setNamedSecurityInfoA(filename,
+                                     SecurityObjectType.FileObject,
+                                     SecurityInformation.DACL,
+                                     sidOwner = null,
+                                     sidGroup = null,
+                                     dacl = !newDacl,
+                                     sacl = null) == 0.toUInt
+      try {
+        withLocalHandleCleanup(securityDescriptorPtr, previousDacl, newDacl) {
+          getSecurityDescriptor() &&
+          setupNewAclEntry() &&
+          assignNewSecurityInfo()
+        }
+      } finally {
+        SecurityBaseApi.freeSid(!usersGroupSid)
       }
     }
 
@@ -426,65 +520,30 @@ class File(_path: String) extends Serializable with Comparable[File] {
 
     def withFileSecurityDescriptor(
         fn: Ptr[SecurityDescriptor] => Unit): Unit = {
-      val neededDescriptorSize = stackalloc[windows.DWord]
-      val filename             = toCString(path)
+      val securityDescriptorPtr = stackalloc[Ptr[SecurityDescriptor]]
+      val filename              = toCString(path)
       val securityInfo =
         SecurityInformation.Owner() |
           SecurityInformation.Group |
           SecurityInformation.DACL()
 
-      def calcDescriptorSize(): Unit = {
-        val returnsDescriptor = WinBaseApi.getFileSecurityA(
-          filename,
-          securityInfo,
-          securityDescriptor = null,
-          length = 0.toUInt,
-          neededDescriptorSize)
-
-        def failsWithUnknownError =
-          getLastError() == ErrorCodes.ERROR_INSUFFICIENT_BUFFER
-
-        if (returnsDescriptor || failsWithUnknownError) {
-          throw new IOException("Cannot retrive file security descriptor size")
-        }
-      }
-
-      calcDescriptorSize()
-      val descriptor =
-        alloc[Byte](!neededDescriptorSize).asInstanceOf[Ptr[SecurityDescriptor]]
-
-      if (WinBaseApi.getFileSecurityA(filename,
-                                      securityInfo,
-                                      descriptor,
-                                      !neededDescriptorSize,
-                                      neededDescriptorSize)) descriptor
-      else throw new IOException("Cannot retrive file security descriptor")
-
-      fn(descriptor)
-    }
-
-    def withImpersonatedToken(fn: Handle => Unit) = {
-      val tokenHandle = stackalloc[Handle]
-      if (!ProcessThreadsApi.openProcessToken(
-            ProcessThreadsApi.getCurrentProcess(),
-            AccessToken.Impersonate | AccessToken.Read | AccessToken.Duplicate,
-            tokenHandle)) {
-        throw new IOException("Cannot open thread token")
-      }
-
+      val result = AclApi.getNamedSecurityInfoA(
+        filename,
+        SecurityObjectType.FileObject,
+        securityInfo,
+        sidOwner = null,
+        sidGroup = null,
+        dacl = null,
+        sacl = null,
+        securityDescriptor = securityDescriptorPtr
+      )
+      if (result != 0.toUInt)
+        throw new IOException("Cannot retrive file security descriptor")
       try {
-        val impersonatedToken = stackalloc[Handle]
-        if (!SecurityBaseApi.duplicateToken(
-              !tokenHandle,
-              SecurityImpersonationLevel.Impersonation(),
-              impersonatedToken)) {
-          throw new IOException("Cannot impersonate access token")
-        }
-
-        try {
-          fn(!impersonatedToken)
-        } finally HandleApi.closeHandle(!impersonatedToken)
-      } finally HandleApi.closeHandle(!tokenHandle)
+        fn(!securityDescriptorPtr)
+      } finally {
+        WinBaseApi.localFree(securityDescriptorPtr)
+      }
     }
 
     withFileSecurityDescriptor { securityDescriptor =>

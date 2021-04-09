@@ -49,22 +49,22 @@ class Socket protected (private[net] val impl: SocketImpl,
   }
 
   def this() =
-    this(new PlainSocketImpl(), null, -1, null, 0, true, false)
+    this(GenericPlainSocket(), null, -1, null, 0, true, false)
 
   protected[net] def this(impl: SocketImpl) =
     this(impl, null, -1, null, 0, true, false)
 
   def this(address: InetAddress, port: Int) =
-    this(new PlainSocketImpl(), address, port, null, 0, true, true)
+    this(GenericPlainSocket(), address, port, null, 0, true, true)
 
   def this(address: InetAddress,
            port: Int,
            localAddr: InetAddress,
            localPort: Int) =
-    this(new PlainSocketImpl(), address, port, localAddr, localPort, true, true)
+    this(GenericPlainSocket(), address, port, localAddr, localPort, true, true)
 
   def this(host: String, port: Int) =
-    this(new PlainSocketImpl(),
+    this(GenericPlainSocket(),
          InetAddress.getByName(host),
          port,
          null,
@@ -73,7 +73,7 @@ class Socket protected (private[net] val impl: SocketImpl,
          true)
 
   def this(host: String, port: Int, localAddr: InetAddress, localPort: Int) =
-    this(new PlainSocketImpl(),
+    this(GenericPlainSocket(),
          InetAddress.getByName(host),
          port,
          localAddr,
@@ -82,10 +82,10 @@ class Socket protected (private[net] val impl: SocketImpl,
          true)
 
   def this(host: InetAddress, port: Int, stream: Boolean) =
-    this(new PlainSocketImpl(), host, port, null, 0, stream, true)
+    this(GenericPlainSocket(), host, port, null, 0, stream, true)
 
   def this(host: String, port: Int, stream: Boolean) =
-    this(new PlainSocketImpl(),
+    this(GenericPlainSocket(),
          InetAddress.getByName(host),
          port,
          null,

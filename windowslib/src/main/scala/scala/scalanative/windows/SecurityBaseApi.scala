@@ -4,6 +4,7 @@ import scala.scalanative.unsafe._
 import scala.scalanative.unsigned._
 import HandleApi.Handle
 
+@link("advapi32")
 @extern()
 object SecurityBaseApi {
   import SecurityBase._

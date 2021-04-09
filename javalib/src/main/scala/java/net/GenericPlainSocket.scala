@@ -2,11 +2,14 @@ package java.net
 
 import scala.scalanative.unsigned._
 import scala.scalanative.unsafe._
+import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.libc._
 import scala.scalanative.runtime.ByteArray
+import scala.scalanative.runtime.PlatformExt.isWindows
 import scala.scalanative.posix.errno._
 import scala.scalanative.posix.sys.socket
 import scala.scalanative.posix.sys.socketOps._
+import scala.scalanative.posix.sys.ioctl._
 import scala.scalanative.posix.netinet.in
 import scala.scalanative.posix.netinet.inOps._
 import scala.scalanative.posix.netinet.tcp
@@ -16,32 +19,49 @@ import scala.scalanative.posix.netdbOps._
 import scala.scalanative.posix.poll._
 import scala.scalanative.posix.pollEvents._
 import scala.scalanative.posix.pollOps._
-import scala.scalanative.posix.sys.ioctl._
-import scala.scalanative.posix.fcntl._
-import scala.scalanative.posix.sys.select._
 import scala.scalanative.posix.sys.time._
 import scala.scalanative.posix.sys.timeOps._
-import scala.scalanative.posix.unistd.{close => cClose}
+import scala.scalanative.windows.WinSocketApi
 import java.io.{FileDescriptor, IOException, OutputStream, InputStream}
 
-private[net] class PlainSocketImpl extends SocketImpl {
+private[net] abstract class GenericPlainSocket extends SocketImpl {
+  import GenericPlainSocket._
+
+  protected def setSocketFdBlocking(fd: FileDescriptor, blocking: Boolean): Unit
 
   protected[net] var fd                   = new FileDescriptor
   protected[net] var localport            = 0
   protected[net] var address: InetAddress = null
   protected[net] var port                 = 0
 
-  private var timeout   = 0
-  private var listening = false
+  protected var timeout   = 0
+  protected var listening = false
 
   override def getInetAddress: InetAddress       = address
   override def getFileDescriptor: FileDescriptor = fd
+  final protected var isClosed: Boolean =
+    fd == InvalidFileDescriptor
 
-  private def throwIfClosed(osFd: Int, methodName: String): Unit = {
-    if (osFd == -1) {
+  @alwaysinline
+  protected def pollCompat(fds: Ptr[struct_pollfd],
+                           nfds: nfds_t,
+                           timeout: CInt): CInt = {
+    if (isWindows) WinSocketApi.poll(fds, nfds, timeout)
+    else poll(fds, nfds, timeout)
+  }
+
+  private def throwIfClosed(fd: FileDescriptor, methodName: String): Unit = {
+    if (isClosed) {
       throw new SocketException(s"${methodName}: Socket is closed")
     }
   }
+
+  private def throwCannotBind(addr: InetAddress): Nothing = {
+    throw new BindException(
+      "Couldn't bind to an address: " + addr.getHostAddress() +
+        " on port: " + port.toString)
+  }
+
   override def create(streaming: Boolean): Unit = {
     val sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
     if (sock < 0) throw new IOException("Couldn't create a socket")
@@ -95,15 +115,11 @@ private[net] class PlainSocketImpl extends SocketImpl {
     freeaddrinfo(!ret)
 
     if (bindRes < 0) {
-      throw new BindException(
-        "Couldn't bind to an address: " + addr.getHostAddress() +
-          " on port: " + port.toString)
+      throwCannotBind(addr)
     }
 
     this.localport = fetchLocalPort(family).getOrElse {
-      throw new BindException(
-        "Couldn't bind to address: " + addr.getHostAddress() +
-          " on port: " + port)
+      throwCannotBind(addr)
     }
   }
 
@@ -115,8 +131,7 @@ private[net] class PlainSocketImpl extends SocketImpl {
   }
 
   override def accept(s: SocketImpl): Unit = {
-
-    throwIfClosed(fd.fd, "accept") // Do not send negative fd.fd to poll()
+    throwIfClosed(fd, "accept") // Do not send negative fd.fd to poll()
 
     if (timeout > 0) {
       val nAlloc = 1.toUInt
@@ -127,7 +142,7 @@ private[net] class PlainSocketImpl extends SocketImpl {
       pollFdPtr.events = POLLIN
       pollFdPtr.revents = 0
 
-      val pollRes = poll(pollFdPtr, nAlloc, timeout)
+      val pollRes = pollCompat(pollFdPtr, nAlloc, timeout)
 
       pollRes match {
         case err if err < 0 =>
@@ -198,40 +213,8 @@ private[net] class PlainSocketImpl extends SocketImpl {
   override def connect(address: InetAddress, port: Int): Unit = {
     connect(new InetSocketAddress(address, port), 0)
   }
-  @inline
-  private def connectGetFdOpts(fdFd: Int): Int = {
-    val opts = fcntl(fdFd, F_GETFL, 0)
 
-    if (opts == -1) {
-      throw new ConnectException(
-        "connect failed, fcntl F_GETFL" +
-          s", errno: ${errno.errno}")
-    }
-
-    opts
-  }
-
-  @inline
-  private def connectSetFdOpts(fdFd: Int, opts: Int): Unit = {
-    val ret = fcntl(fdFd, F_SETFL, opts)
-
-    if (ret == -1) {
-      throw new ConnectException(
-        "connect failed, " +
-          s"fcntl F_SETFL for opts: ${opts}" +
-          s", errno: ${errno.errno}")
-    }
-  }
-
-  @inline
-  private def connectSetFdNoBlock(fdFd: Int): Int = {
-    val oldOpts = connectGetFdOpts(fdFd)
-    val newOpts = oldOpts | O_NONBLOCK
-    connectSetFdOpts(fdFd, newOpts)
-    oldOpts
-  }
-
-  private def connectPollTimeout(timeout: Int, fdFd: Int, opts: Int): Unit = {
+  private def connectPollTimeout(timeout: Int, fdFd: Int): Unit = {
     val nAlloc = 1.toUInt
 
     val pollFdPtr = stackalloc[struct_pollfd](nAlloc)
@@ -240,9 +223,9 @@ private[net] class PlainSocketImpl extends SocketImpl {
     pollFdPtr.events = POLLIN | POLLOUT
     pollFdPtr.revents = 0
 
-    val pollRes = poll(pollFdPtr, nAlloc.toUInt, timeout)
+    val pollRes = pollCompat(pollFdPtr, nAlloc.toUInt, timeout)
 
-    connectSetFdOpts(fdFd, opts & ~O_NONBLOCK)
+    setSocketFdBlocking(fd, blocking = true)
 
     pollRes match {
       case err if err < 0 =>
@@ -267,7 +250,7 @@ private[net] class PlainSocketImpl extends SocketImpl {
 
   override def connect(address: SocketAddress, timeout: Int): Unit = {
 
-    throwIfClosed(fd.fd, "connect") // Do not send negative fd.fd to poll()
+    throwIfClosed(fd, "connect") // Do not send negative fd.fd to poll()
 
     val inetAddr = address.asInstanceOf[InetSocketAddress]
     val hints    = stackalloc[addrinfo]
@@ -294,7 +277,8 @@ private[net] class PlainSocketImpl extends SocketImpl {
 
     val family = (!ret).ai_family
 
-    val oldOpts = if (timeout == 0) 0 else connectSetFdNoBlock(fd.fd)
+    if (timeout != 0)
+      setSocketFdBlocking(fd, blocking = false)
 
     val connectRet = socket.connect(fd.fd, (!ret).ai_addr, (!ret).ai_addrlen)
 
@@ -302,7 +286,7 @@ private[net] class PlainSocketImpl extends SocketImpl {
 
     if (connectRet < 0) {
       if ((timeout > 0) && (errno.errno == EINPROGRESS)) {
-        connectPollTimeout(timeout, fd.fd, oldOpts)
+        connectPollTimeout(timeout, fd.fd)
       } else {
         throw new ConnectException(
           s"Could not connect to address: ${remoteAddress}"
@@ -320,14 +304,14 @@ private[net] class PlainSocketImpl extends SocketImpl {
   }
 
   override def close(): Unit = {
-    if (fd.fd != -1) {
-      cClose(fd.fd)
-      fd = new FileDescriptor
+    if (!isClosed) {
+      fd.close()
+      fd = GenericPlainSocket.InvalidFileDescriptor
     }
   }
 
   override def getOutputStream: OutputStream = {
-    if (fd.fd == -1) {
+    if (isClosed) {
       throw new SocketException("Socket is closed")
     }
     if (shutOutput) {
@@ -337,7 +321,7 @@ private[net] class PlainSocketImpl extends SocketImpl {
   }
 
   override def getInputStream: InputStream = {
-    if (fd.fd == -1) {
+    if (isClosed) {
       throw new SocketException("Socket is closed")
     }
     if (shutInput) {
@@ -365,7 +349,7 @@ private[net] class PlainSocketImpl extends SocketImpl {
   def write(buffer: Array[Byte], offset: Int, count: Int): Int = {
     if (shutOutput) {
       throw new IOException("Trying to write to a shut down socket")
-    } else if (fd.fd == -1) {
+    } else if (isClosed) {
       0
     } else {
       val cArr = buffer.asInstanceOf[ByteArray].at(offset)
@@ -385,25 +369,26 @@ private[net] class PlainSocketImpl extends SocketImpl {
 
   def read(buffer: Array[Byte], offset: Int, count: Int): Int = {
     if (shutInput) -1
+    else {
+      val bytesNum = socket
+        .recv(fd.fd, buffer.asInstanceOf[ByteArray].at(offset), count.toUInt, 0)
+        .toInt
 
-    val bytesNum = socket
-      .recv(fd.fd, buffer.asInstanceOf[ByteArray].at(offset), count.toUInt, 0)
-      .toInt
+      bytesNum match {
+        case _ if (bytesNum > 0) => bytesNum
 
-    bytesNum match {
-      case _ if (bytesNum > 0) => bytesNum
+        case 0 => if (count == 0) 0 else -1
 
-      case 0 => if (count == 0) 0 else -1
+        case _ if ((errno.errno == EAGAIN) || (errno.errno == EWOULDBLOCK)) =>
+          throw new SocketTimeoutException("Socket timeout while reading data")
 
-      case _ if ((errno.errno == EAGAIN) || (errno.errno == EWOULDBLOCK)) =>
-        throw new SocketTimeoutException("Socket timeout while reading data")
-
-      case _ =>
-        throw new SocketException(s"read failed, errno: ${errno.errno}")
+        case _ =>
+          throw new SocketException(s"read failed, errno: ${errno.errno}")
+      }
     }
   }
 
-  override def available: Int = {
+  override def available(): Int = {
     if (shutInput) {
       0
     } else {
@@ -435,7 +420,7 @@ private[net] class PlainSocketImpl extends SocketImpl {
   }
 
   override def getOption(optID: Int): Object = {
-    if (fd.fd == -1) {
+    if (isClosed) {
       throw new SocketException("Socket is closed")
     }
 
@@ -489,7 +474,7 @@ private[net] class PlainSocketImpl extends SocketImpl {
   }
 
   override def setOption(optID: Int, value: Object): Unit = {
-    if (fd.fd == -1) {
+    if (isClosed) {
       throw new SocketException("Socket is closed")
     }
 
@@ -551,5 +536,14 @@ private[net] class PlainSocketImpl extends SocketImpl {
           + optID + ", errno: " + errno.errno)
     }
   }
+}
 
+object GenericPlainSocket {
+  final val InvalidFileDescriptor = new FileDescriptor
+
+  def apply(): GenericPlainSocket = {
+    if (isWindows) new WindowsPlainSocket()
+    else
+      new UnixPlainSocket()
+  }
 }

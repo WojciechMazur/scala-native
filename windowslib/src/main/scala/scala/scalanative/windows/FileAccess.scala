@@ -4,7 +4,7 @@ import scala.scalanative.unsafe._
 import scala.scalanative.unsigned._
 @extern
 object FileAccess {
-  @name("scalanative_win32_file_access_generic_all")
+  @name("scalanative_win32_file_access_file_generic_all")
   def GENERIC_ALL: DWord = extern
 
   //execute
@@ -71,6 +71,8 @@ object FileSharing {
 
   /** Enables subsequent open operations on a file or device to request delete access */
   final val ShareDelete = 0x04.toUInt
+
+  final val ShareAll = ShareRead | ShareWrite | ShareDelete
 }
 
 object FileDisposition {

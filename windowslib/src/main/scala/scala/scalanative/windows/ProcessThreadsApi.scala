@@ -4,6 +4,8 @@ import scala.scalanative.unsafe._
 import scalanative.unsigned._
 import HandleApi.Handle
 
+@link("advapi32")
+@link("kernel32")
 @extern()
 object ProcessThreadsApi {
   import ProcessThreads._
@@ -68,7 +70,7 @@ object ProcessThreadsApi {
                       desiredAccess: DWord,
                       openAsSelf: Boolean,
                       tokenHandle: Ptr[Handle]): Boolean = extern
-  @name("OpenProcesToken")
+  @name("OpenProcessToken")
   def openProcessToken(process: Handle,
                        desiredAccess: DWord,
                        tokenHandle: Ptr[Handle]): Boolean = extern

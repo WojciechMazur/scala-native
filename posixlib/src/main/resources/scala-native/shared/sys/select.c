@@ -1,8 +1,15 @@
-#include <sys/select.h>
 #include <stdbool.h>
 #include <errno.h>
 #include <stddef.h>
 #include <string.h>
+
+#ifdef _WIN32
+#pragma comment(lib, "Ws2_32.lib")
+#include <WinSock2.h>
+typedef long int suseconds_t;
+#else
+#include <sys/select.h>
+#endif
 
 #if (FD_SETSIZE > 1024)
 // Cross checking code is a mixed blessing. It can generate both
@@ -24,7 +31,6 @@
 #endif
 
 #define FDBITS (8 * sizeof(long))
-
 struct scalanative_timeval {
     time_t tv_sec;
     suseconds_t tv_usec;

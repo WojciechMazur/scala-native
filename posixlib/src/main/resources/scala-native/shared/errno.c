@@ -34,9 +34,9 @@ int scalanative_edeadlk() { return EDEADLK; }
 
 int scalanative_edestaddrreq() { return EDESTADDRREQ; }
 
-int scalanative_edquot() { 
-#ifndef _WIN32
-    return  EDQUOT; 
+int scalanative_edquot() {
+#ifdef EDQUOT
+    return EDQUOT;
 #else
     return -1;
 #endif
@@ -73,8 +73,8 @@ int scalanative_emlink() { return EMLINK; }
 int scalanative_emsgsize() { return EMSGSIZE; }
 
 int scalanative_emultihup() {
-#ifndef _WIN32
-    return  EMULTIHOP; 
+#ifdef EMULTIHOP
+    return EMULTIHOP;
 #else
     return -1;
 #endif
@@ -157,8 +157,8 @@ int scalanative_espipe() { return ESPIPE; }
 int scalanative_esrch() { return ESRCH; }
 
 int scalanative_estale() {
-#ifndef _WIN32
-    return  ESTALE; 
+#ifdef ESTALE
+    return ESTALE;
 #else
     return -1;
 #endif

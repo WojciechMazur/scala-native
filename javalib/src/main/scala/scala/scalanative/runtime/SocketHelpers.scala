@@ -3,6 +3,7 @@ package runtime
 
 import scala.scalanative.unsigned._
 import scala.scalanative.unsafe._
+import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.posix.{netdb, netdbOps}, netdb._, netdbOps._
 import scala.scalanative.posix.arpa.inet._
 import scala.scalanative.posix.sys.socketOps._
@@ -12,9 +13,18 @@ import scala.scalanative.posix.unistd.close
 import scala.scalanative.posix.fcntl._
 import scala.scalanative.posix.sys.time.timeval
 import scala.scalanative.posix.sys.timeOps._
+import scala.scalanative.runtime.PlatformExt.isWindows
+import scala.scalanative.windows.WinSocketApi._
+import scala.scalanative.windows.WinSocketApi
+import scala.scalanative.windows.WinSocket._
+import scala.scalanative.runtime.Intrinsics.castIntToRawPtr
 
 import scala.scalanative.posix.netinet.{in, inOps}, in._, inOps._
 
+/* TODO
+ * This class should be Scala Native internal, however was published in posixlib
+ * We should deprecate it and make scalanative private in next breaking release
+ */
 object SocketHelpers {
 
   def isReachableByEcho(ip: String, timeout: Int, port: Int): Boolean = {
@@ -45,7 +55,7 @@ object SocketHelpers {
           return false
         }
 
-        fcntl(sock, F_SETFL, O_NONBLOCK)
+        setSocketNonBlocking(sock)
 
         // Zone.alloc is documented as returning zeroed memory.
         val fdsetPtr = alloc[fd_set] //  No need to FD_ZERO
@@ -98,7 +108,7 @@ object SocketHelpers {
       } catch {
         case e: Throwable => e
       } finally {
-        close(sock)
+        closeSocket(sock)
         freeaddrinfo(res)
       }
     }
@@ -217,6 +227,30 @@ object SocketHelpers {
 
       if (status == 0) Some(fromCString(host)) else None
     }
+  }
+
+  @alwaysinline
+  private def toWindowsSocket(unixSocket: Int): Socket =
+    fromRawPtr[Byte](castIntToRawPtr(unixSocket)).asInstanceOf[Socket]
+
+  @alwaysinline
+  private def setSocketNonBlocking(unixSocket: Int): Unit = {
+    if (isWindows) {
+      val mode = stackalloc[Int]
+      !mode = 1
+      val winSocket = toWindowsSocket(unixSocket)
+      ioctlSocket(winSocket, FIONBIO, mode)
+    } else {
+      fcntl(unixSocket, F_SETFL, O_NONBLOCK)
+    }
+  }
+
+  @alwaysinline
+  private def closeSocket(unixSocket: Int): Unit = {
+    if (isWindows)
+      WinSocketApi.closeSocket(toWindowsSocket(unixSocket))
+    else
+      close(unixSocket)
   }
 
 }

@@ -11,7 +11,7 @@ import java.io.{FileDescriptor, IOException, OutputStream, InputStream}
 private[net] class UnixPlainSocket extends GenericPlainSocket {
 
   @inline
-  protected def getSocketFdOpts(fdFd: Int): Int = {
+  private def getSocketFdOpts(fdFd: Int): CInt = {
     val opts = fcntl(fdFd, F_GETFL, 0)
 
     if (opts == -1) {
@@ -24,7 +24,7 @@ private[net] class UnixPlainSocket extends GenericPlainSocket {
   }
 
   @inline
-  protected def setSocketFdOpts(fdFd: Int, opts: Int): Unit = {
+  private def setSocketFdOpts(fdFd: Int, opts: Int): Unit = {
     val ret = fcntl(fdFd, F_SETFL, opts)
 
     if (ret == -1) {
@@ -43,7 +43,7 @@ private[net] class UnixPlainSocket extends GenericPlainSocket {
   }
 
   protected def setSocketFdBlocking(fd: FileDescriptor,
-                                    blocking: Boolean): CInt = {
+                                    blocking: Boolean): Unit = {
     updateSocketFdOpts(fd.fd) { oldOpts =>
       if (blocking) oldOpts & ~O_NONBLOCK
       else oldOpts | O_NONBLOCK

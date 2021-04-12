@@ -15,7 +15,7 @@ private[net] class WindowsPlainSocket extends GenericPlainSocket {
   }
 
   protected def setSocketFdBlocking(fd: FileDescriptor,
-                                    blocking: Boolean): CInt = {
+                                    blocking: Boolean): Unit = {
     val mode = stackalloc[Int]
     if (blocking)
       !mode = 1

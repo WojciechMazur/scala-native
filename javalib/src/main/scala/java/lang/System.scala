@@ -10,6 +10,7 @@ import scala.scalanative.posix.sys.uname._
 import scala.scalanative.posix.pwd
 import scala.scalanative.posix.pwdOps._
 import scala.scalanative.windows.ProcessEnv
+import scala.scalanative.windows.FileApi
 import scala.scalanative.runtime.{time, Platform, GC, Intrinsics}
 import scala.scalanative.runtime.PlatformExt.isWindows
 
@@ -45,8 +46,15 @@ object System {
     sysProps.setProperty("line.separator", lineSeparator())
 
     if (isWindows) {
+
       sysProps.setProperty("file.separator", "\\")
       sysProps.setProperty("path.separator", ";")
+      sysProps.setProperty("java.io.tmpdir", {
+        val buffer = stackalloc[scala.Byte](FileApi.MaxAnsiPathSize)
+        FileApi.getTempPathA(FileApi.MaxAnsiPathSize, buffer)
+        fromCString(buffer)
+      })
+
       val userLang    = fromCString(Platform.windowsGetUserLang())
       val userCountry = fromCString(Platform.windowsGetUserCountry())
       sysProps.setProperty("user.language", userLang)
@@ -55,6 +63,7 @@ object System {
     } else {
       sysProps.setProperty("file.separator", "/")
       sysProps.setProperty("path.separator", ":")
+      sysProps.setProperty("java.io.tmpdir", "/tmp")
       val userLocale = getenv("LANG")
       if (userLocale != null) {
         val userLang = userLocale.takeWhile(_ != '_')

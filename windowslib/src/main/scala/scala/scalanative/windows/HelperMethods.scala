@@ -88,4 +88,27 @@ object HelperMethods {
       }
     }
   }
+
+  def withFile[T](path: CString,
+                  access: DWord,
+                  shareMode: DWord = FileSharing.ShareAll,
+                  disposition: DWord = FileDisposition.OpenExisting,
+                  attributes: DWord = FileAttributes.Normal,
+                  allowInvalidHandle: Boolean = false)(fn: Handle => T): T = {
+    val handle = FileApi.createFileA(
+      path,
+      desiredAccess = access,
+      shareMode = shareMode,
+      securityAttributes = null,
+      creationDisposition = disposition,
+      flagsAndAttributes = attributes,
+      templateFile = null
+    )
+    if (handle != HandleApi.InvalidHandleValue || allowInvalidHandle) {
+      try { fn(handle) }
+      finally HandleApi.closeHandle(handle)
+    } else {
+      throw new IOException(s"Cannot open file ${path}")
+    }
+  }
 }

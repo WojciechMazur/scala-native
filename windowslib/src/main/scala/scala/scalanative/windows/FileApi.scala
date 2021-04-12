@@ -15,6 +15,11 @@ object FileApi {
                   flagsAndAttributes: UInt,
                   templateFile: Handle): Handle = extern
 
+  @name("CreateDirectoryA")
+  def createDirectoryA(filename: CString,
+                       securityAttributes: Ptr[SecurityAttributes]): Boolean =
+    extern
+
   @name("DeleteFileA")
   def deleteFileA(filename: CString): Boolean = extern
 
@@ -35,6 +40,19 @@ object FileApi {
                        bufferLength: DWord,
                        buffer: CString,
                        filePart: Ptr[CString]): DWord = extern
+
+  @name("GetFileSizeEx")
+  def getFileSizeEx(file: Handle, fileSize: Ptr[LargeInteger]): Boolean = extern
+
+  @name("GetTempFileNameA")
+  def getTempFileNameA(pathName: CString,
+                       prefixString: CString,
+                       unique: UInt,
+                       tempFileName: CString): UInt = extern
+
+  @name("GetTempPathA")
+  def getTempPathA(bufferLength: DWord, buffer: CString): DWord = extern
+
   @name("ReadFile")
   def readFile(fileHandle: Handle,
                buffer: Ptr[Byte],
@@ -47,6 +65,10 @@ object FileApi {
 
   @name("SetEndOfFile")
   def setEndOfFile(file: Handle): Boolean = extern
+
+  @name("SetFileAttributesA")
+  def setFileAttributesA(filename: CString, fileAttributes: DWord): Boolean =
+    extern
 
   @name("SetFilePointerEx")
   def setFilePointerEx(file: Handle,

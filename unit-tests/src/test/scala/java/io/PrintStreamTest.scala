@@ -2,13 +2,15 @@ package java.io
 
 import org.junit.Test
 
+import scala.scalanative.runtime.Platform.isWindows
 import scalanative.junit.utils.AssertThrows._
 
 class PrintStreamTest {
 
   @Test def printStreamOutputStreamStringWithUnsupportedEncoding(): Unit = {
+    val devNull = if (isWindows) "NUL" else "/dev/null"
     assertThrows(classOf[java.io.UnsupportedEncodingException],
-                 new PrintStream(new File("/dev/null"), "unsupported encoding"))
+                 new PrintStream(new File(devNull), "unsupported encoding"))
   }
 
   // The careful reader would expect to see tests for the constructors

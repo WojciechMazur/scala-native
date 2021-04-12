@@ -22,6 +22,9 @@ object HandleApi {
                       inheritHandle: Boolean,
                       options: DWord): Boolean = extern
 
+  @name("GetHandleInformation")
+  def getHandleInformation(handle: Handle, flags: Ptr[DWord]): Boolean = extern
+
   @name("SetHandleInformation")
   def setHandleInformation(handle: Handle, mask: DWord, flags: DWord): Boolean =
     extern

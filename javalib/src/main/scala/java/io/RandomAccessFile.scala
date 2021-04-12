@@ -297,7 +297,7 @@ private object RandomAccessFile {
       val (access, dispostion) = _flags match {
         case "r" => FILE_GENERIC_READ -> OpenExisting
         case "rw" | "rws" | "rwd" =>
-          (FILE_GENERIC_READ | FILE_GENERIC_WRITE).toUInt -> CreateNew
+          (FILE_GENERIC_READ | FILE_GENERIC_WRITE).toUInt -> OpenAlways
         case _ => invalidFlags()
       }
 

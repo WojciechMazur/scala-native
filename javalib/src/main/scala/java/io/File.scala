@@ -68,10 +68,8 @@ class File(_path: String) extends Serializable with Comparable[File] {
   def this(parent: File, child: String) =
     this(Option(parent).map(_.path).orNull, child)
 
-  def this(uri: URI) = {
-    this(uri.getPath())
-    checkURI(uri)
-  }
+  def this(uri: URI) =
+    this(File.checkURI(uri).getPath())
 
   def compareTo(file: File): Int = {
     if (caseSensitive) getPath().compareTo(file.getPath())
@@ -411,15 +409,32 @@ class File(_path: String) extends Serializable with Comparable[File] {
 
   def setReadOnly(): Boolean =
     Zone { implicit z =>
+      val filename = toCString(path)
+      if (isWindows) {
+        val currentAttributes = FileApi.getFileAttributesA(filename)
+        def setNewAttributes =
+          FileApi.setFileAttributesA(
+            filename,
+            currentAttributes | FileAttributes.ReadOnly)
+        currentAttributes != FileApi.InvalidFileAttributes && setNewAttributes
+      } else {
       import stat._
       val mask =
         S_ISUID | S_ISGID | S_ISVTX | S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH
       val newMode = accessMode() & mask
-      chmod(toCString(path), newMode) == 0
+        chmod(filename, newMode) == 0
+      }
     }
 
-  def length(): Long =
-    Zone { implicit z =>
+  def length(): Long = Zone { implicit z =>
+    if (isWindows) {
+      withFile(toCString(path), access = FileAccess.FILE_READ_ATTRIBUTES) {
+        handle =>
+          val size = stackalloc[windows.LargeInteger]
+          if (FileApi.getFileSizeEx(handle, size)) (!size).toLong
+          else 0L
+      }
+    } else {
       val buf = alloc[stat.stat]
       if (stat.stat(toCString(path), buf) == 0) {
         buf._6
@@ -427,6 +442,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
         0L
       }
     }
+  }
 
   def list(): Array[String] =
     list(FilenameFilter.allPassFilter)
@@ -461,8 +477,12 @@ class File(_path: String) extends Serializable with Comparable[File] {
 
   def mkdir(): Boolean =
     Zone { implicit z =>
+      if (isWindows)
+        FileApi.createDirectoryA(toCString(path), securityAttributes = null)
+      else {
       val mode = octal("0777")
       stat.mkdir(toCString(path), mode) == 0
+    }
     }
 
   def mkdirs(): Boolean =
@@ -496,7 +516,10 @@ class File(_path: String) extends Serializable with Comparable[File] {
 
   // Ported from Apache Harmony
   def toURI(): URI = {
-    val path = getAbsolutePath()
+    val path = getAbsolutePath().map {
+      case '\\' => '/'
+      case c    => c
+    }
     if (!path.startsWith("/")) {
       // start with sep.
       new URI(
@@ -593,7 +616,7 @@ object File {
 
   private def getUserDir(): String =
     Zone { implicit z =>
-      val res = if (isWindows()) {
+      val res = if (isWindows) {
         val buffSize = WinBaseApi.getCurrentDirectoryA(0.toUInt, null)
         val buff     = alloc[CChar](buffSize + 1.toUInt)
         WinBaseApi.getCurrentDirectoryA(buffSize, buff)
@@ -668,6 +691,18 @@ object File {
   // Ported from Apache Harmony
   private def properPath(path: String): String = {
     if (isAbsolute(path)) path
+    else if (isWindows) Zone { implicit z =>
+      val pathCString = toCString(path)
+      val bufSize     = FileApi.getFullPathNameA(pathCString, 0.toUInt, null, null)
+      val buf         = stackalloc[Byte](bufSize)
+      if (FileApi.getFullPathNameA(pathCString,
+                                   FileApi.MaxAnsiPathSize,
+                                   buf,
+                                   filePart = null) == 0.toUInt) {
+        throw new IOException("Failed to resolve correct path")
+      }
+      fromCString(buf)
+    }
     else {
       val userdir =
         Option(getUserDir())
@@ -734,7 +769,10 @@ object File {
 
   @tailrec private def resolve(path: CString, start: UInt = 0.toUInt)(
       implicit z: Zone): CString = {
-    val part: CString = alloc[Byte](limits.PATH_MAX.toUInt)
+    val partSize =
+      if (isWindows) FileApi.MaxAnsiPathSize
+      else limits.PATH_MAX.toUInt
+    val part: CString = alloc[Byte](partSize)
     val `1U`          = 1.toUInt
     // Find the next separator
     var i = start
@@ -773,17 +811,7 @@ object File {
     val buffer: CString = alloc[Byte](bufferSize)
 
     if (isWindows) {
-      val fileHandle = FileApi.createFileA(
-        link,
-        desiredAccess = 0.toUInt,
-        shareMode =
-          FileSharing.ShareRead | FileSharing.ShareWrite | FileSharing.ShareDelete,
-        securityAttributes = null,
-        creationDisposition = FileDisposition.OpenExisting,
-        flagsAndAttributes = FileAttributes.Normal,
-        templateFile = null
-      )
-      try {
+      withFile(link, access = FileAccess.FILE_GENERIC_READ) { fileHandle =>
         val finalPathFlags = FinalPathFlags.FileNameNormalized
         val pathLength = FileApi.getFinalPathNameByHandleA(
           fileHandle,
@@ -793,9 +821,9 @@ object File {
         )
         if (pathLength == 0) null
         else buffer
-      } finally HandleApi.closeHandle(fileHandle)
+      }
     } else {
-      readlink(link, buffer, (limits.PATH_MAX - 1).toUInt) match {
+      readlink(link, buffer, bufferSize - 1.toUInt) match {
         case -1 =>
           null
         case read =>
@@ -835,7 +863,7 @@ object File {
                                throwOnError = true)
 
   // Ported from Apache Harmony
-  private def checkURI(uri: URI): Unit = {
+  private def checkURI(uri: URI): URI = {
     def throwExc(msg: String): Unit =
       throw new IllegalArgumentException(s"$msg: $uri")
     def compMsg(comp: String): String =
@@ -856,6 +884,7 @@ object File {
     } else if (uri.getRawFragment() != null) {
       throwExc(compMsg("fragment"))
     }
+    uri
     // else URI is ok
   }
 }

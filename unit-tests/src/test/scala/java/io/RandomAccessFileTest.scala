@@ -44,10 +44,11 @@ class RandomAccessFileTest {
   @Test def validFileDescriptorAndSyncSuccess(): Unit = {
     val file = File.createTempFile("raffdtest", "")
     // assign to var for @After to close
-    raf = new RandomAccessFile(file, "r")
+    // Write mode needed for sync in Windows
+    raf = new RandomAccessFile(file, "rw")
     val fd = raf.getFD
-    assertTrue(fd.valid())
-    assertTrue(Try(fd.sync()).isSuccess)
+    assertTrue("Invalid FD", fd.valid())
+    assertTrue("Failed to sync", Try(fd.sync()).isSuccess)
   }
 
   @Test def canWriteAndReadBoolean(): Unit = {

@@ -9,8 +9,14 @@ import scala.scalanative.posix.sys.utsname._
 import scala.scalanative.posix.sys.uname._
 import scala.scalanative.posix.pwd
 import scala.scalanative.posix.pwdOps._
-import scala.scalanative.windows.ProcessEnv
-import scala.scalanative.windows.FileApi
+import scala.scalanative.windows.{
+  ProcessEnv,
+  FileApi,
+  WinBaseApi,
+  UserEnvApi,
+  HelperMethods => WinHelperMethods
+}
+import scala.scalanative.windows.SecurityBase.AccessToken
 import scala.scalanative.runtime.{time, Platform, GC, Intrinsics}
 import scala.scalanative.runtime.PlatformExt.isWindows
 
@@ -44,9 +50,10 @@ object System {
     sysProps.setProperty("java.specification.name",
                          "Java Platform API Specification")
     sysProps.setProperty("line.separator", lineSeparator())
+    getCurrentDirectory().map(sysProps.setProperty("user.dir", _))
+    getUserHomeDirectory().map(sysProps.setProperty("user.home", _))
 
     if (isWindows) {
-
       sysProps.setProperty("file.separator", "\\")
       sysProps.setProperty("path.separator", ";")
       sysProps.setProperty("java.io.tmpdir", {
@@ -59,7 +66,6 @@ object System {
       val userCountry = fromCString(Platform.windowsGetUserCountry())
       sysProps.setProperty("user.language", userLang)
       sysProps.setProperty("user.country", userCountry)
-
     } else {
       sysProps.setProperty("file.separator", "/")
       sysProps.setProperty("path.separator", ":")
@@ -74,22 +80,6 @@ object System {
           .drop(1)
         sysProps.setProperty("user.language", userLang)
         sysProps.setProperty("user.country", userCountry)
-      }
-      locally {
-        val buf = stackalloc[pwd.passwd]
-        val uid = unistd.getuid()
-        val res = pwd.getpwuid(uid, buf)
-        if (res == 0 && buf.pw_dir != null) {
-          sysProps.setProperty("user.home", fromCString(buf.pw_dir))
-        }
-      }
-      locally {
-        val bufSize = 1024.toUInt
-        val buf     = stackalloc[scala.Byte](bufSize)
-        val cwd     = unistd.getcwd(buf, bufSize)
-        if (cwd != null) {
-          sysProps.setProperty("user.dir", fromCString(cwd))
-        }
       }
     }
 
@@ -144,6 +134,39 @@ object System {
 
   def gc(): Unit = GC.collect()
 
+  private def getCurrentDirectory(): Option[String] = {
+    val bufSize = 1024.toUInt
+    val buf     = stackalloc[scala.Byte](bufSize)
+    if (isWindows) {
+      if (WinBaseApi.getCurrentDirectoryA(bufSize, buf) != 0.toUInt)
+        Some(fromCString(buf))
+      else None
+    } else {
+      val cwd = unistd.getcwd(buf, bufSize)
+      Option(cwd).map(fromCString(_))
+    }
+  }
+
+  private def getUserHomeDirectory(): Option[String] = {
+    if (isWindows) {
+      WinHelperMethods.withUserToken(AccessToken.Query) { token =>
+        val bufSize = stackalloc[UInt]
+        !bufSize = 256.toUInt
+        val buf = stackalloc[scala.Byte](!bufSize)
+        if (UserEnvApi.getUserProfileDirectortA(token, buf, bufSize))
+          Some(fromCString(buf))
+        else None
+      }
+    } else {
+      val buf = stackalloc[pwd.passwd]
+      val uid = unistd.getuid()
+      val res = pwd.getpwuid(uid, buf)
+      if (res == 0 && buf.pw_dir != null)
+        Some(fromCString(buf.pw_dir))
+      else None
+    }
+  }
+
   private lazy val envVars: Map[String, String] = {
     def getEnvsUnix() = {
       // workaround since `while(ptr(0) != null)` causes segfault
@@ -187,10 +210,11 @@ object System {
         env != null && env.nonEmpty
       }) {
         blockPtr += env.size + 1
-        env.split('=') match {
-          case Array(name, value) => envsMap.put(name, value)
-          case _                  => () // invalid value, more then one '=', skip
-        }
+        /// Some Windows internal variables start with =
+        val eqIdx = env.indexOf('=', 1)
+        val name  = env.substring(0, eqIdx)
+        val value = env.substring(eqIdx + 1)
+        envsMap.put(name, value)
       }
       ProcessEnv.freeEnvironmentStrings(envBlockHead)
       envsMap

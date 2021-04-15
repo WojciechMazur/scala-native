@@ -1,11 +1,18 @@
 package java.nio.file
 
-import org.junit.Test
+import org.junit.{Test, Before}
 import org.junit.Assert._
+import org.junit.Assume._
 
 import scalanative.junit.utils.AssertThrows._
 
 class PathTest {
+
+  @Before
+  def checkIsUnix() {
+    assumeFalse("Not checking Unix paths on Windows",
+                scalanative.runtime.Platform.isWindows)
+  }
 
   @Test def pathGetNameCount(): Unit = {
     assertTrue(Paths.get("/").getNameCount == 0)

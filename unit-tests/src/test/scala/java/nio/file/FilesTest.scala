@@ -10,12 +10,20 @@ import StandardCopyOption._
 
 import org.junit.Test
 import org.junit.Assert._
+import org.junit.Assume._
 
+import scalanative.runtime.Platform.isWindows
 import scalanative.junit.utils.AssertThrows._
 import scala.scalanative.junit.utils.CollectionConverters._
 
 class FilesTest {
   import FilesTest._
+
+  def checkShouldTestSymlinks(): Unit = {
+    val TestSymlinks = false
+    assumeTrue("Do not test symlinks on windows, admin privilege needed",
+               !isWindows || TestSymlinks)
+  }
 
   @Test def filesCopyCanCopyToNonExistingFile(): Unit = {
     val targetFile = File.createTempFile("test", ".tmp")
@@ -48,9 +56,10 @@ class FilesTest {
     val target     = targetFile.toPath()
     assertTrue(targetFile.delete())
     assertTrue(targetFile.mkdir())
-    assertTrue(
-      targetFile.exists() && targetFile
-        .isDirectory() && targetFile.list().isEmpty)
+
+    assertTrue("exists", targetFile.exists())
+    assertTrue("isDir", targetFile.isDirectory())
+    assertTrue("isEmpty", targetFile.list().isEmpty)
 
     val in = new ByteArrayInputStream(Array(1, 2, 3))
     assertThrows(classOf[FileAlreadyExistsException], Files.copy(in, target))
@@ -167,32 +176,56 @@ class FilesTest {
   }
 
   @Test def filesCopyDoesNotCopySymlinks(): Unit = {
+    checkShouldTestSymlinks()
+
     withTemporaryDirectory { dirFile =>
       val dir  = dirFile.toPath
       val link = dir.resolve("link")
       val file = dir.resolve("target")
+
       Files.createSymbolicLink(link, dir.resolve("foo"))
       assertThrows(classOf[IOException], Files.copy(link, file))
     }
   }
 
   @Test def filesCopyshouldCopyAttributes(): Unit = {
+    def setup(foo: Path): Unit      = {}
+    def checkSystemSpecific(): Unit = ???
+
     withTemporaryDirectory { dirFile =>
       val foo = dirFile.toPath.resolve("foo")
       Files.createFile(foo)
       Files.write(foo, "foo".getBytes)
-      val permissions = Set(OWNER_EXECUTE, OWNER_READ, OWNER_WRITE).toJavaSet
-      Files.setPosixFilePermissions(foo, permissions)
+
+      if (isWindows) {
+        Files.setAttribute(foo, "hidden", Boolean.box(true))
+      } else {
+        val permissions = Set(OWNER_EXECUTE, OWNER_READ, OWNER_WRITE).toJavaSet
+        Files.setPosixFilePermissions(foo, permissions)
+      }
+
       val fooCopy = dirFile.toPath.resolve("foocopy")
       Files.copy(foo, fooCopy, COPY_ATTRIBUTES)
-      val attrs = Files.readAttributes(foo, classOf[PosixFileAttributes])
-      val copyAttrs =
-        Files.readAttributes(fooCopy, classOf[PosixFileAttributes])
-      assertTrue(attrs.lastModifiedTime == copyAttrs.lastModifiedTime)
-      assertTrue(attrs.lastAccessTime == copyAttrs.lastAccessTime)
-      assertTrue(attrs.creationTime == copyAttrs.creationTime)
-      assertTrue(
-        attrs.permissions.toScalaSet == copyAttrs.permissions.toScalaSet)
+
+      val attrsCls: Class[_ <: BasicFileAttributes] =
+        if (isWindows) classOf[DosFileAttributes]
+        else classOf[PosixFileAttributes]
+
+      val attrs     = Files.readAttributes(foo, attrsCls)
+      val copyAttrs = Files.readAttributes(fooCopy, attrsCls)
+
+      assertEquals("create", attrs.creationTime, copyAttrs.creationTime)
+      assertEquals("modify", attrs.lastModifiedTime, copyAttrs.lastModifiedTime)
+      // Not stable enough, leads to spourious failures as file can be accessed between
+      // assertEquals("access", attrs.lastAccessTime, copyAttrs.lastAccessTime)
+
+      (attrs, copyAttrs) match {
+        case (attrs: PosixFileAttributes, copyAttrs: PosixFileAttributes) =>
+          assertEquals(attrs.permissions.toScalaSet,
+                       copyAttrs.permissions.toScalaSet)
+        case (attr: DosFileAttributes, copyAttrs: DosFileAttributes) =>
+          assertEquals(attr.isHidden(), copyAttrs.isHidden())
+      }
     }
   }
 
@@ -249,6 +282,8 @@ class FilesTest {
   }
 
   @Test def filesExistsHandlesSymlinks(): Unit = {
+    checkShouldTestSymlinks()
+
     withTemporaryDirectory { dirFile =>
       val dir         = dirFile.toPath()
       val existing    = new File(dirFile, "existing")
@@ -257,14 +292,17 @@ class FilesTest {
       val correctLink = dir.resolve("correctlink")
 
       existing.createNewFile()
-      assertTrue(existing.exists())
+      assertTrue("existing", existing.exists())
 
       Files.createSymbolicLink(brokenLink, nonexisting)
       Files.createSymbolicLink(correctLink, existing.toPath)
-      assertFalse(Files.exists(brokenLink))
-      assertTrue(Files.exists(brokenLink, LinkOption.NOFOLLOW_LINKS))
-      assertTrue(Files.exists(correctLink))
-      assertTrue(Files.exists(correctLink, LinkOption.NOFOLLOW_LINKS))
+      assertTrue("correct", Files.exists(correctLink))
+      assertTrue("correct no-folow",
+                 Files.exists(correctLink, LinkOption.NOFOLLOW_LINKS))
+      assertTrue("broken no-follow",
+                 Files.exists(brokenLink, LinkOption.NOFOLLOW_LINKS))
+      assertFalse("broken", Files.exists(brokenLink))
+
     }
   }
 
@@ -425,17 +463,18 @@ class FilesTest {
   @Test def filesCreateTempDirectoryWorksWithShortPrefix(): Unit = {
     val dir = Files.createTempDirectory("a")
     try {
-      assertTrue(tempFile.findFirstIn(dir.getFileName.toString).isDefined)
-      assertTrue(Files.exists(dir))
-      assertTrue(Files.isDirectory(dir))
+      assertTrue("isDefined",
+                 tempFile.findFirstIn(dir.getFileName.toString).isDefined)
+      assertTrue("exists", Files.exists(dir))
+      assertTrue("isDirectory", Files.isDirectory(dir))
     } finally Files.delete(dir)
   }
   @Test def filesCreateTempFileWorksWithNullPrefix(): Unit = {
     val file = Files.createTempFile(null, "txt")
     try {
       assertTrue(tempFile.findFirstIn(file.getFileName.toString).isDefined)
-      assertTrue(Files.exists(file))
-      assertTrue(Files.isRegularFile(file))
+      assertTrue("exists", Files.exists(file))
+      assertTrue("isRegularFile", Files.isRegularFile(file))
     } finally Files.delete(file)
   }
 
@@ -453,8 +492,8 @@ class FilesTest {
       val dir  = dirFile.toPath
       val file = dir.resolve("file")
       Files.createFile(file)
-      assertTrue(Files.exists(file))
-      assertTrue(Files.isRegularFile(file))
+      assertTrue("exists", Files.exists(file))
+      assertTrue("isRegularFile", Files.isRegularFile(file))
     }
   }
 
@@ -467,6 +506,8 @@ class FilesTest {
   }
 
   @Test def filesIsRegularFileHandlesSymlinks(): Unit = {
+    checkShouldTestSymlinks()
+
     withTemporaryDirectory { dirFile =>
       val dir  = dirFile.toPath
       val file = dir.resolve("file")
@@ -596,6 +637,8 @@ class FilesTest {
   }
 
   @Test def filesReadSymbolicLinkCanReadValidSymbolicLink(): Unit = {
+    checkShouldTestSymlinks()
+
     withTemporaryDirectory { dirFile =>
       val dir  = dirFile.toPath()
       val link = dir.resolve("link")
@@ -603,13 +646,16 @@ class FilesTest {
       Files.createFile(file)
       Files.createSymbolicLink(link, file)
 
-      assertTrue(Files.exists(file))
-      assertTrue(Files.exists(link))
-      assertTrue(Files.readSymbolicLink(link) == file)
+      assertTrue("exists file", Files.exists(file))
+      assertTrue("exists link", Files.exists(link))
+      assertEquals(file, Files.readSymbolicLink(link))
     }
   }
 
   @Test def filesReadSymbolicLinkCanReadBrokenSymbolicLink(): Unit = {
+    // Does fail on Windows. Cannot open broken link
+    checkShouldTestSymlinks()
+
     withTemporaryDirectory { dirFile =>
       val dir        = dirFile.toPath()
       val brokenLink = dir.resolve("link")
@@ -618,7 +664,7 @@ class FilesTest {
 
       assertFalse(Files.exists(file))
       assertTrue(Files.exists(brokenLink, LinkOption.NOFOLLOW_LINKS))
-      assertTrue(Files.readSymbolicLink(brokenLink) == file)
+      assertEquals(file, Files.readSymbolicLink(brokenLink))
     }
   }
 
@@ -671,6 +717,8 @@ class FilesTest {
   }
 
   @Test def filesWalkFollowsSymlinks(): Unit = {
+    checkShouldTestSymlinks()
+
     withTemporaryDirectory { dirFile =>
       val dir = dirFile.toPath()
 
@@ -709,6 +757,8 @@ class FilesTest {
   }
 
   @Test def filesWalkDetectsCycles(): Unit = {
+    checkShouldTestSymlinks()
+
     withTemporaryDirectory { dirFile =>
       val dir = dirFile.toPath()
 
@@ -885,6 +935,8 @@ class FilesTest {
   // "NIO File Walker fails on broken links."
 
   @Test def filesWalkFileTreeRespectsFileVisitOptionFollowLinksNo(): Unit = {
+    checkShouldTestSymlinks()
+
     withTemporaryDirectoryPath { dirPath =>
       val context = new FollowLinksTestsContext(dirPath)
 
@@ -908,6 +960,8 @@ class FilesTest {
   }
 
   @Test def filesWalkFileTreeRespectsFileVisitOptionFollowLinksYes(): Unit = {
+    checkShouldTestSymlinks()
+
     withTemporaryDirectoryPath { dirPath =>
       val context = new FollowLinksTestsContext(dirPath)
 
@@ -989,6 +1043,8 @@ class FilesTest {
   }
 
   @Test def filesFindRespectsFileVisitOptionFollowLinksValidSymlinks(): Unit = {
+    checkShouldTestSymlinks()
+
     withTemporaryDirectory { dirFile =>
       val soughtName             = "quaesitum" // That which is sought.
       val (dir, d1, d2, symlink) = setupFindSymlinkContext(dirFile, soughtName)
@@ -1024,6 +1080,8 @@ class FilesTest {
   // Issue #1530
   @Test def filesFindRespectsFileVisitOptionFollowLinksBrokenSymlinks()
       : Unit = {
+    checkShouldTestSymlinks()
+
     withTemporaryDirectory { dirFile =>
       val soughtName             = "quaesitum" // That which is sought.
       val (dir, d1, d2, symlink) = setupFindSymlinkContext(dirFile, soughtName)
@@ -1066,11 +1124,11 @@ class FilesTest {
       val f0  = dir.resolve("f0")
 
       Files.createFile(f0)
-      assertTrue(Files.exists(f0))
+      assertTrue("file exists", Files.exists(f0))
 
       val referenceMs = f0.toFile().lastModified()
       val filetimeMs  = Files.getLastModifiedTime(f0).toMillis()
-      assertTrue(referenceMs == filetimeMs)
+      assertEquals(referenceMs, filetimeMs)
     }
   }
 
@@ -1081,7 +1139,7 @@ class FilesTest {
       val f0 = d0.resolve("f0")
 
       Files.createFile(f0)
-      assertTrue(Files.exists(f0))
+      assertTrue("file exists", Files.exists(f0))
 
       val d0mtime =
         Files.getAttribute(d0, "lastModifiedTime").asInstanceOf[FileTime]
@@ -1098,10 +1156,10 @@ class FilesTest {
       val d0isOth = Files.getAttribute(d0, "isOther").asInstanceOf[Boolean]
       val d0fkey  = Files.getAttribute(d0, "fileKey")
 
-      assertFalse(d0isReg)
-      assertTrue(d0isDir)
-      assertFalse(d0isSym)
-      assertFalse(d0isOth)
+      assertFalse("d0isReg", d0isReg)
+      assertTrue("d0isDir", d0isDir)
+      assertFalse("d0isSym", d0isSym)
+      assertFalse("d0isOth", d0isOth)
 
       val f0mtime =
         Files.getAttribute(f0, "lastModifiedTime").asInstanceOf[FileTime]
@@ -1118,12 +1176,12 @@ class FilesTest {
       val f0isOth = Files.getAttribute(f0, "isOther").asInstanceOf[Boolean]
       val f0fkey  = Files.getAttribute(f0, "fileKey")
 
-      assertTrue(f0mtime.toMillis() == f0.toFile().lastModified())
-      assertTrue(f0size == f0.toFile().length())
-      assertTrue(f0isReg)
-      assertFalse(f0isDir)
-      assertFalse(f0isSym)
-      assertFalse(f0isOth)
+      assertEquals(f0mtime.toMillis(), f0.toFile().lastModified())
+      assertEquals(f0size, f0.toFile().length())
+      assertTrue("f0isReg", f0isReg)
+      assertFalse("f0isDir", f0isDir)
+      assertFalse("f0isSym", f0isSym)
+      assertFalse("f0isOth", f0isOth)
     }
   }
 
@@ -1135,8 +1193,8 @@ class FilesTest {
 
       Files.createFile(f0)
       Files.createSymbolicLink(l0, f0)
-      assertTrue(Files.exists(f0))
-      assertTrue(Files.exists(l0))
+      assertTrue("file exists", Files.exists(f0))
+      assertTrue("link exists", Files.exists(l0))
 
       val normalL0IsReg =
         Files.getAttribute(l0, "isRegularFile").asInstanceOf[Boolean]
@@ -1149,10 +1207,10 @@ class FilesTest {
         .getAttribute(l0, "isSymbolicLink", LinkOption.NOFOLLOW_LINKS)
         .asInstanceOf[Boolean]
 
-      assertTrue(normalL0IsReg)
-      assertFalse(noFollowL0IsReg)
-      assertFalse(normalL0IsLink)
-      assertTrue(noFollowL0IsLink)
+      assertTrue("normal is reg", normalL0IsReg)
+      assertFalse("noFollow is reg", noFollowL0IsReg)
+      assertFalse("normal is link", normalL0IsLink)
+      assertTrue("no follow is link", noFollowL0IsLink)
     }
   }
 
@@ -1174,6 +1232,7 @@ class FilesTest {
   }
 
   @Test def filesGetPosixFilePermissionsWorks(): Unit = {
+    assumeFalse("Not testing Posix permissions on Windows", isWindows)
     withTemporaryDirectory { dirFile =>
       val dir    = dirFile.toPath()
       val f0     = dir.resolve("f0")
@@ -1295,8 +1354,8 @@ class FilesTest {
       Files.setAttribute(f0, "lastModifiedTime", FileTime.fromMillis(1000))
       val time2 = Files.getAttribute(f0, "lastModifiedTime")
 
-      assertTrue(time0 != time2)
-      assertTrue(time1 == time2)
+      assertNotEquals(time0, time2)
+      assertEquals(time1, time2)
     }
   }
 
@@ -1313,12 +1372,13 @@ class FilesTest {
       Files.setAttribute(f0, "lastAccessTime", time1)
       val time2 = Files.getAttribute(f0, "lastAccessTime")
 
-      assertTrue(time0 != time2)
-      assertTrue(time1 == time2)
+      assertNotEquals(time0, time2)
+      assertEquals(time1, time2)
     }
   }
 
   @Test def filesSetAttributeCanSetPermissions(): Unit = {
+    assumeFalse("Not testing Posix permissions on Windows", isWindows)
     withTemporaryDirectory { dirFile =>
       val dir = dirFile.toPath()
       val f0  = dir.resolve("f0")
@@ -1371,7 +1431,7 @@ class FilesTest {
   @Test def filesReadAttributesPathClassArrayLinkOptionWorks(): Unit = {
     withTemporaryDirectory { dirFile =>
       val dir   = dirFile.toPath
-      val attrs = Files.readAttributes(dir, classOf[PosixFileAttributes])
+      val attrs = Files.readAttributes(dir, classOf[BasicFileAttributes])
       assertTrue(attrs.isDirectory())
       assertFalse(attrs.isOther())
       assertFalse(attrs.isRegularFile())
@@ -1382,9 +1442,9 @@ class FilesTest {
   @Test def filesReadAttributesPathStringArrayLinkOptionWorks(): Unit = {
     withTemporaryDirectory { dirFile =>
       val dir   = dirFile.toPath
-      val attrs = Files.readAttributes(dir, "posix:permissions,size")
+      val attrs = Files.readAttributes(dir, "basic:isRegularFile,size")
       assertTrue(attrs.size == 2)
-      assertTrue(attrs.containsKey("permissions"))
+      assertTrue(attrs.containsKey("isRegularFile"))
       assertTrue(attrs.containsKey("size"))
     }
   }
@@ -1393,8 +1453,8 @@ class FilesTest {
       : Unit = {
     withTemporaryDirectory { dirFile =>
       val dir   = dirFile.toPath
-      val attrs = Files.readAttributes(dir, "posix:*")
-      assertFalse(attrs.isEmpty())
+      val attrs = Files.readAttributes(dir, "basic:*")
+      assertFalse("attr empty", attrs.isEmpty())
     }
   }
 
@@ -1421,12 +1481,13 @@ class FilesTest {
       val dir = dirFile.toPath
       val f0  = dir.resolve("f0")
       Files.write(f0, Array[Byte](1, 2, 3))
+      assertTrue("file does not exist", Files.exists(f0))
 
       val in = Files.newInputStream(f0)
-      assertTrue(in.read() == 1)
-      assertTrue(in.read() == 2)
-      assertTrue(in.read() == 3)
-      assertTrue(in.read() == -1)
+      assertEquals(1, in.read())
+      assertEquals(2, in.read())
+      assertEquals(3, in.read())
+      assertEquals(-1, in.read())
     }
   }
 
@@ -1436,15 +1497,14 @@ class FilesTest {
       val f0  = dir.resolve("f0")
       val out = Files.newOutputStream(f0)
 
-      assertTrue(Files.exists(f0))
-
+      assertTrue("file does not exist", Files.exists(f0))
       out.write(Array[Byte](1, 2, 3))
 
       val in = Files.newInputStream(f0)
-      assertTrue(in.read() == 1)
-      assertTrue(in.read() == 2)
-      assertTrue(in.read() == 3)
-      assertTrue(in.read() == -1)
+      assertEquals(1, in.read())
+      assertEquals(2, in.read())
+      assertEquals(3, in.read())
+      assertEquals(-1, in.read())
     }
   }
 
@@ -1462,7 +1522,7 @@ class FilesTest {
       out1.close()
 
       val in0 = Files.newInputStream(f0)
-      assertTrue(in0.read() == -1)
+      assertEquals(-1, in0.read())
 
       val f1 = dir.resolve("f1")
       Files.createFile(f1)
@@ -1476,7 +1536,6 @@ class FilesTest {
   }
 
   private class FollowLinksTestsContext(dirPath: Path) {
-
     final val fNames =
       Array(
         "missingtarget",

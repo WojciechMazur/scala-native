@@ -4,10 +4,11 @@ import scala.scalanative.unsafe._
 import scala.scalanative.unsigned._
 import HandleApi.Handle
 
+@link("Advapi32")
 @extern()
 object WinBaseApi {
   import WinBase._
-  import SecurityBase.SecurityDescriptor
+  import SecurityBase._
 
   type CallbackContext     = Ptr[Byte]
   type WaitOrTimerCallback = CFuncPtr2[CallbackContext, Boolean, Unit]
@@ -41,6 +42,15 @@ object WinBaseApi {
 
   @name("LocalFree")
   def localFree(ref: LocalHandle): LocalHandle = extern
+
+  @name("LookupAccountSidA")
+  def lookupAccountSidA(systemName: Ptr[CString],
+                        sid: SIDPtr,
+                        name: CString,
+                        nameSize: Ptr[DWord],
+                        referencedDomainName: CString,
+                        referencedDomainNameSize: Ptr[DWord],
+                        use: Ptr[SidNameUse]): Boolean = extern
 
   @name("RegisterWaitForSingleObject")
   def registerWaitForSingleObject(retHandle: Ptr[Handle],
@@ -98,7 +108,35 @@ object WinBase {
 
   object SymbolicLinkFlags {
     final val File                    = 0.toUInt
-    final val Directory               = 1.toUInt
-    final val AllowUnprivilegedCreate = 2.toUInt
+    final val Directory               = 0x01.toUInt
+    final val AllowUnprivilegedCreate = 0x02.toUInt
   }
+
+  type SidNameUse = CInt
+  @extern
+  object SidNameUse {
+    @name("scalanative_win32_winnt_sid_name_use_sidtypeuser")
+    def SidTypeUser: SidNameUse = extern
+    @name("scalanative_win32_winnt_sid_name_use_sidtypegroup")
+    def SidTypeGroup: SidNameUse = extern
+    @name("scalanative_win32_winnt_sid_name_use_sidtypedomain")
+    def SidTypeDomain: SidNameUse = extern
+    @name("scalanative_win32_winnt_sid_name_use_sidtypealias")
+    def SidTypeAlias: SidNameUse = extern
+    @name("scalanative_win32_winnt_sid_name_use_sidtypewellknowngroup")
+    def SidTypeWellKnownGroup: SidNameUse = extern
+    @name("scalanative_win32_winnt_sid_name_use_sidtypedeletedaccount")
+    def SidTypeDeletedAccount: SidNameUse = extern
+    @name("scalanative_win32_winnt_sid_name_use_sidtypeinvalid")
+    def SidTypeInvalid: SidNameUse = extern
+    @name("scalanative_win32_winnt_sid_name_use_sidtypeunknown")
+    def SidTypeUnknown: SidNameUse = extern
+    @name("scalanative_win32_winnt_sid_name_use_sidtypecomputer")
+    def SidTypeComputer: SidNameUse = extern
+    @name("scalanative_win32_winnt_sid_name_use_sidtypelabel")
+    def SidTypeLabel: SidNameUse = extern
+    @name("scalanative_win32_winnt_sid_name_use_sidtypelogonsession")
+    def SidTypeLogonSession: SidNameUse = extern
+  }
+
 }

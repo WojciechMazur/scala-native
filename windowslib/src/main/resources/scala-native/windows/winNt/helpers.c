@@ -1,4 +1,5 @@
 #include <Windows.h>
+#pragma comment(lib, "Advapi32.lib")
 
 BOOL scalanative_win32_winnt_setupUsersGroupSid(PSID *ref) {
     SID_IDENTIFIER_AUTHORITY authNt = SECURITY_NT_AUTHORITY;

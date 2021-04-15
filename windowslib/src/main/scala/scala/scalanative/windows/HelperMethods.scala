@@ -8,6 +8,8 @@ import scala.scalanative.windows.SecurityBase.{
   SecurityImpersonationLevel
 }
 import scala.scalanative.windows.winnt.TokenInformationClass
+import scala.scalanative.windows.MinWinBase._
+import java.io.IOException
 
 object HelperMethods {
   def withUserToken[T](desiredAccess: DWord)(fn: Handle => T): T = {
@@ -77,13 +79,18 @@ object HelperMethods {
     fn(data.asInstanceOf[Ptr[T]])
   }
 
-  def withLocalHandleCleanup[T](handles: Ptr[_]*)(fn: => T): T = {
+  /**
+   * Execute given function and free Windows internal allocations
+   *
+   * @param handles List of ScalaNative pointers containing pointer to Windows local allocated memory
+   */
+  def withLocalHandleCleanup[T](handles: Ptr[_ <: Ptr[_]]*)(fn: => T): T = {
     try {
       fn
     } finally {
       handles.foreach { ref =>
         if (ref != null) {
-          WinBaseApi.localFree(ref)
+          WinBaseApi.localFree(!ref)
         }
       }
     }
@@ -108,7 +115,21 @@ object HelperMethods {
       try { fn(handle) }
       finally HandleApi.closeHandle(handle)
     } else {
-      throw new IOException(s"Cannot open file ${path}")
+      throw new IOException(
+        s"Cannot open file ${fromCString(path)}: ${ErrorHandling.getLastError}")
     }
+  }
+
+  def dwordPairToULargeInteger(high: DWord, low: DWord): ULargeInteger = {
+    if (high == 0.toUInt) low
+    else (high.toULong << 32) | low
+  }
+
+  def uLargeIntegerToDWordPair(v: ULargeInteger,
+                               high: Ptr[DWord],
+                               low: Ptr[DWord]): Unit = {
+    val mask = 0xFFFFFFFF.toUInt
+    !high = ((v >> 32) & mask).toUInt
+    !low = (v & mask).toUInt
   }
 }

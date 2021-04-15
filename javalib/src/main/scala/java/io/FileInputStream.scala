@@ -88,16 +88,14 @@ class FileInputStream(fd: FileDescriptor, file: Option[File])
     val buf = buffer.asInstanceOf[runtime.ByteArray].at(offset)
     if (isWindows) {
       val readBytes = stackalloc[windows.DWord]
-      val hasSucceded =
-        FileApi.readFile(fd.handle, buf, count.toUInt, readBytes, null)
-      if (hasSucceded) (!readBytes).toInt
-      else {
-        (ErrorHandling.getLastError().toInt: @switch) match {
-          case ErrorCodes.ERROR_HANDLE_EOF => -1
-          case err                         =>
-            // Todo proper Windows exceptions handling
-            throw UnixException(file.fold("")(_.toString), err)
-        }
+      if (!FileApi.readFile(fd.handle, buf, count.toUInt, readBytes, null)) {
+        // Todo proper Windows exceptions handling
+        throw UnixException(file.fold("")(_.toString),
+                            ErrorHandling.getLastError().toInt)
+      }
+      (!readBytes).toInt match {
+        case 0     => -1 // EOF
+        case bytes => bytes
       }
     } else {
       val readCount = unistd.read(fd.fd, buf, count.toUInt)

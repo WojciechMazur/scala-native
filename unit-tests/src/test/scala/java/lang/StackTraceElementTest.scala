@@ -36,17 +36,17 @@ class StackTraceElementTest {
   def dummy4 = (new StackTraceDummy4).dummy4
 
   @Test def getClassName(): Unit = {
-    assertTrue(dummy1.getClassName == "java.lang.StackTraceDummy1")
-    assertTrue(dummy2.getClassName == "java.lang.StackTraceDummy1")
-    assertTrue(dummy3.getClassName == "java.lang.StackTraceDummy3_$colon$colon")
-    assertTrue(dummy4.getClassName == "java.lang.StackTraceDummy4")
+    assertEquals("java.lang.StackTraceDummy1", dummy1.getClassName)
+    assertEquals("java.lang.StackTraceDummy1", dummy2.getClassName)
+    assertEquals("java.lang.StackTraceDummy3_$colon$colon", dummy3.getClassName)
+    assertEquals("java.lang.StackTraceDummy4", dummy4.getClassName)
   }
 
   @Test def getMethodName(): Unit = {
-    assertTrue(dummy1.getMethodName == "dummy1")
-    assertTrue(dummy2.getMethodName == "_dummy2")
-    assertTrue(dummy3.getMethodName == "dummy3")
-    assertTrue(dummy4.getMethodName == "<init>")
+    assertEquals("dummy1", dummy1.getMethodName)
+    assertEquals("_dummy2", dummy2.getMethodName)
+    assertEquals("dummy3", dummy3.getMethodName)
+    assertEquals("<init>", dummy4.getMethodName)
   }
 
   @Test def isNativeMethod(): Unit = {

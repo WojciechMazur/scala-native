@@ -120,7 +120,7 @@ object URIEncoderDecoder {
       result.append(c)
       i += 1
     }
-    result.toString
+   result.toString
   }
 
 }

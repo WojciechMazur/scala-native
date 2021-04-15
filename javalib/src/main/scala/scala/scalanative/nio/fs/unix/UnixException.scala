@@ -1,4 +1,4 @@
-package scala.scalanative.nio.fs
+package scala.scalanative.nio.fs.unix
 
 import scala.scalanative.unsafe._
 import scala.scalanative.posix.errno._
@@ -12,6 +12,6 @@ object UnixException {
     case e if e == EACCES  => new AccessDeniedException(file)
     case e if e == ENOENT  => new NoSuchFileException(file)
     case e if e == EEXIST  => new FileAlreadyExistsException(file)
-    case e                 => new IOException(fromCString(string.strerror(e)))
+    case e                 => new IOException(file + " - " + fromCString(string.strerror(e)))
   }
 }

@@ -3,6 +3,8 @@ package scala.scalanative.windows.winnt
 import scalanative.unsafe._
 import scalanative.windows.DWord
 
+@link("Advapi32")
+@extern
 object TokenInformationClass {
   type Type = DWord
 

@@ -1,133 +1,138 @@
 #include <Windows.h>
+#include <WinNT.h>
 
-int scalanative_win32_winnt_token_info_clas_user() { return TokenUser; }
-int scalanative_win32_winnt_token_info_clas_groups() { return TokenGroups; }
-int scalanative_win32_winnt_token_info_clas_privileges() {
+int scalanative_win32_winnt_token_info_class_user() { return TokenUser; }
+int scalanative_win32_winnt_token_info_class_groups() { return TokenGroups; }
+int scalanative_win32_winnt_token_info_class_privileges() {
     return TokenPrivileges;
 }
-int scalanative_win32_winnt_token_info_clas_owner() { return TokenOwner; }
-int scalanative_win32_winnt_token_info_clas_primarygroup() {
+int scalanative_win32_winnt_token_info_class_owner() { return TokenOwner; }
+int scalanative_win32_winnt_token_info_class_primarygroup() {
     return TokenPrimaryGroup;
 }
-int scalanative_win32_winnt_token_info_clas_defaultdacl() {
+int scalanative_win32_winnt_token_info_class_defaultdacl() {
     return TokenDefaultDacl;
 }
-int scalanative_win32_winnt_token_info_clas_source() { return TokenSource; }
-int scalanative_win32_winnt_token_info_clas_type() { return TokenType; }
-int scalanative_win32_winnt_token_info_clas_impersonationlevel() {
+int scalanative_win32_winnt_token_info_class_source() { return TokenSource; }
+int scalanative_win32_winnt_token_info_class_type() { return TokenType; }
+int scalanative_win32_winnt_token_info_class_impersonationlevel() {
     return TokenImpersonationLevel;
 }
-int scalanative_win32_winnt_token_info_clas_statistics() {
+int scalanative_win32_winnt_token_info_class_statistics() {
     return TokenStatistics;
 }
-int scalanative_win32_winnt_token_info_clas_restrictedsids() {
+int scalanative_win32_winnt_token_info_class_restrictedsids() {
     return TokenRestrictedSids;
 }
-int scalanative_win32_winnt_token_info_clas_sessionid() {
+int scalanative_win32_winnt_token_info_class_sessionid() {
     return TokenSessionId;
 }
-int scalanative_win32_winnt_token_info_clas_groupsandprivileges() {
+int scalanative_win32_winnt_token_info_class_groupsandprivileges() {
     return TokenGroupsAndPrivileges;
 }
-int scalanative_win32_winnt_token_info_clas_sessionreference() {
+int scalanative_win32_winnt_token_info_class_sessionreference() {
     return TokenSessionReference;
 }
-int scalanative_win32_winnt_token_info_clas_sandboxinert() {
+int scalanative_win32_winnt_token_info_class_sandboxinert() {
     return TokenSandBoxInert;
 }
-int scalanative_win32_winnt_token_info_clas_auditpolicy() {
+int scalanative_win32_winnt_token_info_class_auditpolicy() {
     return TokenAuditPolicy;
 }
-int scalanative_win32_winnt_token_info_clas_origin() { return TokenOrigin; }
-int scalanative_win32_winnt_token_info_clas_elevationtype() {
+int scalanative_win32_winnt_token_info_class_origin() { return TokenOrigin; }
+int scalanative_win32_winnt_token_info_class_elevationtype() {
     return TokenElevationType;
 }
-int scalanative_win32_winnt_token_info_clas_linkedtoken() {
+int scalanative_win32_winnt_token_info_class_linkedtoken() {
     return TokenLinkedToken;
 }
-int scalanative_win32_winnt_token_info_clas_elevation() {
+int scalanative_win32_winnt_token_info_class_elevation() {
     return TokenElevation;
 }
-int scalanative_win32_winnt_token_info_clas_hasrestrictions() {
+int scalanative_win32_winnt_token_info_class_hasrestrictions() {
     return TokenHasRestrictions;
 }
-int scalanative_win32_winnt_token_info_clas_accessinformation() {
+int scalanative_win32_winnt_token_info_class_accessinformation() {
     return TokenAccessInformation;
 }
-int scalanative_win32_winnt_token_info_clas_virtualizationallowed() {
+int scalanative_win32_winnt_token_info_class_virtualizationallowed() {
     return TokenVirtualizationAllowed;
 }
-int scalanative_win32_winnt_token_info_clas_virtualizationenabled() {
+int scalanative_win32_winnt_token_info_class_virtualizationenabled() {
     return TokenVirtualizationEnabled;
 }
-int scalanative_win32_winnt_token_info_clas_integritylevel() {
+int scalanative_win32_winnt_token_info_class_integritylevel() {
     return TokenIntegrityLevel;
 }
-int scalanative_win32_winnt_token_info_clas_uiaccess() { return TokenUIAccess; }
-int scalanative_win32_winnt_token_info_clas_mandatorypolicy() {
+int scalanative_win32_winnt_token_info_class_uiaccess() {
+    return TokenUIAccess;
+}
+int scalanative_win32_winnt_token_info_class_mandatorypolicy() {
     return TokenMandatoryPolicy;
 }
-int scalanative_win32_winnt_token_info_clas_logonsid() { return TokenLogonSid; }
-int scalanative_win32_winnt_token_info_clas_isappcontainer() {
+int scalanative_win32_winnt_token_info_class_logonsid() {
+    return TokenLogonSid;
+}
+int scalanative_win32_winnt_token_info_class_isappcontainer() {
     return TokenIsAppContainer;
 }
-int scalanative_win32_winnt_token_info_clas_capabilities() {
+int scalanative_win32_winnt_token_info_class_capabilities() {
     return TokenCapabilities;
 }
-int scalanative_win32_winnt_token_info_clas_appcontainersid() {
+int scalanative_win32_winnt_token_info_class_appcontainersid() {
     return TokenAppContainerSid;
 }
-int scalanative_win32_winnt_token_info_clas_appcontainernumber() {
+int scalanative_win32_winnt_token_info_class_appcontainernumber() {
     return TokenAppContainerNumber;
 }
-int scalanative_win32_winnt_token_info_clas_userclaimattributes() {
+int scalanative_win32_winnt_token_info_class_userclaimattributes() {
     return TokenUserClaimAttributes;
 }
-int scalanative_win32_winnt_token_info_clas_deviceclaimattributes() {
+int scalanative_win32_winnt_token_info_class_deviceclaimattributes() {
     return TokenDeviceClaimAttributes;
 }
-int scalanative_win32_winnt_token_info_clas_restricteduserclaimattributes() {
+int scalanative_win32_winnt_token_info_class_restricteduserclaimattributes() {
     return TokenRestrictedUserClaimAttributes;
 }
-int scalanative_win32_winnt_token_info_clas_restricteddeviceclaimattributes() {
+int scalanative_win32_winnt_token_info_class_restricteddeviceclaimattributes() {
     return TokenRestrictedDeviceClaimAttributes;
 }
-int scalanative_win32_winnt_token_info_clas_devicegroups() {
+int scalanative_win32_winnt_token_info_class_devicegroups() {
     return TokenDeviceGroups;
 }
-int scalanative_win32_winnt_token_info_clas_restricteddevicegroups() {
+int scalanative_win32_winnt_token_info_class_restricteddevicegroups() {
     return TokenRestrictedDeviceGroups;
 }
-int scalanative_win32_winnt_token_info_clas_securityattributes() {
+int scalanative_win32_winnt_token_info_class_securityattributes() {
     return TokenSecurityAttributes;
 }
-int scalanative_win32_winnt_token_info_clas_isrestricted() {
+int scalanative_win32_winnt_token_info_class_isrestricted() {
     return TokenIsRestricted;
 }
-int scalanative_win32_winnt_token_info_clas_processtrustlevel() {
+int scalanative_win32_winnt_token_info_class_processtrustlevel() {
     return TokenProcessTrustLevel;
 }
-int scalanative_win32_winnt_token_info_clas_privatenamespace() {
+int scalanative_win32_winnt_token_info_class_privatenamespace() {
     return TokenPrivateNameSpace;
 }
-int scalanative_win32_winnt_token_info_clas_singletonattributes() {
+int scalanative_win32_winnt_token_info_class_singletonattributes() {
     return TokenSingletonAttributes;
 }
-int scalanative_win32_winnt_token_info_clas_bnoisolation() {
+int scalanative_win32_winnt_token_info_class_bnoisolation() {
     return TokenBnoIsolation;
 }
-int scalanative_win32_winnt_token_info_clas_childprocessflags() {
+int scalanative_win32_winnt_token_info_class_childprocessflags() {
     return TokenChildProcessFlags;
 }
-int scalanative_win32_winnt_token_info_clas_islessprivilegedappcontainer() {
+int scalanative_win32_winnt_token_info_class_islessprivilegedappcontainer() {
     return TokenIsLessPrivilegedAppContainer;
 }
-int scalanative_win32_winnt_token_info_clas_issandboxed() {
+int scalanative_win32_winnt_token_info_class_issandboxed() {
     return TokenIsSandboxed;
 }
-int scalanative_win32_winnt_token_info_clas_originatingprocesstrustlevel() {
+int scalanative_win32_winnt_token_info_class_originatingprocesstrustlevel() {
     return TokenOriginatingProcessTrustLevel;
 }
-int scalanative_win32_winnt_token_info_clas_infoclass_max() {
+int scalanative_win32_winnt_token_info_class_infoclass_max() {
     return MaxTokenInfoClass;
 }

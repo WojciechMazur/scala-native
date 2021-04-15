@@ -35,8 +35,27 @@ import scalanative.unsafe._
 import scalanative.libc._
 import scalanative.posix.{dirent, fcntl, limits, unistd}, dirent._
 import scalanative.posix.sys.stat
-import scalanative.nio.fs.{FileHelpers, UnixException}
+import scalanative.windows.{
+  DWord,
+  ErrorHandling,
+  ErrorCodes,
+  FileApi,
+  File => WinFile,
+  FileAccess,
+  FileSharing,
+  HandleApi,
+  FileFlags => WinFileFlags,
+  FileAttributes => WinFileAttributes,
+  WinBaseApi,
+  WinBase,
+  HelperMethods
+}
+import scalanative.windows.WinBase._
+import scalanative.nio.fs.unix.UnixException
+import scalanative.nio.fs.windows.WindowsException
+import scalanative.nio.fs.FileHelpers
 import scalanative.compat.StreamsCompat._
+import scalanative.runtime.PlatformExt.isWindows
 
 import scala.collection.immutable.{Map => SMap, Set => SSet}
 import StandardCopyOption._
@@ -78,14 +97,19 @@ object Files {
 
   def copy(source: Path, target: Path, options: Array[CopyOption]): Path = {
     val linkOpts = Array(LinkOption.NOFOLLOW_LINKS)
-    val attrs =
-      Files.readAttributes(source, classOf[PosixFileAttributes], linkOpts)
+    val attrsCls =
+      if (isWindows) classOf[DosFileAttributes]
+      else classOf[PosixFileAttributes]
+
+    val attrs = Files.readAttributes(source, attrsCls, linkOpts)
     if (attrs.isSymbolicLink())
       throw new IOException(
         s"Unsupported operation: copy symbolic link $source to $target")
+
     val targetExists = exists(target, linkOpts)
     if (targetExists && !options.contains(REPLACE_EXISTING))
       throw new FileAlreadyExistsException(target.toString)
+
     if (isDirectory(source, Array.empty)) {
       createDirectory(target, Array.empty)
     } else {
@@ -93,15 +117,28 @@ object Files {
       try copy(in, target, options.filter(_ == REPLACE_EXISTING))
       finally in.close()
     }
+
     if (options.contains(COPY_ATTRIBUTES)) {
-      val newAttrView =
-        getFileAttributeView(target, classOf[PosixFileAttributeView], linkOpts)
+      val attrViewCls =
+        if (isWindows) classOf[DosFileAttributeView]
+        else classOf[PosixFileAttributeView]
+      val newAttrView = getFileAttributeView(target, attrViewCls, linkOpts)
+
+      (attrs, newAttrView) match {
+        case (attrs: PosixFileAttributes,
+              newAttrView: PosixFileAttributeView) =>
+          newAttrView.setGroup(attrs.group())
+          newAttrView.setOwner(attrs.owner())
+          newAttrView.setPermissions(attrs.permissions())
+        case (attrs: DosFileAttributes, newAttrView: DosFileAttributeView) =>
+          newAttrView.setArchive(attrs.isArchive())
+          newAttrView.setHidden(attrs.isHidden())
+          newAttrView.setReadOnly(attrs.isReadOnly())
+          newAttrView.setSystem(attrs.isSystem())
+      }
       newAttrView.setTimes(attrs.lastModifiedTime(),
                            attrs.lastAccessTime(),
                            attrs.creationTime())
-      newAttrView.setGroup(attrs.group())
-      newAttrView.setOwner(attrs.owner())
-      newAttrView.setPermissions(attrs.permissions())
     }
     target
   }
@@ -154,32 +191,72 @@ object Files {
       throw new IOException()
     }
 
-  def createLink(link: Path, existing: Path): Path =
-    Zone { implicit z =>
-      if (exists(link, Array.empty)) {
-        throw new FileAlreadyExistsException(link.toString)
-      } else if (unistd.link(toCString(existing.toString),
-                             toCString(link.toString)) == 0) {
-        link
-      } else {
-        throw new IOException()
-      }
+  def createLink(link: Path, existing: Path): Path = {
+    def tryCreateHardLink() = Zone { implicit z =>
+      val existingFileName = toCString(existing.toString())
+      val linkFilename     = toCString(link.toString())
+
+      if (isWindows)
+        WinBaseApi.createHardLinkA(linkFilename,
+                                   existingFileName,
+                                   securityAttributes = null)
+      else unistd.link(existingFileName, linkFilename) == 0
     }
+    if (exists(link, Array.empty)) {
+      throw new FileAlreadyExistsException(link.toString)
+    } else if (tryCreateHardLink()) {
+      link
+    } else {
+      throw new IOException(
+        s"Cannot create link: ${ErrorHandling.getLastError}")
+    }
+  }
 
   def createSymbolicLink(link: Path,
                          target: Path,
-                         attrs: Array[FileAttribute[_]]): Path =
-    Zone { implicit z =>
-      if (exists(link, Array.empty)) {
-        throw new FileAlreadyExistsException(target.toString)
-      } else if (unistd.symlink(toCString(target.toString),
-                                toCString(link.toString)) == 0) {
-        setAttributes(link, attrs)
-        link
+                         attrs: Array[FileAttribute[_]]): Path = {
+
+    def tryCreateLink() = Zone { implicit z =>
+      val targetFilename = toCString(target.toString())
+      val linkFilename   = toCString(link.toString())
+
+      if (isWindows) {
+        import WinBase.SymbolicLinkFlags
+        val flags =
+          if (target.toFile().isFile()) SymbolicLinkFlags.File
+          else SymbolicLinkFlags.Directory
+        val created =
+          WinBaseApi.createSymbolicLinkA(symlinkFileName = linkFilename,
+                                         targetFileName = targetFilename,
+                                         flags = flags)
+        val ERROR_PRIVILEGE_NOT_HELD = 1314.toUInt
+        // On Windows creating soft link is possible only with admin privileges
+        if (!created &&
+            ErrorHandling.getLastError() == ERROR_PRIVILEGE_NOT_HELD) {
+          // If develop mode is enabled we can create unprivileged symlinks
+          WinBaseApi.createSymbolicLinkA(
+            symlinkFileName = linkFilename,
+            targetFileName = targetFilename,
+            flags = flags | SymbolicLinkFlags.AllowUnprivilegedCreate) || {
+            throw new FileSystemException(
+              "Creating symbolic link requires admin privileges")
+          }
+        } else created
       } else {
-        throw new IOException()
+        unistd.symlink(targetFilename, linkFilename) == 0
       }
     }
+
+    if (exists(link, Array.empty)) {
+      throw new FileAlreadyExistsException(target.toString)
+    } else if (tryCreateLink()) {
+      setAttributes(link, attrs)
+      link
+    } else {
+      throw new IOException(
+        s"Cannot create link: ${ErrorHandling.getLastError}")
+    }
+  }
 
   private def createTempDirectory(dir: File,
                                   prefix: String,
@@ -226,25 +303,26 @@ object Files {
                      attrs: Array[FileAttribute[_]]): Path =
     createTempFile(null: File, prefix, suffix, attrs)
 
-  def delete(path: Path): Unit =
+  def delete(path: Path): Unit = {
     if (!exists(path, Array.empty)) {
       throw new NoSuchFileException(path.toString)
     } else {
       if (path.toFile().delete()) ()
-      else throw new IOException()
+      else throw new IOException(s"Failed to remove $path")
     }
+  }
 
   def deleteIfExists(path: Path): Boolean =
     try {
       delete(path); true
     } catch { case _: NoSuchFileException => false }
 
-  def exists(path: Path, options: Array[LinkOption]): Boolean =
-    if (options.contains(LinkOption.NOFOLLOW_LINKS)) {
-      path.toFile().exists() || isSymbolicLink(path)
-    } else {
-      path.toFile().exists()
-    }
+  def exists(path: Path, options: Array[LinkOption]): Boolean = {
+    def fileExists    = path.toFile().exists()
+    def noFollowLinks = options.contains(LinkOption.NOFOLLOW_LINKS)
+
+    fileExists || (noFollowLinks && isSymbolicLink(path))
+  }
 
   def find(start: Path,
            maxDepth: Int,
@@ -304,7 +382,7 @@ object Files {
       .asInstanceOf[Set[PosixFilePermission]]
 
   def isDirectory(path: Path, options: Array[LinkOption]): Boolean = {
-    val notALink =
+    def notALink =
       if (options.contains(LinkOption.NOFOLLOW_LINKS)) !isSymbolicLink(path)
       else true
     exists(path, options) && notALink && path.toFile().isDirectory()
@@ -319,31 +397,42 @@ object Files {
   def isReadable(path: Path): Boolean =
     path.toFile().canRead()
 
-  def isRegularFile(path: Path, options: Array[LinkOption]): Boolean =
-    Zone { implicit z =>
-      val buf = alloc[stat.stat]
-      val err =
-        if (options.contains(LinkOption.NOFOLLOW_LINKS)) {
-          stat.lstat(toCString(path.toFile().getPath()), buf)
-        } else {
-          stat.stat(toCString(path.toFile().getPath()), buf)
-        }
-      if (err == 0) stat.S_ISREG(buf._13) == 1
-      else false
-    }
+  def isRegularFile(path: Path, options: Array[LinkOption]): Boolean = {
+    if (isWindows) {
+      getAttribute(path, "basic:isRegularFile", options).asInstanceOf[Boolean]
+    } else
+      Zone { implicit z =>
+        val buf = alloc[stat.stat]
+        val err =
+          if (options.contains(LinkOption.NOFOLLOW_LINKS)) {
+            stat.lstat(toCString(path.toFile().getPath()), buf)
+          } else {
+            stat.stat(toCString(path.toFile().getPath()), buf)
+          }
+        if (err == 0) stat.S_ISREG(buf._13) == 1
+        else false
+      }
+  }
 
   def isSameFile(path: Path, path2: Path): Boolean =
     path.toFile().getCanonicalPath() == path2.toFile().getCanonicalPath()
 
-  def isSymbolicLink(path: Path): Boolean =
-    Zone { implicit z =>
+  def isSymbolicLink(path: Path): Boolean = Zone { implicit z =>
+    val filename = toCString(path.toFile().getPath())
+    if (isWindows) {
+      val attrs          = FileApi.getFileAttributesA(filename)
+      val exists         = attrs != FileApi.InvalidFileAttributes
+      def isReparsePoint = (attrs & WinFileAttributes.ReparsePoint) != 0.toUInt
+      exists & isReparsePoint
+    } else {
       val buf = alloc[stat.stat]
-      if (stat.lstat(toCString(path.toFile().getPath()), buf) == 0) {
+      if (stat.lstat(filename, buf) == 0) {
         stat.S_ISLNK(buf._13) == 1
       } else {
         false
       }
     }
+  }
 
   def isWritable(path: Path): Boolean =
     path.toFile().canWrite()
@@ -360,21 +449,52 @@ object Files {
       None)
 
   def move(source: Path, target: Path, options: Array[CopyOption]): Path = {
+    lazy val replaceExisting = options.contains(REPLACE_EXISTING)
+
     if (!exists(source.toAbsolutePath(), Array.empty)) {
       throw new NoSuchFileException(source.toString)
-    } else if (!exists(target.toAbsolutePath(), Array.empty) ||
-               options.contains(REPLACE_EXISTING)) {
-      Zone { implicit z =>
-        if (stdio.rename(toCString(source.toAbsolutePath().toString),
-                         toCString(target.toAbsolutePath().toString)) != 0) {
-          throw UnixException(target.toString, errno.errno)
-        }
-      }
+    } else if (!exists(target.toAbsolutePath(), Array.empty) || replaceExisting) {
+      moveImpl(source, target, replaceExisting)
     } else {
       throw new FileAlreadyExistsException(target.toString)
     }
     target
   }
+
+  private def moveImpl(source: Path,
+                       target: Path,
+                       replaceExisting: => Boolean) =
+    Zone { implicit z =>
+      val sourceCString = toCString(source.toAbsolutePath().toString)
+      val targetCString = toCString(target.toAbsolutePath().toString)
+
+      if (isWindows) {
+        // We cannot replace directory, it needs to be removed first
+        if (replaceExisting && target.toFile().isDirectory()) {
+          //todo delete children
+          Files.delete(target)
+        }
+        // stdio.rename on Windows does not replace existing file
+        val flags = {
+          import WinFile.MoveFileFlags._
+          val replace =
+            if (replaceExisting) MOVEFILE_REPLACE_EXISTING else 0.toUInt
+          MOVEFILE_COPY_ALLOWED |    //Allow coping betwen volumes
+            MOVEFILE_WRITE_THROUGH | //Block until actually moved
+            replace
+        }
+        if (!FileApi.moveFileExA(sourceCString, targetCString, flags)) {
+          ErrorHandling.getLastError().toInt match {
+            case ErrorCodes.ERROR_SUCCESS => ()
+            case _                        => throw WindowsException.onPath(target.toString())
+          }
+        }
+      } else {
+        if (stdio.rename(sourceCString, targetCString) != 0) {
+          throw UnixException(target.toString, errno.errno)
+        }
+      }
+    }
 
   def newBufferedReader(path: Path): BufferedReader =
     newBufferedReader(path, StandardCharsets.UTF_8)
@@ -441,23 +561,41 @@ object Files {
     if (!pathSize.isValidInt) {
       throw new OutOfMemoryError("Required array size too large")
     }
-    val len   = pathSize.toInt
-    val bytes = scala.scalanative.runtime.ByteArray.alloc(len)
-    val fd    = fcntl.open(toCString(path.toString), fcntl.O_RDONLY, 0.toUInt)
-    try {
-      var offset = 0
-      var read   = 0
-      while ({
-        read = unistd.read(fd, bytes.at(offset), (len - offset).toUInt);
-        read != -1 && (offset + read) < len
-      }) {
-        offset += read
+    val len         = pathSize.toInt
+    val bytes       = scala.scalanative.runtime.ByteArray.alloc(len)
+    val pathCString = toCString(path.toString)
+
+    if (isWindows) {
+      val bytesRead = stackalloc[DWord]
+      HelperMethods.withFile(pathCString,
+                             access = FileAccess.FILE_GENERIC_READ,
+                             shareMode = FileSharing.ShareRead) { handle =>
+        if (!FileApi.readFile(handle,
+                              bytes.at(0),
+                              pathSize.toUInt,
+                              bytesRead,
+                              null)) {
+          throw UnixException(path.toString(),
+                              ErrorHandling.getLastError().toInt)
+        }
       }
-      if (read == -1) throw UnixException(path.toString, errno.errno)
-      bytes.asInstanceOf[Array[Byte]]
-    } finally {
-      unistd.close(fd)
+    } else {
+      val fd = fcntl.open(pathCString, fcntl.O_RDONLY, 0.toUInt)
+      try {
+        var offset = 0
+        var read   = 0
+        while ({
+          read = unistd.read(fd, bytes.at(offset), (len - offset).toUInt);
+          read != -1 && (offset + read) < len
+        }) {
+          offset += read
+        }
+        if (read == -1) throw UnixException(path.toString, errno.errno)
+      } finally {
+        unistd.close(fd)
+      }
     }
+    bytes.asInstanceOf[Array[Byte]]
   }
 
   def readAllLines(path: Path): List[String] =
@@ -514,14 +652,34 @@ object Files {
       throw new NotLinkException(link.toString)
     } else
       Zone { implicit z =>
-        val buf: CString = alloc[Byte](limits.PATH_MAX.toUInt)
-        if (unistd.readlink(toCString(link.toString),
-                            buf,
-                            limits.PATH_MAX.toUInt) == -1) {
-          throw UnixException(link.toString, errno.errno)
+        val linkCString = toCString(link.toString())
+
+        val buf = if (isWindows) {
+          HelperMethods.withFile(linkCString,
+                                 access = FileAccess.FILE_GENERIC_READ) {
+            handle =>
+              val bufferSize      = FileApi.MaxAnsiPathSize
+              val buffer: CString = alloc[Byte](bufferSize)
+              val pathSize =
+                FileApi.getFinalPathNameByHandleA(
+                  handle,
+                  buffer,
+                  bufferSize,
+                  WinFile.FinalPathFlags.FileNameNormalized)
+              if (pathSize > bufferSize) {
+                throw WindowsException(
+                  "Target path size of link was greater then max allowed size")
+              }
+              buffer
+          }
         } else {
-          Paths.get(fromCString(buf), Array.empty)
+          val buf: CString = alloc[Byte](limits.PATH_MAX.toUInt)
+          if (unistd.readlink(linkCString, buf, limits.PATH_MAX.toUInt) == -1) {
+            throw UnixException(link.toString, errno.errno)
+          }
+          buf
         }
+        Paths.get(fromCString(buf), Array.empty)
       }
 
   def setAttribute(path: Path,
@@ -587,22 +745,24 @@ object Files {
           .list(start.toString, (n, t) => (n, t))
           .toScalaStream
           .flatMap {
-            case (name, tpe)
-                if tpe == DT_LNK() && options.contains(
-                  FileVisitOption.FOLLOW_LINKS) =>
+            case (name, FileHelpers.FileType.Link)
+                if options.contains(FileVisitOption.FOLLOW_LINKS) =>
               val path       = start.resolve(name)
               val newVisited = visited + path
               val target     = readSymbolicLink(path)
               if (newVisited.contains(target))
                 throw new FileSystemLoopException(path.toString)
               else walk(path, maxDepth, currentDepth + 1, options, newVisited)
-            case (name, tpe) if tpe == DT_DIR() && currentDepth < maxDepth =>
+
+            case (name, FileHelpers.FileType.Directory)
+                if currentDepth < maxDepth =>
               val path = start.resolve(name)
               val newVisited =
                 if (options.contains(FileVisitOption.FOLLOW_LINKS))
                   visited + path
                 else visited
               walk(path, maxDepth, currentDepth + 1, options, newVisited)
+
             case (name, _) =>
               start.resolve(name) #:: SStream.empty
           }

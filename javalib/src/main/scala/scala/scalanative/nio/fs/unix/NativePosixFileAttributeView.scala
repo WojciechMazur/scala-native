@@ -1,4 +1,4 @@
-package scala.scalanative.nio.fs
+package scala.scalanative.nio.fs.unix
 
 import java.util.{HashMap, HashSet, Set}
 import java.util.concurrent.TimeUnit

@@ -5,6 +5,7 @@ import scala.scalanative.unsafe._
 
 import scala.scalanative.windows.SecurityBase.SIDPtr
 
+@link("Advapi32")
 @extern
 object HelperMethods {
   @name("scalanative_win32_winnt_setupUsersGroupSid")

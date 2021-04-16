@@ -1,10 +1,166 @@
 package scala.scalanative.runtime
 
+import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
+import scala.scalanative.runtime.Platform.isWindows
+
+object zlibExt {
+  import zlib._
+  sealed trait z_stream
+  object z_stream {
+    def size: CSize =
+      if (useSmall) sizeof[z_stream_32]
+      else sizeof[z_stream_64]
+
+    private[scalanative] type z_stream[UINT, ULONG] =
+      CStruct14[Ptr[Bytef], // next_in
+                UINT,       // avail_in
+                ULONG,      // total_in,
+                Ptr[Bytef], // next_out
+                UINT,       // avail_out
+                ULONG,      // total_out
+                CString,    // msg
+                voidpf,     // (internal) state
+                alloc_func, // zalloc
+                free_func,  // zfree
+                voidpf,     // opaque
+                CInt,       // data_type
+                ULONG,      // adler
+                ULONG]      // future
+
+    private[scalanative] type z_stream_32 =
+      z_stream[CUnsignedShort, CUnsignedInt]
+    private[scalanative] type z_stream_64 =
+      z_stream[CUnsignedInt, CUnsignedLong]
+
+    @alwaysinline
+    private[scalanative] def useSmall: Boolean = isWindows
+  }
+  type z_streamp = Ptr[Byte with z_stream]
+  implicit class ZStreamOps(_ref: z_streamp) {
+    import z_stream._
+    @alwaysinline private def small =
+      _ref.asInstanceOf[Ptr[z_stream_32]]
+    @alwaysinline private def big =
+      _ref.asInstanceOf[Ptr[z_stream_64]]
+
+    def nextIn: Ptr[Bytef]  = small._1
+    def availableIn: uInt   = if (useSmall) small._2 else big._2
+    def totalIn: uLong      = if (useSmall) small._3 else big._3
+    def nextOut: Ptr[Bytef] = if (useSmall) small._4 else big._4
+    def availableOut: uInt  = if (useSmall) small._5 else big._5
+    def totalOut: uLong     = if (useSmall) small._6 else big._6
+    def msg: CString        = if (useSmall) small._7 else big._7
+    def state: voidpf       = if (useSmall) small._8 else big._8
+    def zalloc: alloc_func  = if (useSmall) small._9 else big._9
+    def zfree: free_func    = if (useSmall) small._10 else big._10
+    def opaque: voidpf      = if (useSmall) small._11 else big._11
+    def data_type: CInt     = if (useSmall) small._12 else big._12
+    def adler: uLong        = if (useSmall) small._13 else big._13
+    def future: uLong       = if (useSmall) small._14 else big._14
+
+    def nextIn_=(v: Ptr[Bytef]): Unit = small._1 = v
+    def availableIn_=(v: uInt): Unit =
+      if (useSmall) small._2 = v.toUShort else big._2 = v
+    def totalIn_=(v: uLong): Unit =
+      if (useSmall) small._3 = v.toUInt else big._3 = v
+    def nextOut_=(v: Ptr[Bytef]): Unit =
+      if (useSmall) small._4 = v else big._4 = v
+    def availableOut_=(v: uInt): Unit =
+      if (useSmall) small._5 = v.toUShort else big._5 = v
+    def totalOut_=(v: uLong): Unit =
+      if (useSmall) small._6 = v.toUInt else big._6 = v
+    def msg_=(v: CString): Unit  = if (useSmall) small._7 = v else big._7 = v
+    def state_=(v: voidpf): Unit = if (useSmall) small._8 = v else big._8 = v
+    def zalloc_=(v: alloc_func): Unit =
+      if (useSmall) small._9 = v else big._9 = v
+    def zfree_=(v: free_func): Unit =
+      if (useSmall) small._10 = v else big._10 = v
+    def opaque_=(v: voidpf): Unit = if (useSmall) small._11 = v else big._11 = v
+    def data_type_=(v: CInt): Unit =
+      if (useSmall) small._12 = v else big._12 = v
+    def adler_=(v: uLong): Unit =
+      if (useSmall) small._13 = v.toUInt else big._13 = v
+    def future_=(v: uLong): Unit =
+      if (useSmall) small._14 = v.toUInt else big._14 = v
+  }
+
+  sealed trait gz_header
+  object gz_header {
+    def size: CSize =
+      if (useSmall) sizeof[gz_header_32]
+      else sizeof[gz_header_64]
+
+    private[scalanative] type gz_header[uInt, uLong] =
+      CStruct13[CInt,       // text
+                uLong,      // time
+                CInt,       // xflags
+                CInt,       // os
+                Ptr[Bytef], // extra
+                uInt,       // extra_len
+                uInt,       // extra_max
+                Ptr[Bytef], // name
+                uInt,       // name_max
+                Ptr[Bytef], // comment
+                uInt,       // comm_max
+                CInt,       // gcrc
+                CInt]       // done
+    private[scalanative] type gz_header_32 =
+      gz_header[CUnsignedShort, CUnsignedInt]
+    private[scalanative] type gz_header_64 =
+      gz_header[CUnsignedInt, CUnsignedLong]
+
+    @alwaysinline
+    private[scalanative] def useSmall: Boolean = isWindows
+  }
+  type gz_headerp = Ptr[Byte with gz_header]
+  implicit class GZHeaderOps(_ref: gz_headerp) {
+    import gz_header._
+
+    @alwaysinline private def small = _ref.asInstanceOf[Ptr[gz_header_32]]
+    @alwaysinline private def big   = _ref.asInstanceOf[Ptr[gz_header_64]]
+
+    def text: CInt          = if (useSmall) small._1 else big._1
+    def time: uLong         = if (useSmall) small._2 else big._2
+    def xflags: CInt        = if (useSmall) small._3 else big._3
+    def os: CInt            = if (useSmall) small._4 else big._4
+    def extra: Ptr[Bytef]   = if (useSmall) small._5 else big._5
+    def extra_len: uInt     = if (useSmall) small._6 else big._6
+    def extra_max: uInt     = if (useSmall) small._7 else big._7
+    def name: Ptr[Bytef]    = if (useSmall) small._8 else big._8
+    def name_max: uInt      = if (useSmall) small._9 else big._9
+    def comment: Ptr[Bytef] = if (useSmall) small._10 else big._10
+    def comm_max: uInt      = if (useSmall) small._11 else big._11
+    def gcrc: CInt          = if (useSmall) small._12 else big._12
+    def done: CInt          = if (useSmall) small._13 else big._13
+
+    def text_=(v: CInt): Unit = if (useSmall) small._1 = v else big._1 = v
+    def time_=(v: uLong): Unit =
+      if (useSmall) small._2 = v.toUInt else big._2 = v
+    def xflags_=(v: CInt): Unit = if (useSmall) small._3 = v else big._3 = v
+    def os_=(v: CInt): Unit     = if (useSmall) small._4 = v else big._4 = v
+    def extra_=(v: Ptr[Bytef]): Unit =
+      if (useSmall) small._5 = v else big._5 = v
+    def extra_len_=(v: uInt): Unit =
+      if (useSmall) small._6 = v.toUShort else big._6 = v
+    def extra_max_=(v: uInt): Unit =
+      if (useSmall) small._7 = v.toUShort else big._7 = v
+    def name_=(v: Ptr[Bytef]): Unit = if (useSmall) small._8 = v else big._8 = v
+    def name_max_=(v: uInt): Unit =
+      if (useSmall) small._9 = v.toUShort else big._9 = v
+    def comment_=(v: Ptr[Bytef]): Unit =
+      if (useSmall) small._10 = v else big._10 = v
+    def comm_max_=(v: uInt): Unit =
+      if (useSmall) small._11 = v.toUShort else big._11 = v
+    def gcrc_=(v: CInt): Unit = if (useSmall) small._12 = v else big._12 = v
+    def done_=(v: CInt): Unit = if (useSmall) small._13 = v else big._13 = v
+  }
+}
 
 @link("z")
 @extern
 object zlib {
+  import zlibExt._
   type voidpf     = Ptr[Byte]
   type voidp      = Ptr[Byte]
   type voidpc     = Ptr[Byte]
@@ -16,39 +172,6 @@ object zlib {
   type Bytef      = Byte
   type z_size_t   = CUnsignedLong
   type z_off_t    = CLong
-
-  type z_stream = CStruct14[Ptr[Bytef], // next_in
-                            uInt,       // avail_in
-                            uLong,      // total_in,
-                            Ptr[Bytef], // next_out
-                            uInt,       // avail_out
-                            uLong,      // total_out
-                            CString,    // msg
-                            voidpf,     // (internal) state
-                            alloc_func, // zalloc
-                            free_func,  // zfree
-                            voidpf,     // opaque
-                            CInt,       // data_type
-                            uLong,      // adler
-                            uLong]      // future
-
-  type z_streamp = Ptr[z_stream]
-
-  type gz_header = CStruct13[CInt, // text
-                             uLong,      // time
-                             CInt,       // xflags
-                             CInt,       // os
-                             Ptr[Bytef], // extra
-                             uInt,       // extra_len
-                             uInt,       // extra_max
-                             Ptr[Bytef], // name
-                             uInt,       // name_max
-                             Ptr[Bytef], // comment
-                             uInt,       // comm_max
-                             CInt,       // gcrc
-                             CInt]       // done
-
-  type gz_headerp = Ptr[gz_header]
 
   type in_func =
     CFuncPtr2[Ptr[Byte], Ptr[Ptr[CUnsignedChar]], CUnsignedInt]

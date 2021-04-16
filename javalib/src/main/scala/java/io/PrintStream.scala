@@ -177,7 +177,7 @@ class PrintStream private (_out: OutputStream,
   }
 
   def println(): Unit = ensureOpenAndTrapIOExceptions {
-    encoder.write('\n') // In Scala.js the line separator is always LF
+    encoder.write(System.lineSeparator())
     encoder.flushBuffer()
     if (autoFlush)
       flush()

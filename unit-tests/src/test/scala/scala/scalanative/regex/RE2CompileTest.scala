@@ -7,7 +7,6 @@ import org.junit.Test
 import org.junit.Assert._
 
 class RE2CompileTest {
-
   // A list of regexp and expected error when calling RE2.compile. null implies that compile should
   // succeed.
   def testData: Array[Array[String]] = Array[Array[String]](
@@ -40,7 +39,7 @@ class RE2CompileTest {
 //    Array("abc)", "Unclosed character class near index 2\nabc)\n  ^"),
 //    Array("[a-z",
 //          "Illegal/unsupported character class near index 3\n[a-z\n   ^"),
-    Array("[z-a]", "Illegal character range near index 3\n[z-a]\n   ^"),
+    Array("[z-a]", s"Illegal character range near index 3\n[z-a]\n   ^"),
     Array("abc\\", "Trailing Backslash near index 4\nabc\\\n    ^"),
     Array("a**", "invalid nested repetition operator near index 0\n**\n^"),
     Array("a*+", "invalid nested repetition operator near index 0\n*+\n^"),
@@ -48,7 +47,12 @@ class RE2CompileTest {
   )
 
   @Test def compile(): Unit = {
-    for (Array(input, expectedError) <- testData) {
+    for (Array(input, rawExpectedError) <- testData) {
+      val expectedError =
+        if (rawExpectedError != null)
+          rawExpectedError.replaceAll("\n", System.lineSeparator())
+        else rawExpectedError
+
       try {
         RE2.compile(input)
         if (expectedError != null)

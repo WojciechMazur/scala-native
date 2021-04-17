@@ -6,6 +6,9 @@ import scalanative.posix.time._
 import scalanative.posix.sys.types.size_t
 import scalanative.unsafe._
 import scalanative.unsigned._
+import scalanative.runtime.PlatformExt.isWindows
+import java.nio.charset.Charset
+import java.nio.charset.StandardCharsets
 
 /** Ported from Scala JS and Apache Harmony
  * - omits deprecated methods
@@ -43,9 +46,13 @@ class Date(var milliseconds: Long)
   def toInstant(): Instant = Instant.ofEpochMilli(getTime())
 
   override def toString(): String = {
-    val seconds = milliseconds / 1000L
     def default = s"Date($milliseconds)"
-    Date.secondsToString(seconds, default)
+    if (isWindows)
+      Date.WinMillisToString(milliseconds, default)
+    else {
+      val seconds = milliseconds / 1000L
+      Date.secondsToString(seconds, default)
+    }
   }
 }
 
@@ -54,8 +61,7 @@ object Date {
   // Applications which must track timezone changes over their lifetime
   // must do timely subsequent tzset() calls, either directly or through
   // an occasional localtime().
-
-  tzset()
+  if (!isWindows) tzset()
 
   private def secondsToString(seconds: Long, default: => String): String =
     Zone { implicit z =>
@@ -75,6 +81,62 @@ object Date {
         val n       = strftime(buf, bufSize, c"%a %b %d %T %Z %Y", tmPtr)
 
         if (n == 0) default else fromCString(buf)
+      }
+    }
+
+  private def WinMillisToString(milliseconds: Long,
+                                default: => String): String =
+    Zone { implicit z =>
+      import scalanative.windows._
+      import TimeZoneApi._
+      import TimeZone._
+      import DateTimeApi._
+      import MinWinBase._
+
+      val fileTime           = stackalloc[FileTime]
+      val utcTime, localTime = stackalloc[SystemTime]
+      val timeZoneInfo       = stackalloc[TimeZoneInformation]
+
+      val timeStringSize = 32
+      val dateStringSize = 32
+      val timeString     = alloc[Byte](timeStringSize.toUInt)
+      val dateString     = alloc[Byte](dateStringSize.toUInt)
+
+      !fileTime = FileTime.fromUnixEpochMillis(milliseconds)
+
+      val hasSucceded = {
+        FileTimeToSystemTime(fileTime, utcTime) &&
+        GetTimeZoneInformation(timeZoneInfo) != TIME_ZONE_ID_INVALID &&
+        SystemTimeToTzSpecificLocalTime(timeZoneInfo, utcTime, localTime) &&
+        GetDateFormatA(
+          locale = LocaleUserDefault,
+          flags = 0.toUInt,
+          date = localTime,
+          format = toCString("ddd MMM dd"),
+          buffer = dateString,
+          bufferSize = dateStringSize
+        ) > 0 &&
+        GetTimeFormatA(locale = LocaleUserDefault,
+                       flags = 0.toUInt,
+                       time = localTime,
+                       format = toCString("hh:mm:ss"),
+                       buffer = timeString,
+                       bufferSize = timeStringSize) > 0
+      }
+      println(scalanative.windows.ErrorHandling.getLastError())
+      if (!hasSucceded) default
+      else {
+        val date      = fromCString(dateString)
+        val time      = fromCString(timeString)
+        val tzBuilder = new java.lang.StringBuilder(32)
+        0.until(32).foreach { idx =>
+          val v = timeZoneInfo.standardName(idx).toInt
+          tzBuilder.appendCodePoint(v)
+        }
+        val tz   = tzBuilder.toString
+        val year = localTime.year.toString
+
+        s"$date $time $tz $year"
       }
     }
 

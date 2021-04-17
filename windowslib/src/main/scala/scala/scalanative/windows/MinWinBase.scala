@@ -43,6 +43,11 @@ object MinWinBase {
       val windowsSeconds = (epoch + UnixEpochDifferenceSeconds).toULong
       windowsSeconds * EpochPerSecond
     }
+
+    def fromUnixEpochMillis(epochMillis: Long): FileTime = {
+      val windowsMillis = (epochMillis + UnixEpochDifferenceMillis).toULong
+      windowsMillis * EpochPerMilis
+    }
   }
 
   type SystemTime = CStruct8[Word, Word, Word, Word, Word, Word, Word, Word]

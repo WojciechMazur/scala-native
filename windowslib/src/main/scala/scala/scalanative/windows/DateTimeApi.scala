@@ -1,0 +1,33 @@
+package scala.scalanative.windows
+
+import scala.scalanative.unsafe._
+
+@link("Kernel32")
+@extern
+object DateTimeApi {
+  import MinWinBase._
+  import TimeZoneApi._
+
+  type LCID = DWord
+
+  def GetDateFormatA(
+      locale: LCID,
+      flags: DWord,
+      date: Ptr[SystemTime],
+      format: CString,
+      buffer: CString,
+      bufferSize: CInt
+  ): CInt = extern
+
+  def GetTimeFormatA(
+      locale: LCID,
+      flags: DWord,
+      time: Ptr[SystemTime],
+      format: CString,
+      buffer: CString,
+      bufferSize: CInt
+  ): CInt = extern
+
+  @name("scalanative_win32_datetime_locale_user_default")
+  final def LocaleUserDefault: LCID = extern
+}

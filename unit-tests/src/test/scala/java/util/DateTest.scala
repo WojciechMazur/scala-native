@@ -2,6 +2,7 @@ package java.util
 
 import org.junit.Test
 import org.junit.Assert._
+import org.junit.Assume._
 
 class DateTest {
   // now : java.util.Date = Fri Mar 31 14:47:44 EDT 2017
@@ -51,6 +52,9 @@ class DateTest {
   }
 
   @Test def testToString(): Unit = {
+    assumeFalse("Not yet implemented on Windows",
+                scalanative.runtime.Platform.isWindows)
+
     val result = new Date().toString // actual time this test is run.
     // regex should match, but not be: "Fri Mar 31 14:47:44 EDT 2020"
     // Two decade year range in regex is coarse sanity check.

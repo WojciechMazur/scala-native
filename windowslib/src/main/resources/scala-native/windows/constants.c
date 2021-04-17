@@ -14,3 +14,7 @@ size_t scalanative_win32_winnt_empty_priviliges_size() {
     PRIVILEGE_SET privileges = {0};
     return sizeof(privileges);
 }
+
+LCID scalanative_win32_datetime_locale_user_default() {
+    return LOCALE_USER_DEFAULT;
+} 

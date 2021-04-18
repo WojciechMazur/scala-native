@@ -7,3 +7,8 @@
 DWORD scalanative_winsock_wsadata_size() { return sizeof(WSADATA); }
 
 DWORD scalanative_winsocket_fionbio() { return FIONBIO; }
+
+SOCKET scalanative_winsock_invalid_socket() { return INVALID_SOCKET; }
+
+SHORT scalanative_winsock_poll_pollin() { return POLLIN; }
+SHORT scalanative_winsock_poll_pollout() { return POLLOUT; }

@@ -43,12 +43,9 @@ private[net] abstract class GenericPlainSocket extends SocketImpl {
     fd == InvalidFileDescriptor
 
   @alwaysinline
-  protected def pollCompat(fds: Ptr[struct_pollfd],
-                           nfds: nfds_t,
-                           timeout: CInt): CInt = {
-    if (isWindows) WinSocketApi.poll(fds, nfds, timeout)
-    else poll(fds, nfds, timeout)
-  }
+  protected def tryPoll(fd: FileDescriptor,
+                        pollout: Boolean,
+                        timeout: CInt): (CInt, CShort)
 
   private def throwIfClosed(fd: FileDescriptor, methodName: String): Unit = {
     if (isClosed) {
@@ -60,12 +57,6 @@ private[net] abstract class GenericPlainSocket extends SocketImpl {
     throw new BindException(
       "Couldn't bind to an address: " + addr.getHostAddress() +
         " on port: " + port.toString)
-  }
-
-  override def create(streaming: Boolean): Unit = {
-    val sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-    if (sock < 0) throw new IOException("Couldn't create a socket")
-    fd = new FileDescriptor(sock)
   }
 
   private def fetchLocalPort(family: Int): Option[Int] = {
@@ -134,15 +125,7 @@ private[net] abstract class GenericPlainSocket extends SocketImpl {
     throwIfClosed(fd, "accept") // Do not send negative fd.fd to poll()
 
     if (timeout > 0) {
-      val nAlloc = 1.toUInt
-
-      val pollFdPtr = stackalloc[struct_pollfd](nAlloc)
-
-      pollFdPtr.fd = fd.fd
-      pollFdPtr.events = POLLIN
-      pollFdPtr.revents = 0
-
-      val pollRes = pollCompat(pollFdPtr, nAlloc, timeout)
+      val (pollRes, revents) = tryPoll(fd, pollout = false, timeout)
 
       pollRes match {
         case err if err < 0 =>
@@ -155,8 +138,6 @@ private[net] abstract class GenericPlainSocket extends SocketImpl {
 
         case _ => // success, carry on
       }
-
-      val revents = pollFdPtr.revents
 
       if (((revents & POLLERR) | (revents & POLLHUP)) != 0) {
         throw new SocketException("Accept poll failed, POLLERR or POLLHUP")
@@ -215,15 +196,7 @@ private[net] abstract class GenericPlainSocket extends SocketImpl {
   }
 
   private def connectPollTimeout(timeout: Int, fdFd: Int): Unit = {
-    val nAlloc = 1.toUInt
-
-    val pollFdPtr = stackalloc[struct_pollfd](nAlloc)
-
-    pollFdPtr.fd = fd.fd
-    pollFdPtr.events = POLLIN | POLLOUT
-    pollFdPtr.revents = 0
-
-    val pollRes = pollCompat(pollFdPtr, nAlloc.toUInt, timeout)
+    val (pollRes, revents) = tryPoll(fd, pollout = true, timeout)
 
     setSocketFdBlocking(fd, blocking = true)
 
@@ -236,8 +209,6 @@ private[net] abstract class GenericPlainSocket extends SocketImpl {
           s"connect timed out, SO_TIMEOUT: ${timeout}")
 
       case _ =>
-        val revents = pollFdPtr.revents
-
         if ((revents & POLLNVAL) != 0) {
           throw new ConnectException(
             s"connect failed, invalid poll request: ${revents}")

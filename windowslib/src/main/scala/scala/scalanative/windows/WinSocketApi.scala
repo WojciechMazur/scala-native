@@ -8,19 +8,33 @@ import scala.scalanative.unsigned._
 object WinSocketApi {
   import WinSocket._
 
+  type Socket           = Ptr[Byte]
+  type Group            = DWord
+  type WSAProtocolInfoA = Ptr[Byte]
+  type WSAPollFd        = CStruct3[Socket, CShort, CShort]
+  // This structures contains additional 5 fields with different order in Win_64 and others
+  // Should only be treated as read-only and never allocated in ScalaNative.
+  type WSAData = CStruct2[Word, Word]
+
   def WSAStartup(versionRequested: Word, data: Ptr[WSAData]): CInt = extern
 
   def WSACleanup(): CInt = extern
 
-  // Posix pollFd has the same structure as Windows WSAPoolFd
-  type WSAPollFd =
-    CStruct3[CInt,   // Posix style file descriptor for compat in java.net
-             CShort, // requested events
-             CShort] // returned events
+  def WSASocketA(
+      addressFamily: CInt,
+      socketType: CInt,
+      protocol: CInt,
+      protocalInfo: Ptr[WSAProtocolInfoA],
+      group: Group,
+      flags: DWord
+  ): Socket = extern
 
-  @name("WSAPoll")
-  def poll(fds: Ptr[WSAPollFd], nfds: CUnsignedLongInt, timeout: CInt): CInt =
+  def WSAPoll(fds: Ptr[WSAPollFd],
+              nfds: CUnsignedLongInt,
+              timeout: CInt): CInt =
     extern
+
+  def WSAGetLastError(): CInt = extern
 
   @name("ioctlsocket")
   def ioctlSocket(socket: Socket, cmd: CInt, argp: Ptr[CInt]): CInt = extern
@@ -33,10 +47,20 @@ object WinSocketApi {
 
   @name("scalanative_winsock_wsadata_size")
   final def WSADataSize: CSize = extern
+
+  @name("scalanative_winsock_invalid_socket")
+  final def InvalidSocket: Socket = extern
+
+  @name("scalanative_winsock_poll_pollin")
+  final def POLLIN: CShort = extern
+
+  @name("scalanative_winsock_poll_pollout")
+  final def POLLOUT: CShort = extern
 }
 
 object WinSocket {
-  type Socket = Ptr[Byte]
+  import WinSocketApi._
+
   private final val WinSocketVersion: (Byte, Byte) = (2, 2)
 
   final def withSocketsEnabled[T](body: => T): T = {
@@ -63,11 +87,19 @@ object WinSocket {
     }
   }
 
-  // This structures contains additional 5 fields with different order in Win_64 and others
-  type WSAData = CStruct2[Word, Word]
   implicit class WSADataOps(ref: Ptr[WSAData]) {
     def version: Word     = ref._1
     def highVersion: Word = ref._2
+  }
+
+  implicit class WSAPollFdOps(ref: Ptr[WSAPollFd]) {
+    def socket: Socket  = ref._1
+    def events: CShort  = ref._2
+    def revents: CShort = ref._3
+
+    def socket_=(v: Socket): Unit  = ref._1 = v
+    def events_=(v: CShort): Unit  = ref._2 = v
+    def revents_=(v: CShort): Unit = ref._3 = v
   }
 
   private def wordToBytes(word: Word): (Byte, Byte) = {

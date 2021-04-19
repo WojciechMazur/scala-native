@@ -5,6 +5,7 @@ import scalanative.unsigned._
 import scalanative.unsafe._
 import scalanative.libc._, stdlib._, stdio._, string._
 import scalanative.nio.fs.unix.UnixException
+import scalanative.nio.fs.windows.WindowsException
 import scalanative.posix.unistd, unistd.lseek
 import scalanative.runtime
 import scala.scalanative.windows
@@ -12,7 +13,8 @@ import scala.scalanative.windows.{
   FileApi,
   FileAccess,
   ErrorHandling,
-  ErrorCodes
+  ErrorCodes,
+  NamedPipeApi
 }
 import scala.scalanative.windows.HelperMethods.withFile
 import scala.scalanative.windows.File.FilePointerMoveMethods
@@ -87,16 +89,32 @@ class FileInputStream(fd: FileDescriptor, file: Option[File])
     // intermediate buffer, and write straight into the array memory
     val buf = buffer.asInstanceOf[runtime.ByteArray].at(offset)
     if (isWindows) {
-      val readBytes = stackalloc[windows.DWord]
-      if (!FileApi.readFile(fd.handle, buf, count.toUInt, readBytes, null)) {
-        // Todo proper Windows exceptions handling
-        throw UnixException(file.fold("")(_.toString),
-                            ErrorHandling.getLastError().toInt)
+      def fail() = throw WindowsException.onPath(file.fold("")(_.toString))
+
+      def tryRead(count: Int)(fallback: => Int) = {
+        val readBytes = stackalloc[windows.DWord]
+        if (FileApi.readFile(fd.handle, buf, count.toUInt, readBytes, null)) {
+          (!readBytes).toInt match {
+            case 0     => -1 // EOF
+            case bytes => bytes
+          }
+        } else fallback
       }
-      (!readBytes).toInt match {
-        case 0     => -1 // EOF
-        case bytes => bytes
-      }
+
+      tryRead(count)(fallback = {
+        ErrorHandling.getLastError match {
+          case ErrorCodes.ERROR_BROKEN_PIPE =>
+            // Pipe was closed, but it still can contain some unread data
+            available() match {
+              case 0     => -1 //EOF
+              case count => tryRead(count)(fallback = fail())
+            }
+
+          case _ =>
+            fail()
+        }
+      })
+
     } else {
       val readCount = unistd.read(fd.fd, buf, count.toUInt)
       if (readCount == 0) {

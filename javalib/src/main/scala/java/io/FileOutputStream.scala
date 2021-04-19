@@ -2,6 +2,7 @@ package java.io
 
 import scala.scalanative.unsigned._
 import scalanative.nio.fs.unix.UnixException
+import scalanative.nio.fs.windows.WindowsException
 import scalanative.unsafe._
 import scalanative.libc._
 import scalanative.posix.{fcntl, unistd}
@@ -59,9 +60,8 @@ class FileOutputStream(fd: FileDescriptor, file: Option[File] = None)
       val hasSucceded =
         FileApi.writeFile(fd.handle, buf, count.toUInt, null, null)
       if (!hasSucceded) {
-        // Todo proper Windows exceptions handling
-        throw UnixException(file.fold("")(_.toString),
-                            ErrorHandling.getLastError().toInt)
+        throw WindowsException.onPath(
+          file.fold("<file descriptor>")(_.toString))
       }
     } else {
       val writeCount = unistd.write(fd.fd, buf, count.toUInt)

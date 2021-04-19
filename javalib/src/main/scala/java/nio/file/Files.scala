@@ -207,8 +207,7 @@ object Files {
     } else if (tryCreateHardLink()) {
       link
     } else {
-      throw new IOException(
-        s"Cannot create link: ${ErrorHandling.getLastError}")
+      throw WindowsException("Cannot create link")
     }
   }
 
@@ -253,8 +252,7 @@ object Files {
       setAttributes(link, attrs)
       link
     } else {
-      throw new IOException(
-        s"Cannot create link: ${ErrorHandling.getLastError}")
+      throw WindowsException("Cannot create link")
     }
   }
 
@@ -484,7 +482,7 @@ object Files {
             replace
         }
         if (!FileApi.moveFileExA(sourceCString, targetCString, flags)) {
-          ErrorHandling.getLastError().toInt match {
+          ErrorHandling.getLastError() match {
             case ErrorCodes.ERROR_SUCCESS => ()
             case _                        => throw WindowsException.onPath(target.toString())
           }
@@ -575,8 +573,7 @@ object Files {
                               pathSize.toUInt,
                               bytesRead,
                               null)) {
-          throw UnixException(path.toString(),
-                              ErrorHandling.getLastError().toInt)
+          throw WindowsException.onPath(path.toString())
         }
       }
     } else {

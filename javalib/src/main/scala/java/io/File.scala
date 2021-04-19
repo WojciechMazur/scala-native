@@ -28,7 +28,6 @@ import scala.scalanative.windows.winnt.{HelperMethods => WinNtHelpers, _}
 import scala.scalanative.nio.fs.windows.WindowsException
 import Acl.SecurityObjectType
 import scala.scalanative.windows.File.FinalPathFlags
-import scala.scalanative.windows.ErrorHandling.getLastError
 import scala.scalanative.annotation.alwaysinline
 
 class File(_path: String) extends Serializable with Comparable[File] {
@@ -624,7 +623,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
         )
       }
     }
-    
+
     !accessStatus
   }
 }

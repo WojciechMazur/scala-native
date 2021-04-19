@@ -24,6 +24,15 @@ object WinBaseApi {
                           targetFileName: CString,
                           flags: DWord): Boolean = extern
 
+  @name("FormatMessageA")
+  def formatMessageA(flags: DWord,
+                     source: Ptr[Byte],
+                     messageId: DWord,
+                     languageId: DWord,
+                     buffer: Ptr[CString],
+                     size: DWord,
+                     arguments: CVarArgList): DWord = extern
+
   @name("GetCurrentDirectoryA")
   def getCurrentDirectoryA(bufferLength: DWord, buffer: CString): DWord = extern
 
@@ -62,6 +71,9 @@ object WinBaseApi {
 
   @name("UnregisterWait")
   def unregisterWait(handle: Handle): Boolean = extern
+
+  @name("scalanative_win32_default_language")
+  final def DefaultLangugageId(): DWord = extern
 }
 
 object WinBase {
@@ -137,6 +149,15 @@ object WinBase {
     def SidTypeLabel: SidNameUse = extern
     @name("scalanative_win32_winnt_sid_name_use_sidtypelogonsession")
     def SidTypeLogonSession: SidNameUse = extern
+  }
+
+  object FormatMessageFlags {
+    final val FORMAT_MESSAGE_ALLOCATE_BUFFER: DWord = 0x00000100.toUInt
+    final val FORMAT_MESSAGE_IGNORE_INSERTS: DWord  = 0x00000200.toUInt
+    final val FORMAT_MESSAGE_FROM_STRING: DWord     = 0x00000400.toUInt
+    final val FORMAT_MESSAGE_FROM_HMODULE: DWord    = 0x00000800.toUInt
+    final val FORMAT_MESSAGE_FROM_SYSTEM: DWord     = 0x00001000.toUInt
+    final val FORMAT_MESSAGE_ARGUMENT_ARRAY: DWord  = 0x00002000.toUInt
   }
 
 }

@@ -115,7 +115,7 @@ object FileHelpers {
             FileApi.findClose(searchHandle)
           }
 
-          ErrorHandling.getLastError().toInt match {
+          ErrorHandling.getLastError() match {
             case ErrorCodes.ERROR_NO_MORE_FILES => buffer.toArray
             case err                            => throw WindowsException.onPath(path)
           }
@@ -139,7 +139,7 @@ object FileHelpers {
                                  shareMode = FileSharing.ShareAll,
                                  disposition = FileDisposition.CreateNew,
                                  allowInvalidHandle = true) { handle =>
-            ErrorHandling.getLastError().toInt match {
+            ErrorHandling.getLastError() match {
               case ErrorCodes.ERROR_FILE_EXISTS => false
               case _                            => handle != HandleApi.InvalidHandleValue
             }

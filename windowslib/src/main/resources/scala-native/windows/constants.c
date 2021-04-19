@@ -17,4 +17,6 @@ size_t scalanative_win32_winnt_empty_priviliges_size() {
 
 LCID scalanative_win32_datetime_locale_user_default() {
     return LOCALE_USER_DEFAULT;
-} 
+}
+
+LANGID scalanative_win32_default_language() { return LANG_USER_DEFAULT; }

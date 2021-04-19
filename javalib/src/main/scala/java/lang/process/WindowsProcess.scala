@@ -184,8 +184,7 @@ object WindowsProcess {
                          outRead,
                          errRead)
     } else {
-      throw new IOException(
-        s"Failed to create process for command: $cmd: ${ErrorHandling.getLastError()}")
+      throw WindowsException(s"Failed to create process for command: $cmd")
     }
   }
 
@@ -205,7 +204,7 @@ object WindowsProcess {
     val pipeCreated =
       NamedPipeApi.createPipe(pipeRead, pipeWrite, null, 0.toUInt)
     if (!pipeCreated)
-      throw new IOException(s"$msg Error code: ${ErrorHandling.getLastError()}")
+      throw WindowsException(msg)
 
     val (childEnd, parentEnd) =
       if (isStdIn) pipeEnds
@@ -238,8 +237,7 @@ object WindowsProcess {
         templateFile = null
       )
       if (handle == HandleApi.InvalidHandleValue) {
-        throw new IOException(
-          s"Unable to open file ${redirect.file()} (${ErrorHandling.getLastError()})")
+        throw WindowsException.onPath(redirect.file().toString())
       }
       handle
     }
@@ -256,8 +254,7 @@ object WindowsProcess {
       )
 
       if (!hasSucceded) {
-        throw new IOException(
-          s"Couldn't duplicate $kind file descriptor ${ErrorHandling.getLastError()}")
+        throw WindowsException(s"Couldn't duplicate $kind file descriptor")
       }
     }
 

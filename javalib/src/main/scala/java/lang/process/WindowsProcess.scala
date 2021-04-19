@@ -1,6 +1,7 @@
 package java.lang.process
 
 import java.io.{File, IOException, InputStream, OutputStream}
+import scala.scalanative.nio.fs.windows.WindowsException
 import java.util.concurrent.TimeUnit
 import java.util.ScalaOps._
 import java.io.FileDescriptor
@@ -40,7 +41,7 @@ private[lang] class WindowsProcess private (
   private lazy val pid = ProcessThreadsApi.getProcessId(handle)
 
   override def destroy(): Unit =
-    ProcessThreadsApi.terminateProcess(handle, 1.toUInt)
+    ProcessThreadsApi.terminateProcess(handle, 137.toUInt)
 
   override def destroyForcibly(): Process = {
     destroy()
@@ -136,7 +137,7 @@ object WindowsProcess {
 
     val cmd  = builder.command().scalaOps.toSeq
     val dir  = toCString(builder.directory().getAbsolutePath())
-    val argv = toCString(cmd.map(quoted).mkString(" "))
+    val argv = toCString(cmd.mkString(" "))
     val envp = nullTerminatedBlock {
       builder
         .environment()
@@ -226,7 +227,7 @@ object WindowsProcess {
         access: DWord,
         disposition: DWord,
         flagsAndAttributes: DWord = FileAttributes.Normal,
-        sharing: DWord = FileSharing.NotShared) = Zone { implicit z =>
+        sharing: DWord = FileSharing.ShareAll) = Zone { implicit z =>
       val handle = FileApi.createFileA(
         filename = toCString(redirect.file.getAbsolutePath()),
         desiredAccess = access,
@@ -259,18 +260,15 @@ object WindowsProcess {
     }
 
     redirect.`type`() match {
+      case ProcessBuilder.Redirect.Type.PIPE => ()
+
       case ProcessBuilder.Redirect.Type.INHERIT =>
         duplicateOrThrow(stdHandle, "inherit")
-
-      case ProcessBuilder.Redirect.Type.PIPE =>
-        !childHandle = HandleApi.InvalidHandleValue
 
       case ProcessBuilder.Redirect.Type.READ =>
         val fd = openRedirectFd(
           access = FileAccess.FILE_GENERIC_READ,
-          flagsAndAttributes = FileAttributes.ReadOnly,
-          disposition = FileDisposition.OpenExisting,
-          sharing = FileSharing.ShareRead
+          disposition = FileDisposition.OpenAlways
         )
         duplicateOrThrow(fd, "read")
 
@@ -306,10 +304,4 @@ object WindowsProcess {
     assert(!(blockEnd - 1) == 0.toByte)
     block
   }
-
-  def quoted(str: String): String = {
-    if (str.nonEmpty && str.head == '"' && str.last == '"') str
-    else "\"" + str + "\""
-  }
-
 }

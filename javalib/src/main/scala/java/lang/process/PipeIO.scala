@@ -91,7 +91,7 @@ private[lang] object PipeIO {
                                       totalBytesAvailable = aviallableBytes,
                                       bytesLeftThisMessage = null)
         if (hasPeaked) (!aviallableBytes).toInt
-        else   0
+        else 0
       } else {
         val res = stackalloc[CInt]
         ioctl(is.getFD().fd, FIONREAD, res.asInstanceOf[Ptr[scala.Byte]]) match {

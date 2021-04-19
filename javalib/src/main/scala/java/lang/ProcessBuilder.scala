@@ -105,7 +105,7 @@ final class ProcessBuilder(private var _command: List[String]) {
   def start(): Process = {
     if (_command.isEmpty()) throw new IndexOutOfBoundsException()
     if (_command.contains(null)) throw new NullPointerException()
-    if (isWindows()) process.WindowsProcess(this)
+    if (isWindows) process.WindowsProcess(this)
     else process.UnixProcess(this)
   }
 

@@ -7,10 +7,12 @@ import java.nio.file.Files
 import scala.scalanative.unsigned._
 import scala.scalanative.unsafe._
 import scala.scalanative.posix.{fcntl, unistd}
+import scala.scalanative.runtime.PlatformExt.isWindows
 import scala.io.Source
 
 import org.junit.Test
 import org.junit.Assert._
+import org.junit.Assume._
 
 class ProcessTest {
   import ProcessUtils._
@@ -37,26 +39,31 @@ class ProcessTest {
                process.waitFor(tmo, tmUnit))
   }
 
-  val scripts = Set("echo.sh", "err.sh", "ls", "hello.sh")
+  val scripts = Scripts.values.map(_.filename)
+  val EOL     = System.lineSeparator()
 
   @Test def ls(): Unit = {
-    val proc = new ProcessBuilder("ls", resourceDir).start()
-    val out  = readInputStream(proc.getInputStream)
-
+    val proc =
+      if (isWindows) {
+        processForCommand(Scripts.ls, "/b", resourceDir).start()
+      } else {
+        processForCommand(Scripts.ls, resourceDir).start()
+      }
     assertProcessExitOrTimeout(proc)
+    val out = readInputStream(proc.getInputStream())
 
-    assertEquals(scripts, out.split("\n").toSet)
+    assertEquals(scripts, out.split(EOL).toSet)
   }
 
   @Test def inherit(): Unit = {
-    val f       = Files.createTempFile("/tmp", "out")
-    val savedFD = unistd.dup(unistd.STDOUT_FILENO)
-    val flags   = fcntl.O_RDWR | fcntl.O_TRUNC | fcntl.O_CREAT
-    val fd = Zone { implicit z =>
-      fcntl.open(toCString(f.toAbsolutePath.toString), flags, 0.toUInt)
-    }
+    def unixImpl() = {
+      val f       = Files.createTempFile("/tmp", "out")
+      val savedFD = unistd.dup(unistd.STDOUT_FILENO)
+      val flags   = fcntl.O_RDWR | fcntl.O_TRUNC | fcntl.O_CREAT
+      val fd = Zone { implicit z =>
+        fcntl.open(toCString(f.toAbsolutePath.toString), flags, 0.toUInt)
+      }
 
-    val out =
       try {
         unistd.dup2(fd, unistd.STDOUT_FILENO)
         unistd.close(fd)
@@ -67,8 +74,56 @@ class ProcessTest {
         unistd.dup2(savedFD, unistd.STDOUT_FILENO)
         unistd.close(savedFD)
       }
+    }
 
-    assertEquals(scripts, out.split("\n").toSet)
+    def windowsImpl() = {
+      import scala.scalanative.windows._
+      import NamedPipeApi._
+      import HandleApi._
+      import Console._
+      import HelperMethods._
+      import FileAccess._
+      val f                            = Files.createTempFile("tmp", "out")
+      val readEnd, writeEnd, stdOutDup = stackalloc[Handle]
+
+      assertEquals("createPipe",
+                   true,
+                   createPipe(
+                     readPipePtr = readEnd,
+                     writePipePtr = writeEnd,
+                     securityAttributes = null,
+                     size = 0.toUInt
+                   ))
+
+      Zone { implicit z =>
+        withFile(toCString(f.toAbsolutePath.toString),
+                 access = FILE_GENERIC_WRITE | FILE_GENERIC_READ,
+                 disposition = FileDisposition.CreateAlways,
+                 allowInvalidHandle = true) { handle =>
+          assertNotEquals("Cannot create file", InvalidHandleValue, handle)
+
+          val savedStdout = getStdHandle(stdOutput)
+          setStdHandle(stdOutput, handle)
+
+          try {
+            val proc = processForCommand(Scripts.ls, "/b", resourceDir)
+              .inheritIO()
+              .start()
+            proc.waitFor(5, TimeUnit.SECONDS)
+            readInputStream(new FileInputStream(f.toFile))
+          } finally {
+            setStdHandle(stdOutput, savedStdout)
+            closeHandle(handle)
+          }
+        }
+      }
+    }
+
+    val out =
+      if (isWindows) windowsImpl()
+      else unixImpl()
+
+    assertEquals(scripts, out.split(System.lineSeparator()).toSet)
   }
 
   private def checkPathOverride(pb: ProcessBuilder) = {
@@ -81,21 +136,25 @@ class ProcessTest {
   }
 
   @Test def pathOverride(): Unit = {
-    val pb = new ProcessBuilder("ls", resourceDir)
-    pb.environment.put("PATH", resourceDir)
+    assumeFalse("Not possible in Windows, would use dir keyword anyway",
+                isWindows)
+    val pb = processForCommand(Scripts.ls, resourceDir)
+    pb.withPath(resourceDir, overwrite = true)
     checkPathOverride(pb)
   }
 
   @Test def pathPrefixOverride(): Unit = {
-    val pb = new ProcessBuilder("ls", resourceDir)
-    pb.environment.put("PATH", s"$resourceDir:${pb.environment.get("PATH")}")
+    assumeFalse("Not possible in Windows, would use dir keyword anyway",
+                isWindows)
+    val pb = processForCommand(Scripts.ls, resourceDir)
+    pb.withPath(resourceDir, overwrite = false)
     checkPathOverride(pb)
   }
 
   @Test def inputAndErrorStream(): Unit = {
-    val pb  = new ProcessBuilder("err.sh")
-    val cwd = System.getProperty("user.dir")
-    pb.environment.put("PATH", s"$cwd/unit-tests/src/test/resources/process")
+    val pb = processForCommand(Scripts.err)
+    pb.withPath(resourceDir, overwrite = true)
+    pb.directory(new File(resourceDir))
     val proc = pb.start()
 
     assertProcessExitOrTimeout(proc)
@@ -105,20 +164,25 @@ class ProcessTest {
   }
 
   @Test def inputStreamWritesToFile(): Unit = {
-    val pb = new ProcessBuilder("echo.sh")
-    pb.environment.put("PATH", resourceDir)
-    val file = File.createTempFile("istest", ".tmp", new File("/tmp"))
-    pb.redirectOutput(file)
+    val file = File.createTempFile(
+      "istest",
+      ".tmp",
+      new File(System.getProperty("java.io.tmpdir")))
+
+    val pb = processForCommand(Scripts.echo.filename)
+    pb.withPath(resourceDir, overwrite = true)
+      .withDirectory(resourceDir)
+      .redirectOutput(file)
 
     try {
       val proc = pb.start()
-      proc.getOutputStream.write("hello\n".getBytes)
-      proc.getOutputStream.write("quit\n".getBytes)
+      proc.getOutputStream.write(s"hello$EOL".getBytes)
+      proc.getOutputStream.write(s"quit$EOL".getBytes)
       proc.getOutputStream.flush()
 
       assertProcessExitOrTimeout(proc)
 
-      val out = Source.fromFile(file.toString).getLines mkString "\n"
+      val out = Source.fromFile(file).getLines.mkString
       assertEquals("hello", out)
     } finally {
       file.delete()
@@ -126,16 +190,22 @@ class ProcessTest {
   }
 
   @Test def outputStreamReadsFromFile(): Unit = {
-    val pb = new ProcessBuilder("echo.sh")
-    pb.environment.put("PATH", resourceDir)
-    val file = File.createTempFile("istest", ".tmp", new File("/tmp"))
-    pb.redirectInput(file)
+    val file = File.createTempFile(
+      "istest",
+      ".tmp",
+      new File(System.getProperty("java.io.tmpdir")))
+    val pb = processForCommand(Scripts.echo.filename)
+    pb.withPath(resourceDir, overwrite = true)
+      .withDirectory(resourceDir)
+      .redirectInput(file)
 
     try {
       val proc = pb.start()
       val os   = new FileOutputStream(file)
-      os.write("hello\n".getBytes)
-      os.write("quit\n".getBytes)
+      os.write(s"hello$EOL".getBytes)
+      os.write(s"quit$EOL".getBytes)
+      os.flush()
+      os.close()
 
       assertProcessExitOrTimeout(proc)
 
@@ -146,23 +216,25 @@ class ProcessTest {
   }
 
   @Test def redirectErrorStream(): Unit = {
-    val pb  = new ProcessBuilder("err.sh")
-    val cwd = System.getProperty("user.dir")
-    pb.environment.put("PATH", s"$cwd/unit-tests/src/test/resources/process")
-    pb.redirectErrorStream(true)
+    val pb = processForCommand(Scripts.err)
+      .withPath(resourceDir, overwrite = true)
+      .redirectErrorStream(true)
     val proc = pb.start()
 
     assertProcessExitOrTimeout(proc)
 
-    assertEquals("", readInputStream(proc.getErrorStream))
     assertEquals("foobar", readInputStream(proc.getInputStream))
+    assertEquals("", readInputStream(proc.getErrorStream))
   }
 
   @Test def waitForWithTimeoutCompletes(): Unit = {
-    val proc = new ProcessBuilder("sleep", "0.1").start()
+    val proc = {
+      if (isWindows) processForCommand("timeout", "1", "/NOBREAK").inheritIO
+      else processForCommand("sleep", "0.1")
+    }.start()
 
     assertTrue("process should have exited but timed out",
-               proc.waitFor(1, TimeUnit.SECONDS))
+               proc.waitFor(2, TimeUnit.SECONDS))
     assertEquals(0, proc.exitValue)
   }
 
@@ -188,7 +260,10 @@ class ProcessTest {
   //      strand zombie processes and are candidates for a similar fix.
 
   @Test def waitForWithTimeoutTimesOut(): Unit = {
-    val proc = new ProcessBuilder("sleep", "2.0").start()
+    val proc = {
+      if (isWindows) processForCommand("timeout", "2", "/NOBREAK").inheritIO
+      else processForCommand("sleep", "2.0")
+    }.start()
 
     assertTrue("process should have timed out but exited",
                !proc.waitFor(500, TimeUnit.MILLISECONDS))
@@ -201,7 +276,10 @@ class ProcessTest {
   }
 
   @Test def destroy(): Unit = {
-    val proc = new ProcessBuilder("sleep", "2.0").start()
+    val proc = {
+      if (isWindows) processForCommand("timeout", "2", "/NOBREAK").inheritIO
+      else processForCommand("sleep", "2.0")
+    }.start()
 
     assertTrue("process should be alive", proc.isAlive)
     proc.destroy()
@@ -211,7 +289,10 @@ class ProcessTest {
   }
 
   @Test def destroyForcibly(): Unit = {
-    val proc = new ProcessBuilder("sleep", "2.0").start()
+    val proc = {
+      if (isWindows) processForCommand("timeout", "2", "/NOBREAK").inheritIO
+      else processForCommand("sleep", "2.0")
+    }.start()
 
     assertTrue("process should be alive", proc.isAlive)
     val p = proc.destroyForcibly()
@@ -221,12 +302,12 @@ class ProcessTest {
   }
 
   @Test def shellFallback(): Unit = {
-    val pb = new ProcessBuilder("hello.sh")
-    pb.environment.put("PATH", resourceDir)
+    val pb = processForCommand(Scripts.hello)
+      .withPath(resourceDir, overwrite = true)
     val proc = pb.start()
 
     assertProcessExitOrTimeout(proc)
 
-    assertEquals("hello\n", readInputStream(proc.getInputStream))
+    assertEquals(s"hello$EOL", readInputStream(proc.getInputStream))
   }
 }

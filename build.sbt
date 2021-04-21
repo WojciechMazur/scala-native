@@ -400,6 +400,7 @@ lazy val sbtScalaNative =
             nativelib / publishLocal,
             clib / publishLocal,
             posixlib / publishLocal,
+            windowslib / publishLocal,
             javalib / publishLocal,
             auxlib / publishLocal,
             scalalib / publishLocal,
@@ -448,7 +449,7 @@ lazy val windowslib =
     .in(file("windowslib"))
     .enablePlugins(MyScalaNativePlugin)
     .settings(mavenPublishSettings)
-    .dependsOn(nscplugin % "plugin", nativelib)
+    .dependsOn(nscplugin % "plugin", nativelib, clib)
 
 lazy val javalibCommonSettings = Def.settings(
   disabledDocsSettings,
@@ -691,7 +692,13 @@ lazy val tests =
         "SCALA_NATIVE_ENV_WITH_UNICODE"  -> 0x2192.toChar.toString,
         "SCALA_NATIVE_USER_DIR"          -> System.getProperty("user.dir")
       ),
-      nativeLinkStubs := true
+      Test / unmanagedSourceDirectories += {
+        val testsRoot = (Test / sourceDirectory).value
+        sys.props("os.name").toLowerCase match {
+          case os if os.contains("win") => testsRoot / "windows"
+          case _                        => testsRoot / "posix"
+        }
+      }
     )
     .dependsOn(nscplugin   % "plugin",
                junitPlugin % "plugin",

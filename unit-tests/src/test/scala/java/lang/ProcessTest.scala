@@ -170,7 +170,7 @@ class ProcessTest {
       new File(System.getProperty("java.io.tmpdir")))
 
     val pb = processForCommand(Scripts.echo.filename)
-    pb.withPath(resourceDir, overwrite = true)
+    pb.withPath(resourceDir, overwrite = false)
       .withDirectory(resourceDir)
       .redirectOutput(file)
 
@@ -179,6 +179,7 @@ class ProcessTest {
       proc.getOutputStream.write(s"hello$EOL".getBytes)
       proc.getOutputStream.write(s"quit$EOL".getBytes)
       proc.getOutputStream.flush()
+      proc.getOutputStream.close() // TODO Windows close should not be needed
 
       assertProcessExitOrTimeout(proc)
 
@@ -195,7 +196,7 @@ class ProcessTest {
       ".tmp",
       new File(System.getProperty("java.io.tmpdir")))
     val pb = processForCommand(Scripts.echo.filename)
-    pb.withPath(resourceDir, overwrite = true)
+    pb.withPath(resourceDir, overwrite = false)
       .withDirectory(resourceDir)
       .redirectInput(file)
 
@@ -205,11 +206,11 @@ class ProcessTest {
       os.write(s"hello$EOL".getBytes)
       os.write(s"quit$EOL".getBytes)
       os.flush()
-      os.close()
+      os.close() // TODO Windows close should not be needed
 
       assertProcessExitOrTimeout(proc)
 
-      assertEquals("hello", readInputStream(proc.getInputStream))
+      assertEquals("hello", readInputStream(proc.getInputStream).trim)
     } finally {
       file.delete()
     }
@@ -234,7 +235,7 @@ class ProcessTest {
     }.start()
 
     assertTrue("process should have exited but timed out",
-               proc.waitFor(2, TimeUnit.SECONDS))
+               proc.waitFor(5, TimeUnit.SECONDS))
     assertEquals(0, proc.exitValue)
   }
 

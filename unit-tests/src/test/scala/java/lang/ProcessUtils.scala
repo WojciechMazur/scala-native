@@ -24,16 +24,12 @@ object ProcessUtils {
   implicit class ProcessBuilderOp(pb: ProcessBuilder) {
     def withPath(newEntry: String,
                  overwrite: Boolean = false): ProcessBuilder = {
-      def pathEnv      = if (isWindows) "Path" else "PATH"
-      val previousPath = pb.environment().get(pathEnv)
-      val newPath = if (isWindows) {
-        if (overwrite) s"$newEntry;"
-        else s"$newEntry;$previousPath"
-      } else {
+      val previousPath  = pb.environment().get("PATH")
+      val pathDelimiter = if (isWindows) ";" else ":"
+      val newPath =
         if (overwrite) newEntry
-        else s"$newEntry:$previousPath"
-      }
-      pb.environment().put(pathEnv, newPath)
+        else s"$newEntry$pathDelimiter$previousPath"
+      pb.environment().put("PATH", newPath)
       pb
     }
 

@@ -9,6 +9,13 @@ jobs:
   compile-gc:
     name: Compile GCs
     runs-on: windows-2019
+    strategy:
+      matrix: 
+        gc: [
+        {name: 'none', include: [shared]},
+        {name: 'immix', include: [shared, immix_commix]},
+        {name: 'commix', include: [shared, immix_commix]}
+        ]
     steps:
       - uses: actions/checkout@v2
       
@@ -27,6 +34,18 @@ jobs:
       - name: Assert clang installed and on path
         run: clang --version
 
+      - name: Compile GCs
+        run: |
+          $gcRoot     = .\nativelib\src\main\resources\scala-native\gc 
+          $gcDir      = "$gcRoot\${{matrix.gc.name}}"
+          $sharedDirs = @(${{ matrix.gc.include }}) | %{Join-Path "$gcRoot" $_}
+          $includes   = $sharedDirs | %{Join-Path "-I" $_}
+          Get-ChildItem -Path $gcRoot -Include *.c -Recurse -File `
+          | ForEach-Object {clang -std=gnu11 -Wno-override-module $includes -c "$_" --verbose}
+          Get-ChildItem -Path $gcRoot -Include *.cpp -Recurse -File `
+          | ForEach-Object {clang -std=c++14 -Wno-override-module $includes -c "$_" --verbose}
+
+        
       # - uses: actions/setup-scala@v1
       #   with: 
       #     java-version: 

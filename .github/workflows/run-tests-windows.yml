@@ -1,0 +1,48 @@
+name: Run tests
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  compile-gc:
+    name: Compile & test tools
+    runs-on: windows-2019
+    steps:
+      - uses: actions/checkout@v2
+
+      - run: java -verison
+        shell: cmd
+
+      - run: clang --version
+        shell: cmd
+
+      - run: dir
+        shell: cmd
+
+      # - uses: actions/setup-scala@v1
+      #   with: 
+      #     java-version: 
+
+      #   # Build cache for library dependencies and SBT. Its crucial for performance to always load this cache
+      # # We're loading it here, when build, to always have ready cache in the big matrix of runtime tests.
+      # # Cache is generated based on Scala binary version on contents of build
+      # - name: Cache dependencies
+      #   uses: actions/cache@v2
+      #   with:
+      #     path: |
+      #       ~/.cache/coursier
+      #       ~/.ivy2/cache
+      #       ~/.sbt/boot
+      #     key: ${{ runner.os }}-deps-${{ env.binary-version }}-${{ hashFiles('**/*.sbt') }}-${{ hashFiles('**/build.properties') }}
+
+      # - name: Test tools
+      #   run: sbt "++ ${{ matrix.scala }} -v" "-no-colors" "-J-Xmx3G" test-tools
+
+      # # Pre-compile and cache results for the most time consuming projects and it dependencies too speed up execution in next phases
+      # # We cannot use `compile` because sbtScalaNative does not crossCompile
+      # - name: Compile
+      #   run: sbt "++ ${{ matrix.scala }} -v" "-no-colors" "-J-Xmx3G" \
+      #     "tests/Test/compile" "testsExt/Test/compile" \
+      #     "junitTestOutputsNative/Test/compile" "junitTestOutputsJVM/Test/compile"

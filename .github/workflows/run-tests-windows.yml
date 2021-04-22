@@ -41,9 +41,9 @@ jobs:
           $gcRoot       = (Resolve-Path -Path ".\nativelib\src\main\resources\scala-native\gc").Path 
           $gcDir        = %{Join-Path $gcRoot "${{matrix.gc.name}}"}
           $sharedDirs   = @("${{ join(matrix.gc.include, '", "') }}") | %{Join-Path $gcRoot $_}
-          $compiledDirs = @($gcDir, $sharedDirs) 
+          $compiledDirs = @($gcDir) + $sharedDirs
           $includes     = $sharedDirs | %{"-I" + $_}
           Get-ChildItem -Path $compiledDirs -Include *.c -Recurse -File `
-          | ForEach-Object {clang -std=gnu11 -Wno-override-module $includes -c "$_" --verbose}
+          | ForEach-Object {clang -std=gnu11 -Wno-override-module $includes -c "$_"}
           Get-ChildItem -Path $compiledDirs -Include *.cpp -Recurse -File `
-          | ForEach-Object {clang++ -std=c++14 -Wno-override-module $includes -c "$_" --verbose}
+          | ForEach-Object {clang++ -std=c++14 -Wno-override-module $includes -c "$_"}

@@ -18,20 +18,15 @@ jobs:
         uses: actions/cache@v2
         with:
           path: |
-            C:\LLVM\
+            C:\Program Files\LLVM\
           key: ${{ runner.os }}-llvm-6
       - name: Install LLVM
         if: steps.cache-llvm.outputs.cache-hit != 'true'
-        run: choco install llvm --version=6.0.1 -ia "INSTALLDIR=C:\LLVM"
-
+        run: |
+          choco install llvm --version=6.0.1 
+          echo "${env:ProgramFiles}\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          where clang
       - run: set
-        shell: cmd
-
-
-      - run: dir C:\ 
-        shell: cmd
-
-      - run: dir C:\LLVM 
         shell: cmd
 
       - run: clang --version
@@ -58,76 +53,3 @@ jobs:
       #     "tests/Test/compile" "testsExt/Test/compile" \
       #     "junitTestOutputsNative/Test/compile" "junitTestOutputsJVM/Test/compile"
 
-
-# Path=
-# C:\Users\runneradmin\.dotnet\tools
-# C:\Program Files\MongoDB\Server\4.4\bin
-# C:\aliyun-cli
-# C:\vcpkg
-# C:\cf-cli
-# C:\Program Files (x86)\NSIS\
-# C:\tools\zstd
-# C:\Program Files\Mercurial\
-# C:\hostedtoolcache\windows\stack\2.5.1\x64
-# C:\tools\ghc-9.0.1\bin
-# C:\Program Files\dotnet
-# C:\mysql-5.7.21-winx64\bin
-# C:\Program Files\R\R-4.0.5\bin\x64
-# C:\SeleniumWebDrivers\GeckoDriver
-# C:\Program Files (x86)\sbt\bin
-# C:\Rust\.cargo\bin
-# C:\Program Files (x86)\GitHub CLI
-# C:\Program Files\Git\bin
-# C:\Program Files (x86)\pipx_bin
-# C:\hostedtoolcache\windows\go\1.15.11\x64\bin
-# C:\hostedtoolcache\windows\Python\3.7.9\x64\Scripts
-# C:\hostedtoolcache\windows\Python\3.7.9\x64
-# C:\hostedtoolcache\windows\Ruby\2.5.8\x64\bin
-# C:\hostedtoolcache\windows\Java_Adopt_jdk\8.0.282-8\x64\bin
-# C:\npm\prefix
-# C:\Program Files\Microsoft SDKs\Azure\Azure Dev Spaces CLI
-# C:\Program Files\Microsoft SDKs\Azure\Azure Dev Spaces CLI\
-# C:\Program Files (x86)\Microsoft SDKs\Azure\CLI2\wbin
-# C:\ProgramData\kind
-# C:\Windows\system32
-# C:\Windows
-# C:\Windows\System32\Wbem
-# C:\Windows\System32\WindowsPowerShell\v1.0\
-# C:\Windows\System32\OpenSSH\
-# C:\ProgramData\Chocolatey\bin
-# C:\Program Files\Microsoft\Web Platform Installer\
-# C:\Program Files\Docker
-# C:\Program Files\PowerShell\7\
-# C:\Program Files\dotnet\
-# C:\Program Files\Microsoft SQL Server\130\Tools\Binn\
-# C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\
-# C:\Program Files (x86)\Windows Kits\10\Windows Performance Toolkit\
-# C:\Program Files (x86)\Microsoft SQL Server\110\DTS\Binn\
-# C:\Program Files (x86)\Microsoft SQL Server\120\DTS\Binn\
-# C:\Program Files (x86)\Microsoft SQL Server\130\DTS\Binn\
-# C:\Program Files (x86)\Microsoft SQL Server\140\DTS\Binn\
-# C:\Program Files (x86)\Microsoft SQL Server\150\DTS\Binn\
-# C:\Program Files\nodejs\
-# C:\ProgramData\chocolatey\lib\pulumi\tools\Pulumi\bin
-# C:\ProgramData\chocolatey\lib\maven\apache-maven-3.6.3\bin
-# C:\Program Files\Microsoft Service Fabric\bin\Fabric\Fabric.Code
-# C:\Program Files\Microsoft SDKs\Service Fabric\Tools\ServiceFabricLocalClusterManager
-# C:\Program Files\OpenSSL\bin
-# C:\Strawberry\c\bin
-# C:\Strawberry\perl\site\bin
-# C:\Strawberry\perl\bin
-# C:\Program Files\Git\cmd
-# C:\Program Files\Git\mingw64\bin
-# C:\Program Files\Git\usr\bin
-# c:\tools\php
-# C:\Program Files (x86)\sbt\bin
-# C:\Program Files\TortoiseSVN\bin
-# C:\SeleniumWebDrivers\ChromeDriver\
-# C:\SeleniumWebDrivers\EdgeDriver\
-# C:\Program Files\CMake\bin
-# C:\Program Files\Amazon\AWSCLIV2\
-# C:\Program Files\Amazon\SessionManagerPlugin\bin\
-# C:\Program Files\Amazon\AWSSAMCLI\bin\
-# C:\Program Files (x86)\Google\Cloud SDK\google-cloud-sdk\bin
-# C:\Program Files (x86)\Microsoft BizTalk Server\
-# C:\Users\runneradmin\AppData\Local\Microsoft\WindowsApps

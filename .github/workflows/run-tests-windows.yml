@@ -16,6 +16,7 @@ jobs:
         {name: immix,   include: [shared, immix_commix]},
         {name: commix,  include: [shared, immix_commix]}
         ]
+      fail-fast: false
     steps:
       - uses: actions/checkout@v2
       
@@ -40,7 +41,7 @@ jobs:
           $gcRoot       = (Resolve-Path -Path ".\nativelib\src\main\resources\scala-native\gc").Path 
           $gcDir        = "$gcRoot\${{matrix.gc.name}}"
           $sharedDirs   = @("${{ join(matrix.gc.include, '", "') }}") | %{Join-Path $gcRoot $_}
-          $compiledDirs = $sharedDirs + $gcDir
+          $compiledDirs = $sharedDirs + @($gcDir) 
           $includes     = $sharedDirs | %{"-I" + $_}
           Get-ChildItem -Path $compiledDirs -Include *.c -Recurse -File `
           | ForEach-Object {clang -std=gnu11 -Wno-override-module $includes -c "$_" --verbose}

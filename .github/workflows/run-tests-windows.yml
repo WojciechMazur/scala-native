@@ -23,7 +23,17 @@ jobs:
       - name: Install LLVM
         if: steps.cache-llvm.outputs.cache-hit != 'true'
         run: choco install llvm --version=6.0.1 -ia "INSTALLDIR=C:\LLVM"
-      
+
+      - run: set
+        shell: cmd
+
+
+      - run: dir C:\ 
+        shell: cmd
+
+      - run: dir C:\LLVM 
+        shell: cmd
+
       - run: clang --version
         shell: cmd
 

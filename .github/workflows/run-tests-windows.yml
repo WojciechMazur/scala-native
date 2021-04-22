@@ -7,10 +7,16 @@ on:
 
 jobs:
   compile-gc:
-    name: Compile & test tools
+    name: Compile GCs
     runs-on: windows-2019
+    strategy: 
+      fail-fast: false
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v2
+
+      - run: set
+        shell: cmd
 
       - run: java -verison
         shell: cmd

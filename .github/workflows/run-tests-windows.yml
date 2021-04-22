@@ -1,4 +1,4 @@
-name: Run Windows tests
+name: Windows tests
 on:
   pull_request:
   push:
@@ -20,6 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       
+      #Prepare environment, clang needs to be installed
       - name: Cache LLVM
         id: cache-llvm
         uses: actions/cache@v2
@@ -36,6 +37,7 @@ jobs:
       - name: Assert clang installed and on path
         run: clang --version
 
+      # Compile all files in GC and included shared directories using clang.
       - name: Compile GCs
         run: |
           $gcRoot       = (Resolve-Path -Path ".\nativelib\src\main\resources\scala-native\gc").Path 

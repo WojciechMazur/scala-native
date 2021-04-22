@@ -28,9 +28,10 @@ jobs:
           key: ${{ runner.os }}-llvm-6
       - name: Install LLVM
         if: steps.cache-llvm.outputs.cache-hit != 'true'
-        run: |
-          choco install llvm --version=6.0.1 
-          echo "${env:ProgramFiles}\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        run: choco install llvm --version=6.0.1 
+
+      - name: Add LLVM on Path
+        run: echo "${env:ProgramFiles}\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Assert clang installed and on path
         run: clang --version
 
@@ -43,7 +44,7 @@ jobs:
           Get-ChildItem -Path $gcRoot -Include *.c -Recurse -File `
           | ForEach-Object {clang -std=gnu11 -Wno-override-module $includes -c "$_" --verbose}
           Get-ChildItem -Path $gcRoot -Include *.cpp -Recurse -File `
-          | ForEach-Object {clang -std=c++14 -Wno-override-module $includes -c "$_" --verbose}
+          | ForEach-Object {clang++ -std=c++14 -Wno-override-module $includes -c "$_" --verbose}
 
         
       # - uses: actions/setup-scala@v1

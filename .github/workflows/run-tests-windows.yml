@@ -39,30 +39,10 @@ jobs:
         run: |
           $gcRoot       = (Resolve-Path -Path ".\nativelib\src\main\resources\scala-native\gc").Path 
           $gcDir        = "$gcRoot\${{matrix.gc.name}}"
-          $sharedDirs   = @("${{ join(matrix.gc.include, '", "') }}") | %{Join-Path "$gcRoot\" $_}
+          $sharedDirs   = @("${{ join(matrix.gc.include, '", "') }}") | %{Join-Path $gcRoot $_}
           $compiledDirs = $sharedDirs + $gcDir
-          $includes     = $sharedDirs | %{Join-Path "-I" $_}
+          $includes     = $sharedDirs | %{"-I" + $_}
           Get-ChildItem -Path $compiledDirs -Include *.c -Recurse -File `
           | ForEach-Object {clang -std=gnu11 -Wno-override-module $includes -c "$_" --verbose}
           Get-ChildItem -Path $compiledDirs -Include *.cpp -Recurse -File `
           | ForEach-Object {clang++ -std=c++14 -Wno-override-module $includes -c "$_" --verbose}
-
-        
-      # - uses: actions/setup-scala@v1
-      #   with: 
-      #     java-version: 
-
-      #   # Build cache for library dependencies and SBT. Its crucial for performance to always load this cache
-      # # We're loading it here, when build, to always have ready cache in the big matrix of runtime tests.
-      # # Cache is generated based on Scala binary version on contents of build
-
-      # - name: Test tools
-      #   run: sbt "++ ${{ matrix.scala }} -v" "-no-colors" "-J-Xmx3G" test-tools
-
-      # # Pre-compile and cache results for the most time consuming projects and it dependencies too speed up execution in next phases
-      # # We cannot use `compile` because sbtScalaNative does not crossCompile
-      # - name: Compile
-      #   run: sbt "++ ${{ matrix.scala }} -v" "-no-colors" "-J-Xmx3G" \
-      #     "tests/Test/compile" "testsExt/Test/compile" \
-      #     "junitTestOutputsNative/Test/compile" "junitTestOutputsJVM/Test/compile"
-

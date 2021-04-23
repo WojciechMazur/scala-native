@@ -171,8 +171,15 @@ class ProcessTest {
 
     val pb = processForCommand(Scripts.echo.filename)
     pb.withPath(resourceDir, overwrite = false)
-      .withDirectory(resourceDir)
       .redirectOutput(file)
+
+    if (isWindows) {
+      // Directory needed or else calling `echo.bat` would be equal to calling `echo bat`
+      // Windows resolves PATH env variable as last one, so it prefers keyword in that case,
+      // but it resolve current directory as the first one
+      // If we would to try `echo` it would use keyword instead of `echo.bat` script
+      pb.directory(new File(resourceDir))
+    }
 
     try {
       val proc = pb.start()
@@ -197,8 +204,12 @@ class ProcessTest {
       new File(System.getProperty("java.io.tmpdir")))
     val pb = processForCommand(Scripts.echo.filename)
     pb.withPath(resourceDir, overwrite = false)
-      .withDirectory(resourceDir)
       .redirectInput(file)
+
+    if (isWindows) {
+      // Workaround described in inputStreamWritesToFile
+      pb.directory(new File(resourceDir))
+    }
 
     try {
       val proc = pb.start()
@@ -206,7 +217,6 @@ class ProcessTest {
       os.write(s"hello$EOL".getBytes)
       os.write(s"quit$EOL".getBytes)
       os.flush()
-      os.close() // TODO Windows close should not be needed
 
       assertProcessExitOrTimeout(proc)
 
@@ -220,6 +230,7 @@ class ProcessTest {
     val pb = processForCommand(Scripts.err)
       .withPath(resourceDir, overwrite = true)
       .redirectErrorStream(true)
+
     val proc = pb.start()
 
     assertProcessExitOrTimeout(proc)

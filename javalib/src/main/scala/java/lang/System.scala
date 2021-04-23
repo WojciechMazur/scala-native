@@ -212,7 +212,8 @@ object System {
         blockPtr += env.size + 1
         /// Some Windows internal variables start with =
         val eqIdx = env.indexOf('=', 1)
-        val name  = env.substring(0, eqIdx)
+        // Env variables in Windows are case insenstive - normalize them
+        val name  = env.substring(0, eqIdx).toUpperCase()
         val value = env.substring(eqIdx + 1)
         envsMap.put(name, value)
       }

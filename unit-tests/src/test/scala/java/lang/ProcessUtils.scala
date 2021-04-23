@@ -32,10 +32,6 @@ object ProcessUtils {
       pb.environment().put("PATH", newPath)
       pb
     }
-
-    def withDirectory(path: String): ProcessBuilder = {
-      pb.directory(new java.io.File(path))
-    }
   }
 
   object Scripts {

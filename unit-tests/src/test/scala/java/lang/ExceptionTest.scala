@@ -23,7 +23,7 @@ class ExceptionTest {
     val expected = Seq(
       "java.lang.DummyNoStackTraceException",
       "\t<no stack trace available>"
-    ).mkString("\n")
+    ).mkString(System.lineSeparator())
     assertTrue(trace.startsWith(expected))
   }
 }

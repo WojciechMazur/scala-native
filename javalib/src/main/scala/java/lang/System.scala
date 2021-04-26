@@ -9,6 +9,7 @@ import scala.scalanative.posix.sys.utsname._
 import scala.scalanative.posix.sys.uname._
 import scala.scalanative.posix.pwd
 import scala.scalanative.posix.pwdOps._
+import scala.scalanative.windows
 import scala.scalanative.windows.{
   ProcessEnv,
   FileApi,
@@ -201,12 +202,13 @@ object System {
 
     def getEnvsWindows(): Map[String, String] = {
       val envsMap      = new HashMap[String, String]()
-      val envBlockHead = ProcessEnv.getEnvironmentStrings()
-      var blockPtr     = envBlockHead
-      var env: String  = null
+      val envBlockHead = ProcessEnv.GetEnvironmentStringsW()
+
+      var blockPtr    = envBlockHead
+      var env: String = null
 
       while ({
-        env = fromCString(blockPtr)
+        env = fromCWideString(blockPtr, StandardCharsets.UTF_16LE)
         env != null && env.nonEmpty
       }) {
         blockPtr += env.size + 1
@@ -217,7 +219,7 @@ object System {
         val value = env.substring(eqIdx + 1)
         envsMap.put(name, value)
       }
-      ProcessEnv.freeEnvironmentStrings(envBlockHead)
+      ProcessEnv.FreeEnvironmentStringsW(envBlockHead)
       envsMap
     }
 

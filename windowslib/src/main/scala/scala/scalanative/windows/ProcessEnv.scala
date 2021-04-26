@@ -4,9 +4,7 @@ import scala.scalanative.unsafe._
 
 @extern()
 object ProcessEnv {
-  @name("GetEnvironmentStringsA")
-  def getEnvironmentStrings(): CString = extern
+  def GetEnvironmentStringsW(): CWideString = extern
 
-  @name("FreeEnvironmentStringsA")
-  def freeEnvironmentStrings(envBlockPtr: CString): Boolean = extern
+  def FreeEnvironmentStringsW(envBlockPtr: CWideString): Boolean = extern
 }

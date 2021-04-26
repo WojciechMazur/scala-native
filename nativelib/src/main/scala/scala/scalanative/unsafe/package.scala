@@ -5,8 +5,10 @@ import scala.language.experimental.macros
 import scalanative.annotation.alwaysinline
 import scalanative.unsigned._
 import scalanative.runtime.{libc, intrinsic, fromRawPtr}
+import scalanative.runtime.Platform
 import scalanative.runtime.Intrinsics.{castIntToRawPtr, castLongToRawPtr}
 import scalanative.unsigned._
+import java.nio.charset.StandardCharsets
 
 package object unsafe {
 
@@ -85,8 +87,8 @@ package object unsafe {
   /** C-style string with trailing 0. */
   type CString = Ptr[CChar]
 
-  /** C-style wide string with trailing 0. */
-  type CWString = Ptr[CWideChar]
+  /* C-style wide string with trail 0. */
+  type CWideString = Ptr[CWideChar]
 
   /** Materialize tag for given type. */
   @alwaysinline def tagof[T](implicit tag: Tag[T]): Tag[T] = tag
@@ -213,15 +215,17 @@ package object unsafe {
     }
   }
 
-  /** Convert a java.lang.String to a CString using given charset and allocator.
-   */
-  def toCWString(str: String, charset: Charset = Charset.forName("UTF-16"))(
-      implicit z: Zone): CWString = {
+  // wchar_t size may vary across platforms from 2 to 4 bytes.
+  private final val WideCharSize = Platform.SizeOfWChar.toInt
+
+  /** Convert a java.lang.String to a CWideString using given charset and allocator.*/
+  def toCWideString(str: String, charset: Charset = StandardCharsets.UTF_16LE)(
+      implicit z: Zone) = {
     if (str == null) {
       null
     } else {
       val bytes = str.getBytes(charset)
-      val cstr  = z.alloc((bytes.length + 2).toULong)
+      val cstr  = z.alloc((bytes.length + WideCharSize).toULong)
 
       var c = 0
       while (c < bytes.length) {
@@ -229,10 +233,49 @@ package object unsafe {
         c += 1
       }
 
-      !(cstr + c) = 0.toByte
-      !(cstr + c + 1.toUInt) = 0.toByte
+      // Set null termination bytes
+      val cstrEnd = cstr + c
+      c = 0
+      while (c < WideCharSize) {
+        !(cstrEnd + c) = 0.toByte
+        c += 1
+      }
+      cstr
+    }
+  }
 
-      cstr.asInstanceOf[CWString]
+  /** Convert a CWideString to a String using given charset, assuemes platform default wchar_t size */
+  def fromCWideString(cwstr: CWideString, charset: Charset): String =
+    fromCWideStringImpl(bytes = cwstr.asInstanceOf[Ptr[Byte]],
+                        charset = charset,
+                        charSize = WideCharSize)
+
+  /** Convert a CWideString based on Ptr[CChar16] to a String using given charse, which defaults to UTF-16LE used in Windows */
+  def fromCWideString(cwstr: Ptr[CChar16],
+                      charset: Charset = StandardCharsets.UTF_16LE)(
+      implicit d: DummyImplicit): String = {
+    fromCWideStringImpl(bytes = cwstr.asInstanceOf[Ptr[Byte]],
+                        charset = charset,
+                        charSize = 2)
+  }
+
+  def fromCWideStringImpl(bytes: Ptr[Byte],
+                          charset: => Charset,
+                          charSize: => Int): String = {
+    if (bytes == null) {
+      null
+    } else {
+      val cwstr = bytes.asInstanceOf[CWideString]
+      val len   = charSize * libc.wcslen(cwstr).toInt
+      val buf   = new Array[Byte](len)
+
+      var c = 0
+      while (c < len) {
+        buf(c) = !(bytes + c)
+        c += 1
+      }
+
+      new String(buf, charset)
     }
   }
 

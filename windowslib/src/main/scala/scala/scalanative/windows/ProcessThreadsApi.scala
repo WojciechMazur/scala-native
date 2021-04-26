@@ -24,14 +24,14 @@ object ProcessThreadsApi {
     extern
 
   @name("CreateProcessW")
-  def createProcessW(applicationName: CWString,
-                     commandLine: CWString,
+  def createProcessW(applicationName: CWideString,
+                     commandLine: CWideString,
                      processAttributres: Ptr[SecurityAttributes],
                      threadAttributes: Ptr[SecurityAttributes],
                      inheritHandle: Boolean,
                      creationFlags: DWord,
                      environment: Ptr[Byte],
-                     currentDirectory: CWString,
+                     currentDirectory: CWideString,
                      startupInfo: Ptr[StartupInfo],
                      processInformation: Ptr[ProcessInformation]): Boolean =
     extern

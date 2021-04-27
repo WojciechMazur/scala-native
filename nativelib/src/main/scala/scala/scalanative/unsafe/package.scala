@@ -219,13 +219,27 @@ package object unsafe {
   private final val WideCharSize = Platform.SizeOfWChar.toInt
 
   /** Convert a java.lang.String to a CWideString using given charset and allocator.*/
+  @alwaysinline
   def toCWideString(str: String, charset: Charset = StandardCharsets.UTF_16LE)(
-      implicit z: Zone) = {
+      implicit z: Zone): Ptr[CWideString] = {
+    toCWideStringImpl(str, charset, WideCharSize)
+  }
+
+  /** Convert a java.lang.String to a CWideString using given UTF-16 LE charset.*/
+  @alwaysinline
+  def toCWideStringUTF16LE(str: String)(implicit z: Zone): Ptr[CChar16] = {
+    toCWideStringImpl(str, StandardCharsets.UTF_16LE, WideCharSize)
+      .asInstanceOf[Ptr[CChar16]]
+  }
+
+  private def toCWideStringImpl(str: String,
+                                charset: Charset,
+                                charSize: => CInt)(implicit z: Zone) = {
     if (str == null) {
       null
     } else {
       val bytes = str.getBytes(charset)
-      val cstr  = z.alloc((bytes.length + WideCharSize).toULong)
+      val cstr  = z.alloc((bytes.length + charSize).toULong)
 
       var c = 0
       while (c < bytes.length) {
@@ -236,21 +250,23 @@ package object unsafe {
       // Set null termination bytes
       val cstrEnd = cstr + c
       c = 0
-      while (c < WideCharSize) {
+      while (c < charSize) {
         !(cstrEnd + c) = 0.toByte
         c += 1
       }
-      cstr
+      cstr.asInstanceOf[Ptr[CWideString]]
     }
   }
 
   /** Convert a CWideString to a String using given charset, assuemes platform default wchar_t size */
+  @alwaysinline
   def fromCWideString(cwstr: CWideString, charset: Charset): String =
     fromCWideStringImpl(bytes = cwstr.asInstanceOf[Ptr[Byte]],
                         charset = charset,
                         charSize = WideCharSize)
 
   /** Convert a CWideString based on Ptr[CChar16] to a String using given charse, which defaults to UTF-16LE used in Windows */
+  @alwaysinline
   def fromCWideString(cwstr: Ptr[CChar16],
                       charset: Charset = StandardCharsets.UTF_16LE)(
       implicit d: DummyImplicit): String = {

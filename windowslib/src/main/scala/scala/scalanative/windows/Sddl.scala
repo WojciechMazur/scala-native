@@ -9,9 +9,10 @@ import scala.scalanative.windows.HandleApi.Handle
 object Sddl {
   import MinWinBase._
   import SecurityBase._
-  def ConvertSidToStringSidA(sid: SIDPtr, stringSid: Ptr[CString]): Boolean =
+  def ConvertSidToStringSidW(sid: SIDPtr, stringSid: Ptr[CWString]): Boolean =
     extern
 
-  def ConvertStringSidToSidA(sidString: CString, sidRef: Ptr[SIDPtr]): Boolean =
+  def ConvertStringSidToSidW(sidString: CWString,
+                             sidRef: Ptr[SIDPtr]): Boolean =
     extern
 }

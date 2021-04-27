@@ -14,11 +14,11 @@ private[net] class WindowsPlainSocket extends GenericPlainSocket {
 
   override def create(streaming: Boolean): Unit = {
     WinSocket.init()
-    val socket = WSASocketA(
+    val socket = WSASocketW(
       addressFamily = unixSocket.AF_INET,
       socketType = unixSocket.SOCK_STREAM,
       protocol = 0, // choosed by provider
-      protocalInfo = null,
+      protocolInfo = null,
       group = 0.toUInt,
       flags = 0.toUInt
     )

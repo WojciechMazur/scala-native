@@ -14,7 +14,9 @@ package object windows {
    */
   type LargeInteger  = Long
   type ULargeInteger = ULong
-  type CWideString   = Ptr[CChar16] // In Windows wide string are always encoded using UTF-16LE
+  type WChar         = CChar16
+  type CWString      = Ptr[WChar] // In Windows wide string are always encoded using UTF-16LE
+  type CTString      = CWString // if UNICODE is defined equals to CWString, otherwise its CString
 
   type SecurityAttributes = CStruct3[DWord, Ptr[Byte], Boolean]
   implicit class SecurityAttributesOps(ref: Ptr[SecurityAttributes])(

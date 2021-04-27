@@ -1,7 +1,7 @@
 package java.io
 
 import java.{lang => jl}
-import scalanative.unsafe.{toCString, Zone, stackalloc}
+import scalanative.unsafe.{Zone, stackalloc, toCString, toCWideStringUTF16LE}
 import scalanative.libc.stdio
 import scalanative.posix.{fcntl, unistd}
 import scalanative.posix.sys.stat
@@ -10,9 +10,9 @@ import scala.scalanative.windows.{FileApi, HandleApi, LargeInteger}
 import scala.scalanative.windows.File.FilePointerMoveMethods
 import scala.scalanative.windows.{
   FileAccess,
+  FileAttributes,
   FileDisposition,
   FileFlags,
-  FileAttributes,
   FileSharing
 }
 
@@ -165,7 +165,7 @@ class RandomAccessFile private (file: File,
     } else {
       val currentPosition = getFilePointer()
       val hasSucceded =
-        if (isWindows()) {
+        if (isWindows) {
           FileApi.SetFilePointerEx(fd.handle,
                                    newLength,
                                    null,
@@ -275,8 +275,6 @@ private object RandomAccessFile {
       throw new IllegalArgumentException(
         s"""Illegal mode "${_flags}" must be one of "r", "rw", "rws" or "rwd"""")
 
-    def filename()(implicit zone: Zone) = toCString(file.getPath())
-
     def unixFileDescriptor() = Zone { implicit z =>
       import fcntl._
       import stat._
@@ -287,7 +285,7 @@ private object RandomAccessFile {
         case _                    => invalidFlags()
       }
       val mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH
-      val fd   = open(filename(), flags, mode)
+      val fd   = open(toCString(file.getPath), flags, mode)
       new FileDescriptor(fd)
     }
 
@@ -301,8 +299,8 @@ private object RandomAccessFile {
         case _ => invalidFlags()
       }
 
-      val handle = FileApi.CreateFileA(
-        filename(),
+      val handle = FileApi.CreateFileW(
+        toCWideStringUTF16LE(file.getPath),
         desiredAccess = access,
         shareMode = FileSharing.ShareRead | FileSharing.ShareWrite,
         securityAttributes = null,

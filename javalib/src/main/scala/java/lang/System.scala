@@ -215,7 +215,7 @@ object System {
     }
 
     Collections.unmodifiableMap {
-      if (isWindows()) getEnvsWindows()
+      if (isWindows) getEnvsWindows()
       else getEnvsUnix()
     }
   }

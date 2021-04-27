@@ -5,5 +5,5 @@ import scala.scalanative.unsafe._
 @link("shlwapi")
 @extern()
 object ShlwApi {
-  def PathFileExistsA(path: CString): Boolean = extern
+  def PathFileExistsW(path: CWString): Boolean = extern
 }

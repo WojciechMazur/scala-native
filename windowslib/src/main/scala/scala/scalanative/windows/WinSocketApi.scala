@@ -10,7 +10,7 @@ object WinSocketApi {
 
   type Socket           = Ptr[Byte]
   type Group            = DWord
-  type WSAProtocolInfoA = Ptr[Byte]
+  type WSAProtocolInfoW = Ptr[Byte]
   type WSAPollFd        = CStruct3[Socket, CShort, CShort]
   // This structures contains additional 5 fields with different order in Win_64 and others
   // Should only be treated as read-only and never allocated in ScalaNative.
@@ -20,11 +20,11 @@ object WinSocketApi {
 
   def WSACleanup(): CInt = extern
 
-  def WSASocketA(
+  def WSASocketW(
       addressFamily: CInt,
       socketType: CInt,
       protocol: CInt,
-      protocalInfo: Ptr[WSAProtocolInfoA],
+      protocolInfo: Ptr[WSAProtocolInfoW],
       group: Group,
       flags: DWord
   ): Socket = extern

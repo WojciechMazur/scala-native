@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit
 import java.nio.file.{LinkOption, Path}
 import java.nio.file.attribute._
 import java.lang.{Boolean => JBoolean}
+import niocharset.StandardCharsets
 import scalanative.unsigned._
 import scalanative.unsafe._
 import scalanative.libc._
@@ -79,9 +80,9 @@ final class WindowsDosFileAttributeView(path: Path, options: Array[LinkOption])
       }
     }
 
-    withFile(filenameCString(),
-             access = FileAccess.FILE_GENERIC_WRITE,
-             attributes = fileOpeningFlags) { handle =>
+    withFileOpen(pathAbs,
+                 access = FileAccess.FILE_GENERIC_WRITE,
+                 attributes = fileOpeningFlags) { handle =>
       val create, access, write = stackalloc[WinFileTime]
       if (!FileApi.SetFileTime(
             handle,
@@ -98,9 +99,9 @@ final class WindowsDosFileAttributeView(path: Path, options: Array[LinkOption])
   private lazy val attributes = Zone { implicit z =>
     import WinFile.ByHandleFileInformationOps
     val fileInfo = alloc[WinFile.ByHandleFileInformation]
-    withFile(filenameCString(),
-             access = FileAccess.FILE_READ_ATTRIBUTES,
-             attributes = fileOpeningFlags) {
+    withFileOpen(pathAbs,
+                 access = FileAccess.FILE_READ_ATTRIBUTES,
+                 attributes = fileOpeningFlags) {
       FileApi.GetFileInformationByHandle(_, fileInfo)
     }
 
@@ -145,13 +146,13 @@ final class WindowsDosFileAttributeView(path: Path, options: Array[LinkOption])
 
   private def setWinAttribute(attribute: DWord, enabled: Boolean): Unit = Zone {
     implicit z =>
-      val filename      = filenameCString()
-      val previousAttrs = FileApi.GetFileAttributesA(filename)
+      val filename      = toCWideStringUTF16LE(pathAbs)
+      val previousAttrs = FileApi.GetFileAttributesW(filename)
       def setNewAttrs(): Boolean = {
         val newAttributes =
           if (enabled) previousAttrs | attribute
           else previousAttrs & ~attribute
-        FileApi.SetFileAttributesA(filename, newAttributes)
+        FileApi.SetFileAttributesW(filename, newAttributes)
       }
 
       if (previousAttrs == FileApi.InvalidFileAttributes || !setNewAttrs()) {
@@ -160,8 +161,7 @@ final class WindowsDosFileAttributeView(path: Path, options: Array[LinkOption])
   }
 
   @alwaysinline
-  private def filenameCString()(implicit z: Zone) =
-    toCString(path.toAbsolutePath().toString())
+  private lazy val pathAbs = path.toAbsolutePath.toString
 
   private def toFileTime(winFileTime: WinFileTime): FileTime = {
     import WinFileTime._

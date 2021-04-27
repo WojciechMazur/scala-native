@@ -47,7 +47,7 @@ final class FileDescriptor(fileHandle: FileHandle, readOnly: Boolean = false) {
       throw new SyncFailedException("sync failed")
     }
     def isStdFileDescriptor(): Boolean = {
-      if (isWindows()) {
+      if (isWindows) {
         this == FileDescriptor.in ||
         this == FileDescriptor.out ||
         this == FileDescriptor.err
@@ -96,51 +96,46 @@ object FileDescriptor {
 
   val in: FileDescriptor = {
     val handle =
-      if (isWindows()) FileHandle(ConsoleExt.stdIn)
+      if (isWindows) FileHandle(ConsoleExt.stdIn)
       else FileHandle(unistd.STDIN_FILENO)
     new FileDescriptor(handle)
   }
 
   val out: FileDescriptor = {
     val handle =
-      if (isWindows()) FileHandle(ConsoleExt.stdOut)
+      if (isWindows) FileHandle(ConsoleExt.stdOut)
       else FileHandle(unistd.STDOUT_FILENO)
     new FileDescriptor(handle)
   }
 
   val err: FileDescriptor = {
     val handle =
-      if (isWindows()) FileHandle(ConsoleExt.stdErr)
+      if (isWindows) FileHandle(ConsoleExt.stdErr)
       else FileHandle(unistd.STDERR_FILENO)
     new FileDescriptor(handle)
   }
 
   private[io] def openReadOnly(file: File): FileDescriptor =
     Zone { implicit z =>
-      val filename = toCString(file.getPath())
       def fail() =
         throw new FileNotFoundException("No such file " + file.getPath())
 
       val fileHandle = if (isWindows) {
-        assert(
-          file.getPath().size.toUInt < FileApi.MaxAnsiPathSize,
-          s"Paths on Windows are limmited to ${FileApi.MaxAnsiPathSize}," +
-            " Unicode version of file opening function is not supported yet "
+        val handle = FileApi.CreateFileW(
+          filename = toCWideStringUTF16LE(file.getPath),
+          desiredAccess = FileAccess.FILE_GENERIC_READ,
+          shareMode = FileSharing.ShareRead | FileSharing.ShareWrite,
+          securityAttributes = null,
+          creationDisposition = FileDisposition.OpenExisting,
+          flagsAndAttributes = 0.toUInt,
+          templateFile = null
         )
-        val handle =
-          FileApi.CreateFileA(filename,
-                              FileAccess.FILE_GENERIC_READ,
-                              FileSharing.ShareRead | FileSharing.ShareWrite,
-                              null,
-                              FileDisposition.OpenExisting,
-                              0.toUInt,
-                              null)
         if (handle == HandleApi.InvalidHandleValue) {
           fail()
         }
         FileHandle(handle)
       } else {
-        val fd = fcntl.open(filename, fcntl.O_RDONLY, 0.toUInt)
+        val fd = fcntl.open(toCString(file.getPath()), fcntl.O_RDONLY, 0.toUInt)
         if (fd == -1) {
           fail()
         }

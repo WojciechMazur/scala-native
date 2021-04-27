@@ -96,10 +96,12 @@ class ProcessTest {
                    ))
 
       Zone { implicit z =>
-        withFile(toCString(f.toAbsolutePath.toString),
-                 access = FILE_GENERIC_WRITE | FILE_GENERIC_READ,
-                 disposition = FileDisposition.CreateAlways,
-                 allowInvalidHandle = true) { handle =>
+        withFileOpen(
+          f.toAbsolutePath.toString,
+          access = FILE_GENERIC_WRITE | FILE_GENERIC_READ,
+          disposition = FileDisposition.CreateAlways,
+          allowInvalidHandle = true
+        ) { handle =>
           assertNotEquals("Cannot create file", InvalidHandleValue, handle)
 
           val savedStdout = GetStdHandle(stdOutput)

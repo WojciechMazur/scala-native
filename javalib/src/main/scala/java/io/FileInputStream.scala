@@ -16,7 +16,6 @@ import scala.scalanative.windows.{
   ErrorCodes,
   NamedPipeApi
 }
-import scala.scalanative.windows.HelperMethods.withFile
 import scala.scalanative.windows.File.FilePointerMoveMethods
 import scala.scalanative.runtime.PlatformExt.isWindows
 import scala.annotation.switch

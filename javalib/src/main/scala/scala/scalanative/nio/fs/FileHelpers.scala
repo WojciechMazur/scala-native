@@ -11,6 +11,7 @@ import scala.collection.mutable.UnrolledBuffer
 import scala.reflect.ClassTag
 import java.io.{File, IOException}
 import scala.scalanative.windows.{
+  WChar,
   DWord,
   ShlwApi,
   FileApi,
@@ -94,22 +95,22 @@ object FileHelpers {
 
       def listWindows() = Zone { implicit z =>
         val searchPath = path + raw"\*"
-        if (searchPath.length.toUInt > FileApi.MaxAnsiPathSize)
+        if (searchPath.length.toUInt > FileApi.MaxPathSize)
           throw new IOException("File name to long")
 
-        val fileData = stackalloc[Win32FindDataA]
+        val fileData = stackalloc[Win32FindDataW]
         val searchHandle =
-          FileApi.FindFirstFileA(toCString(searchPath), fileData)
+          FileApi.FindFirstFileW(toCWideStringUTF16LE(searchPath), fileData)
         if (searchHandle == HandleApi.InvalidHandleValue) {
           if (allowEmpty) Array.empty[T]
           else throw WindowsException.onPath(path)
         } else {
           try {
             while ({
-              val name     = fromCString(fileData.fileName)
+              val name     = fromCWideString(fileData.fileName)
               val fileType = FileType.windowsFileType(fileData.fileAttributes)
               collectFile(name, fileType)
-              FileApi.FindNextFileA(searchHandle, fileData)
+              FileApi.FindNextFileW(searchHandle, fileData)
             }) ()
           } finally {
             FileApi.FindClose(searchHandle)
@@ -134,11 +135,13 @@ object FileHelpers {
     } else
       Zone { implicit z =>
         if (isWindows) {
-          HelperMethods.withFile(toCString(path),
-                                 access = FileAccess.FILE_GENERIC_WRITE,
-                                 shareMode = FileSharing.ShareAll,
-                                 disposition = FileDisposition.CreateNew,
-                                 allowInvalidHandle = true) { handle =>
+          HelperMethods.withFileOpen(
+            path,
+            access = FileAccess.FILE_GENERIC_WRITE,
+            shareMode = FileSharing.ShareAll,
+            disposition = FileDisposition.CreateNew,
+            allowInvalidHandle = true
+          ) { handle =>
             ErrorHandling.GetLastError() match {
               case ErrorCodes.ERROR_FILE_EXISTS => false
               case _                            => handle != HandleApi.InvalidHandleValue
@@ -174,17 +177,17 @@ object FileHelpers {
 
   def exists(path: String): Boolean =
     Zone { implicit z =>
-      if (isWindows())
-        ShlwApi.PathFileExistsA(toCString(path))
+      if (isWindows)
+        ShlwApi.PathFileExistsW(toCWideStringUTF16LE(path))
       else
         access(toCString(path), unistd.F_OK) == 0
     }
 
   lazy val tempDir: String = {
     if (isWindows) {
-      val buffer = stackalloc[Byte](FileApi.MaxAnsiPathSize)
-      FileApi.GetTempPathA(FileApi.MaxAnsiPathSize, buffer)
-      fromCString(buffer)
+      val buffer = stackalloc[WChar](FileApi.MaxPathSize)
+      FileApi.GetTempPathW(FileApi.MaxPathSize, buffer)
+      fromCWideString(buffer)
     } else {
       val dir = getenv(c"TMPDIR")
       if (dir == null) {

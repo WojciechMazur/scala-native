@@ -96,14 +96,15 @@ object HelperMethods {
     }
   }
 
-  def withFile[T](path: CString,
-                  access: DWord,
-                  shareMode: DWord = FileSharing.ShareAll,
-                  disposition: DWord = FileDisposition.OpenExisting,
-                  attributes: DWord = FileAttributes.Normal,
-                  allowInvalidHandle: Boolean = false)(fn: Handle => T): T = {
-    val handle = FileApi.CreateFileA(
-      path,
+  def withFileOpen[T](path: String,
+                      access: DWord,
+                      shareMode: DWord = FileSharing.ShareAll,
+                      disposition: DWord = FileDisposition.OpenExisting,
+                      attributes: DWord = FileAttributes.Normal,
+                      allowInvalidHandle: Boolean = false)(fn: Handle => T)(
+                       implicit z: Zone): T = {
+    val handle = FileApi.CreateFileW(
+      toCWideStringUTF16LE(path),
       desiredAccess = access,
       shareMode = shareMode,
       securityAttributes = null,
@@ -116,7 +117,7 @@ object HelperMethods {
       finally HandleApi.CloseHandle(handle)
     } else {
       throw new IOException(
-        s"Cannot open file ${fromCString(path)}: ${ErrorHandling.GetLastError}")
+        s"Cannot open file ${path}: ${ErrorHandling.GetLastError()}")
     }
   }
 

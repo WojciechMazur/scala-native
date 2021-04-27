@@ -10,21 +10,21 @@ object DateTimeApi {
 
   type LCID = DWord
 
-  def GetDateFormatA(
+  def GetDateFormatW(
       locale: LCID,
       flags: DWord,
       date: Ptr[SystemTime],
-      format: CString,
-      buffer: CString,
+      format: CWString,
+      buffer: CWString,
       bufferSize: CInt
   ): CInt = extern
 
-  def GetTimeFormatA(
+  def GetTimeFormatW(
       locale: LCID,
       flags: DWord,
       time: Ptr[SystemTime],
-      format: CString,
-      buffer: CString,
+      format: CWString,
+      buffer: CWString,
       bufferSize: CInt
   ): CInt = extern
 

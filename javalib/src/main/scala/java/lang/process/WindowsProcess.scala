@@ -121,8 +121,8 @@ object WindowsProcess {
     }
 
     val cmd  = builder.command().scalaOps.toSeq
-    val dir  = toCString(builder.directory().getAbsolutePath())
-    val argv = toCString(cmd.mkString(" "))
+    val dir  = toCWideStringUTF16LE(builder.directory().getAbsolutePath())
+    val argv = toCWideStringUTF16LE(cmd.mkString(" "))
     val envp = nullTerminatedBlock {
       builder
         .environment()
@@ -130,27 +130,27 @@ object WindowsProcess {
         .scalaOps
         .toSeq
         .map(e => s"${e.getKey()}=${e.getValue()}")
-    }
+    }.asInstanceOf[Ptr[Byte]]
 
-    val startupInfo = stackalloc[ProcessThreads.StartupInfo]
-    import ProcessThreads.StartupInfoOps
+    val startupInfo = stackalloc[ProcessThreads.StartupInfoW]
+    import ProcessThreads.StartupInfoWOps
     zeroMemory(startupInfo)
-    startupInfo.cb = sizeof[ProcessThreads.StartupInfo].toUInt
+    startupInfo.cb = sizeof[ProcessThreads.StartupInfoW].toUInt
     startupInfo.stdInput = inRead
     startupInfo.stdOutput = outWrite
     startupInfo.stdError = errWrite
-    startupInfo.flags = ProcessThreads.StartupInfoFlags.UseStdHandles
+    startupInfo.flags = ProcessThreads.StartupInfoWFlags.UseStdHandles
 
     val processInfo = stackalloc[ProcessThreads.ProcessInformation]
     zeroMemory(processInfo)
 
-    val created = ProcessThreadsApi.CreateProcessA(
+    val created = ProcessThreadsApi.CreateProcessW(
       applicationName = null,
       commandLine = argv,
       processAttributres = null,
       threadAttributes = null,
       inheritHandle = true,
-      creationFlags = 0.toUInt,
+      creationFlags = ProcessThreads.CreationFlags.CREATE_UNICODE_ENVIRONMENT,
       environment = envp,
       currentDirectory = dir,
       startupInfo = startupInfo,
@@ -213,8 +213,8 @@ object WindowsProcess {
         disposition: DWord,
         flagsAndAttributes: DWord = FileAttributes.Normal,
         sharing: DWord = FileSharing.ShareAll) = Zone { implicit z =>
-      val handle = FileApi.CreateFileA(
-        filename = toCString(redirect.file.getAbsolutePath()),
+      val handle = FileApi.CreateFileW(
+        filename = toCWideStringUTF16LE(redirect.file.getAbsolutePath()),
         desiredAccess = access,
         shareMode = sharing,
         securityAttributes = null,
@@ -272,14 +272,14 @@ object WindowsProcess {
   }
 
   @inline private def nullTerminatedBlock(seq: collection.Seq[String])(
-      implicit z: Zone): CString = {
+      implicit z: Zone): CWString = {
     val NUL = 0.toChar.toString
-    val block = toCString(seq.mkString("", NUL, NUL))
+    val block = toCWideStringUTF16LE(seq.mkString("", NUL, NUL))
 
-    val totalSize = (seq :+ "").foldLeft(0)(_ + _.length + 1) + 1
+    val totalSize = (seq :+ "").foldLeft(0)(_ + _.size + 1) - 1
     val blockEnd = block + totalSize
-    assert(!blockEnd == 0.toByte, s"not null terminated got ${!blockEnd}")
-    assert(!(blockEnd - 1) == 0.toByte, s"not null terminated -1, got ${!(blockEnd -1)}")
+    assert(!blockEnd == 0.toUShort, s"not null terminated got ${!blockEnd}")
+    assert(!(blockEnd - 1) == 0.toUShort, s"not null terminated -1, got ${!(blockEnd -1)}")
 
     block
   }

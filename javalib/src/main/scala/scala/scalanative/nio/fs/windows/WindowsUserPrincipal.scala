@@ -1,5 +1,6 @@
 package scala.scalanative.nio.fs.windows
 
+import java.nio.charset.StandardCharsets
 import java.nio.file.attribute._
 import scalanative.unsafe._
 import scalanative.unsigned._
@@ -23,11 +24,11 @@ object WindowsUserPrincipal {
   def apply(sidRef: SIDPtr): UserPrincipal = {
     import SidNameUse._
     val sidString = {
-      val sidCString = stackalloc[CString]
-      if (!Sddl.ConvertSidToStringSidA(sidRef, sidCString)) {
+      val sidCString = stackalloc[CWString]
+      if (!Sddl.ConvertSidToStringSidW(sidRef, sidCString)) {
         throw WindowsException("Unable to convert SID to string")
       }
-      fromCString(!sidCString)
+      fromCWideString(!sidCString, StandardCharsets.UTF_16LE)
     }
 
     val (accountName, accountType) =
@@ -35,10 +36,10 @@ object WindowsUserPrincipal {
         val nameSize, domainSize = stackalloc[DWord]
         !nameSize = 255.toUInt
         !domainSize = 255.toUInt
-        val nameRef   = stackalloc[Byte](!nameSize)
-        val domainRef = stackalloc[Byte](!domainSize)
+        val nameRef   = stackalloc[WChar](!nameSize)
+        val domainRef = stackalloc[WChar](!domainSize)
         val useRef    = stackalloc[SidNameUse]
-        if (!WinBaseApi.LookupAccountSidA(systemName = null,
+        if (!WinBaseApi.LookupAccountSidW(systemName = null,
                                           sid = sidRef,
                                           name = nameRef,
                                           nameSize = nameSize,
@@ -48,7 +49,8 @@ object WindowsUserPrincipal {
           throw WindowsException("Failed to lookup account info")
         }
 
-        val accountName = fromCString(domainRef) + "\\" + fromCString(nameRef)
+        val accountName =
+          fromCWideString(domainRef) + "\\" + fromCWideString(nameRef)
         (accountName, !useRef)
       } catch {
         case ex: WindowsException => (sidString, SidTypeUnknown)

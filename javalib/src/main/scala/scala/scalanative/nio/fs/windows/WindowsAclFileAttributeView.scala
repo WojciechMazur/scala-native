@@ -23,10 +23,10 @@ class WindowsAclFileAttributeView(path: Path, options: Array[LinkOption])
 
   def getOwner(): UserPrincipal =
     Zone { implicit z =>
-      val filename = toCString(path.toString())
+      val filename = toCWideStringUTF16LE(path.toString)
       val ownerSid = stackalloc[SIDPtr]
 
-      if (AclApi.GetNamedSecurityInfoA(
+      if (AclApi.GetNamedSecurityInfoW(
             filename,
             SecurityObjectType.FileObject,
             SecurityInformation.Owner,
@@ -42,22 +42,23 @@ class WindowsAclFileAttributeView(path: Path, options: Array[LinkOption])
     }
 
   def setOwner(owner: UserPrincipal): Unit = Zone { implicit z =>
-    val filename = toCString(path.toString())
+    val filename = toCWideStringUTF16LE(path.toString)
 
     val sidCString = owner match {
-      case WindowsUserPrincipal.User(sidString, _, _) => toCString(sidString)
+      case WindowsUserPrincipal.User(sidString, _, _) =>
+        toCWideStringUTF16LE(sidString)
       case _ =>
         throw WindowsException(
-          "Unsupported user principal type " + owner.getClass().getName())
+          "Unsupported user principal type " + owner.getClass.getName)
     }
     val newOwnerSid = stackalloc[SIDPtr]
 
-    if (!Sddl.ConvertStringSidToSidA(sidCString, newOwnerSid)) {
+    if (!Sddl.ConvertStringSidToSidW(sidCString, newOwnerSid)) {
       throw WindowsException("Cannot convert user principal to sid")
     }
 
     withLocalHandleCleanup(newOwnerSid) {
-      if (AclApi.SetNamedSecurityInfoA(
+      if (AclApi.SetNamedSecurityInfoW(
             filename,
             SecurityObjectType.FileObject,
             SecurityInformation.Owner,

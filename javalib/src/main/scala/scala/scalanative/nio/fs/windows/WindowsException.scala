@@ -5,6 +5,7 @@ import scala.scalanative.unsigned._
 import scala.scalanative.posix.errno._
 import scala.scalanative.windows._
 import java.io.IOException
+import java.nio.charset.StandardCharsets
 import java.nio.file._
 import scalanative.libc.{string, errno => stdErrno}
 
@@ -36,18 +37,19 @@ object WindowsException {
     import FormatMessageFlags._
     import HelperMethods._
 
-    val msgBuffer = stackalloc[CString]
-    FormatMessageA(
+    val msgBuffer = stackalloc[CWString]
+    FormatMessageW(
       flags = FORMAT_MESSAGE_ALLOCATE_BUFFER |
         FORMAT_MESSAGE_FROM_SYSTEM |
         FORMAT_MESSAGE_IGNORE_INSERTS,
       source = null,
       messageId = errCode,
-      languageId = DefaultLangugageId,
+      languageId = DefaultLangugageId(),
       buffer = msgBuffer,
       size = 0.toUInt,
       arguments = null
     )
-    fromCString(!msgBuffer).stripSuffix(System.lineSeparator())
+    fromCWideString(!msgBuffer, StandardCharsets.UTF_16LE)
+      .stripSuffix(System.lineSeparator())
   }
 }

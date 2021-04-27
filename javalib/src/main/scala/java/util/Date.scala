@@ -99,8 +99,8 @@ object Date {
 
       val timeStringSize = 32
       val dateStringSize = 32
-      val timeString     = alloc[Byte](timeStringSize.toUInt)
-      val dateString     = alloc[Byte](dateStringSize.toUInt)
+      val timeString     = alloc[WChar](timeStringSize.toUInt)
+      val dateString     = alloc[WChar](dateStringSize.toUInt)
 
       !fileTime = FileTime.fromUnixEpochMillis(milliseconds)
 
@@ -108,33 +108,33 @@ object Date {
         FileTimeToSystemTime(fileTime, utcTime) &&
         GetTimeZoneInformation(timeZoneInfo) != TIME_ZONE_ID_INVALID &&
         SystemTimeToTzSpecificLocalTime(timeZoneInfo, utcTime, localTime) &&
-        GetDateFormatA(
+        GetDateFormatW(
           locale = LocaleUserDefault,
           flags = 0.toUInt,
           date = localTime,
-          format = toCString("ddd MMM dd"),
+          format = toCWideStringUTF16LE("ddd MMM dd"),
           buffer = dateString,
           bufferSize = dateStringSize
         ) > 0 &&
-        GetTimeFormatA(locale = LocaleUserDefault,
+        GetTimeFormatW(locale = LocaleUserDefault,
                        flags = 0.toUInt,
                        time = localTime,
-                       format = toCString("hh:mm:ss"),
+                       format = toCWideStringUTF16LE("hh:mm:ss"),
                        buffer = timeString,
                        bufferSize = timeStringSize) > 0
       }
       println(scalanative.windows.ErrorHandling.GetLastError())
       if (!hasSucceded) default
       else {
-        val date      = fromCString(dateString)
-        val time      = fromCString(timeString)
+        val date      = fromCWideString(dateString)
+        val time      = fromCWideString(timeString)
         val tzBuilder = new java.lang.StringBuilder(32)
         0.until(32).foreach { idx =>
           val v = timeZoneInfo.standardName(idx).toInt
           tzBuilder.appendCodePoint(v)
         }
         val tz   = tzBuilder.toString
-        val year = localTime.year.toString
+        val year = localTime.year.toString()
 
         s"$date $time $tz $year"
       }

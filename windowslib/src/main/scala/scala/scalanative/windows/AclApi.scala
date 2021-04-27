@@ -11,13 +11,27 @@ object AclApi {
   import WinBase._
   import accctrl._
 
-  def SetEntriesInAclA(countOfExplicitEntries: ULong,
-                       listOfExplicitEntries: Ptr[ExplicitAccess],
+//  def SetEntriesInAclA(countOfExplicitEntries: ULong,
+//                       listOfExplicitEntries: Ptr[ExplicitAccessA],
+//                       oldAcl: ACLPtr,
+//                       newAcl: Ptr[ACLPtr]): DWord = extern
+
+  def SetEntriesInAclW(countOfExplicitEntries: ULong,
+                       listOfExplicitEntries: Ptr[ExplicitAccessW],
                        oldAcl: ACLPtr,
                        newAcl: Ptr[ACLPtr]): DWord = extern
-
   def GetNamedSecurityInfoA(
-      objectName: CString,
+                             objectName: CString,
+                             objectType: SecurityObjectType,
+                             securityInfo: SecurityInformation,
+                             sidOwner: Ptr[SIDPtr],
+                             sidGroup: Ptr[SIDPtr],
+                             dacl: Ptr[ACLPtr],
+                             sacl: Ptr[ACLPtr],
+                             securityDescriptor: Ptr[Ptr[SecurityDescriptor]]): DWord = extern
+
+  def GetNamedSecurityInfoW(
+      objectName: CWString,
       objectType: SecurityObjectType,
       securityInfo: SecurityInformation,
       sidOwner: Ptr[SIDPtr],
@@ -27,7 +41,17 @@ object AclApi {
       securityDescriptor: Ptr[Ptr[SecurityDescriptor]]): DWord = extern
 
   def SetNamedSecurityInfoA(
-      objectName: CString,
+                             objectName: CString,
+                             objectType: SecurityObjectType,
+                             securityInfo: SecurityInformation,
+                             sidOwner: SIDPtr,
+                             sidGroup: SIDPtr,
+                             dacl: ACLPtr,
+                             sacl: ACLPtr
+                           ): DWord = extern
+
+  def SetNamedSecurityInfoW(
+      objectName: CWString,
       objectType: SecurityObjectType,
       securityInfo: SecurityInformation,
       sidOwner: SIDPtr,

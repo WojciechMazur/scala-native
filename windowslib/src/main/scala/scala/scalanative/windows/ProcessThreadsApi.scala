@@ -10,27 +10,15 @@ import HandleApi.Handle
 object ProcessThreadsApi {
   import ProcessThreads._
 
-  def CreateProcessA(applicationName: CString,
-                     commandLine: CString,
+  def CreateProcessW(applicationName: CWString,
+                     commandLine: CWString,
                      processAttributres: Ptr[SecurityAttributes],
                      threadAttributes: Ptr[SecurityAttributes],
                      inheritHandle: Boolean,
                      creationFlags: DWord,
                      environment: Ptr[Byte],
-                     currentDirectory: CString,
-                     startupInfo: Ptr[StartupInfo],
-                     processInformation: Ptr[ProcessInformation]): Boolean =
-    extern
-
-  def CreateProcessW(applicationName: CWideString,
-                     commandLine: CWideString,
-                     processAttributres: Ptr[SecurityAttributes],
-                     threadAttributes: Ptr[SecurityAttributes],
-                     inheritHandle: Boolean,
-                     creationFlags: DWord,
-                     environment: Ptr[Byte],
-                     currentDirectory: CWideString,
-                     startupInfo: Ptr[StartupInfo],
+                     currentDirectory: CWString,
+                     startupInfo: Ptr[StartupInfoW],
                      processInformation: Ptr[ProcessInformation]): Boolean =
     extern
 
@@ -66,30 +54,30 @@ object ProcessThreads {
     final val StillActive = 259.toUInt
   }
 
-  type StartupInfo = CStruct18[DWord,
-                               CString,
-                               CString,
-                               CString,
-                               DWord,
-                               DWord,
-                               DWord,
-                               DWord,
-                               DWord,
-                               DWord,
-                               DWord,
-                               DWord,
-                               Word,
-                               Word,
-                               Ptr[Byte],
-                               Handle,
-                               Handle,
-                               Handle]
-  implicit class StartupInfoOps(ref: Ptr[StartupInfo])(
-      implicit tag: Tag[StartupInfo]) {
+  type StartupInfoW = CStruct18[DWord,
+                                CWString,
+                                CWString,
+                                CWString,
+                                DWord,
+                                DWord,
+                                DWord,
+                                DWord,
+                                DWord,
+                                DWord,
+                                DWord,
+                                DWord,
+                                Word,
+                                Word,
+                                Ptr[Byte],
+                                Handle,
+                                Handle,
+                                Handle]
+  implicit class StartupInfoWOps(ref: Ptr[StartupInfoW])(
+      implicit tag: Tag[StartupInfoW]) {
     def cb: DWord              = ref._1
-    def reserved: CString      = ref._2
-    def desktop: CString       = ref._3
-    def title: CString         = ref._4
+    def reserved: CWString     = ref._2
+    def desktop: CWString      = ref._3
+    def title: CWString        = ref._4
     def x: DWord               = ref._5
     def y: DWord               = ref._6
     def xSize: DWord           = ref._7
@@ -106,9 +94,9 @@ object ProcessThreads {
     def stdError: Handle       = ref._18
 
     def cb_=(v: DWord): Unit              = ref._1 = v
-    def reserved_=(v: CString): Unit      = ref._2 = v
-    def desktop_=(v: CString): Unit       = ref._3 = v
-    def title_=(v: CString): Unit         = ref._4 = v
+    def reserved_=(v: CWString): Unit     = ref._2 = v
+    def desktop_=(v: CWString): Unit      = ref._3 = v
+    def title_=(v: CWString): Unit        = ref._4 = v
     def x_=(v: DWord): Unit               = ref._5 = v
     def y_=(v: DWord): Unit               = ref._6 = v
     def xSize_=(v: DWord): Unit           = ref._7 = v
@@ -125,7 +113,7 @@ object ProcessThreads {
     def stdError_=(v: Handle): Unit       = ref._18 = v
   }
 
-  object StartupInfoFlags {
+  object StartupInfoWFlags {
     final val ForceOnFeedback  = 0x00000040.toUInt
     final val ForceOffFeedback = 0x00000080.toUInt
     final val PreventPinning   = 0x00002000.toUInt
@@ -140,6 +128,26 @@ object ProcessThreads {
     final val UseHowWindow     = 0x00000001.toUInt
     final val UseSize          = 0x00000002.toUInt
     final val UseStdHandles    = 0x00000100.toUInt
+  }
+
+  object CreationFlags {
+    final val CREATE_BREAKAWAY_FROM_JOB        = 0x01000000.toUInt
+    final val CREATE_DEFAULT_ERROR_MODE        = 0x04000000.toUInt
+    final val CREATE_NEW_CONSOLE               = 0x00000010.toUInt
+    final val CREATE_NEW_PROCESS_GROUP         = 0x00000200.toUInt
+    final val CREATE_NO_WINDOW                 = 0x08000000.toUInt
+    final val CREATE_PROTECTED_PROCESS         = 0x00040000.toUInt
+    final val CREATE_PRESERVE_CODE_AUTHZ_LEVEL = 0x02000000.toUInt
+    final val CREATE_SECURE_PROCESS            = 0x00400000.toUInt
+    final val CREATE_SEPARATE_WOW_VDM          = 0x00000800.toUInt
+    final val CREATE_SHARED_WOW_VDM            = 0x00001000.toUInt
+    final val CREATE_SUSPENDED                 = 0x00000004.toUInt
+    final val CREATE_UNICODE_ENVIRONMENT       = 0x00000400.toUInt
+    final val DEBUG_ONLY_THIS_PROCESS          = 0x00000002.toUInt
+    final val DEBUG_PROCESS                    = 0x00000001.toUInt
+    final val DETACHED_PROCESS                 = 0x00000008.toUInt
+    final val EXTENDED_STARTUPINFO_PRESENT     = 0x00080000.toUInt
+    final val INHERIT_PARENT_AFFINITY          = 0x00010000.toUInt
   }
 
   type ProcessInformation = CStruct4[Handle, Handle, DWord, DWord]

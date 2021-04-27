@@ -6,17 +6,15 @@ import java.io.{
   BufferedWriter,
   File,
   FileOutputStream,
+  IOException,
   InputStream,
   InputStreamReader,
-  IOException,
   OutputStream,
   OutputStreamWriter
 }
-
 import java.nio.file.attribute._
 import java.nio.charset.{Charset, StandardCharsets}
 import java.nio.channels.{FileChannel, SeekableByteChannel}
-
 import java.util.function.BiPredicate
 import java.util.{
   EnumSet,
@@ -29,26 +27,28 @@ import java.util.{
   Set
 }
 import java.util.stream.{Stream, WrappedScalaStream}
-
 import scalanative.unsigned._
 import scalanative.unsafe._
 import scalanative.libc._
-import scalanative.posix.{dirent, fcntl, limits, unistd}, dirent._
+import scalanative.posix.{dirent, fcntl, limits, unistd}
+import dirent._
+import java.nio.file.StandardCopyOption.{COPY_ATTRIBUTES, REPLACE_EXISTING}
 import scalanative.posix.sys.stat
 import scalanative.windows.{
   DWord,
-  ErrorHandling,
   ErrorCodes,
-  FileApi,
-  File => WinFile,
+  ErrorHandling,
   FileAccess,
+  FileApi,
   FileSharing,
   HandleApi,
-  FileFlags => WinFileFlags,
-  FileAttributes => WinFileAttributes,
-  WinBaseApi,
+  HelperMethods,
+  WChar,
   WinBase,
-  HelperMethods
+  WinBaseApi,
+  File => WinFile,
+  FileAttributes => WinFileAttributes,
+  FileFlags => WinFileFlags
 }
 import scalanative.windows.WinBase._
 import scalanative.nio.fs.unix.UnixException
@@ -56,9 +56,7 @@ import scalanative.nio.fs.windows.WindowsException
 import scalanative.nio.fs.FileHelpers
 import scalanative.compat.StreamsCompat._
 import scalanative.runtime.PlatformExt.isWindows
-
 import scala.collection.immutable.{Map => SMap, Set => SSet}
-import StandardCopyOption._
 
 object Files {
 
@@ -193,14 +191,15 @@ object Files {
 
   def createLink(link: Path, existing: Path): Path = {
     def tryCreateHardLink() = Zone { implicit z =>
-      val existingFileName = toCString(existing.toString())
-      val linkFilename     = toCString(link.toString())
-
       if (isWindows)
-        WinBaseApi.CreateHardLinkA(linkFilename,
-                                   existingFileName,
+        WinBaseApi.CreateHardLinkW(toCWideStringUTF16LE(link.toString),
+                                   toCWideStringUTF16LE(existing.toString),
                                    securityAttributes = null)
-      else unistd.link(existingFileName, linkFilename) == 0
+      else
+        unistd.link(
+          toCString(existing.toString()),
+          toCString(link.toString())
+        ) == 0
     }
     if (exists(link, Array.empty)) {
       throw new FileAlreadyExistsException(link.toString)
@@ -216,16 +215,15 @@ object Files {
                          attrs: Array[FileAttribute[_]]): Path = {
 
     def tryCreateLink() = Zone { implicit z =>
-      val targetFilename = toCString(target.toString())
-      val linkFilename   = toCString(link.toString())
-
       if (isWindows) {
         import WinBase.SymbolicLinkFlags
+        val targetFilename = toCWideStringUTF16LE(target.toString())
+        val linkFilename   = toCWideStringUTF16LE(link.toString())
         val flags =
           if (target.toFile().isFile()) SymbolicLinkFlags.File
           else SymbolicLinkFlags.Directory
         val created =
-          WinBaseApi.CreateSymbolicLinkA(symlinkFileName = linkFilename,
+          WinBaseApi.CreateSymbolicLinkW(symlinkFileName = linkFilename,
                                          targetFileName = targetFilename,
                                          flags = flags)
         val ERROR_PRIVILEGE_NOT_HELD = 1314.toUInt
@@ -233,7 +231,7 @@ object Files {
         if (!created &&
             ErrorHandling.GetLastError() == ERROR_PRIVILEGE_NOT_HELD) {
           // If develop mode is enabled we can create unprivileged symlinks
-          WinBaseApi.CreateSymbolicLinkA(
+          WinBaseApi.CreateSymbolicLinkW(
             symlinkFileName = linkFilename,
             targetFileName = targetFilename,
             flags = flags | SymbolicLinkFlags.AllowUnprivilegedCreate) || {
@@ -242,6 +240,8 @@ object Files {
           }
         } else created
       } else {
+        val targetFilename = toCString(target.toString())
+        val linkFilename   = toCString(link.toString())
         unistd.symlink(targetFilename, linkFilename) == 0
       }
     }
@@ -416,14 +416,15 @@ object Files {
     path.toFile().getCanonicalPath() == path2.toFile().getCanonicalPath()
 
   def isSymbolicLink(path: Path): Boolean = Zone { implicit z =>
-    val filename = toCString(path.toFile().getPath())
     if (isWindows) {
-      val attrs          = FileApi.GetFileAttributesA(filename)
+      val filename       = toCWideStringUTF16LE(path.toFile().getPath())
+      val attrs          = FileApi.GetFileAttributesW(filename)
       val exists         = attrs != FileApi.InvalidFileAttributes
       def isReparsePoint = (attrs & WinFileAttributes.ReparsePoint) != 0.toUInt
       exists & isReparsePoint
     } else {
-      val buf = alloc[stat.stat]
+      val filename = toCString(path.toFile().getPath())
+      val buf      = alloc[stat.stat]
       if (stat.lstat(filename, buf) == 0) {
         stat.S_ISLNK(buf._13) == 1
       } else {
@@ -463,31 +464,34 @@ object Files {
                        target: Path,
                        replaceExisting: => Boolean) =
     Zone { implicit z =>
-      val sourceCString = toCString(source.toAbsolutePath().toString)
-      val targetCString = toCString(target.toAbsolutePath().toString)
-
+      val sourceAbs = source.toAbsolutePath.toString
+      val targetAbs = target.toAbsolutePath.toString
       if (isWindows) {
+        val sourceCString = toCWideStringUTF16LE(sourceAbs)
+        val targetCString = toCWideStringUTF16LE(targetAbs)
         // We cannot replace directory, it needs to be removed first
-        if (replaceExisting && target.toFile().isDirectory()) {
+        if (replaceExisting && target.toFile.isDirectory) {
           //todo delete children
           Files.delete(target)
         }
         // stdio.rename on Windows does not replace existing file
         val flags = {
-          import WinFile.MoveFileFlags._
+          import WinBase.MoveFileFlags._
           val replace =
             if (replaceExisting) MOVEFILE_REPLACE_EXISTING else 0.toUInt
           MOVEFILE_COPY_ALLOWED |    //Allow coping betwen volumes
             MOVEFILE_WRITE_THROUGH | //Block until actually moved
             replace
         }
-        if (!FileApi.MoveFileExA(sourceCString, targetCString, flags)) {
+        if (!WinBaseApi.MoveFileExW(sourceCString, targetCString, flags)) {
           ErrorHandling.GetLastError() match {
             case ErrorCodes.ERROR_SUCCESS => ()
             case _                        => throw WindowsException.onPath(target.toString())
           }
         }
       } else {
+        val sourceCString = toCString(sourceAbs)
+        val targetCString = toCString(targetAbs)
         if (stdio.rename(sourceCString, targetCString) != 0) {
           throw UnixException(target.toString, errno.errno)
         }
@@ -559,15 +563,15 @@ object Files {
     if (!pathSize.isValidInt) {
       throw new OutOfMemoryError("Required array size too large")
     }
-    val len         = pathSize.toInt
-    val bytes       = scala.scalanative.runtime.ByteArray.alloc(len)
-    val pathCString = toCString(path.toString)
+    val len   = pathSize.toInt
+    val bytes = scala.scalanative.runtime.ByteArray.alloc(len)
 
     if (isWindows) {
       val bytesRead = stackalloc[DWord]
-      HelperMethods.withFile(pathCString,
-                             access = FileAccess.FILE_GENERIC_READ,
-                             shareMode = FileSharing.ShareRead) { handle =>
+
+      HelperMethods.withFileOpen(path.toString,
+                                 access = FileAccess.FILE_GENERIC_READ,
+                                 shareMode = FileSharing.ShareRead) { handle =>
         if (!FileApi.ReadFile(handle,
                               bytes.at(0),
                               pathSize.toUInt,
@@ -577,7 +581,8 @@ object Files {
         }
       }
     } else {
-      val fd = fcntl.open(pathCString, fcntl.O_RDONLY, 0.toUInt)
+      val pathCString = toCString(path.toString)
+      val fd          = fcntl.open(pathCString, fcntl.O_RDONLY, 0.toUInt)
       try {
         var offset = 0
         var read   = 0
@@ -649,16 +654,14 @@ object Files {
       throw new NotLinkException(link.toString)
     } else
       Zone { implicit z =>
-        val linkCString = toCString(link.toString())
-
-        val buf = if (isWindows) {
-          HelperMethods.withFile(linkCString,
-                                 access = FileAccess.FILE_GENERIC_READ) {
+        val name = if (isWindows) {
+          HelperMethods.withFileOpen(link.toString,
+                                     access = FileAccess.FILE_GENERIC_READ) {
             handle =>
-              val bufferSize      = FileApi.MaxAnsiPathSize
-              val buffer: CString = alloc[Byte](bufferSize)
+              val bufferSize = FileApi.MaxPathSize
+              val buffer     = alloc[WChar](bufferSize)
               val pathSize =
-                FileApi.GetFinalPathNameByHandleA(
+                FileApi.GetFinalPathNameByHandleW(
                   handle,
                   buffer,
                   bufferSize,
@@ -667,16 +670,18 @@ object Files {
                 throw WindowsException(
                   "Target path size of link was greater then max allowed size")
               }
-              buffer
+              fromCWideString(buffer)
           }
         } else {
           val buf: CString = alloc[Byte](limits.PATH_MAX.toUInt)
-          if (unistd.readlink(linkCString, buf, limits.PATH_MAX.toUInt) == -1) {
+          if (unistd.readlink(toCString(link.toString),
+                              buf,
+                              limits.PATH_MAX.toUInt) == -1) {
             throw UnixException(link.toString, errno.errno)
           }
-          buf
+          fromCString(buf)
         }
-        Paths.get(fromCString(buf), Array.empty)
+        Paths.get(name, Array.empty)
       }
 
   def setAttribute(path: Path,

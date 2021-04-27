@@ -14,28 +14,36 @@ object WinBaseApi {
   type WaitOrTimerCallback = CFuncPtr2[CallbackContext, Boolean, Unit]
   type LocalHandle         = Ptr[_]
 
-  def CreateHardLinkA(linkFileName: CString,
-                      existingFileName: CString,
+  def CreateHardLinkW(linkFileName: CWString,
+                      existingFileName: CWString,
                       securityAttributes: SecurityAttributes): Boolean = extern
 
-  def CreateSymbolicLinkA(symlinkFileName: CString,
-                          targetFileName: CString,
+  def CreateSymbolicLinkW(symlinkFileName: CWString,
+                          targetFileName: CWString,
                           flags: DWord): Boolean = extern
-
   def FormatMessageA(flags: DWord,
                      source: Ptr[Byte],
                      messageId: DWord,
                      languageId: DWord,
-                     buffer: Ptr[CString],
+                     buffer: Ptr[CWString],
                      size: DWord,
                      arguments: CVarArgList): DWord = extern
 
+  def FormatMessageW(flags: DWord,
+                     source: Ptr[Byte],
+                     messageId: DWord,
+                     languageId: DWord,
+                     buffer: Ptr[CWString],
+                     size: DWord,
+                     arguments: CVarArgList): DWord = extern
   def GetCurrentDirectoryA(bufferLength: DWord, buffer: CString): DWord = extern
-  def GetVolumePathNameA(filename: CString,
-                         volumePathName: CString,
+  def GetCurrentDirectoryW(bufferLength: DWord, buffer: CWString): DWord =
+    extern
+  def GetVolumePathNameW(filename: CWString,
+                         volumePathName: CWString,
                          bufferLength: DWord): Boolean = extern
 
-  def GetFileSecurityA(filename: CString,
+  def GetFileSecurityW(filename: CWString,
                        requestedInformation: SecurityInformation,
                        securityDescriptor: Ptr[SecurityDescriptor],
                        length: DWord,
@@ -50,6 +58,20 @@ object WinBaseApi {
                         referencedDomainName: CString,
                         referencedDomainNameSize: Ptr[DWord],
                         use: Ptr[SidNameUse]): Boolean = extern
+  def LookupAccountSidW(systemName: Ptr[CWString],
+                        sid: SIDPtr,
+                        name: CWString,
+                        nameSize: Ptr[DWord],
+                        referencedDomainName: CWString,
+                        referencedDomainNameSize: Ptr[DWord],
+                        use: Ptr[SidNameUse]): Boolean = extern
+  def MoveFileExA(existingFileName: CString,
+                  newFileName: CString,
+                  flags: DWord): Boolean = extern
+
+  def MoveFileExW(existingFileName: CWString,
+                  newFileName: CWString,
+                  flags: DWord): Boolean = extern
 
   def RegisterWaitForSingleObject(retHandle: Ptr[Handle],
                                   ref: Handle,
@@ -73,6 +95,15 @@ object WinBase {
     final val ExecuteLongFunction       = 0x00000010.toUInt
     final val ExecuteOnlyOnce           = 0x00000008.toUInt
     final val TransferImpersonation     = 0x00000100.toUInt
+  }
+
+  object MoveFileFlags {
+    final val MOVEFILE_REPLACE_EXISTING      = 0x1.toUInt
+    final val MOVEFILE_COPY_ALLOWED          = 0x2.toUInt
+    final val MOVEFILE_DELAY_UNTIL_REBOOT    = 0x4.toUInt
+    final val MOVEFILE_WRITE_THROUGH         = 0x8.toUInt
+    final val MOVEFILE_CREATE_HARDLINK       = 0x10.toUInt
+    final val MOVEFILE_FAIL_IF_NOT_TRACKABLE = 0x20.toUInt
   }
 
   type SecurityInformation = DWord

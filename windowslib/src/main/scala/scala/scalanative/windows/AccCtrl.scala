@@ -10,40 +10,40 @@ object `package` {
   import SecurityBase._
   import WinBase._
 
-  type ExplicitAccess = CStruct4[DWord, AccessMode.Type, DWord, TrusteeA]
-  implicit class ExplicitAccessOps(ref: Ptr[ExplicitAccess]) {
+  type ExplicitAccessW = CStruct4[DWord, AccessMode.Type, DWord, TrusteeW]
+  implicit class ExplicitAccessOps(ref: Ptr[ExplicitAccessW]) {
     def accessPermisions: DWord     = ref._1
     def accessMode: AccessMode.Type = ref._2
     def inheritence: DWord          = ref._3
-    def trustee: Ptr[TrusteeA]      = ref.at4
+    def trustee: Ptr[TrusteeW]      = ref.at4
 
     def accessPermisions_=(v: DWord): Unit     = ref._1 = v
     def accessMode_=(v: AccessMode.Type): Unit = ref._2 = v
     def inheritence_=(v: DWord): Unit          = ref._3 = v
-    def trustee_=(v: Ptr[TrusteeA]): Unit      = !ref.at4 = v
+    def trustee_=(v: Ptr[TrusteeW]): Unit      = !ref.at4 = v
   }
 
-  type TrusteeA = CStruct6[Ptr[Byte],
+  type TrusteeW = CStruct6[Ptr[Byte],
                            MultipleTruteeOperation.Type,
                            TrusteeForm.Type,
                            TrusteeType.Type,
                            Ptr[Byte],
-                           CString]
+                           CWString]
 
-  implicit class TrusteeAOps(ref: Ptr[TrusteeA]) {
-    def multipleTrustee: Ptr[TrusteeA]                         = ref._1.asInstanceOf[Ptr[TrusteeA]]
+  implicit class TrusteeWOps(ref: Ptr[TrusteeW]) {
+    def multipleTrustee: Ptr[TrusteeW]                         = ref._1.asInstanceOf[Ptr[TrusteeW]]
     def multipleTrusteeOperation: MultipleTruteeOperation.Type = ref._2
     def trusteeForm: TrusteeForm.Type                          = ref._3
     def trusteeType: TrusteeType.Type                          = ref._4
     // union type
-    def strName: CString = ref._5.asInstanceOf[CString]
-    def sid: SIDPtr      = ref._5.asInstanceOf[SIDPtr]
+    def strName: CWString = ref._5.asInstanceOf[CWString]
+    def sid: SIDPtr       = ref._5.asInstanceOf[SIDPtr]
     def objectsAndSid: Ptr[ObjectsAndSid] =
       ref._5.asInstanceOf[Ptr[ObjectsAndSid]]
-    def objectsAndName: Ptr[ObjectsAndName] =
-      ref._5.asInstanceOf[Ptr[ObjectsAndName]]
+    def objectsAndName: Ptr[ObjectsAndNameW] =
+      ref._5.asInstanceOf[Ptr[ObjectsAndNameW]]
 
-    def multipleTrustee_=(v: Ptr[TrusteeA]): Unit = {
+    def multipleTrustee_=(v: Ptr[TrusteeW]): Unit = {
       ref._1 = v.asInstanceOf[Ptr[Byte]]
     }
     def multipleTrusteeOperation_=(v: MultipleTruteeOperation.Type): Unit = {
@@ -51,12 +51,12 @@ object `package` {
     }
     def trusteeForm_=(v: TrusteeForm.Type): Unit = { ref._3 = v }
     def trusteeType_=(v: TrusteeType.Type): Unit = { ref._4 = v }
-    def strName_=(v: CString): Unit              = { ref._5 = v.asInstanceOf[Ptr[Byte]] }
+    def strName_=(v: CWString): Unit             = { ref._5 = v.asInstanceOf[Ptr[Byte]] }
     def sid_=(v: SIDPtr): Unit                   = { ref._5 = v.asInstanceOf[Ptr[Byte]] }
     def objectsAndSid_=(v: Ptr[ObjectsAndSid]): Unit = {
       ref._5 = v.asInstanceOf[Ptr[Byte]]
     }
-    def objectsAndName_=(v: Ptr[ObjectsAndName]): Unit = {
+    def objectsAndName_=(v: Ptr[ObjectsAndNameW]): Unit = {
       ref._5 = v.asInstanceOf[Ptr[Byte]]
     }
   }
@@ -75,20 +75,20 @@ object `package` {
     def sid_=(v: SIDPtr): Unit                        = ref._4 = v
   }
 
-  type ObjectsAndName =
-    CStruct5[ObjectsPresent, SecurityObjectType, CString, CString, CString]
-  implicit class ObjectsAndNameOps(ref: Ptr[ObjectsAndName]) {
-    def objectsPresent: ObjectsPresent   = ref._1
-    def objectType: SecurityObjectType   = ref._2
-    def objectTypeName: CString          = ref._3
-    def inheritedObjectTypeName: CString = ref._4
-    def strName: CString                 = ref._5
+  type ObjectsAndNameW =
+    CStruct5[ObjectsPresent, SecurityObjectType, CWString, CWString, CWString]
+  implicit class ObjectsAndNameWOps(ref: Ptr[ObjectsAndNameW]) {
+    def objectsPresent: ObjectsPresent    = ref._1
+    def objectType: SecurityObjectType    = ref._2
+    def objectTypeName: CWString          = ref._3
+    def inheritedObjectTypeName: CWString = ref._4
+    def strName: CWString                 = ref._5
 
-    def objectsPresent_=(v: ObjectsPresent): Unit   = ref._1 = v
-    def objectType_=(v: SecurityObjectType): Unit   = ref._2 = v
-    def objectTypeName_=(v: CString): Unit          = ref._3 = v
-    def inheritedObjectTypeName_=(v: CString): Unit = ref._4 = v
-    def strName_=(v: CString): Unit                 = ref._5 = v
+    def objectsPresent_=(v: ObjectsPresent): Unit    = ref._1 = v
+    def objectType_=(v: SecurityObjectType): Unit    = ref._2 = v
+    def objectTypeName_=(v: CWString): Unit          = ref._3 = v
+    def inheritedObjectTypeName_=(v: CWString): Unit = ref._4 = v
+    def strName_=(v: CWString): Unit                 = ref._5 = v
   }
 
   type ObjectsPresent = DWord

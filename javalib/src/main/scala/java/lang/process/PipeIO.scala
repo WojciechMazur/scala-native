@@ -82,7 +82,7 @@ private[lang] object PipeIO {
 
     private[this] var drained = false
     private def availableFD() = {
-      if (isWindows()) {
+      if (isWindows) {
         val aviallableBytes = stackalloc[DWord]
         val hasPeaked = PeekNamedPipe(pipe = is.getFD().handle,
                                       buffer = null,

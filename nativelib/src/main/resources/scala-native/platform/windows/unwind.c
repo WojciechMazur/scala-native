@@ -35,7 +35,7 @@ int scalanative_unwind_init_local(void *cursor, void *context) {
     // cursor should be -1, but we don't want to show this function
     ucontext->cursor = 0;
     ucontext->symbol.MaxNameLen = 255; // todo: review
-    ucontext->symbol.SizeOfStruct = sizeof(SYMBOL_INFO);
+    ucontext->symbol.SizeOfStruct = sizeof(SYMBOL_INFOW);
     return 0;
 }
 

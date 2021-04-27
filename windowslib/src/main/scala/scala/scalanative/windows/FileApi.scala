@@ -11,8 +11,7 @@ object FileApi {
   import MinWinBase._
   import File._
 
-  @name("CreateFileA")
-  def createFileA(filename: CString,
+  def CreateFileA(filename: CString,
                   desiredAccess: DWord,
                   shareMode: DWord,
                   securityAttributes: SecurityAttributes,
@@ -20,109 +19,80 @@ object FileApi {
                   flagsAndAttributes: UInt,
                   templateFile: Handle): Handle = extern
 
-  @name("CreateDirectoryA")
-  def createDirectoryA(filename: CString,
+  def CreateDirectoryA(filename: CString,
                        securityAttributes: Ptr[SecurityAttributes]): Boolean =
     extern
 
-  @name("DeleteFileA")
-  def deleteFileA(filename: CString): Boolean = extern
+  def DeleteFileA(filename: CString): Boolean = extern
+  def FindFirstFileA(filename: CString,
+                     findFileData: Ptr[Win32FindDataA]): Handle = extern
+  def FindNextFileA(searchHandle: Handle,
+                    findFileData: Ptr[Win32FindDataA]): Boolean = extern
+  def FindClose(searchHandle: Handle): Boolean                  = extern
+  def FlushFileBuffers(handle: Handle): Boolean                 = extern
+  def GetFileAttributesA(filename: CString): DWord              = extern
 
-  @name("FindFirstFileA")
-  def findFirstFileA(filename: CString,
-                     findFileData: Ptr[Win32FindDataA]): Handle =
-    extern
-
-  @name("FindNextFileA")
-  def findNextFileA(searchHandle: Handle,
-                    findFileData: Ptr[Win32FindDataA]): Boolean =
-    extern
-
-  @name("FindClose")
-  def findClose(searchHandle: Handle): Boolean = extern
-  @name("FlushFileBuffers")
-  def flushFileBuffers(handle: Handle): Boolean = extern
-
-  @name("GetFileAttributesA")
-  def getFileAttributesA(filename: CString): DWord = extern
-
-  @name("GetFileInformationByHandle")
-  def getFileInformationByHandle(
+  def GetFileInformationByHandle(
       file: Handle,
       fileInformation: Ptr[ByHandleFileInformation]): Boolean =
     extern
 
-  @name("GetFinalPathNameByHandleA")
-  def getFinalPathNameByHandleA(handle: Handle,
+  def GetFinalPathNameByHandleA(handle: Handle,
                                 buffer: CString,
                                 bufferSize: DWord,
                                 flags: DWord): DWord = extern
 
-  @name("GetFullPathNameA")
-  def getFullPathNameA(filename: CString,
+  def GetFullPathNameA(filename: CString,
                        bufferLength: DWord,
                        buffer: CString,
                        filePart: Ptr[CString]): DWord = extern
 
-  @name("GetFileSizeEx")
-  def getFileSizeEx(file: Handle, fileSize: Ptr[LargeInteger]): Boolean = extern
+  def GetFileSizeEx(file: Handle, fileSize: Ptr[LargeInteger]): Boolean = extern
 
-  @name("GetFileTime")
-  def getFileTime(file: Handle,
+  def GetFileTime(file: Handle,
                   creationTime: Ptr[FileTime],
                   lastAccessTime: Ptr[FileTime],
                   lastWriteTime: Ptr[FileTime]): Boolean = extern
 
-  @name("GetTempFileNameA")
-  def getTempFileNameA(pathName: CString,
+  def GetTempFileNameA(pathName: CString,
                        prefixString: CString,
                        unique: UInt,
                        tempFileName: CString): UInt = extern
 
-  @name("GetTempPathA")
-  def getTempPathA(bufferLength: DWord, buffer: CString): DWord = extern
+  def GetTempPathA(bufferLength: DWord, buffer: CString): DWord = extern
 
-  @name("GetVolumePathNameA")
-  def getVolumePathNameA(filename: CString,
+  def GetVolumePathNameA(filename: CString,
                          volumePathName: CString,
                          bufferLength: DWord): Boolean = extern
 
-  @name("MoveFileExA")
-  def moveFileExA(existingFileName: CString,
+  def MoveFileExA(existingFileName: CString,
                   newFileName: CString,
                   flags: DWord): Boolean = extern
 
-  @name("ReadFile")
-  def readFile(fileHandle: Handle,
+  def ReadFile(fileHandle: Handle,
                buffer: Ptr[Byte],
                bytesToRead: DWord,
                bytesReadPtr: Ptr[DWord],
                overlapped: Ptr[Byte]): Boolean = extern
 
-  @name("RemoveDirectoryA")
-  def removeDirectoryA(filename: CString): Boolean = extern
+  def RemoveDirectoryA(filename: CString): Boolean = extern
 
-  @name("SetEndOfFile")
-  def setEndOfFile(file: Handle): Boolean = extern
+  def SetEndOfFile(file: Handle): Boolean = extern
 
-  @name("SetFileAttributesA")
-  def setFileAttributesA(filename: CString, fileAttributes: DWord): Boolean =
+  def SetFileAttributesA(filename: CString, fileAttributes: DWord): Boolean =
     extern
 
-  @name("SetFilePointerEx")
-  def setFilePointerEx(file: Handle,
+  def SetFilePointerEx(file: Handle,
                        distanceToMove: LargeInteger,
                        newFilePointer: Ptr[LargeInteger],
                        moveMethod: DWord): Boolean = extern
 
-  @name("SetFileTime")
-  def setFileTime(file: Handle,
+  def SetFileTime(file: Handle,
                   creationTime: Ptr[FileTime],
                   lastAccessTime: Ptr[FileTime],
                   lastWriteTime: Ptr[FileTime]): Boolean = extern
 
-  @name("WriteFile")
-  def writeFile(fileHandle: Handle,
+  def WriteFile(fileHandle: Handle,
                 buffer: Ptr[Byte],
                 bytesToRead: DWord,
                 bytesWritten: Ptr[DWord],

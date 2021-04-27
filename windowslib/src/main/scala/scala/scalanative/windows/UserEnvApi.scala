@@ -7,8 +7,7 @@ import scala.scalanative.windows.HandleApi.Handle
 @link("Userenv")
 @extern()
 object UserEnvApi {
-  @name("GetUserProfileDirectoryA")
-  def getUserProfileDirectortA(token: Handle,
+  def GetUserProfileDirectoryA(token: Handle,
                                profileDir: CString,
                                size: Ptr[DWord]): Boolean = extern
 

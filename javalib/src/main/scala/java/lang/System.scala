@@ -50,7 +50,7 @@ object System {
       sysProps.setProperty("path.separator", ";")
       sysProps.setProperty("java.io.tmpdir", {
         val buffer = stackalloc[scala.Byte](FileApi.MaxAnsiPathSize)
-        FileApi.getTempPathA(FileApi.MaxAnsiPathSize, buffer)
+        FileApi.GetTempPathA(FileApi.MaxAnsiPathSize, buffer)
         fromCString(buffer)
       })
 
@@ -130,7 +130,7 @@ object System {
     val bufSize = 1024.toUInt
     val buf     = stackalloc[scala.Byte](bufSize)
     if (isWindows) {
-      if (WinBaseApi.getCurrentDirectoryA(bufSize, buf) != 0.toUInt)
+      if (WinBaseApi.GetCurrentDirectoryA(bufSize, buf) != 0.toUInt)
         Some(fromCString(buf))
       else None
     } else {
@@ -145,7 +145,7 @@ object System {
         val bufSize = stackalloc[UInt]
         !bufSize = 256.toUInt
         val buf = stackalloc[scala.Byte](!bufSize)
-        if (UserEnvApi.getUserProfileDirectortA(token, buf, bufSize))
+        if (UserEnvApi.GetUserProfileDirectoryA(token, buf, bufSize))
           Some(fromCString(buf))
         else None
       }

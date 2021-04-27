@@ -88,7 +88,7 @@ class ProcessTest {
 
       assertEquals("createPipe",
                    true,
-                   createPipe(
+                   CreatePipe(
                      readPipePtr = readEnd,
                      writePipePtr = writeEnd,
                      securityAttributes = null,
@@ -102,8 +102,8 @@ class ProcessTest {
                  allowInvalidHandle = true) { handle =>
           assertNotEquals("Cannot create file", InvalidHandleValue, handle)
 
-          val savedStdout = getStdHandle(stdOutput)
-          setStdHandle(stdOutput, handle)
+          val savedStdout = GetStdHandle(stdOutput)
+          SetStdHandle(stdOutput, handle)
 
           try {
             val proc = processForCommand(Scripts.ls, "/b", resourceDir)
@@ -112,8 +112,8 @@ class ProcessTest {
             proc.waitFor(5, TimeUnit.SECONDS)
             readInputStream(new FileInputStream(f.toFile))
           } finally {
-            setStdHandle(stdOutput, savedStdout)
-            closeHandle(handle)
+            SetStdHandle(stdOutput, savedStdout)
+            CloseHandle(handle)
           }
         }
       }

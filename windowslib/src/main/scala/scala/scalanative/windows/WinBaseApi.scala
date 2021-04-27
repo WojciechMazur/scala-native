@@ -14,18 +14,15 @@ object WinBaseApi {
   type WaitOrTimerCallback = CFuncPtr2[CallbackContext, Boolean, Unit]
   type LocalHandle         = Ptr[_]
 
-  @name("CreateHardLinkA")
-  def createHardLinkA(linkFileName: CString,
+  def CreateHardLinkA(linkFileName: CString,
                       existingFileName: CString,
                       securityAttributes: SecurityAttributes): Boolean = extern
 
-  @name("CreateSymbolicLinkA")
-  def createSymbolicLinkA(symlinkFileName: CString,
+  def CreateSymbolicLinkA(symlinkFileName: CString,
                           targetFileName: CString,
                           flags: DWord): Boolean = extern
 
-  @name("FormatMessageA")
-  def formatMessageA(flags: DWord,
+  def FormatMessageA(flags: DWord,
                      source: Ptr[Byte],
                      messageId: DWord,
                      languageId: DWord,
@@ -33,27 +30,20 @@ object WinBaseApi {
                      size: DWord,
                      arguments: CVarArgList): DWord = extern
 
-  @name("GetCurrentDirectoryA")
-  def getCurrentDirectoryA(bufferLength: DWord, buffer: CString): DWord = extern
-
-  @name("GetVolumePathNameA")
-  def getVolumePathNameA(filename: CString,
+  def GetCurrentDirectoryA(bufferLength: DWord, buffer: CString): DWord = extern
+  def GetVolumePathNameA(filename: CString,
                          volumePathName: CString,
                          bufferLength: DWord): Boolean = extern
 
-  @name("GetFileSecurityA")
-  def getFileSecurityA(filename: CString,
+  def GetFileSecurityA(filename: CString,
                        requestedInformation: SecurityInformation,
                        securityDescriptor: Ptr[SecurityDescriptor],
                        length: DWord,
                        lengthNeeded: Ptr[DWord]): Boolean =
     extern
 
-  @name("LocalFree")
-  def localFree(ref: LocalHandle): LocalHandle = extern
-
-  @name("LookupAccountSidA")
-  def lookupAccountSidA(systemName: Ptr[CString],
+  def LocalFree(ref: LocalHandle): LocalHandle = extern
+  def LookupAccountSidA(systemName: Ptr[CString],
                         sid: SIDPtr,
                         name: CString,
                         nameSize: Ptr[DWord],
@@ -61,16 +51,14 @@ object WinBaseApi {
                         referencedDomainNameSize: Ptr[DWord],
                         use: Ptr[SidNameUse]): Boolean = extern
 
-  @name("RegisterWaitForSingleObject")
-  def registerWaitForSingleObject(retHandle: Ptr[Handle],
+  def RegisterWaitForSingleObject(retHandle: Ptr[Handle],
                                   ref: Handle,
                                   callbackFn: WaitOrTimerCallback,
                                   context: Ptr[Byte],
                                   miliseconds: DWord,
                                   flags: DWord): Boolean = extern
 
-  @name("UnregisterWait")
-  def unregisterWait(handle: Handle): Boolean = extern
+  def UnregisterWait(handle: Handle): Boolean = extern
 
   @name("scalanative_win32_default_language")
   final def DefaultLangugageId(): DWord = extern

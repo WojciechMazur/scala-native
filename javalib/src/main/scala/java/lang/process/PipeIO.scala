@@ -7,7 +7,7 @@ import scala.scalanative.libc._, signal._
 import scala.scalanative.posix.sys.ioctl._
 import scala.scalanative.runtime.PlatformExt.isWindows
 import scala.scalanative.windows.DWord
-import scala.scalanative.windows.NamedPipeApi.peekNamedPipe
+import scala.scalanative.windows.NamedPipeApi.PeekNamedPipe
 import scala.scalanative.unsigned._
 /*
  * Used to set up input/output streams for a child process spawned by
@@ -84,7 +84,7 @@ private[lang] object PipeIO {
     private def availableFD() = {
       if (isWindows()) {
         val aviallableBytes = stackalloc[DWord]
-        val hasPeaked = peekNamedPipe(pipe = is.getFD().handle,
+        val hasPeaked = PeekNamedPipe(pipe = is.getFD().handle,
                                       buffer = null,
                                       bufferSize = 0.toUInt,
                                       bytesRead = null,

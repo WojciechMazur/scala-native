@@ -58,7 +58,7 @@ class FileOutputStream(fd: FileDescriptor, file: Option[File] = None)
 
     if (isWindows()) {
       val hasSucceded =
-        FileApi.writeFile(fd.handle, buf, count.toUInt, null, null)
+        FileApi.WriteFile(fd.handle, buf, count.toUInt, null, null)
       if (!hasSucceded) {
         throw WindowsException.onPath(
           file.fold("<file descriptor>")(_.toString))
@@ -85,7 +85,7 @@ object FileOutputStream {
     Zone { implicit z =>
       val fileName = toCString(file.getPath())
       if (isWindows) {
-        val handle = FileApi.createFileA(
+        val handle = FileApi.CreateFileA(
           fileName,
           desiredAccess = FileAccess.FILE_GENERIC_WRITE,
           shareMode = FileSharing.ShareRead | FileSharing.ShareWrite,
@@ -98,7 +98,7 @@ object FileOutputStream {
         )
         if (handle == HandleApi.InvalidHandleValue) {
           throw new FileNotFoundException(
-            s"$file (${ErrorHandling.getLastError()})")
+            s"$file (${ErrorHandling.GetLastError()})")
         }
         new FileDescriptor(handle)
       } else {

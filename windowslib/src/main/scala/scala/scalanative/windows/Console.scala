@@ -6,11 +6,8 @@ import scala.scalanative.windows.HandleApi.Handle
 
 @extern()
 object Console {
-  @name("GetStdHandle")
-  def getStdHandle(handleNum: DWord): Handle = extern
-
-  @name("SetStdHandle")
-  def setStdHandle(stdHandle: DWord, handle: Handle): Boolean = extern
+  def GetStdHandle(handleNum: DWord): Handle                  = extern
+  def SetStdHandle(stdHandle: DWord, handle: Handle): Boolean = extern
 
   @name("scalanative_win32_console_std_in_handle")
   def stdInput: DWord = extern
@@ -25,7 +22,7 @@ object Console {
 object ConsoleExt {
   import Console._
 
-  def stdIn: Handle  = getStdHandle(stdInput)
-  def stdOut: Handle = getStdHandle(stdOutput)
-  def stdErr: Handle = getStdHandle(stdError)
+  def stdIn: Handle  = GetStdHandle(stdInput)
+  def stdOut: Handle = GetStdHandle(stdOutput)
+  def stdErr: Handle = GetStdHandle(stdError)
 }

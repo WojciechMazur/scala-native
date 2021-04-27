@@ -24,7 +24,7 @@ object WindowsUserPrincipal {
     import SidNameUse._
     val sidString = {
       val sidCString = stackalloc[CString]
-      if (!Sddl.convertSidToStringSidA(sidRef, sidCString)) {
+      if (!Sddl.ConvertSidToStringSidA(sidRef, sidCString)) {
         throw WindowsException("Unable to convert SID to string")
       }
       fromCString(!sidCString)
@@ -38,7 +38,7 @@ object WindowsUserPrincipal {
         val nameRef   = stackalloc[Byte](!nameSize)
         val domainRef = stackalloc[Byte](!domainSize)
         val useRef    = stackalloc[SidNameUse]
-        if (!WinBaseApi.lookupAccountSidA(systemName = null,
+        if (!WinBaseApi.LookupAccountSidA(systemName = null,
                                           sid = sidRef,
                                           name = nameRef,
                                           nameSize = nameSize,

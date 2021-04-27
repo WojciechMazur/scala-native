@@ -10,11 +10,9 @@ object HandleApi {
   @name("scalanative_win32_invalid_handle_value")
   def InvalidHandleValue: Handle = extern
 
-  @name("CloseHandle")
-  def closeHandle(handle: Handle): Boolean = extern
+  def CloseHandle(handle: Handle): Boolean = extern
 
-  @name("DuplicateHandle")
-  def duplicateHandle(sourceProcess: Handle,
+  def DuplicateHandle(sourceProcess: Handle,
                       source: Handle,
                       targetProcess: Handle,
                       target: Ptr[Handle],
@@ -22,11 +20,9 @@ object HandleApi {
                       inheritHandle: Boolean,
                       options: DWord): Boolean = extern
 
-  @name("GetHandleInformation")
-  def getHandleInformation(handle: Handle, flags: Ptr[DWord]): Boolean = extern
+  def GetHandleInformation(handle: Handle, flags: Ptr[DWord]): Boolean = extern
 
-  @name("SetHandleInformation")
-  def setHandleInformation(handle: Handle, mask: DWord, flags: DWord): Boolean =
+  def SetHandleInformation(handle: Handle, mask: DWord, flags: DWord): Boolean =
     extern
 }
 

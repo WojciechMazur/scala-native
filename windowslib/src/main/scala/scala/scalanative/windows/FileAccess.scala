@@ -5,7 +5,7 @@ import scala.scalanative.unsigned._
 @extern
 object FileAccess {
   @name("scalanative_win32_file_access_file_generic_all")
-  def GENERIC_ALL: DWord = extern
+  def FILE_GENERIC_ALL: DWord = extern
 
   //execute
   @name("scalanative_win32_file_access_file_generic_execute")

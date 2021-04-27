@@ -58,7 +58,7 @@ final class FileDescriptor(fileHandle: FileHandle, readOnly: Boolean = false) {
     else {
       if (!readOnly) {
         val hasSucceded =
-          if (isWindows) FileApi.flushFileBuffers(handle)
+          if (isWindows) FileApi.FlushFileBuffers(handle)
           else unistd.fsync(fd) == 0
 
         if (!hasSucceded) {
@@ -72,14 +72,14 @@ final class FileDescriptor(fileHandle: FileHandle, readOnly: Boolean = false) {
     if (isWindows) {
       val flags = stackalloc[DWord]
       handle != HandleApi.InvalidHandleValue &&
-      HandleApi.getHandleInformation(handle, flags)
+      HandleApi.GetHandleInformation(handle, flags)
     } else {
       // inspired by Apache Harmony including filedesc.c
       fcntl.fcntl(fd, fcntl.F_GETFD, 0) != -1
     }
 
   def close(): Unit = {
-    if (isWindows) HandleApi.closeHandle(handle)
+    if (isWindows) HandleApi.CloseHandle(handle)
     else unistd.close(fd)
   }
 
@@ -128,7 +128,7 @@ object FileDescriptor {
             " Unicode version of file opening function is not supported yet "
         )
         val handle =
-          FileApi.createFileA(filename,
+          FileApi.CreateFileA(filename,
                               FileAccess.FILE_GENERIC_READ,
                               FileSharing.ShareRead | FileSharing.ShareWrite,
                               null,

@@ -83,7 +83,7 @@ final class WindowsDosFileAttributeView(path: Path, options: Array[LinkOption])
              access = FileAccess.FILE_GENERIC_WRITE,
              attributes = fileOpeningFlags) { handle =>
       val create, access, write = stackalloc[WinFileTime]
-      if (!FileApi.setFileTime(
+      if (!FileApi.SetFileTime(
             handle,
             creationTime = setOrNull(create, createTime),
             lastAccessTime = setOrNull(access, lastAccessTime),
@@ -101,7 +101,7 @@ final class WindowsDosFileAttributeView(path: Path, options: Array[LinkOption])
     withFile(filenameCString(),
              access = FileAccess.FILE_READ_ATTRIBUTES,
              attributes = fileOpeningFlags) {
-      FileApi.getFileInformationByHandle(_, fileInfo)
+      FileApi.GetFileInformationByHandle(_, fileInfo)
     }
 
     new DosFileAttributes {
@@ -146,12 +146,12 @@ final class WindowsDosFileAttributeView(path: Path, options: Array[LinkOption])
   private def setWinAttribute(attribute: DWord, enabled: Boolean): Unit = Zone {
     implicit z =>
       val filename      = filenameCString()
-      val previousAttrs = FileApi.getFileAttributesA(filename)
+      val previousAttrs = FileApi.GetFileAttributesA(filename)
       def setNewAttrs(): Boolean = {
         val newAttributes =
           if (enabled) previousAttrs | attribute
           else previousAttrs & ~attribute
-        FileApi.setFileAttributesA(filename, newAttributes)
+        FileApi.SetFileAttributesA(filename, newAttributes)
       }
 
       if (previousAttrs == FileApi.InvalidFileAttributes || !setNewAttrs()) {

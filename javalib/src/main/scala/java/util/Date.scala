@@ -123,7 +123,7 @@ object Date {
                        buffer = timeString,
                        bufferSize = timeStringSize) > 0
       }
-      println(scalanative.windows.ErrorHandling.getLastError())
+      println(scalanative.windows.ErrorHandling.GetLastError())
       if (!hasSucceded) default
       else {
         val date      = fromCString(dateString)

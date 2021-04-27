@@ -15,11 +15,11 @@ object HelperMethods {
   def withUserToken[T](desiredAccess: DWord)(fn: Handle => T): T = {
     val tokenHandle = stackalloc[Handle]
     def getProcessToken() =
-      ProcessThreadsApi.openProcessToken(ProcessThreadsApi.getCurrentProcess(),
+      ProcessThreadsApi.OpenProcessToken(ProcessThreadsApi.GetCurrentProcess(),
                                          desiredAccess,
                                          tokenHandle)
     def getThreadToken() =
-      ProcessThreadsApi.openThreadToken(ProcessThreadsApi.getCurrentThread(),
+      ProcessThreadsApi.OpenThreadToken(ProcessThreadsApi.GetCurrentThread(),
                                         desiredAccess,
                                         openAsSelf = true,
                                         tokenHandle)
@@ -27,7 +27,7 @@ object HelperMethods {
       try {
         fn(!tokenHandle)
       } finally {
-        HandleApi.closeHandle(!tokenHandle)
+        HandleApi.CloseHandle(!tokenHandle)
       }
     } else {
       throw new RuntimeException("Cannot get user token")
@@ -39,7 +39,7 @@ object HelperMethods {
       AccessToken.Impersonate | AccessToken.Read | AccessToken.Duplicate) {
       tokenHandle =>
         val impersonatedToken = stackalloc[Handle]
-        if (!SecurityBaseApi.duplicateToken(
+        if (!SecurityBaseApi.DuplicateToken(
               tokenHandle,
               SecurityImpersonationLevel.Impersonation(),
               impersonatedToken)) {
@@ -48,7 +48,7 @@ object HelperMethods {
 
         try {
           fn(!impersonatedToken)
-        } finally HandleApi.closeHandle(!impersonatedToken)
+        } finally HandleApi.CloseHandle(!impersonatedToken)
     }
   }
 
@@ -57,7 +57,7 @@ object HelperMethods {
       fn: Ptr[T] => R)(implicit z: Zone): R = {
     val dataSize = stackalloc[DWord]
 
-    if (!SecurityBaseApi.getTokenInformation(token,
+    if (!SecurityBaseApi.GetTokenInformation(token,
                                              informationClass,
                                              information = null,
                                              informationLength = 0.toUInt,
@@ -67,7 +67,7 @@ object HelperMethods {
     }
 
     val data = alloc[Byte](!dataSize)
-    if (!SecurityBaseApi.getTokenInformation(token,
+    if (!SecurityBaseApi.GetTokenInformation(token,
                                              informationClass,
                                              information = data,
                                              informationLength = !dataSize,
@@ -90,7 +90,7 @@ object HelperMethods {
     } finally {
       handles.foreach { ref =>
         if (ref != null) {
-          WinBaseApi.localFree(!ref)
+          WinBaseApi.LocalFree(!ref)
         }
       }
     }
@@ -102,7 +102,7 @@ object HelperMethods {
                   disposition: DWord = FileDisposition.OpenExisting,
                   attributes: DWord = FileAttributes.Normal,
                   allowInvalidHandle: Boolean = false)(fn: Handle => T): T = {
-    val handle = FileApi.createFileA(
+    val handle = FileApi.CreateFileA(
       path,
       desiredAccess = access,
       shareMode = shareMode,
@@ -113,10 +113,10 @@ object HelperMethods {
     )
     if (handle != HandleApi.InvalidHandleValue || allowInvalidHandle) {
       try { fn(handle) }
-      finally HandleApi.closeHandle(handle)
+      finally HandleApi.CloseHandle(handle)
     } else {
       throw new IOException(
-        s"Cannot open file ${fromCString(path)}: ${ErrorHandling.getLastError}")
+        s"Cannot open file ${fromCString(path)}: ${ErrorHandling.GetLastError}")
     }
   }
 

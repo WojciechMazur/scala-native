@@ -99,7 +99,7 @@ object FileHelpers {
 
         val fileData = stackalloc[Win32FindDataA]
         val searchHandle =
-          FileApi.findFirstFileA(toCString(searchPath), fileData)
+          FileApi.FindFirstFileA(toCString(searchPath), fileData)
         if (searchHandle == HandleApi.InvalidHandleValue) {
           if (allowEmpty) Array.empty[T]
           else throw WindowsException.onPath(path)
@@ -109,13 +109,13 @@ object FileHelpers {
               val name     = fromCString(fileData.fileName)
               val fileType = FileType.windowsFileType(fileData.fileAttributes)
               collectFile(name, fileType)
-              FileApi.findNextFileA(searchHandle, fileData)
+              FileApi.FindNextFileA(searchHandle, fileData)
             }) ()
           } finally {
-            FileApi.findClose(searchHandle)
+            FileApi.FindClose(searchHandle)
           }
 
-          ErrorHandling.getLastError() match {
+          ErrorHandling.GetLastError() match {
             case ErrorCodes.ERROR_NO_MORE_FILES => buffer.toArray
             case err                            => throw WindowsException.onPath(path)
           }
@@ -139,7 +139,7 @@ object FileHelpers {
                                  shareMode = FileSharing.ShareAll,
                                  disposition = FileDisposition.CreateNew,
                                  allowInvalidHandle = true) { handle =>
-            ErrorHandling.getLastError() match {
+            ErrorHandling.GetLastError() match {
               case ErrorCodes.ERROR_FILE_EXISTS => false
               case _                            => handle != HandleApi.InvalidHandleValue
             }
@@ -175,7 +175,7 @@ object FileHelpers {
   def exists(path: String): Boolean =
     Zone { implicit z =>
       if (isWindows())
-        ShlwApi.pathFileExistsA(toCString(path))
+        ShlwApi.PathFileExistsA(toCString(path))
       else
         access(toCString(path), unistd.F_OK) == 0
     }
@@ -183,7 +183,7 @@ object FileHelpers {
   lazy val tempDir: String = {
     if (isWindows) {
       val buffer = stackalloc[Byte](FileApi.MaxAnsiPathSize)
-      FileApi.getTempPathA(FileApi.MaxAnsiPathSize, buffer)
+      FileApi.GetTempPathA(FileApi.MaxAnsiPathSize, buffer)
       fromCString(buffer)
     } else {
       val dir = getenv(c"TMPDIR")

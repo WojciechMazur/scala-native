@@ -11,14 +11,14 @@ import scalanative.libc.{string, errno => stdErrno}
 trait WindowsException extends Exception
 object WindowsException {
   def apply(msg: String): WindowsException = {
-    val err = ErrorHandling.getLastError()
+    val err = ErrorHandling.GetLastError()
     new IOException(s"$msg - ${errorMessage(err)} ($err)") with WindowsException
   }
 
   def onPath(file: String): IOException = {
     import ErrorCodes._
     lazy val e   = stdErrno.errno
-    val winError = ErrorHandling.getLastError()
+    val winError = ErrorHandling.GetLastError()
     winError match {
       case _ if e == ENOTDIR   => new NotDirectoryException(file)
       case ERROR_ACCESS_DENIED => new AccessDeniedException(file)
@@ -37,7 +37,7 @@ object WindowsException {
     import HelperMethods._
 
     val msgBuffer = stackalloc[CString]
-    formatMessageA(
+    FormatMessageA(
       flags = FORMAT_MESSAGE_ALLOCATE_BUFFER |
         FORMAT_MESSAGE_FROM_SYSTEM |
         FORMAT_MESSAGE_IGNORE_INSERTS,

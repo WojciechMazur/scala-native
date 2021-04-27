@@ -37,7 +37,7 @@ class RandomAccessFile private (file: File,
   override def close(): Unit = {
     closed = {
       if (isWindows)
-        HandleApi.closeHandle(fd.handle)
+        HandleApi.CloseHandle(fd.handle)
       else
         unistd.close(fd.fd) == 0
     }
@@ -50,7 +50,7 @@ class RandomAccessFile private (file: File,
   def getFilePointer(): Long = {
     if (isWindows) {
       val filePointer = stackalloc[LargeInteger]
-      FileApi.setFilePointerEx(fd.handle,
+      FileApi.SetFilePointerEx(fd.handle,
                                0,
                                filePointer,
                                FilePointerMoveMethods.Current)
@@ -153,7 +153,7 @@ class RandomAccessFile private (file: File,
 
   def seek(pos: Long): Unit =
     if (isWindows)
-      FileApi.setFilePointerEx(fd.handle,
+      FileApi.SetFilePointerEx(fd.handle,
                                pos,
                                null,
                                FilePointerMoveMethods.Begin)
@@ -166,11 +166,11 @@ class RandomAccessFile private (file: File,
       val currentPosition = getFilePointer()
       val hasSucceded =
         if (isWindows()) {
-          FileApi.setFilePointerEx(fd.handle,
+          FileApi.SetFilePointerEx(fd.handle,
                                    newLength,
                                    null,
                                    FilePointerMoveMethods.Begin) &&
-          FileApi.setEndOfFile(fd.handle)
+          FileApi.SetEndOfFile(fd.handle)
         } else {
           unistd.ftruncate(fd.fd, newLength) != 0
         }
@@ -301,7 +301,7 @@ private object RandomAccessFile {
         case _ => invalidFlags()
       }
 
-      val handle = FileApi.createFileA(
+      val handle = FileApi.CreateFileA(
         filename(),
         desiredAccess = access,
         shareMode = FileSharing.ShareRead | FileSharing.ShareWrite,

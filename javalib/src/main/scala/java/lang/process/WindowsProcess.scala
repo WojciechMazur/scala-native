@@ -23,10 +23,10 @@ private[lang] class WindowsProcess private (
     if (isAlive()) -1
     else exitValue()
 
-  private lazy val pid = ProcessThreadsApi.getProcessId(handle)
+  private lazy val pid = ProcessThreadsApi.GetProcessId(handle)
 
   override def destroy(): Unit =
-    ProcessThreadsApi.terminateProcess(handle, 137.toUInt)
+    ProcessThreadsApi.TerminateProcess(handle, 137.toUInt)
 
   override def destroyForcibly(): Process = {
     destroy()
@@ -35,7 +35,7 @@ private[lang] class WindowsProcess private (
 
   override def exitValue(): scala.Int = {
     val exitCode: Ptr[DWord] = stackalloc[DWord]
-    if (ProcessThreadsApi.getExitCodeProcess(handle, exitCode)) {
+    if (ProcessThreadsApi.GetExitCodeProcess(handle, exitCode)) {
       (!exitCode) match {
         case ExitCodes.StillActive =>
           throw new IllegalThreadStateException(
@@ -56,21 +56,21 @@ private[lang] class WindowsProcess private (
 
   override def isAlive(): scala.Boolean = {
     val exitCode: Ptr[DWord] = stackalloc[DWord]
-    ProcessThreadsApi.getExitCodeProcess(handle, exitCode)
+    ProcessThreadsApi.GetExitCodeProcess(handle, exitCode)
     !exitCode == ExitCodes.StillActive
   }
 
   override def toString = s"WindowsProcess($pid)"
 
   override def waitFor(): scala.Int = {
-    SynchApi.waitForSingleObject(handle, Constants.Infinite())
+    SynchApi.WaitForSingleObject(handle, Constants.Infinite())
     exitValue()
   }
 
   override def waitFor(timeout: scala.Long, unit: TimeUnit): scala.Boolean = {
     def hasValidTimeout = timeout > 0L
     def hasFinished =
-      SynchApi.waitForSingleObject(handle, unit.toMillis(timeout).toUInt) != Synch.WaitResult.Timeout
+      SynchApi.WaitForSingleObject(handle, unit.toMillis(timeout).toUInt) != Synch.WaitResult.Timeout
 
     !isAlive() ||
     (hasValidTimeout && hasFinished)
@@ -144,7 +144,7 @@ object WindowsProcess {
     val processInfo = stackalloc[ProcessThreads.ProcessInformation]
     zeroMemory(processInfo)
 
-    val created = ProcessThreadsApi.createProcessA(
+    val created = ProcessThreadsApi.CreateProcessA(
       applicationName = null,
       commandLine = argv,
       processAttributres = null,
@@ -158,11 +158,11 @@ object WindowsProcess {
     )
 
     if (created) {
-      import HandleApi.closeHandle
-      closeHandle(inRead)
-      closeHandle(outWrite)
-      closeHandle(errWrite)
-      closeHandle(processInfo.thread)
+      import HandleApi.CloseHandle
+      CloseHandle(inRead)
+      CloseHandle(outWrite)
+      CloseHandle(errWrite)
+      CloseHandle(processInfo.thread)
 
       new WindowsProcess(processInfo.process,
                          builder,
@@ -188,7 +188,7 @@ object WindowsProcess {
     val pipe: PipeHandles                = stackalloc[PipeHandles]
     val pipeEnds @ (pipeRead, pipeWrite) = (pipe.at(readEnd), pipe.at(writeEnd))
     val pipeCreated =
-      NamedPipeApi.createPipe(pipeRead, pipeWrite, null, 0.toUInt)
+      NamedPipeApi.CreatePipe(pipeRead, pipeWrite, null, 0.toUInt)
     if (!pipeCreated)
       throw WindowsException(msg)
 
@@ -198,8 +198,8 @@ object WindowsProcess {
 
     setupRedirect(redirect, childEnd, stdHandle)
 
-    HandleApi.setHandleInformation(!childEnd, HandleFlags.Inherit, 1.toUInt)
-    HandleApi.setHandleInformation(!parentEnd, HandleFlags.Inherit, 0.toUInt)
+    HandleApi.SetHandleInformation(!childEnd, HandleFlags.Inherit, 1.toUInt)
+    HandleApi.SetHandleInformation(!parentEnd, HandleFlags.Inherit, 0.toUInt)
 
     (!pipeRead, !pipeWrite)
   }
@@ -213,7 +213,7 @@ object WindowsProcess {
         disposition: DWord,
         flagsAndAttributes: DWord = FileAttributes.Normal,
         sharing: DWord = FileSharing.ShareAll) = Zone { implicit z =>
-      val handle = FileApi.createFileA(
+      val handle = FileApi.CreateFileA(
         filename = toCString(redirect.file.getAbsolutePath()),
         desiredAccess = access,
         shareMode = sharing,
@@ -229,10 +229,10 @@ object WindowsProcess {
     }
 
     def duplicateOrThrow(handle: Handle, kind: String): Unit = {
-      val hasSucceded = HandleApi.duplicateHandle(
-        sourceProcess = ProcessThreadsApi.getCurrentProcess(),
+      val hasSucceded = HandleApi.DuplicateHandle(
+        sourceProcess = ProcessThreadsApi.GetCurrentProcess(),
         source = handle,
-        targetProcess = ProcessThreadsApi.getCurrentProcess(),
+        targetProcess = ProcessThreadsApi.GetCurrentProcess(),
         target = childHandle,
         desiredAccess = 0.toUInt,
         inheritHandle = true,

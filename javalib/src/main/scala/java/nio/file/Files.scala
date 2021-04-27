@@ -197,7 +197,7 @@ object Files {
       val linkFilename     = toCString(link.toString())
 
       if (isWindows)
-        WinBaseApi.createHardLinkA(linkFilename,
+        WinBaseApi.CreateHardLinkA(linkFilename,
                                    existingFileName,
                                    securityAttributes = null)
       else unistd.link(existingFileName, linkFilename) == 0
@@ -225,15 +225,15 @@ object Files {
           if (target.toFile().isFile()) SymbolicLinkFlags.File
           else SymbolicLinkFlags.Directory
         val created =
-          WinBaseApi.createSymbolicLinkA(symlinkFileName = linkFilename,
+          WinBaseApi.CreateSymbolicLinkA(symlinkFileName = linkFilename,
                                          targetFileName = targetFilename,
                                          flags = flags)
         val ERROR_PRIVILEGE_NOT_HELD = 1314.toUInt
         // On Windows creating soft link is possible only with admin privileges
         if (!created &&
-            ErrorHandling.getLastError() == ERROR_PRIVILEGE_NOT_HELD) {
+            ErrorHandling.GetLastError() == ERROR_PRIVILEGE_NOT_HELD) {
           // If develop mode is enabled we can create unprivileged symlinks
-          WinBaseApi.createSymbolicLinkA(
+          WinBaseApi.CreateSymbolicLinkA(
             symlinkFileName = linkFilename,
             targetFileName = targetFilename,
             flags = flags | SymbolicLinkFlags.AllowUnprivilegedCreate) || {
@@ -418,7 +418,7 @@ object Files {
   def isSymbolicLink(path: Path): Boolean = Zone { implicit z =>
     val filename = toCString(path.toFile().getPath())
     if (isWindows) {
-      val attrs          = FileApi.getFileAttributesA(filename)
+      val attrs          = FileApi.GetFileAttributesA(filename)
       val exists         = attrs != FileApi.InvalidFileAttributes
       def isReparsePoint = (attrs & WinFileAttributes.ReparsePoint) != 0.toUInt
       exists & isReparsePoint
@@ -481,8 +481,8 @@ object Files {
             MOVEFILE_WRITE_THROUGH | //Block until actually moved
             replace
         }
-        if (!FileApi.moveFileExA(sourceCString, targetCString, flags)) {
-          ErrorHandling.getLastError() match {
+        if (!FileApi.MoveFileExA(sourceCString, targetCString, flags)) {
+          ErrorHandling.GetLastError() match {
             case ErrorCodes.ERROR_SUCCESS => ()
             case _                        => throw WindowsException.onPath(target.toString())
           }
@@ -568,7 +568,7 @@ object Files {
       HelperMethods.withFile(pathCString,
                              access = FileAccess.FILE_GENERIC_READ,
                              shareMode = FileSharing.ShareRead) { handle =>
-        if (!FileApi.readFile(handle,
+        if (!FileApi.ReadFile(handle,
                               bytes.at(0),
                               pathSize.toUInt,
                               bytesRead,
@@ -658,7 +658,7 @@ object Files {
               val bufferSize      = FileApi.MaxAnsiPathSize
               val buffer: CString = alloc[Byte](bufferSize)
               val pathSize =
-                FileApi.getFinalPathNameByHandleA(
+                FileApi.GetFinalPathNameByHandleA(
                   handle,
                   buffer,
                   bufferSize,

@@ -26,7 +26,7 @@ class WindowsAclFileAttributeView(path: Path, options: Array[LinkOption])
       val filename = toCString(path.toString())
       val ownerSid = stackalloc[SIDPtr]
 
-      if (AclApi.getNamedSecurityInfoA(
+      if (AclApi.GetNamedSecurityInfoA(
             filename,
             SecurityObjectType.FileObject,
             SecurityInformation.Owner,
@@ -52,12 +52,12 @@ class WindowsAclFileAttributeView(path: Path, options: Array[LinkOption])
     }
     val newOwnerSid = stackalloc[SIDPtr]
 
-    if (!Sddl.convertStringSidToSidA(sidCString, newOwnerSid)) {
+    if (!Sddl.ConvertStringSidToSidA(sidCString, newOwnerSid)) {
       throw WindowsException("Cannot convert user principal to sid")
     }
 
     withLocalHandleCleanup(newOwnerSid) {
-      if (AclApi.setNamedSecurityInfoA(
+      if (AclApi.SetNamedSecurityInfoA(
             filename,
             SecurityObjectType.FileObject,
             SecurityInformation.Owner,

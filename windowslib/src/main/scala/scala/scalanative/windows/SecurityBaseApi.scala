@@ -10,8 +10,7 @@ object SecurityBaseApi {
   import SecurityBase._
   import winnt.TokenInformationClass
 
-  @name("AccessCheck")
-  def accessCheck(securityDescriptor: Ptr[SecurityDescriptor],
+  def AccessCheck(securityDescriptor: Ptr[SecurityDescriptor],
                   clientToken: Handle,
                   desiredAccess: DWord,
                   genericMapping: Ptr[GenericMapping],
@@ -21,23 +20,18 @@ object SecurityBaseApi {
                   accessStatus: Ptr[Boolean]): DWord =
     extern
 
-  @name("DuplicateToken")
-  def duplicateToken(existingToken: Handle,
+  def DuplicateToken(existingToken: Handle,
                      impersonationLevel: CInt,
                      duplicateTokenHandle: Ptr[Handle]): Boolean = extern
 
-  @name("FreeSid")
-  def freeSid(sid: SIDPtr): Ptr[Byte] = extern
-
-  @name("GetTokenInformation")
-  def getTokenInformation(handle: Handle,
+  def FreeSid(sid: SIDPtr): Ptr[Byte] = extern
+  def GetTokenInformation(handle: Handle,
                           informationClass: TokenInformationClass.Type,
                           information: Ptr[Byte],
                           informationLength: DWord,
                           returnLength: Ptr[DWord]): Boolean = extern
 
-  @name("MapGenericMask")
-  def mapGenericMask(accessMask: Ptr[DWord],
+  def MapGenericMask(accessMask: Ptr[DWord],
                      genericMapping: Ptr[GenericMapping]): Unit = extern
 
   // utils

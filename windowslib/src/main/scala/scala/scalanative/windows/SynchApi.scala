@@ -9,8 +9,7 @@ object SynchApi {
   type CallbackContext     = Ptr[Byte]
   type WaitOrTimerCallback = CFuncPtr2[CallbackContext, Boolean, Unit]
 
-  @name("WaitForSingleObject")
-  def waitForSingleObject(
+  def WaitForSingleObject(
       ref: Handle,
       miliseconds: DWord
   ): DWord = extern

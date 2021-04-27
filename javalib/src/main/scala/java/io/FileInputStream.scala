@@ -31,15 +31,15 @@ class FileInputStream(fd: FileDescriptor, file: Option[File])
   override def available(): Int = {
     if (isWindows) {
       val currentPosition, lastPosition = stackalloc[windows.LargeInteger]
-      FileApi.setFilePointerEx(fd.handle,
+      FileApi.SetFilePointerEx(fd.handle,
                                distanceToMove = 0,
                                newFilePointer = currentPosition,
                                moveMethod = FilePointerMoveMethods.Current)
-      FileApi.setFilePointerEx(fd.handle,
+      FileApi.SetFilePointerEx(fd.handle,
                                distanceToMove = 0,
                                newFilePointer = lastPosition,
                                moveMethod = FilePointerMoveMethods.End)
-      FileApi.setFilePointerEx(fd.handle,
+      FileApi.SetFilePointerEx(fd.handle,
                                distanceToMove = !currentPosition,
                                newFilePointer = null,
                                moveMethod = FilePointerMoveMethods.Begin)
@@ -93,7 +93,7 @@ class FileInputStream(fd: FileDescriptor, file: Option[File])
 
       def tryRead(count: Int)(fallback: => Int) = {
         val readBytes = stackalloc[windows.DWord]
-        if (FileApi.readFile(fd.handle, buf, count.toUInt, readBytes, null)) {
+        if (FileApi.ReadFile(fd.handle, buf, count.toUInt, readBytes, null)) {
           (!readBytes).toInt match {
             case 0     => -1 // EOF
             case bytes => bytes
@@ -102,7 +102,7 @@ class FileInputStream(fd: FileDescriptor, file: Option[File])
       }
 
       tryRead(count)(fallback = {
-        ErrorHandling.getLastError match {
+        ErrorHandling.GetLastError match {
           case ErrorCodes.ERROR_BROKEN_PIPE =>
             // Pipe was closed, but it still can contain some unread data
             available() match {
@@ -136,7 +136,7 @@ class FileInputStream(fd: FileDescriptor, file: Option[File])
     } else {
       val bytesToSkip = Math.min(n, available())
       if (isWindows) {
-        FileApi.setFilePointerEx(fd.handle,
+        FileApi.SetFilePointerEx(fd.handle,
                                  distanceToMove = bytesToSkip,
                                  newFilePointer = null,
                                  moveMethod = FilePointerMoveMethods.Current)

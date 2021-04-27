@@ -139,7 +139,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
         else AccessMode.DenyAccess
 
       def getSecurityDescriptor() =
-        AclApi.getNamedSecurityInfoA(
+        AclApi.GetNamedSecurityInfoA(
           filename,
           SecurityObjectType.FileObject,
           SecurityInformation.DACL,
@@ -171,11 +171,11 @@ class File(_path: String) extends Serializable with Comparable[File] {
           ea.trustee.sid = !usersGroupSid
         }
 
-        AclApi.setEntriesInAclA(1.toUInt, ea, !previousDacl, newDacl) == 0.toUInt
+        AclApi.SetEntriesInAclA(1.toUInt, ea, !previousDacl, newDacl) == 0.toUInt
       }
 
       def assignNewSecurityInfo() =
-        AclApi.setNamedSecurityInfoA(filename,
+        AclApi.SetNamedSecurityInfoA(filename,
                                      SecurityObjectType.FileObject,
                                      SecurityInformation.DACL,
                                      sidOwner = null,
@@ -189,7 +189,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
           assignNewSecurityInfo()
         }
       } finally {
-        SecurityBaseApi.freeSid(!usersGroupSid)
+        SecurityBaseApi.FreeSid(!usersGroupSid)
       }
     }
 
@@ -197,7 +197,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
     Zone { implicit z =>
       val filename = toCString(path)
       if (isWindows) {
-        val attrs      = FileApi.getFileAttributesA(filename)
+        val attrs      = FileApi.GetFileAttributesA(filename)
         val pathExists = attrs != FileApi.InvalidFileAttributes
         val notSymLink = (attrs & FileAttributes.ReparsePoint) == 0.toUInt
         if (notSymLink) // fast path
@@ -228,7 +228,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
   private def deleteDirImpl(): Boolean = Zone { implicit z =>
     val filename = toCString(path)
     if (isWindows) {
-      FileApi.removeDirectoryA(filename)
+      FileApi.RemoveDirectoryA(filename)
     } else
       remove(toCString(path)) == 0
   }
@@ -237,7 +237,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
     val filename = toCString(path)
     if (isWindows) {
       setReadOnlyWindows(enabled = false)
-      FileApi.deleteFileA(filename)
+      FileApi.DeleteFileA(filename)
     } else {
       unlink(filename) == 0
     }
@@ -274,7 +274,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
   private def simplifyExistingPath(path: CString)(implicit z: Zone): CString = {
     if (isWindows) {
       val resolvedName = alloc[Byte](FileApi.MaxAnsiPathSize)
-      FileApi.getFullPathNameA(path,
+      FileApi.GetFullPathNameA(path,
                                FileApi.MaxAnsiPathSize,
                                resolvedName,
                                null)
@@ -362,7 +362,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
         withFile(toCString(path), access = FileAccess.FILE_GENERIC_READ) {
           handle =>
             val lastModified = stackalloc[WinFileTime]
-            FileApi.getFileTime(handle,
+            FileApi.GetFileTime(handle,
                                 creationTime = null,
                                 lastAccessTime = null,
                                 lastWriteTime = lastModified)
@@ -390,7 +390,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
   @alwaysinline
   private def fileAttributeIsSet(attribute: windows.DWord): Boolean = Zone {
     implicit z =>
-      (FileApi.getFileAttributesA(toCString(path)) & attribute) == attribute
+      (FileApi.GetFileAttributesA(toCString(path)) & attribute) == attribute
   }
 
   def setLastModified(time: Long): Boolean =
@@ -404,7 +404,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
             handle =>
               val lastModified = stackalloc[WinFileTime]
               !lastModified = WinFileTime.fromUnixEpoch(time)
-              FileApi.setFileTime(handle,
+              FileApi.SetFileTime(handle,
                                   creationTime = null,
                                   lastAccessTime = null,
                                   lastWriteTime = lastModified)
@@ -436,12 +436,12 @@ class File(_path: String) extends Serializable with Comparable[File] {
 
   private def setReadOnlyWindows(enabled: Boolean)(implicit z: Zone) = {
     val filename          = toCString(path)
-    val currentAttributes = FileApi.getFileAttributesA(filename)
+    val currentAttributes = FileApi.GetFileAttributesA(filename)
     def newAttributes =
       if (enabled) currentAttributes | FileAttributes.ReadOnly
       else (currentAttributes & ~FileAttributes.ReadOnly)
 
-    def setNewAttributes = FileApi.setFileAttributesA(filename, newAttributes)
+    def setNewAttributes = FileApi.SetFileAttributesA(filename, newAttributes)
 
     currentAttributes != FileApi.InvalidFileAttributes && setNewAttributes
   }
@@ -451,7 +451,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
       withFile(toCString(path), access = FileAccess.FILE_READ_ATTRIBUTES) {
         handle =>
           val size = stackalloc[windows.LargeInteger]
-          if (FileApi.getFileSizeEx(handle, size)) (!size).toLong
+          if (FileApi.GetFileSizeEx(handle, size)) (!size).toLong
           else 0L
       }
     } else {
@@ -499,7 +499,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
   def mkdir(): Boolean =
     Zone { implicit z =>
       if (isWindows)
-        FileApi.createDirectoryA(toCString(path), securityAttributes = null)
+        FileApi.CreateDirectoryA(toCString(path), securityAttributes = null)
       else {
         val mode = octal("0777")
         stat.mkdir(toCString(path), mode) == 0
@@ -571,7 +571,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
           SecurityInformation.Group |
           SecurityInformation.DACL()
 
-      val result = AclApi.getNamedSecurityInfoA(
+      val result = AclApi.GetNamedSecurityInfoA(
         filename,
         SecurityObjectType.FileObject,
         securityInfo,
@@ -586,7 +586,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
       try {
         fn(!securityDescriptorPtr)
       } finally {
-        WinBaseApi.localFree(!securityDescriptorPtr)
+        WinBaseApi.LocalFree(!securityDescriptorPtr)
       }
     }
 
@@ -596,7 +596,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
         genericMapping.genericRead = FileAccess.FILE_GENERIC_READ
         genericMapping.genericWrite = FileAccess.FILE_GENERIC_WRITE
         genericMapping.genericExecute = FileAccess.FILE_GENERIC_EXECUTE
-        genericMapping.genericAll = FileAccess.GENERIC_ALL
+        genericMapping.genericAll = FileAccess.FILE_GENERIC_ALL
 
         val accessMask = stackalloc[windows.DWord]
         !accessMask = access
@@ -610,8 +610,8 @@ class File(_path: String) extends Serializable with Comparable[File] {
         val grantedAcccess = stackalloc[windows.DWord]
         !grantedAcccess = 0.toUInt
 
-        SecurityBaseApi.mapGenericMask(accessMask, genericMapping)
-        SecurityBaseApi.accessCheck(
+        SecurityBaseApi.MapGenericMask(accessMask, genericMapping)
+        SecurityBaseApi.AccessCheck(
           securityDescriptor = securityDescriptor,
           clientToken = impersonatedToken,
           desiredAccess = access,
@@ -638,9 +638,9 @@ object File {
   private def getUserDir(): String =
     Zone { implicit z =>
       val res = if (isWindows) {
-        val buffSize = WinBaseApi.getCurrentDirectoryA(0.toUInt, null)
+        val buffSize = WinBaseApi.GetCurrentDirectoryA(0.toUInt, null)
         val buff     = alloc[CChar](buffSize + 1.toUInt)
-        WinBaseApi.getCurrentDirectoryA(buffSize, buff)
+        WinBaseApi.GetCurrentDirectoryA(buffSize, buff)
         buff
       } else {
         val buff: CString = alloc[CChar](4096.toUInt)
@@ -714,9 +714,9 @@ object File {
     if (isAbsolute(path)) path
     else if (isWindows) Zone { implicit z =>
       val pathCString = toCString(path)
-      val bufSize     = FileApi.getFullPathNameA(pathCString, 0.toUInt, null, null)
+      val bufSize     = FileApi.GetFullPathNameA(pathCString, 0.toUInt, null, null)
       val buf         = stackalloc[Byte](bufSize)
-      if (FileApi.getFullPathNameA(pathCString,
+      if (FileApi.GetFullPathNameA(pathCString,
                                    FileApi.MaxAnsiPathSize,
                                    buf,
                                    filePart = null) == 0.toUInt) {
@@ -834,7 +834,7 @@ object File {
     if (isWindows) {
       withFile(link, access = FileAccess.FILE_GENERIC_READ) { fileHandle =>
         val finalPathFlags = FinalPathFlags.FileNameNormalized
-        val pathLength = FileApi.getFinalPathNameByHandleA(
+        val pathLength = FileApi.GetFinalPathNameByHandleA(
           fileHandle,
           buffer = buffer,
           bufferSize = bufferSize,

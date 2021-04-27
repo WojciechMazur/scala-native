@@ -6,16 +6,14 @@ import HandleApi.Handle
 
 @extern()
 object NamedPipeApi {
-  @name("CreatePipe")
-  def createPipe(
+  def CreatePipe(
       readPipePtr: Ptr[Handle],
       writePipePtr: Ptr[Handle],
       securityAttributes: Ptr[SecurityAttributes],
       size: DWord
   ): Boolean = extern
 
-  @name("PeekNamedPipe")
-  def peekNamedPipe(pipe: Handle,
+  def PeekNamedPipe(pipe: Handle,
                     buffer: Ptr[Byte],
                     bufferSize: DWord,
                     bytesRead: Ptr[DWord],

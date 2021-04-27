@@ -10,8 +10,7 @@ import HandleApi.Handle
 object ProcessThreadsApi {
   import ProcessThreads._
 
-  @name("CreateProcessA")
-  def createProcessA(applicationName: CString,
+  def CreateProcessA(applicationName: CString,
                      commandLine: CString,
                      processAttributres: Ptr[SecurityAttributes],
                      threadAttributes: Ptr[SecurityAttributes],
@@ -23,8 +22,7 @@ object ProcessThreadsApi {
                      processInformation: Ptr[ProcessInformation]): Boolean =
     extern
 
-  @name("CreateProcessW")
-  def createProcessW(applicationName: CWideString,
+  def CreateProcessW(applicationName: CWideString,
                      commandLine: CWideString,
                      processAttributres: Ptr[SecurityAttributes],
                      threadAttributes: Ptr[SecurityAttributes],
@@ -36,50 +34,29 @@ object ProcessThreadsApi {
                      processInformation: Ptr[ProcessInformation]): Boolean =
     extern
 
-  @name("ExitProcess")
-  def exitProcess(exitCode: UInt): Unit = extern
-
-  @name("ExitThread")
-  def exitThread(exitCode: DWord): Unit = extern
-
-  @name("FlushProcessWriteBuffers")
-  def flushProcessWriteBuffers(): Unit = extern
-
-  @name("GetCurrentProcess")
-  def getCurrentProcess(): Handle = extern
-
-  @name("GetCurrentProcessToken")
-  def getCurrentProcessToken(): Handle = extern
-
-  @name("GetCurrentThread")
-  def getCurrentThread(): Handle = extern
-
-  @name("GetExitCodeProcess")
-  def getExitCodeProcess(handle: Handle, exitCodePtr: Ptr[DWord]): Boolean =
+  def ExitProcess(exitCode: UInt): Unit = extern
+  def ExitThread(exitCode: DWord): Unit = extern
+  def FlushProcessWriteBuffers(): Unit  = extern
+  def GetCurrentProcess(): Handle       = extern
+  def GetCurrentProcessToken(): Handle  = extern
+  def GetCurrentThread(): Handle        = extern
+  def GetExitCodeProcess(handle: Handle, exitCodePtr: Ptr[DWord]): Boolean =
     extern
 
-  @name("GetExitCodeThread")
-  def getExitCodeThread(handle: Handle, exitCodePtr: Ptr[DWord]): Boolean =
+  def GetExitCodeThread(handle: Handle, exitCodePtr: Ptr[DWord]): Boolean =
     extern
 
-  @name("GetProcessId")
-  def getProcessId(handle: Handle): DWord = extern
-
-  @name("OpenThreadToken")
-  def openThreadToken(thread: Handle,
+  def GetProcessId(handle: Handle): DWord = extern
+  def OpenThreadToken(thread: Handle,
                       desiredAccess: DWord,
                       openAsSelf: Boolean,
                       tokenHandle: Ptr[Handle]): Boolean = extern
-  @name("OpenProcessToken")
-  def openProcessToken(process: Handle,
+  def OpenProcessToken(process: Handle,
                        desiredAccess: DWord,
                        tokenHandle: Ptr[Handle]): Boolean = extern
 
-  @name("TerminateProcess")
-  def terminateProcess(handle: Handle, exitCode: UInt): Boolean = extern
-
-  @name("TerminateThread")
-  def terminateThread(handle: Handle, exitCode: DWord): Boolean = extern
+  def TerminateProcess(handle: Handle, exitCode: UInt): Boolean = extern
+  def TerminateThread(handle: Handle, exitCode: DWord): Boolean = extern
 
 }
 

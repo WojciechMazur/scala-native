@@ -5,8 +5,7 @@ import scala.scalanative.unsigned._
 
 @extern()
 object ErrorHandling {
-  @name("GetLastError")
-  def getLastError(): UInt = extern
+  def GetLastError(): UInt = extern
 }
 
 // Subset of error codes 0-499 parsed from https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes--0-499-
@@ -619,7 +618,8 @@ object ErrorCodes {
   final val ERROR_DELETE_PENDING = 0x12F.toUInt
 
   /** Short name settings may not be changed on this volume due to the global registry setting. */
-  final val ERROR_INCOMPATIBLE_WITH_GLOBAL_SHORT_NAME_REGISTRY_SETTING = 0x130.toUInt
+  final val ERROR_INCOMPATIBLE_WITH_GLOBAL_SHORT_NAME_REGISTRY_SETTING =
+    0x130.toUInt
 
   /** Short names are not enabled on this volume. */
   final val ERROR_SHORT_NAMES_NOT_ENABLED_ON_VOLUME = 0x131.toUInt
@@ -656,8 +656,7 @@ object ErrorCodes {
 
   /** The device does not support the command feature. */
   final val ERROR_DEVICE_FEATURE_NOT_SUPPORTED = 0x13C.toUInt
-
-  /** The system cannot find message text for message number 0x%1 in the message file for %2. */.toUInt
+  /** The system cannot find message text for message number 0x%1 in the message file for %2. */ .toUInt
   final val ERROR_MR_MID_NOT_FOUND = 0x13D.toUInt
 
   /** The scope specified was not found. */

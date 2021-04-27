@@ -11,14 +11,12 @@ object AclApi {
   import WinBase._
   import accctrl._
 
-  @name("SetEntriesInAclA")
-  def setEntriesInAclA(countOfExplicitEntries: ULong,
+  def SetEntriesInAclA(countOfExplicitEntries: ULong,
                        listOfExplicitEntries: Ptr[ExplicitAccess],
                        oldAcl: ACLPtr,
                        newAcl: Ptr[ACLPtr]): DWord = extern
 
-  @name("GetNamedSecurityInfoA")
-  def getNamedSecurityInfoA(
+  def GetNamedSecurityInfoA(
       objectName: CString,
       objectType: SecurityObjectType,
       securityInfo: SecurityInformation,
@@ -28,8 +26,7 @@ object AclApi {
       sacl: Ptr[ACLPtr],
       securityDescriptor: Ptr[Ptr[SecurityDescriptor]]): DWord = extern
 
-  @name("SetNamedSecurityInfoA")
-  def setNamedSecurityInfoA(
+  def SetNamedSecurityInfoA(
       objectName: CString,
       objectType: SecurityObjectType,
       securityInfo: SecurityInformation,

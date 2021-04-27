@@ -1,25 +1,16 @@
 package java.lang
 
 import java.io._
+import java.nio.charset.StandardCharsets
 import java.util.{Collections, HashMap, Map, Properties}
+import scala.scalanative.posix.pwdOps._
+import scala.scalanative.posix.{pwd, unistd}
+import scala.scalanative.runtime.PlatformExt.isWindows
+import scala.scalanative.runtime.{GC, Intrinsics, Platform, time}
 import scala.scalanative.unsafe._
 import scala.scalanative.unsigned._
-import scala.scalanative.posix.unistd
-import scala.scalanative.posix.sys.utsname._
-import scala.scalanative.posix.sys.uname._
-import scala.scalanative.posix.pwd
-import scala.scalanative.posix.pwdOps._
-import scala.scalanative.windows
-import scala.scalanative.windows.{
-  ProcessEnv,
-  FileApi,
-  WinBaseApi,
-  UserEnvApi,
-  HelperMethods => WinHelperMethods
-}
 import scala.scalanative.windows.SecurityBase.AccessToken
-import scala.scalanative.runtime.{time, Platform, GC, Intrinsics}
-import scala.scalanative.runtime.PlatformExt.isWindows
+import scala.scalanative.windows.{FileApi, ProcessEnv, UserEnvApi, WinBaseApi, HelperMethods => WinHelperMethods}
 
 final class System private ()
 

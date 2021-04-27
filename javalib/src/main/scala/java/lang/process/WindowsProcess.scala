@@ -1,30 +1,15 @@
 package java.lang.process
 
-import java.io.{File, IOException, InputStream, OutputStream}
-import scala.scalanative.nio.fs.windows.WindowsException
-import java.util.concurrent.TimeUnit
-import java.util.ScalaOps._
-import java.io.FileDescriptor
+import java.io.{FileDescriptor, InputStream, OutputStream}
 import java.lang.ProcessBuilder._
-
-import scala.scalanative.unsigned._
+import java.util.ScalaOps._
+import java.util.concurrent.TimeUnit
+import scala.scalanative.nio.fs.windows.WindowsException
 import scala.scalanative.unsafe._
-import scalanative.windows._
-import scalanative.windows.HandleApi.Handle
-import scalanative.windows.{
-  ProcessThreadsApi,
-  WinBaseApi,
-  SynchApi,
-  NamedPipeApi
-}
-import scalanative.windows.ProcessThreads.{
-  ExitCodes,
-  ProcessInformation,
-  ProcessInformationOps
-}
-import scalanative.windows.WinBase.RegisterWaitObjectFlags
-import scalanative.runtime.{Intrinsics, fromRawPtr, toRawPtr}
-import WindowsProcess._
+import scala.scalanative.unsigned._
+import scala.scalanative.windows.HandleApi.Handle
+import scala.scalanative.windows.ProcessThreads.{ExitCodes, ProcessInformationOps}
+import scala.scalanative.windows.{NamedPipeApi, ProcessThreadsApi, SynchApi, _}
 
 private[lang] class WindowsProcess private (
     val handle: Handle,
@@ -288,20 +273,14 @@ object WindowsProcess {
 
   @inline private def nullTerminatedBlock(seq: collection.Seq[String])(
       implicit z: Zone): CString = {
-    import scalanative.libc.string._
-    // (All strings + null-terminate) + additional null terminate as end of block
-    val totalSize = (seq :+ "").foldLeft(0)(_ + _.size + 1) + 1
-    val block     = alloc[CChar](totalSize)
-    val blockEnd = seq.foldLeft(block) { (blockHead, str) =>
-      val cString = toCString(str)
-      // we need to include null-termination char
-      val length = strlen(cString) + 1.toUInt
-      memcpy(blockHead, cString, length)
-      blockHead + length
-    }
+    val NUL = 0.toChar.toString
+    val block = toCString(seq.mkString("", NUL, NUL))
 
-    assert(!blockEnd == 0.toByte)
-    assert(!(blockEnd - 1) == 0.toByte)
+    val totalSize = (seq :+ "").foldLeft(0)(_ + _.length + 1) + 1
+    val blockEnd = block + totalSize
+    assert(!blockEnd == 0.toByte, s"not null terminated got ${!blockEnd}")
+    assert(!(blockEnd - 1) == 0.toByte, s"not null terminated -1, got ${!(blockEnd -1)}")
+
     block
   }
 }

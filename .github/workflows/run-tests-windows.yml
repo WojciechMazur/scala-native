@@ -71,11 +71,11 @@ jobs:
         run: |
           $codeDir      = (Resolve-Path -Path ".\nativelib\src\main\resources\scala-native\").Path
 
-          $cSources = (Get-ChildItem -Path . -Directory -Exclude gc,optional `
+          $cSources = (Get-ChildItem -Path $codeDir -Directory -Exclude gc,optional `
           | ForEach-Object { Get-ChildItem -Path $_.FullName -File -Recurse -Include *.c,*.S }`
-          ) + (Get-ChildItem -Path . -File -Filter *.c)
+          ) + (Get-ChildItem -Path $codeDir -File -Filter *.c)
 
-          $cppSources = Get-ChildItem -Path . -Directory -Exclude gc,optional `
+          $cppSources = Get-ChildItem -Path $codeDir -Directory -Exclude gc,optional `
           | ForEach-Object { Get-ChildItem -Path $_.FullName -File -Recurse -Include *.cpp }
 
           $cSources | ForEach-Object {clang -std=gnu11 -c "$_"}

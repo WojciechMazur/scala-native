@@ -7,7 +7,7 @@ on:
 
 jobs:
   compile-native-source:
-    name: Compile GCs
+    name: Compile native sources
     runs-on: windows-2019
     steps:
       - uses: actions/checkout@v2
@@ -40,9 +40,8 @@ jobs:
           $gcIncludes.Add('commix', @('shared', 'immix_commix'))
           $gcIncludes
 
-          $gcIncludes.Keys | ForEach-Object {
-            $gcName = $_
-            $gcDir        = Join-Path $gcRoot $gcName}
+          ForEach($gcName in $gcIncludes.Keys){
+            $gcDir        = Join-Path $gcRoot $gcName
             $includeDirs  = $gcIncludes[$gcName] | ForEach-Object{ Join-Path $gcRoot $_ }
             $includes     = $includeDirs | %{"-I" + $_ }
             $compiledDirs = @($gcDir) + $includeDirs

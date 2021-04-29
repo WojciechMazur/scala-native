@@ -75,8 +75,9 @@ jobs:
           | ForEach-Object { Get-ChildItem -Path $_.FullName -File -Recurse -Include *.c,*.S }`
           ) + (Get-ChildItem -Path $codeDir -File -Filter *.c)
 
-          $cppSources = Get-ChildItem -Path $codeDir -Directory -Exclude gc,optional `
-          | ForEach-Object { Get-ChildItem -Path $_.FullName -File -Recurse -Include *.cpp }
+          $cppSources = (Get-ChildItem -Path $codeDir -Directory -Exclude gc,optional `
+          | ForEach-Object { Get-ChildItem -Path $_.FullName -File -Recurse -Include *.cpp }`
+          ) + (Get-ChildItem -Path $codeDir -File -Filter *.cpp)
 
           $cSources | ForEach-Object {clang -std=gnu11 -c "$_"}
           $cppSources | ForEach-Object {clang++ -std=c++14 -c "$_"}

@@ -7,11 +7,13 @@ import java.security.{PrivilegedAction, PrivilegedExceptionAction}
 
 trait ExecutorService extends Executor {
 
-  def shutdownNow: java.util.List[Runnable]
+  def shutdown(): Unit
 
-  def isShutdown: Boolean
+  def shutdownNow(): java.util.List[Runnable]
 
-  def isTerminated: Boolean
+  def isShutdown(): Boolean
+
+  def isTerminated(): Boolean
 
   def awaitTermination(timeout: Long, unit: TimeUnit): Boolean
 

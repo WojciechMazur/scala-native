@@ -1,37 +1,37 @@
 package java.util.concurrent.atomic
 
-import scala.scalanative.runtime.CAtomicLong
+import java.util.function.UnaryOperator
+import scala.scalanative.runtime.CAtomicRef
+import scala.language.implicitConversions
 
 class AtomicReference[T <: AnyRef](private[this] var value: T)
     extends Serializable {
 
   def this() = this(null.asInstanceOf[T])
 
-  private[this] val inner = CAtomicLong(value.asInstanceOf[Long])
+  private[this] val inner = CAtomicRef[T](value)
 
   final def get(): T = inner.load()
 
-  final def set(newValue: T): Unit =
-    inner.store(newValue.asInstanceOf[Long])
+  final def set(newValue: T): Unit = inner.store(newValue)
 
-  final def lazySet(newValue: T): Unit =
-    inner.store(newValue.asInstanceOf[Long])
+  final def lazySet(newValue: T): Unit = inner.store(newValue)
 
   final def compareAndSet(expect: T, update: T): Boolean = {
     inner
-      .compareAndSwapStrong(expect.asInstanceOf[Long],
-                            update.asInstanceOf[Long])
+      .compareAndSwapStrong(expect, update)
       ._1
   }
 
-  final def weakCompareAndSet(expect: T, update: T): Boolean =
+  final def weakCompareAndSet(expect: T, update: T): Boolean = {
     inner
-      .compareAndSwapWeak(expect.asInstanceOf[Long], update.asInstanceOf[Long])
+      .compareAndSwapWeak(expect, update)
       ._1
+  }
 
   final def getAndSet(newValue: T): T = {
     val old = inner.load()
-    inner.store(newValue.asInstanceOf[Long])
+    inner.store(newValue)
     old
   }
 
@@ -48,10 +48,6 @@ class AtomicReference[T <: AnyRef](private[this] var value: T)
 
   override def toString(): String =
     String.valueOf(value)
-
-  private implicit def toLong(e: T): Long = e.asInstanceOf[Long]
-
-  private implicit def toRef(l: Long): T = l.asInstanceOf[T]
 }
 
 object AtomicReference {

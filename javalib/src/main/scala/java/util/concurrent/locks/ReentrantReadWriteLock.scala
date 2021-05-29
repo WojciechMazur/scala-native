@@ -292,7 +292,7 @@ object ReentrantReadWriteLock {
     }
 
     override protected[ReentrantReadWriteLock] final def isHeldExclusively
-      : Boolean = getExclusiveOwnerThread == Thread.currentThread()
+        : Boolean = getExclusiveOwnerThread() == Thread.currentThread()
 
     final def newCondition: ConditionObject = new ConditionObject()
 

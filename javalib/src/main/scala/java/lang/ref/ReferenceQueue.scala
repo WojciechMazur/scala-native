@@ -7,7 +7,7 @@ class ReferenceQueue[T >: Null <: AnyRef] extends Object {
 
   @SuppressWarnings(Array("unchecked"))
   //synchronized
-  def poll: Reference[_ <: T] = {
+  def poll(): Reference[_ <: T] = {
     if (firstReference == null) return null
     val ref: Reference[_ <: T] = firstReference
     firstReference =
@@ -31,7 +31,7 @@ class ReferenceQueue[T >: Null <: AnyRef] extends Object {
     ref
   }
 
-  def remove: Reference[_ <: T] = remove(0L)
+  def remove(): Reference[_ <: T] = remove(0L)
 
   //synchronized
   def enqueue(ref: Reference[_ <: T]): scala.Boolean = {

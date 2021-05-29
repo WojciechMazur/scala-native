@@ -1,7 +1,8 @@
 package java.util.concurrent.atomic
 
-import scala.scalanative.native.CInt
+import scala.scalanative.unsafe.CInt
 import scala.scalanative.runtime.CAtomicInt
+import scala.language.implicitConversions
 
 class AtomicBoolean(private[this] var value: Boolean) extends Serializable {
   def this() = this(false)

@@ -1,6 +1,7 @@
 package java.util.concurrent.atomic
 
 import java.util.concurrent.atomic.AtomicStampedReference.ReferenceIntegerPair
+import scala.language.implicitConversions
 
 class AtomicStampedReference[V <: AnyRef](initialRef: V, initialStamp: Int) {
 

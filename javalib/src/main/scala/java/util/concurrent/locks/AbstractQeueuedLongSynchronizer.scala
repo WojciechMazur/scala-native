@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit
 
 import scala.scalanative.runtime.CAtomicsImplicits._
 import scala.scalanative.runtime.{CAtomicInt, CAtomicLong, CAtomicRef}
-import scala.scalanative.native.{CInt, CLong}
+import scala.scalanative.unsafe.{CInt, CLong}
 
 abstract class AbstractQeueuedLongSynchronizer
     extends AbstractOwnableSynchronizer
@@ -929,13 +929,9 @@ object AbstractQeueuedLongSynchronizer {
     var waitStatus: CAtomicInt = CAtomicInt()
 
     //volatile
-    var prev: CAtomicRef[Node] = CAtomicRef[Node]
-
-    //volatile
-    var next: CAtomicRef[Node] = CAtomicRef[Node]
-
-    //volatile
-    var thread: CAtomicRef[Thread] = CAtomicRef[Thread]
+    val prev: CAtomicRef[Node]     = new CAtomicRef[Node]()
+    val next: CAtomicRef[Node]     = new CAtomicRef[Node]()
+    val thread: CAtomicRef[Thread] = new CAtomicRef[Thread]()
 
     var nextWaiter: Node = _
 

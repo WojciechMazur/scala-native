@@ -1,6 +1,7 @@
 package java.util.concurrent.atomic
 
 import scala.scalanative.runtime.CAtomicLong
+import scala.language.implicitConversions
 
 class AtomicLongArray(sz: Int) extends Serializable {
 

@@ -25,7 +25,7 @@ class ThreadLocal[T] {
       val table: Array[Object] = vals.getTable
       val index: Int           = hash & vals.getMask
       if (this.reference == table(index)) {
-        table(index + 1).asInstanceOf[T]
+        return table(index + 1).asInstanceOf[T]
       }
     } else {
       vals = initializeValues(currentThread)

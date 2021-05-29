@@ -1,6 +1,7 @@
 package java.util.concurrent.atomic
 
 import scala.scalanative.runtime.CAtomicInt
+import scala.language.implicitConversions
 
 class AtomicInteger(private[this] var value: Int)
     extends Number

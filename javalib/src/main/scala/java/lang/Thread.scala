@@ -2,16 +2,32 @@ package java.lang
 
 import java.util
 import java.lang.Thread._
-
 import scala.scalanative.unsafe._
-import scala.scalantive.unsigned._
-import scala.scalanative.runtime.NativeThread
+import scala.scalanative.unsigned._
+import scala.scalanative.runtime.{
+  Intrinsics,
+  NativeThread,
+  fromRawPtr,
+  toRawPtr
+}
 import scala.scalanative.posix.sys.types.{pthread_attr_t, pthread_t}
 import scala.scalanative.posix.pthread._
 import scala.scalanative.posix.sched._
 import scala.scalanative.libc.errno
 
 // Ported from Harmony
+
+@extern
+object GCExt {
+
+  @name("GC_pthread_create")
+  def pthread_create(thread: Ptr[pthread_t],
+                     attr: Ptr[pthread_attr_t],
+                     startroutine: CFuncPtr1[Ptr[scala.Byte], Ptr[scala.Byte]],
+                     args: Ptr[scala.Byte]): CInt = extern
+  @name("GC_pthread_join")
+  def pthread_join(thread: pthread_t, value_ptr: Ptr[Ptr[Byte]]): CInt = extern
+}
 
 class Thread extends Runnable {
 
@@ -33,7 +49,8 @@ class Thread extends Runnable {
   private var priority: Int = 5
 
   // Stack size to be passes to VM for thread execution
-  private var stackSize: scala.Long = NativeThread.THREAD_DEFAULT_STACK_SIZE
+  private var stackSize: scala.Long =
+    NativeThread.THREAD_DEFAULT_STACK_SIZE.toLong
 
   def getStackTrace(): Array[StackTraceElement] =
     new Array[StackTraceElement](0) // Do not use scala collections.
@@ -60,15 +77,17 @@ class Thread extends Runnable {
    * NOTE: This is used to keep track of the pthread linked to this Thread,
    * it might be easier/better to handle this at lower level
    */
-  private[this] val underlying: pthread_t = 0.asInstanceOf[ULong]
+  private[this] var underlying: pthread_t = null.asInstanceOf[ULong]
 
   // Synchronization is done using internal lock
   val lock: Object = new Object()
 
   // ThreadLocal values : local and inheritable
-  var localValues: ThreadLocal.Values = _
-
-  var inheritableValues: ThreadLocal.Values = _
+  private[java] var localValues: ThreadLocal.Values       = _
+  private[java] var inheritableValues: ThreadLocal.Values = _
+  private[java] var threadLocalRandomSeed: Long           = 0
+  private[java] var threadLocalRandomProbe: Int           = 0
+  private[java] var threadLocalRandomSecondarySeed: Int   = 0
 
   def this(group: ThreadGroup,
            target: Runnable,
@@ -173,16 +192,16 @@ class Thread extends Runnable {
     // this method is not implemented
     throw new NoSuchMethodError()
 
-  def getContextClassLoader: ClassLoader =
+  def getContextClassLoader(): ClassLoader =
     lock.synchronized(contextClassLoader)
 
-  final def getName: String = name
+  final def getName(): String = name
 
-  final def getPriority: Int = priority
+  final def getPriority(): Int = priority
 
-  final def getThreadGroup: ThreadGroup = group
+  final def getThreadGroup(): ThreadGroup = group
 
-  def getId: scala.Long = threadId
+  def getId(): scala.Long = threadId
 
   def interrupt(): Unit = {
     lock.synchronized {
@@ -191,11 +210,11 @@ class Thread extends Runnable {
     }
   }
 
-  final def isAlive: scala.Boolean = lock.synchronized(alive)
+  final def isAlive(): scala.Boolean = lock.synchronized(alive)
 
-  final def isDaemon: scala.Boolean = daemon
+  final def isDaemon(): scala.Boolean = daemon
 
-  def isInterrupted: scala.Boolean = interruptedState
+  def isInterrupted(): scala.Boolean = interruptedState
 
   //synchronized
   final def join(): Unit = {
@@ -252,22 +271,11 @@ class Thread extends Runnable {
         "Error while trying to unpark thread " + toString)
   }
 
-  private def toCRoutine(
-      f: => (() => Unit)): (Ptr[scala.Byte]) => Ptr[scala.Byte] = {
-    def g(ptr: Ptr[scala.Byte]) = {
-      f
-      null.asInstanceOf[Ptr[scala.Byte]]
-    }
-    g
-  }
-
   def run(): Unit = {
     if (target != null) {
       target.run()
     }
   }
-
-  def getStackTrace: Array[StackTraceElement] = new Array[StackTraceElement](0)
 
   def setContextClassLoader(classLoader: ClassLoader): Unit =
     lock.synchronized(contextClassLoader = classLoader)
@@ -299,42 +307,41 @@ class Thread extends Runnable {
 
   //synchronized
   def start(): Unit = {
-    /*
     lock.synchronized {
-      if(started)
+      if (started)
         //this thread was started
-        throw new IllegalThreadStateException("This thread was already started!")
+        throw new IllegalThreadStateException(
+          "This thread was already started!")
       // adding the thread to the thread group
       group.add(this)
 
-      val a: (Ptr[scala.Byte]) => Ptr[scala.Byte] = toCRoutine(run)
-
-      val routine = CFunctionPtr.fromFunction1(a)
-
       val id = stackalloc[pthread_t]
-      val status = pthread_create(id, null.asInstanceOf[Ptr[pthread_attr_t]],
-        routine, null.asInstanceOf[Ptr[scala.Byte]])
-      if(status != 0)
-        throw new Exception("Failed to create new thread, pthread error " + status)
+      val arg =
+        fromRawPtr[scala.Byte](Intrinsics.castObjectToRawPtr(this.target))
+      val routine = CFuncPtr1.fromScalaFunction { arg: Ptr[scala.Byte] =>
+        val runnable =
+          Intrinsics.castRawPtrToObject(toRawPtr(arg)).asInstanceOf[Runnable]
+        runnable.run()
+        null.asInstanceOf[Ptr[scala.Byte]]
+      }
+
+      val status =
+        GCExt.pthread_create(thread = id,
+                             attr = null.asInstanceOf[Ptr[pthread_attr_t]],
+                             startroutine = routine,
+                             args = arg)
+      if (status != 0)
+        throw new Exception(
+          "Failed to create new thread, pthread error " + status)
 
       started = true
       underlying = !id
       THREAD_LIST(underlying) = this
-
-    }*/
+    }
   }
 
-  type State = CInt
-
-  final val NEW: State           = 0
-  final val RUNNABLE: State      = 1
-  final val BLOCKED: State       = 2
-  final val WAITING: State       = 3
-  final val TIMED_WAITING: State = 4
-  final val TERMINATED: State    = 5
-
-  def getState: State = {
-    RUNNABLE
+  def getState(): State = {
+    Thread.State.RUNNABLE
     /*
     var dead: scala.Boolean = false
     lock.synchronized{
@@ -362,7 +369,7 @@ class Thread extends Runnable {
   @deprecated
   final def stop(): Unit = {
     lock.synchronized {
-      if (isAlive)
+      if (isAlive())
         stop(new ThreadDeath())
     }
   }
@@ -400,10 +407,10 @@ class Thread extends Runnable {
       System.gc()
   }
 
-  def getUncaughtExceptionHandler: Thread.UncaughtExceptionHandler = {
+  def getUncaughtExceptionHandler(): Thread.UncaughtExceptionHandler = {
     if (exceptionHandler != null)
       return exceptionHandler
-    getThreadGroup
+    getThreadGroup()
   }
 
   def setUncaughtExceptionHandler(eh: Thread.UncaughtExceptionHandler): Unit =
@@ -411,6 +418,28 @@ class Thread extends Runnable {
 }
 
 object Thread {
+  sealed class State(name: String, ordinal: Int)
+      extends Enum[State](name, ordinal)
+  object State {
+    final val NEW: State           = new State("NEW", 0)
+    final val RUNNABLE: State      = new State("RUNNABLE", 1)
+    final val BLOCKED: State       = new State("BLOCKED", 2)
+    final val WAITING: State       = new State("WAITING", 3)
+    final val TIMED_WAITING: State = new State("TIMED_WAITING", 4)
+    final val TERMINATED: State    = new State("TERMINATED", 5)
+
+    private[this] val cachedValues =
+      Array(NEW, RUNNABLE, BLOCKED, WAITING, TIMED_WAITING, TERMINATED)
+    def values(): Array[State] = cachedValues.clone()
+    def valueOf(name: String): State = {
+      cachedValues.find(_.name() == name).getOrElse {
+        throw new IllegalArgumentException("No enum const Thread.State." + name)
+      }
+    }
+
+  }
+
+  def onSpinWait(): Unit = {}
 
   import scala.collection.mutable
 
@@ -530,7 +559,7 @@ object Thread {
 
   def sleep(millis: scala.Long, nanos: scala.Int): Unit = {
     import scala.scalanative.posix.errno.EINTR
-    import scala.scalanative.native._
+    import scala.scalanative.unsafe._
     import scala.scalanative.posix.unistd
 
     def checkErrno() =
@@ -547,7 +576,7 @@ object Thread {
 
     val secs  = millis / 1000
     val usecs = (millis % 1000) * 1000 + nanos / 1000
-    if (secs > 0 && unistd.sleep(secs.toUInt) != 0) checkErrno()
+    if (secs > 0 && unistd.sleep(secs.toUInt) != 0.toUInt) checkErrno()
     if (usecs > 0 && unistd.usleep(usecs.toUInt) != 0) checkErrno()
   }
 

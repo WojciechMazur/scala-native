@@ -5,7 +5,7 @@ import java.util.concurrent.TimeUnit
 
 // Ported from Harmony
 
-abstract class ReentrantLock extends Lock with java.io.Serializable {
+class ReentrantLock extends Lock with java.io.Serializable {
 
   import ReentrantLock._
 

@@ -9,7 +9,8 @@ abstract class AbstractExecutorService extends ExecutorService {
                                           value: T): RunnableFuture[T] =
     new FutureTask[T](runnable, value)
 
-  protected[concurrent] def newTaskFor[T](callable: Callable[T]) =
+  protected[concurrent] def newTaskFor[T](
+      callable: Callable[T]): RunnableFuture[T] =
     new FutureTask[T](callable)
 
   override def submit(task: Runnable): Future[_] = {
@@ -118,7 +119,7 @@ abstract class AbstractExecutorService extends ExecutorService {
   }
 
   override def invokeAll[T](tasks: java.util.Collection[_ <: Callable[T]])
-    : java.util.List[Future[T]] = {
+      : java.util.List[Future[T]] = {
     if (tasks == null) throw new NullPointerException()
     val futures: util.List[Future[T]] =
       new util.ArrayList[Future[T]](tasks.size())

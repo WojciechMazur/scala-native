@@ -2,7 +2,8 @@ package java.lang
 
 import java.util
 import java.lang.Thread.UncaughtExceptionHandler
-import scala.collection.JavaConversions._
+import java.util.ScalaOps._
+import scala.annotation.nowarn
 
 // Ported from Harmony
 
@@ -59,9 +60,9 @@ class ThreadGroup extends UncaughtExceptionHandler {
       groupsCopy = groups.clone().asInstanceOf[util.List[ThreadGroup]]
     }
 
-    count += threadsCopy.toList.count(_.isAlive)
+    count += threadsCopy.scalaOps.count(_.isAlive)
 
-    groupsCopy.toList.foldLeft(count)((c, group) => c + group.activeCount())
+    groupsCopy.scalaOps.foldLeft(count)((c, group) => c + group.activeCount())
 
     count
   }
@@ -75,8 +76,8 @@ class ThreadGroup extends UncaughtExceptionHandler {
       groupsCopy = groups.clone().asInstanceOf[util.List[ThreadGroup]]
     }
 
-    groupsCopy.toList.foldLeft(count)(
-      (c, group) => c + group.activeGroupCount())
+    groupsCopy.scalaOps.foldLeft(count)((c, group) =>
+      c + group.activeGroupCount())
 
     count
   }
@@ -260,21 +261,18 @@ class ThreadGroup extends UncaughtExceptionHandler {
       new util.ArrayList[ThreadGroup](groups.size)
 
     lock.synchronized {
-      if (destroyed)
+      if (destroyed) {
         return Array[Object](null, null)
-      for (thread: Thread <- threads) {
-        threadsCopy.add(thread)
       }
-      for (group: ThreadGroup <- groups) {
-        groupsCopy.add(group)
-      }
+      threadsCopy.addAll(threads)
+      groupsCopy.addAll(groups)
     }
 
     val activeThreads: util.ArrayList[Thread] =
       new util.ArrayList[Thread](threadsCopy.size())
 
     // filter out alive threads
-    for (thread: Thread <- threadsCopy) {
+    for (thread: Thread <- threadsCopy.scalaOps.toSeq) {
       if (thread.isAlive)
         activeThreads.add(thread)
     }
@@ -297,7 +295,7 @@ class ThreadGroup extends UncaughtExceptionHandler {
       if (recurse)
         groupsCopy = groups.clone().asInstanceOf[util.List[ThreadGroup]]
     }
-    for (thread: Object <- threadsCopy.toList) {
+    for (thread: Object <- threadsCopy.scalaOps.toSeq) {
       if (thread.asInstanceOf[Thread].isAlive) {
         list(offset) = thread.asInstanceOf[Thread]
         offset += 1
@@ -305,9 +303,9 @@ class ThreadGroup extends UncaughtExceptionHandler {
       }
       if (recurse) {
         val it: util.Iterator[ThreadGroup] = groupsCopy.iterator()
-        while (offset < list.length && it.hasNext) it
-          .next()
-          .enumerate(list, offset, true)
+        while (offset < list.length && it.hasNext)
+          it.next()
+            .enumerate(list, offset, true)
       }
     }
     offset
@@ -321,7 +319,7 @@ class ThreadGroup extends UncaughtExceptionHandler {
       return offset
     val firstGroupIdx: Int = offset
     lock.synchronized {
-      for (group: Object <- groups.toList) {
+      for (group: Object <- groups.scalaOps.toSeq) {
         list(offset) = group.asInstanceOf[ThreadGroup]
         offset += 1
         if (offset == list.length)
@@ -341,7 +339,7 @@ class ThreadGroup extends UncaughtExceptionHandler {
 
   private def list(pr: String): Unit = {
     var prefix: String = pr
-    println(prefix + toString)
+
     prefix += LISTING_INDENT
     var groupsCopy: util.List[ThreadGroup] = null // a copy of subgroups list
     var threadsCopy: util.List[Thread]     = null // a copy of threads list
@@ -349,10 +347,8 @@ class ThreadGroup extends UncaughtExceptionHandler {
       threadsCopy = threads.clone().asInstanceOf[util.List[Thread]]
       groupsCopy = groups.clone().asInstanceOf[util.List[ThreadGroup]]
     }
-    for (thread: Object <- threadsCopy.toList)
-      println(prefix + thread.asInstanceOf[Thread])
-    for (group: Object <- groupsCopy.toList)
-      group.asInstanceOf[ThreadGroup].list(prefix)
+
+    groupsCopy.scalaOps.foreach(_.list(prefix))
   }
 
   def nonsecureDestroy(): Unit = {
@@ -369,50 +365,44 @@ class ThreadGroup extends UncaughtExceptionHandler {
     if (parent != null)
       parent.remove(this)
 
-    for (group: Object <- groupsCopy.toList)
-      group.asInstanceOf[ThreadGroup].nonsecureDestroy()
+    groupsCopy.scalaOps.foreach(_.nonsecureDestroy())
   }
 
   private def nonsecureInterrupt(): Unit = {
     lock.synchronized {
-      for (thread: Object <- threads.toList)
-        thread.asInstanceOf[Thread].interrupt()
-      for (group: Object <- groups.toList)
-        group.asInstanceOf[ThreadGroup].nonsecureInterrupt
+      threads.scalaOps.foreach(_.interrupt())
+      groups.scalaOps.foreach(_.nonsecureInterrupt())
     }
   }
 
+  @nowarn("msg=method resume in class Thread is deprecated")
   private def nonsecureResume(): Unit = {
     lock.synchronized {
-      for (thread: Object <- threads.toList)
-        thread.asInstanceOf[Thread].resume()
-      for (group: Object <- groups.toList)
-        group.asInstanceOf[ThreadGroup].nonsecureResume
+      threads.scalaOps.foreach(_.resume())
+      groups.scalaOps.foreach(_.nonsecureResume())
     }
   }
 
   private def nonsecureSetMaxPriority(priority: Int): Unit = {
     lock.synchronized {
       this.maxPriority = priority
-
-      for (group: Object <- groups.toList)
-        group.asInstanceOf[ThreadGroup].nonsecureSetMaxPriority(priority)
+      groups.scalaOps.foreach(_.nonsecureSetMaxPriority(priority))
     }
   }
 
+  @nowarn("msg=method stop in class Thread is deprecated")
   private def nonsecureStop(): Unit = {
     lock.synchronized {
-      for (thread: Object <- threads.toList) thread.asInstanceOf[Thread].stop()
-      for (group: Object  <- groups.toList)
-        group.asInstanceOf[ThreadGroup].nonsecureStop
+      threads.forEach(_.stop())
+      groups.forEach(_.nonsecureStop())
     }
   }
 
+  @nowarn("msg=method suspend in class Thread is deprecated")
   private def nonsecureSuspend(): Unit = {
     lock.synchronized {
-      for (thread: Object <- threads) thread.asInstanceOf[Thread].suspend()
-      for (group: Object  <- groups)
-        group.asInstanceOf[ThreadGroup].nonsecureSuspend
+      threads.scalaOps.foreach(_.suspend())
+      groups.scalaOps.foreach(_.nonsecureSuspend())
     }
   }
 

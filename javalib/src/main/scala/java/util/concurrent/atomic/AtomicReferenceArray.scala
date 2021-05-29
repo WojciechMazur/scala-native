@@ -2,6 +2,8 @@ package java.util.concurrent.atomic
 
 import scala.scalanative.runtime.CAtomicLong
 
+import scala.language.implicitConversions
+
 class AtomicReferenceArray[E <: AnyRef](length: Int) extends Serializable {
 
   def this(array: Array[E]) = {

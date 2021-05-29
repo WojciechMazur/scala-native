@@ -4,7 +4,6 @@ package java.util.concurrent
 
 import locks._
 import scala.scalanative.runtime.CAtomicRef
-import scala.scalanative.runtime.CAtomicsImplicits._
 
 class FutureTask[V] extends RunnableFuture[V] {
 
@@ -59,7 +58,7 @@ class FutureTask[V] extends RunnableFuture[V] {
      * indicates that the results are accessible.  Must be
      * volatile, to ensure visibility upon completion.
      */
-    private val runner: CAtomicRef[Thread] = CAtomicRef[Thread]()
+    private val runner: CAtomicRef[Thread] = new CAtomicRef[Thread]()
 
     private def ranOrCancelled(state: Int): Boolean =
       (state & (RAN | CANCELLED)) != 0
@@ -150,7 +149,7 @@ class FutureTask[V] extends RunnableFuture[V] {
           break = true
       }
       if (mayInterruptIfRunning) {
-        val r: Thread = runner
+        val r: Thread = runner.load()
         if (r != null)
           r.interrupt()
       }

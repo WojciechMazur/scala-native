@@ -31,6 +31,8 @@ int scalanative_stdout_fileno() { return STDOUT_FILENO; }
 
 int scalanative_stderr_fileno() { return STDERR_FILENO; }
 
+int scalanative_sc_nprocessors_onln() { return _SC_NPROCESSORS_ONLN; }
+
 int scalanative_symlink(char *path1, char *path2) {
     return symlink(path1, path2);
 }

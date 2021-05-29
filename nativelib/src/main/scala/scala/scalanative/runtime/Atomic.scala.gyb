@@ -1,33 +1,20 @@
-package scala.scalanative
-package runtime
+package scala.scalanative.runtime
 
-import scala.scalanative.native.{
-  CBool,
-  CChar,
-  CInt,
-  CLong,
-  CShort,
-  CSize,
-  CUnsignedChar,
-  CUnsignedInt,
-  CUnsignedLong,
-  CUnsignedShort,
-  Ptr,
-  extern
-}
+import scala.scalanative.unsafe._
+import scala.scalanative.unsigned._
 
 %{
    classes = ['CAtomicByte', 'CAtomicShort', 'CAtomicInt', 'CAtomicLong',
-            'CAtomicUnsignedByte', 'CAtomicUnsignedShort', 'CAtomicUnsignedInt',
-             'CAtomicUnsignedLong', 'CAtomicChar', 'CAtomicUnsignedChar', 'CAtomicCSize']
+              'CAtomicUnsignedByte', 'CAtomicUnsignedShort', 'CAtomicUnsignedInt', 'CAtomicUnsignedLong',
+              'CAtomicChar', 'CAtomicCSize']
 
    types = ['Byte', 'CShort', 'CInt', 'CLong',
-            'Byte', 'CUnsignedShort', 'CUnsignedInt', 'CUnsignedLong',
-            'CChar', 'CUnsignedChar', 'CSize']
+            'UByte', 'CUnsignedShort', 'CUnsignedInt', 'CUnsignedLong',
+            'CChar', 'CSize']
 
    names = ['byte', 'short', 'int', 'long',
             'ubyte', 'ushort', 'uint', 'ulong',
-            'char', 'uchar', 'csize']
+            'char', 'csize']
 }%
 
 // see http://en.cppreference.com/w/cpp/atomic
@@ -35,29 +22,32 @@ import scala.scalanative.native.{
 @extern
 object Atomic {
 
-  // Memory
-  def alloc(sz: CSize): Ptr[Byte] = extern
-
-  def free(ptr: Ptr[Byte]): Unit = extern
-
   // Init
   % for (C, T, N) in zip(classes, types, names):
-  def init_${N}(atm: ${C}, initValue: ${T}): Unit = extern
+  @name("scalanative_atomic_init_${N}")
+  def atomic_init_${N}(atm: ${C}, initValue: ${T}): Unit = extern
   % end
 
   // Load
   % for (C, T, N) in zip(classes, types, names):
-  def load_${N}(ptr: ${C}): ${T} = extern
+  @name("scalanative_atomic_load_${N}")
+  def atomic_load_${N}(ptr: ${C}): ${T} = extern
 
-  def store_${N}(ptr: ${C}, v: ${T}): Unit = extern
+  @name("scalanative_atomic_store_${N}")
+  def atomic_store_${N}(ptr: ${C}, v: ${T}): Unit = extern
+
+  @name("scalanative_atomic_exchange_${N}")
+  def atomic_exchange_${N}(ptr: ${C}, v: ${T}): ${T} = extern
   % end
 
   // Compare and Swap
   % for (C, T, N) in zip(classes, types, names):
+  @name("scalanative_atomic_compare_and_swap_strong_${N}")
   def compare_and_swap_strong_${N}(value: ${C},
                                   expected: ${C},
                                   desired: ${T}): CBool = extern
 
+  @name("scalanative_atomic_compare_and_swap_weak_${N}")
   def compare_and_swap_weak_${N}(value: ${C},
                                   expected: ${C},
                                   desired: ${T}): CBool = extern
@@ -65,11 +55,9 @@ object Atomic {
 
   // Add and Sub
   % for (C, T, N) in zip(classes, types, names):
-  % if N != 'gen':
   % for op in ['add', 'sub', 'or', 'and', 'xor']:
-  // ${op}
+  @name("scalanative_atomic_${op}_${N}")
   def atomic_${op}_${N}(ptr: ${C}, value: ${T}): ${T} = extern
-  % end
   % end
   % end
 
@@ -77,4 +65,18 @@ object Atomic {
   % for (C, T) in zip(classes, types):
   type ${C} = Ptr[${T}]
   % end
+
+
+  type memory_order = Int // enum
+  object memory_order{
+  % for order in ['relaxed', 'consume', 'acquire', 'release', 'acq_rel', 'seq_cst']: 
+    @name("scalanative_atomic_memory_order_${order}")
+    final def memory_order_${order}: memory_order = extern    
+  %end
+  }
+
+  @name("scalanative_atomic_thread_fence")
+  final def atomic_thread_fence(order: memory_order): Unit = extern
+  @name("scalanative_atomic_signal_fence")
+  final def atomic_signal_fence(order: memory_order): Unit = extern
 }

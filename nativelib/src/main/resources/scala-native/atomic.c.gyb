@@ -1,0 +1,74 @@
+#include <stdatomic.h>
+#include <stdint.h>
+#include <stdlib.h>
+
+%{
+   types = ['int8_t', 'int16_t', 'int32_t', 'int64_t',
+            'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t',
+            'char', 'unsigned char', 'size_t']
+
+   names = ['byte', 'short', 'int', 'long',
+            'ubyte', 'ushort', 'uint', 'ulong',
+            'char', 'uchar', 'csize']
+}%
+     /**
+     * Init
+     * */
+% for (T, N) in zip(types, names):
+     void scalanative_atomic_init_${N}(${T}* atm, ${T} init_value) {
+        *atm = ATOMIC_VAR_INIT(init_value);
+     }
+% end
+
+	/**
+     * Load and store
+     * */
+% for (T, N) in zip(types, names):
+    ${T} scalanative_atomic_load_${N}(_Atomic(${T})* atm) {
+        return atomic_load(atm);
+    }
+
+    void scalanative_atomic_store_${N}(_Atomic(${T})* atm, ${T} val) {
+      atomic_store(atm, val);
+    }
+
+    ${T} scalanative_atomic_exchange_${N}(_Atomic(${T})* atm, ${T} val) {
+      return atomic_exchange(atm, val);
+    }
+% end
+
+     /**
+     * Compare and Swap
+     * */
+% for (T, N) in zip(types, names):
+% for cmp in ['strong', 'weak']:
+    int scalanative_atomic_compare_and_swap_${cmp}_${N}(_Atomic(${T})* atm, ${T}* expected, ${T} desired) {
+        return atomic_compare_exchange_${cmp}(atm, expected, desired);
+    }
+% end
+% end
+
+     /**
+     * Arithmetics
+     * */
+% for op in ['add', 'sub', 'and', 'or', 'xor']:
+% for (T, N) in zip(types, names):
+     ${T} scalanative_atomic_${op}_${N}(_Atomic(${T})* atm, ${T} val) {
+        return atomic_fetch_${op}(atm, val);
+     }
+% end
+% end
+
+% for order in ['relaxed', 'consume', 'acquire', 'release', 'acq_rel', 'seq_cst']: 
+  memory_order scalanative_atomic_memory_order_${order}(){
+    return memory_order_${order};
+  }
+% end
+
+
+void scalanative_atomic_thread_fence(memory_order order) {
+    return atomic_thread_fence(order);
+}
+void scalanative_atomic_signal_fence(memory_order order) {
+    return atomic_signal_fence(order);
+}

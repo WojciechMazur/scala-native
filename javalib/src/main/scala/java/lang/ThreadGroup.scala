@@ -3,19 +3,21 @@ package java.lang
 import java.util
 import java.lang.Thread.UncaughtExceptionHandler
 import java.util.ScalaOps._
+import scala.collection.mutable.Set
 import scala.annotation.nowarn
+import scala.annotation.tailrec
+import scala.collection.mutable.ListBuffer
 
 // Ported from Harmony
 
-class ThreadGroup extends UncaughtExceptionHandler {
-
-  import ThreadGroup._
+class ThreadGroup(name: String, parent: ThreadGroup, isTop: Boolean)
+    extends UncaughtExceptionHandler {
+  if (parent == null && !isTop) {
+    throw new NullPointerException("The parent thread group specified is null!")
+  }
 
   // This group's max priority
-  var maxPriority: Int = Thread.MAX_PRIORITY
-
-  // This group's name
-  var name: String = "system"
+  private var maxPriority: Int = Thread.MAX_PRIORITY
 
   // Indicated if this thread group was marked as daemon
   private var daemon: scala.Boolean = false
@@ -23,411 +25,295 @@ class ThreadGroup extends UncaughtExceptionHandler {
   // Indicates if this thread group was already destroyed
   private var destroyed: scala.Boolean = false
 
-  // List of subgroups of this thread group
-  private val groups: util.LinkedList[ThreadGroup] =
-    new util.LinkedList[ThreadGroup]()
-
-  // Parent thread group of this thread group
-  private var parent: ThreadGroup = _
-
-  // All threads in the group
-  private val threads: util.LinkedList[Thread] = new util.LinkedList[Thread]()
+  private val childrenGroups  = ListBuffer.empty[ThreadGroup]
+  private val childrenThreads = ListBuffer.empty[Thread]
 
   def this(parent: ThreadGroup, name: String) = {
-    this()
-    if (parent == null) {
-      throw new NullPointerException(
-        "The parent thread group specified is null!")
-    }
-
-    parent.checkAccess()
-    this.name = name
-    this.parent = parent
+    this(name, parent, false)
     this.daemon = parent.daemon
     this.maxPriority = parent.maxPriority
     parent.add(this)
   }
 
-  def this(name: String) = this(Thread.currentThread.group, name)
+  def this(name: String) = this(
+    Thread.currentThread().getThreadGroup(),
+    name
+  )
 
-  def activeCount(): Int = {
-    var count: Int                         = 0
-    var groupsCopy: util.List[ThreadGroup] = null
-    var threadsCopy: util.List[Thread]     = null
-    lock.synchronized {
-      if (destroyed) return 0
-      threadsCopy = threads.clone().asInstanceOf[util.List[Thread]]
-      groupsCopy = groups.clone().asInstanceOf[util.List[ThreadGroup]]
-    }
+  def getMaxPriority(): Int = maxPriority
 
-    count += threadsCopy.scalaOps.count(_.isAlive)
+  def setMaxPriority(priority: Int): Unit = {
+    if (priority <= this.maxPriority) {
+      val newMax = priority.max(Thread.MIN_PRIORITY)
+      val parentPriority =
+        if (parent == null) newMax
+        else parent.getMaxPriority()
+      this.maxPriority = newMax.min(parentPriority)
 
-    groupsCopy.scalaOps.foldLeft(count)((c, group) => c + group.activeCount())
-
-    count
-  }
-
-  def activeGroupCount(): Int = {
-    var count: Int                         = 0
-    var groupsCopy: util.List[ThreadGroup] = null
-    lock.synchronized {
-      if (destroyed) return 0
-      count = groups.size
-      groupsCopy = groups.clone().asInstanceOf[util.List[ThreadGroup]]
-    }
-
-    groupsCopy.scalaOps.foldLeft(count)((c, group) =>
-      c + group.activeGroupCount())
-
-    count
-  }
-
-  @deprecated
-  def allowThreadSuspension(b: scala.Boolean): scala.Boolean = false
-
-  def checkAccess(): Unit = ()
-
-  def destroy(): Unit = {
-    checkAccess()
-    lock.synchronized {
-      if (destroyed)
-        throw new IllegalThreadStateException(
-          "The thread group " + name + " is already destroyed!")
-      nonsecureDestroy()
+      childrenGroups.synchronized {
+        childrenGroups.foreach(_.setMaxPriority(newMax))
+      }
     }
   }
 
-  def enumerate(list: Array[Thread]): Int = {
-    checkAccess()
-    enumerate(list, 0, true)
-  }
+  def getName(): String = name
 
-  def enumerate(list: Array[Thread], recurse: scala.Boolean): Int = {
-    checkAccess()
-    enumerate(list, 0, recurse)
-  }
-
-  def enumerate(list: Array[ThreadGroup]): Int = {
-    checkAccess()
-    enumerate(list, 0, true)
-  }
-
-  def enumerate(list: Array[ThreadGroup], recurse: scala.Boolean): Int = {
-    checkAccess()
-    enumerate(list, 0, recurse)
-  }
-
-  def getMaxPriority: Int = maxPriority
-
-  def getName: String = name
-
-  def getParent: ThreadGroup = {
-    if (parent != null) parent.checkAccess()
+  def getParent(): ThreadGroup = {
     parent
   }
 
-  def interrupt(): Unit = {
-    checkAccess()
-    nonsecureInterrupt()
-  }
-
-  def isDaemon: scala.Boolean = daemon
-
-  def isDestroyed: scala.Boolean = destroyed
-
-  def list(): Unit = list("")
-
-  def parentOf(group: ThreadGroup): scala.Boolean = {
-    var parent: ThreadGroup = group
-    while (parent != null) {
-      if (this == parent) return true
-      parent = parent.getParent
-    }
-    false
-  }
-
-  @deprecated
-  def resume(): Unit = {
-    checkAccess()
-    nonsecureResume()
-  }
+  def isDaemon(): scala.Boolean = daemon
 
   def setDaemon(daemon: scala.Boolean): Unit = {
-    checkAccess()
     this.daemon = daemon
   }
 
-  def setMaxPriority(priority: Int): Unit = {
-    checkAccess()
+  def isDestroyed(): scala.Boolean = destroyed
 
-    /*
-     * GMJ : note that this is to match a known bug in the RI
-     * http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=4708197
-     * We agreed to follow bug for now to prevent breaking apps
-     */
-    if (priority > Thread.MAX_PRIORITY) return
-    if (priority < Thread.MIN_PRIORITY) {
-      this.maxPriority = Thread.MIN_PRIORITY
-      return
+  def activeCount(): Int = {
+    childrenGroups.synchronized {
+      childrenGroups.foldLeft(childrenThreads.size) { _ + _.activeCount() }
     }
-    val new_priority: Int = {
-      if (parent != null && parent.maxPriority < priority)
-        parent.maxPriority
-      else
-        priority
-    }
-
-    nonsecureSetMaxPriority(new_priority)
   }
 
+  def activeGroupCount(): Int = {
+    childrenGroups.synchronized {
+      childrenGroups.foldLeft(childrenGroups.size) { _ + _.activeGroupCount() }
+    }
+  }
+
+  @deprecated
+  def allowchildrenThreadSuspension(b: scala.Boolean): scala.Boolean = true
+
+  def destroy(): Unit = {
+    if (destroyed) {
+      throw new IllegalThreadStateException(
+        "The thread group " + name + " is already destroyed!")
+    }
+
+    childrenThreads.synchronized {
+      childrenGroups.synchronized {
+        childrenGroups.foreach(_.destroy())
+        if (parent != null) {
+          parent.remove(this)
+        }
+        this.destroyed = true
+      }
+    }
+  }
+
+  def enumerate(threads: Array[Thread]): Int = {
+    enumerate(threads, true)
+  }
+
+  def enumerate(threads: Array[Thread], recurse: scala.Boolean): Int = {
+    enumerateImpl(threads.asInstanceOf[Array[Any]],
+                  recurse,
+                  0,
+                  enumeratingThreads = true)
+  }
+
+  def enumerate(groups: Array[ThreadGroup]): Int = {
+    enumerate(groups, true)
+  }
+
+  def enumerate(groups: Array[ThreadGroup], recurse: scala.Boolean): Int = {
+    enumerateImpl(groups.asInstanceOf[Array[Any]],
+                  recurse,
+                  0,
+                  enumeratingThreads = false)
+  }
+
+  private def enumerateImpl(enumeration: Array[Any],
+                            recurse: scala.Boolean,
+                            enumerationIndex: Int,
+                            enumeratingThreads: scala.Boolean): Int = {
+    val collection =
+      if (enumeratingThreads) childrenThreads
+      else childrenGroups
+
+    var idx = enumerationIndex
+    collection.synchronized {
+      collection.foreach { elem =>
+        val shouldTap = elem match {
+          case thread: Thread => thread.isAlive()
+          case _              => true
+        }
+
+        if (shouldTap) {
+          if (idx >= enumeration.length)
+            return idx
+
+          idx += 1
+          enumeration(idx) = elem
+        }
+      }
+    }
+
+    if (recurse) {
+      childrenGroups.synchronized {
+        childrenGroups.foreach { group =>
+          if (idx >= enumeration.length)
+            return idx
+
+          idx =
+            group.enumerateImpl(enumeration, recurse, idx, enumeratingThreads)
+
+        }
+      }
+    }
+    idx
+  }
+
+  def interrupt(): Unit = {
+    childrenThreads.synchronized {
+      childrenThreads.foreach(_.interrupt())
+    }
+
+    childrenGroups.synchronized {
+      childrenGroups.foreach(_.interrupt())
+    }
+  }
+
+  def list(): Unit = {
+    println()
+    list("")
+  }
+
+  private def list(indent: String): Unit = {
+    val indentLevel = "  "
+    print(indent)
+    println(this.toString())
+
+    childrenThreads.synchronized {
+      childrenThreads.foreach { thread =>
+        print(indent)
+        println(thread.toString())
+      }
+    }
+
+    val nextIndent = indent + indentLevel
+    childrenGroups.synchronized {
+      childrenGroups.foreach(_.list(nextIndent))
+    }
+  }
+
+  def parentOf(group: ThreadGroup): scala.Boolean = {
+    if (group == null) false
+    else if (this == group) true
+    else parentOf(group.getParent())
+  }
+
+  @nowarn("msg=method resume in class Thread is deprecated")
+  @deprecated
+  def resume(): Unit = {
+    childrenThreads.synchronized {
+      childrenThreads.foreach(_.resume())
+    }
+    childrenGroups.synchronized {
+      childrenGroups.foreach(_.resume())
+    }
+  }
+
+  @nowarn("msg=method stop in class Thread is deprecated")
   @deprecated
   def stop(): Unit = {
-    checkAccess()
-    nonsecureStop()
+    childrenThreads.synchronized {
+      childrenThreads.foreach(_.stop())
+    }
+    childrenGroups.synchronized {
+      childrenGroups.foreach(_.stop())
+    }
   }
 
+  @nowarn("msg=method suspend in class Thread is deprecated")
   @deprecated
   def suspend(): Unit = {
-    checkAccess()
-    nonsecureSuspend()
+    childrenThreads.synchronized {
+      childrenThreads.foreach(_.suspend())
+    }
+    childrenGroups.synchronized {
+      childrenGroups.foreach(_.suspend())
+    }
   }
 
   override def toString: String = {
-    getClass.getName + "[name=" + name + ",maxpri=" + maxPriority + "]"
+    getClass().getName() + "[name=" + name + ",maxpri=" + maxPriority + "]"
   }
 
   def uncaughtException(thread: Thread, throwable: Throwable): Unit = {
     if (parent != null) {
       parent.uncaughtException(thread, throwable)
-      return
+    } else {
+      val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+      if (defaultHandler != null) {
+        defaultHandler.uncaughtException(thread, throwable)
+      } else {
+        throwable match {
+          case _: ThreadDeath => ()
+          case _ =>
+            System.err.println(
+              "Uncaught exception in " + thread.getName() + ":")
+            throwable.printStackTrace()
+        }
+      }
     }
-    val defaultHandler: Thread.UncaughtExceptionHandler =
-      Thread.getDefaultUncaughtExceptionHandler
-    if (defaultHandler != null) {
-      defaultHandler.uncaughtException(thread, throwable)
-      return
-    }
-    if (throwable.isInstanceOf[ThreadDeath]) return
-    System.err.println("Uncaught exception in " + thread.getName + ":")
-    throwable.printStackTrace()
   }
 
+  @throws[IllegalThreadStateException]
   def add(thread: Thread): Unit = {
-    lock.synchronized {
-      if (destroyed)
+    childrenThreads.synchronized {
+      if (destroyed) {
         throw new IllegalThreadStateException(
           "The thread group is already destroyed!")
-      threads.add(thread)
+      }
+      childrenThreads += thread
     }
   }
 
-  def checkGroup(): Unit = {
-    lock.synchronized {
-      if (destroyed)
+  @throws[IllegalThreadStateException]
+  def add(group: ThreadGroup): Unit = {
+    childrenGroups.synchronized {
+      if (destroyed) {
         throw new IllegalThreadStateException(
           "The thread group is already destroyed!")
+      }
+      childrenGroups += group
     }
   }
 
   def remove(thread: Thread): Unit = {
-    lock.synchronized {
-      if (destroyed) return
-      threads.remove(thread)
-      thread.group = null
-      if (daemon && threads.isEmpty && groups.isEmpty) {
-        // destroy this group
-        if (parent != null) {
-          parent.remove(this)
-          destroyed = true
-        }
-      }
+    childrenThreads.synchronized {
+      childrenThreads -= thread
     }
-  }
-
-  def add(group: ThreadGroup): Unit = {
-    lock.synchronized {
-      if (destroyed)
-        throw new IllegalThreadStateException(
-          "The thread group is already destroyed!")
-      groups.add(group)
-    }
-  }
-
-  @SuppressWarnings(Array("unused"))
-  private def getActiveChildren: Array[Object] = {
-    val threadsCopy: util.ArrayList[Thread] =
-      new util.ArrayList[Thread](threads.size)
-    val groupsCopy: util.ArrayList[ThreadGroup] =
-      new util.ArrayList[ThreadGroup](groups.size)
-
-    lock.synchronized {
-      if (destroyed) {
-        return Array[Object](null, null)
-      }
-      threadsCopy.addAll(threads)
-      groupsCopy.addAll(groups)
-    }
-
-    val activeThreads: util.ArrayList[Thread] =
-      new util.ArrayList[Thread](threadsCopy.size())
-
-    // filter out alive threads
-    for (thread: Thread <- threadsCopy.scalaOps.toSeq) {
-      if (thread.isAlive)
-        activeThreads.add(thread)
-    }
-
-    Array[Object](activeThreads.toArray(), groupsCopy.toArray())
-
-  }
-
-  private def enumerate(list: Array[Thread],
-                        of: Int,
-                        recurse: scala.Boolean): Int = {
-    var offset: Int = of
-    if (list.isEmpty) return 0
-    var groupsCopy: util.List[ThreadGroup] = null // a copy of subgroups list
-    var threadsCopy: util.List[Thread]     = null // a copy of threads list
-    lock.synchronized {
-      if (destroyed)
-        return offset
-      threadsCopy = threads.clone().asInstanceOf[util.List[Thread]]
-      if (recurse)
-        groupsCopy = groups.clone().asInstanceOf[util.List[ThreadGroup]]
-    }
-    for (thread: Object <- threadsCopy.scalaOps.toSeq) {
-      if (thread.asInstanceOf[Thread].isAlive) {
-        list(offset) = thread.asInstanceOf[Thread]
-        offset += 1
-        if (offset == list.length) return offset
-      }
-      if (recurse) {
-        val it: util.Iterator[ThreadGroup] = groupsCopy.iterator()
-        while (offset < list.length && it.hasNext)
-          it.next()
-            .enumerate(list, offset, true)
-      }
-    }
-    offset
-  }
-
-  private def enumerate(list: Array[ThreadGroup],
-                        of: Int,
-                        recurse: scala.Boolean): Int = {
-    var offset: Int = of
-    if (destroyed)
-      return offset
-    val firstGroupIdx: Int = offset
-    lock.synchronized {
-      for (group: Object <- groups.scalaOps.toSeq) {
-        list(offset) = group.asInstanceOf[ThreadGroup]
-        offset += 1
-        if (offset == list.length)
-          return offset
-      }
-    }
-    if (recurse) {
-      val lastGroupIdx: Int = offset
-      var i: Int            = firstGroupIdx
-      while (offset < list.length && i < lastGroupIdx) {
-        offset = list(i).enumerate(list, offset, true)
-        i += 1
-      }
-    }
-    offset
-  }
-
-  private def list(pr: String): Unit = {
-    var prefix: String = pr
-
-    prefix += LISTING_INDENT
-    var groupsCopy: util.List[ThreadGroup] = null // a copy of subgroups list
-    var threadsCopy: util.List[Thread]     = null // a copy of threads list
-    lock.synchronized {
-      threadsCopy = threads.clone().asInstanceOf[util.List[Thread]]
-      groupsCopy = groups.clone().asInstanceOf[util.List[ThreadGroup]]
-    }
-
-    groupsCopy.scalaOps.foreach(_.list(prefix))
-  }
-
-  def nonsecureDestroy(): Unit = {
-    var groupsCopy: util.List[ThreadGroup] = null
-
-    lock.synchronized {
-      if (threads.size > 0)
-        throw new IllegalThreadStateException(
-          "The thread group " + name + "is not empty")
-      destroyed = true
-      groupsCopy = groups.clone().asInstanceOf[util.List[ThreadGroup]]
-    }
-
-    if (parent != null)
-      parent.remove(this)
-
-    groupsCopy.scalaOps.foreach(_.nonsecureDestroy())
-  }
-
-  private def nonsecureInterrupt(): Unit = {
-    lock.synchronized {
-      threads.scalaOps.foreach(_.interrupt())
-      groups.scalaOps.foreach(_.nonsecureInterrupt())
-    }
-  }
-
-  @nowarn("msg=method resume in class Thread is deprecated")
-  private def nonsecureResume(): Unit = {
-    lock.synchronized {
-      threads.scalaOps.foreach(_.resume())
-      groups.scalaOps.foreach(_.nonsecureResume())
-    }
-  }
-
-  private def nonsecureSetMaxPriority(priority: Int): Unit = {
-    lock.synchronized {
-      this.maxPriority = priority
-      groups.scalaOps.foreach(_.nonsecureSetMaxPriority(priority))
-    }
-  }
-
-  @nowarn("msg=method stop in class Thread is deprecated")
-  private def nonsecureStop(): Unit = {
-    lock.synchronized {
-      threads.forEach(_.stop())
-      groups.forEach(_.nonsecureStop())
-    }
-  }
-
-  @nowarn("msg=method suspend in class Thread is deprecated")
-  private def nonsecureSuspend(): Unit = {
-    lock.synchronized {
-      threads.scalaOps.foreach(_.suspend())
-      groups.scalaOps.foreach(_.nonsecureSuspend())
-    }
+    destroyIfEmptyDeamon()
   }
 
   private def remove(group: ThreadGroup): Unit = {
-    lock.synchronized {
-      groups.remove(group)
-      if (daemon && threads.isEmpty && groups.isEmpty) {
-        // destroy this group
-        if (parent != null) {
-          parent.remove(this)
-          destroyed = true
+    childrenGroups.synchronized {
+      childrenGroups -= group
+    }
+    destroyIfEmptyDeamon()
+  }
+
+  private def destroyIfEmptyDeamon(): Unit = {
+    if (daemon && !destroyed) {
+      childrenThreads.synchronized {
+        if (childrenThreads.isEmpty) {
+          childrenGroups.synchronized {
+            if (childrenGroups.isEmpty) {
+              destroy()
+            }
+          }
         }
       }
     }
   }
+
+  def checkAccess(): Unit = ()
 
 }
 
 object ThreadGroup {
-
-  // Indent used to print information about thread group
-  private final val LISTING_INDENT = "    "
-
-  // ThreadGroup lock object
-  private class ThreadGroupLock {}
-  private final val lock: ThreadGroupLock = new ThreadGroupLock
-
+  val System = new ThreadGroup("system", null, isTop = true)
 }

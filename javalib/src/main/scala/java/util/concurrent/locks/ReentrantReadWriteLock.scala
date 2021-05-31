@@ -35,10 +35,10 @@ class ReentrantReadWriteLock extends ReadWriteLock with java.io.Serializable {
   def getReadHoldCount: Int = sync.getReadHoldCount
 
   protected def getQueuedWriterThreads: java.util.Collection[Thread] =
-    sync.getExclusiveQueuedThreads
+    sync.getExclusiveQueuedThreads()
 
   protected def getQueuedReaderThreads: java.util.Collection[Thread] =
-    sync.getSharedQueuedThreads
+    sync.getSharedQueuedThreads()
 
   final def hasQueuedThreads: Boolean = sync.hasQueuedThreads
 
@@ -127,7 +127,7 @@ object ReentrantReadWriteLock {
       val c: Int          = getState
       val w: Int          = exclusiveCount(c)
       if (c != 0) {
-        if (w == 0 || current != getExclusiveOwnerThread)
+        if (w == 0 || current != getExclusiveOwnerThread())
           return false
         if (w + exclusiveCount(acquires) > MAX_COUNT)
           throw new Error("Maximum lock count exceeded")

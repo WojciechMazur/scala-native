@@ -1203,7 +1203,7 @@ abstract class AbstractQueuedSynchronizer protected ()
    *
    * @return the collection of threads
    */
-  final def getSharedQueuedThreads: Collection[Thread] = getThreads {
+  final def getSharedQueuedThreads(): Collection[Thread] = getThreads {
     _.isInstanceOf[AbstractQueuedSynchronizer.SharedNode]
   }
 

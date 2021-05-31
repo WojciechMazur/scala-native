@@ -8,7 +8,7 @@ abstract class AbstractOwnableSynchronizer extends java.io.Serializable {
   protected final def setExclusiveOwnerThread(t: Thread): Unit =
     exclusiveOwnerThread = t
 
-  protected final def getExclusiveOwnerThread: Thread = exclusiveOwnerThread
+  protected final def getExclusiveOwnerThread(): Thread = exclusiveOwnerThread
 
 }
 

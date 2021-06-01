@@ -23,7 +23,7 @@ private[scalanative] object Filter {
    * @return The paths filtered to be included in the compile.
    */
   def filterNativelib(config: Config,
-                      linkerResult: linker.Result,
+                      linked: Seq[nir.Attr.Link],
                       destPath: Path,
                       allPaths: Seq[Path]): (Seq[Path], Config) = {
     val nativeCodePath = destPath.resolve(nativeCodeDir)
@@ -44,7 +44,7 @@ private[scalanative] object Filter {
       def include(path: String) = {
         if (path.contains(optPath)) {
           val name = Paths.get(path).toFile.getName.split("\\.").head
-          linkerResult.links.map(_.name).contains(name)
+          linked.map(_.name).contains(name)
         } else if (path.contains(gcPath)) {
           gcSelectedPaths.exists(path.contains)
         } else {

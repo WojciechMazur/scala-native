@@ -320,8 +320,9 @@ object ThreadLocalRandom {
    * Erases ThreadLocals by nulling out Thread maps.
    */
   private[concurrent] def eraseThreadLocals(thread: Thread): Unit = {
-    thread.localValues = null
-    thread.inheritableValues = null
+    ???
+    // thread.localValues = null
+    // thread.inheritableValues = null
   }
 
   private[concurrent] def setInheritedAccessControlContext(

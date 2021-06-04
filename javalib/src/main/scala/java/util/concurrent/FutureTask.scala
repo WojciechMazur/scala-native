@@ -3,7 +3,7 @@ package java.util.concurrent
 // Ported from Harmony
 
 import locks._
-import scala.scalanative.runtime.CAtomicRef
+import scala.scalanative.unsafe._
 
 class FutureTask[V] extends RunnableFuture[V] {
 
@@ -58,7 +58,7 @@ class FutureTask[V] extends RunnableFuture[V] {
      * indicates that the results are accessible.  Must be
      * volatile, to ensure visibility upon completion.
      */
-    private val runner: CAtomicRef[Thread] = new CAtomicRef[Thread]()
+    private val runner: CAtomicRef[Thread] = ??? //new CAtomicRef[Thread]()
 
     private def ranOrCancelled(state: Int): Boolean =
       (state & (RAN | CANCELLED)) != 0
@@ -74,7 +74,7 @@ class FutureTask[V] extends RunnableFuture[V] {
     def innerIsCancelled: Boolean = getState == CANCELLED
 
     def innerIsDone: Boolean =
-      ranOrCancelled(getState) && runner == null.asInstanceOf[Thread]
+      ranOrCancelled(getState) && runner.load() == null.asInstanceOf[Thread]
 
     def innerGet: V = {
       acquireSharedInterruptibly(0)

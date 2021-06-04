@@ -13,7 +13,7 @@ import scala.scalanative.unsafe.atomic.memory_order._
 import scala.scalanative.runtime.{Intrinsics, fromRawPtr}
 
 object AtomicMarkableReference {
-  private case class MarkableReference[T <: AnyRef](reference: T, mark: Boolean)
+  private[concurrent] case class MarkableReference[T <: AnyRef](reference: T, mark: Boolean)
 }
 
 import AtomicMarkableReference._
@@ -28,7 +28,7 @@ class AtomicMarkableReference[V <: AnyRef](
   // This class should not define any other fields to ensure that underlying field
   // would always be placed at first slot of fields layout.
   @alwaysinline
-  private[this] def valueRef: CAtomicRef[MarkableReference[V]] = {
+  private[concurrent] def valueRef: CAtomicRef[MarkableReference[V]] = {
     new CAtomicRef(
       // Assumess object fields are stored in memory directly after Ptr[Rtti]
       (fromRawPtr[Ptr[Byte]](Intrinsics.castObjectToRawPtr(this)) + 1)

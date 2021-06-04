@@ -24,7 +24,7 @@ class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
   // This class should not define any other values to ensure that underlying field
   // would always be placed at first slot of fields layout.
   @alwaysinline
-  private[this] def valueRef: CAtomicRef[V] = new CAtomicRef[V](
+  private[concurrent] def valueRef: CAtomicRef[V] = new CAtomicRef[V](
     // Assumess object fields are stored in memory directly after Ptr[Rtti]
     (fromRawPtr[Ptr[Byte]](Intrinsics.castObjectToRawPtr(this)) + 1)
       .asInstanceOf[Ptr[V]]
@@ -258,7 +258,7 @@ class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
    * @return the value
    * @since 9
    */
-  final def getOpaque: V = valueRef.load(memory_order_relaxed)
+  final def getOpaque(): V = valueRef.load(memory_order_relaxed)
 
   /**
    * Sets the value to {@code newValue},

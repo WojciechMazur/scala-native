@@ -22,10 +22,10 @@ class AtomicIntegerArray extends Serializable {
   final private var array: Array[Int] = null
 
   @alwaysinline
-  def nativeArray: IntArray = array.asInstanceOf[IntArray]
+  private[concurrent] def nativeArray: IntArray = array.asInstanceOf[IntArray]
 
   @alwaysinline
-  implicit def ptrIntToAtomicInt(ptr: Ptr[Int]): CAtomicInt =
+  private implicit def ptrIntToAtomicInt(ptr: Ptr[Int]): CAtomicInt =
     new CAtomicInt(ptr)
 
   /**

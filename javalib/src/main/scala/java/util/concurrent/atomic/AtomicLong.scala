@@ -24,7 +24,7 @@ class AtomicLong(private[this] var value: Long)
   // This class should not define any other values to ensure that underlying field
   // would always be placed at first slot of fields layout.
   @alwaysinline
-  private[this] def valueRef: CAtomicLong = new CAtomicLong(
+  private[concurrent] def valueRef: CAtomicLong = new CAtomicLong(
     // Assumess object fields are stored in memory directly after Ptr[Rtti]
     (fromRawPtr[Ptr[Byte]](Intrinsics.castObjectToRawPtr(this)) + 1)
       .asInstanceOf[Ptr[Long]]
@@ -373,7 +373,7 @@ class AtomicLong(private[this] var value: Long)
    * @return the value
    * @since 9
    */
-  final def getOpaque: Long = valueRef.load(memory_order_relaxed)
+  final def getOpaque(): Long = valueRef.load(memory_order_relaxed)
 
   /**
    * Sets the value to {@code newValue},

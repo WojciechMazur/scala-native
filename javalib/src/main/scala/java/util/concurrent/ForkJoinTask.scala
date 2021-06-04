@@ -16,6 +16,8 @@ import java.util.RandomAccess;
 import java.util.concurrent.locks.LockSupport;
 import scala.scalanative.annotation.stub
 import scala.annotation.tailrec
+import scala.scalanative.unsafe._
+import scala.scalanative.posix.sys.stat
 
 /**
  * Abstract base class for tasks that run within a {@link ForkJoinPool}.
@@ -62,8 +64,7 @@ import scala.annotation.tailrec
  * exceptions, but, when possible, contain stack traces (as displayed
  * for example using {@code ex.printStackTrace()}) of both the thread
  * that initiated the computation as well as the thread actually
- * encountering the exception; minimally only the latter.
- *
+ * encountering the exception; minimally only the lattevar
  * <p>It is possible to define and use ForkJoinTasks that may block,
  * but doing so requires three further considerations: (1) Completion
  * of few if any <em>other</em> tasks should be dependent on a task
@@ -178,31 +179,30 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
   import ForkJoinTask._
 
   // Fields
-  @volatile
-  private[concurrent] var status
-      : Int = _ // accessed directly by pool and workers
-  @volatile @transient
-  private var aux: Aux = _; // either waiters or thrown Exception
+  // @volatile
+  private[concurrent] val status
+      : CAtomicInt = ??? // new CAtomicInt(0)         // accessed directly by pool and workers
+  private val aux
+      : CAtomicRef[Aux] = ??? //new CAtomicRef[Aux](null) // either waiters or thrown Exception
 
   // Support for atomic operations
   private def getAndBitwiseOrStatus(v: Int): Int = {
-    ???
-    // return (int)STATUS.getAndBitwiseOr(this, v);
+    status.fetchXor(v)
   }
   private def casStatus(c: Int, v: Int): Boolean = {
     ???
-    // return STATUS.compareAndSet(this, c, v);
+    // status.compareAndSwapStrong(c, v)._1
   }
   private def casAux(c: Aux, v: Aux): Boolean = {
     ???
-//    return AUX.compareAndSet(this, c, v);
+    // aux.compareAndSwapStrong(c, v)._1
   }
 
   /** Removes and unparks waiters */
   private def signalWaiters(): Unit = {
     @tailrec
     def acquireAux(): Aux = {
-      val a = aux
+      val a = aux.load()
       if (a != null && a.ex.isEmpty && casAux(a, null)) a
       else acquireAux()
     }
@@ -235,9 +235,9 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    * @return status on exit
    */
   private def trySetCancelled(): Int = {
-    var s = status
+    var s = status.load()
     while ({
-      val lastStatus = status
+      val lastStatus = status.load()
       s = lastStatus | DONE | ABNORMAL
       lastStatus >= 0 && !casStatus(lastStatus, s)
     }) ()
@@ -257,10 +257,10 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
     @tailrec
     def setupLoop(installed: Boolean,
                   optAux: Option[Aux]): (Int, Option[Aux]) = {
-      val s = status
+      val s = status.load()
       if (s < 0) s -> optAux
       else {
-        val a = aux
+        val a = aux.load()
         val h = Aux(Thread.currentThread(), Some(ex), Some(a))
         if (!installed && (a == null || a.ex.isEmpty) && casAux(a, h)) {
           setupLoop(installed = true, Some(a)) // list of waiters replaced by h
@@ -306,7 +306,7 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    * @return status on exit from this method
    */
   private[concurrent] final def doExec(): Int = {
-    val s = status
+    val s = status.load()
     if (s < 0) s
     else
       try {
@@ -642,11 +642,11 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
   }
 
   final def isDone(): Boolean = {
-    status < 0;
+    status.load < 0;
   }
 
   final def isCancelled(): Boolean = {
-    (status & (ABNORMAL | THROWN)) == ABNORMAL;
+    (status.load & (ABNORMAL | THROWN)) == ABNORMAL;
   }
 
   /**
@@ -655,7 +655,7 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    * @return {@code true} if this task threw an exception or was cancelled
    */
   final def isCompletedAbnormally(): Boolean = {
-    (status & ABNORMAL) != 0;
+    (status.load & ABNORMAL) != 0;
   }
 
   /**
@@ -666,7 +666,7 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    * exception and was not cancelled
    */
   final def isCompletedNormally(): Boolean = {
-    (status & (DONE | ABNORMAL)) == DONE;
+    (status.load & (DONE | ABNORMAL)) == DONE;
   }
 
   /**
@@ -677,7 +677,7 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    * @return the exception, or {@code null} if none
    */
   final def getException(): Throwable = {
-    getException(status);
+    getException(status.load());
   }
 
   /**
@@ -798,7 +798,7 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    */
   @stub()
   final def quietlyJoin(): Unit = {
-    if (status >= 0)
+    if (status.load >= 0)
       awaitDone(null, false, false, false, 0L);
   }
 
@@ -873,8 +873,8 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    */
   @stub()
   def reinitialize(): Unit = {
-    aux = null;
-    status = 0;
+    aux.store(null);
+    status.store(0);
   }
 
   /**
@@ -948,7 +948,7 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    */
   @stub()
   final def getForkJoinTaskTag(): Short = {
-    status.toShort;
+    status.load().toShort;
   }
 
   /**

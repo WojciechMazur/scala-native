@@ -11,7 +11,7 @@ import java.util.Date
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.ForkJoinPool
 import java.util.concurrent.RejectedExecutionException
-import scala.scalanative.runtime.{CAtomicInt, CAtomicRef}
+import scala.scalanative.unsafe._
 import scala.annotation.tailrec
 import scala.util.control.Breaks._
 
@@ -281,22 +281,26 @@ object AbstractQueuedSynchronizer { // Node status bits, also used as argument a
 
   /** CLH Nodes */
   abstract private[locks] class Node {
-    private[locks] val prev   = new CAtomicRef[Node]()   // initially attached via casTail
-    private[locks] val next   = new CAtomicRef[Node]()   // visibly nonnull when signallable
-    private[locks] val waiter = new CAtomicRef[Thread]() // visibly nonnull when enqueued
-    private[locks] val status = new CAtomicInt(0)        // written by owner, atomic bit ops by others
+    private[locks] val prev
+        : CAtomicRef[Node] = ??? //()   // initially attached via casTail
+    private[locks] val next
+        : CAtomicRef[Node] = ??? //new ()   // visibly nonnull when signallable
+    private[locks] val waiter
+        : CAtomicRef[Thread] = ??? //new () // visibly nonnull when enqueued
+    private[locks] val status
+        : CAtomicInt = ??? // new (0)        // written by owner, atomic bit ops by others
 
     // methods for atomic operations
     final private[locks] def casPrev(
         c: AbstractQueuedSynchronizer.Node,
         v: AbstractQueuedSynchronizer.Node): Boolean = { // for cleanQueue
-      prev.compareAndSwapWeak(c, v)._1
+      prev.compareExchangeStrong(c, v)._1
     }
 
     final private[locks] def casNext(
         c: AbstractQueuedSynchronizer.Node,
         v: AbstractQueuedSynchronizer.Node): Boolean = {
-      next.compareAndSwapWeak(c, v)._1
+      next.compareExchangeStrong(c, v)._1
     }
 
     final private[locks] def getAndUnsetStatus(v: Int): Int = { // for signalling
@@ -376,17 +380,17 @@ abstract class AbstractQueuedSynchronizer protected ()
   /**
    * Head of the wait queue, lazily initialized.
    */
-  private val head = new CAtomicRef[Node]()
+  private val head: CAtomicRef[Node] = ???// new CAtomicRef[Node]()
 
   /**
    * Tail of the wait queue. After initialization, modified only via casTail.
    */
-  private val tail = new CAtomicRef[Node]()
+  private val tail: CAtomicRef[Node]  = ??? // new CAtomicRef[Node]()
 
   /**
    * The synchronization state.
    */
-  private val state = new CAtomicInt(0)
+  private val state: CAtomicInt = ??? //new CAtomicInt(0)
 
   /**
    * Returns the current value of synchronization state.
@@ -414,18 +418,18 @@ abstract class AbstractQueuedSynchronizer protected ()
    *         value was not equal to the expected value.
    */
   final protected def compareAndSetState(expect: Int, update: Int): Boolean = {
-    state.compareAndSwapStrong(expect, update)._1
+    state.compareExchangeStrong(expect, update)._1
   }
 
   private def casTail(c: AbstractQueuedSynchronizer.Node,
                       v: AbstractQueuedSynchronizer.Node): Boolean = {
-    tail.compareAndSwapStrong(c, v)._1
+    tail.compareExchangeStrong(c, v)._1
   }
 
   /** tries once to CAS a new dummy node for head */
   private def tryInitializeHead(): Unit = {
     val h = new AbstractQueuedSynchronizer.ExclusiveNode()
-    if (head.compareAndSwapStrong(null, h)._1) {
+    if (head.compareExchangeStrong(null, h)._1) {
       tail.store(h)
     }
   }
@@ -514,7 +518,7 @@ abstract class AbstractQueuedSynchronizer protected ()
           if (node.status.load() < 0) {
             cleanQueue()
             firstOrPredecessor()
-          } else if (node.prev == null) {
+          } else if (node.prev.load() == null) {
             Thread.onSpinWait()
             firstOrPredecessor()
           } else (isFirst, pred)
@@ -628,7 +632,7 @@ abstract class AbstractQueuedSynchronizer protected ()
           return ()
 
         val isIncosisient =
-          if (s == null) tail != q
+          if (s == null) tail.load() != q
           else s.prev.load() != q || s.status.load() < 0
         if (isIncosisient) break
 
@@ -1004,7 +1008,7 @@ abstract class AbstractQueuedSynchronizer protected ()
    *
    * @return {@code true} if there has ever been contention
    */
-  final def hasContended: Boolean = head != null
+  final def hasContended: Boolean = head.load != null
 
   /**
    * Returns the first (longest-waiting) thread in the queue, or

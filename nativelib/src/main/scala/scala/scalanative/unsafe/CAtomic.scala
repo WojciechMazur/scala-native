@@ -10,26 +10,27 @@ import scala.language.implicitConversions
 @extern
 object atomic {
   type memory_order = Int // enum
+  @extern
   object memory_order{
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 29)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 30)
     @name("scalanative_atomic_memory_order_relaxed")
     final def memory_order_relaxed: memory_order = extern    
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 29)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 30)
     @name("scalanative_atomic_memory_order_consume")
     final def memory_order_consume: memory_order = extern    
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 29)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 30)
     @name("scalanative_atomic_memory_order_acquire")
     final def memory_order_acquire: memory_order = extern    
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 29)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 30)
     @name("scalanative_atomic_memory_order_release")
     final def memory_order_release: memory_order = extern    
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 29)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 30)
     @name("scalanative_atomic_memory_order_acq_rel")
     final def memory_order_acq_rel: memory_order = extern    
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 29)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 30)
     @name("scalanative_atomic_memory_order_seq_cst")
     final def memory_order_seq_cst: memory_order = extern    
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 32)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 33)
   }
 
   @name("scalanative_atomic_thread_fence")
@@ -38,7 +39,7 @@ object atomic {
   @name("scalanative_atomic_signal_fence")
   final def atomic_signal_fence(order: memory_order): Unit = extern
   
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 41)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 42)
   type CAtomicByte = Ptr[Byte]
 
   @name("scalanative_atomic_init_byte")
@@ -86,37 +87,37 @@ object atomic {
                                   memoryOrderOnSuccess: memory_order,
                                   memoryOrderOnFailure: memory_order): CBool = extern
 
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_add_byte")
   def atomic_fetch_add_byte(ptr: CAtomicByte, value: Byte): Byte = extern
 
   @name("scalanative_atomic_fetch_add_explicit_byte")
   def atomic_fetch_add_explicit_byte(ptr: CAtomicByte, value: Byte, memoryOrder: memory_order): Byte = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_sub_byte")
   def atomic_fetch_sub_byte(ptr: CAtomicByte, value: Byte): Byte = extern
 
   @name("scalanative_atomic_fetch_sub_explicit_byte")
   def atomic_fetch_sub_explicit_byte(ptr: CAtomicByte, value: Byte, memoryOrder: memory_order): Byte = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_or_byte")
   def atomic_fetch_or_byte(ptr: CAtomicByte, value: Byte): Byte = extern
 
   @name("scalanative_atomic_fetch_or_explicit_byte")
   def atomic_fetch_or_explicit_byte(ptr: CAtomicByte, value: Byte, memoryOrder: memory_order): Byte = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_and_byte")
   def atomic_fetch_and_byte(ptr: CAtomicByte, value: Byte): Byte = extern
 
   @name("scalanative_atomic_fetch_and_explicit_byte")
   def atomic_fetch_and_explicit_byte(ptr: CAtomicByte, value: Byte, memoryOrder: memory_order): Byte = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_xor_byte")
   def atomic_fetch_xor_byte(ptr: CAtomicByte, value: Byte): Byte = extern
 
   @name("scalanative_atomic_fetch_xor_explicit_byte")
   def atomic_fetch_xor_explicit_byte(ptr: CAtomicByte, value: Byte, memoryOrder: memory_order): Byte = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 41)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 42)
   type CAtomicShort = Ptr[CShort]
 
   @name("scalanative_atomic_init_short")
@@ -164,37 +165,37 @@ object atomic {
                                   memoryOrderOnSuccess: memory_order,
                                   memoryOrderOnFailure: memory_order): CBool = extern
 
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_add_short")
   def atomic_fetch_add_short(ptr: CAtomicShort, value: CShort): CShort = extern
 
   @name("scalanative_atomic_fetch_add_explicit_short")
   def atomic_fetch_add_explicit_short(ptr: CAtomicShort, value: CShort, memoryOrder: memory_order): CShort = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_sub_short")
   def atomic_fetch_sub_short(ptr: CAtomicShort, value: CShort): CShort = extern
 
   @name("scalanative_atomic_fetch_sub_explicit_short")
   def atomic_fetch_sub_explicit_short(ptr: CAtomicShort, value: CShort, memoryOrder: memory_order): CShort = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_or_short")
   def atomic_fetch_or_short(ptr: CAtomicShort, value: CShort): CShort = extern
 
   @name("scalanative_atomic_fetch_or_explicit_short")
   def atomic_fetch_or_explicit_short(ptr: CAtomicShort, value: CShort, memoryOrder: memory_order): CShort = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_and_short")
   def atomic_fetch_and_short(ptr: CAtomicShort, value: CShort): CShort = extern
 
   @name("scalanative_atomic_fetch_and_explicit_short")
   def atomic_fetch_and_explicit_short(ptr: CAtomicShort, value: CShort, memoryOrder: memory_order): CShort = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_xor_short")
   def atomic_fetch_xor_short(ptr: CAtomicShort, value: CShort): CShort = extern
 
   @name("scalanative_atomic_fetch_xor_explicit_short")
   def atomic_fetch_xor_explicit_short(ptr: CAtomicShort, value: CShort, memoryOrder: memory_order): CShort = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 41)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 42)
   type CAtomicInt = Ptr[CInt]
 
   @name("scalanative_atomic_init_int")
@@ -242,37 +243,37 @@ object atomic {
                                   memoryOrderOnSuccess: memory_order,
                                   memoryOrderOnFailure: memory_order): CBool = extern
 
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_add_int")
   def atomic_fetch_add_int(ptr: CAtomicInt, value: CInt): CInt = extern
 
   @name("scalanative_atomic_fetch_add_explicit_int")
   def atomic_fetch_add_explicit_int(ptr: CAtomicInt, value: CInt, memoryOrder: memory_order): CInt = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_sub_int")
   def atomic_fetch_sub_int(ptr: CAtomicInt, value: CInt): CInt = extern
 
   @name("scalanative_atomic_fetch_sub_explicit_int")
   def atomic_fetch_sub_explicit_int(ptr: CAtomicInt, value: CInt, memoryOrder: memory_order): CInt = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_or_int")
   def atomic_fetch_or_int(ptr: CAtomicInt, value: CInt): CInt = extern
 
   @name("scalanative_atomic_fetch_or_explicit_int")
   def atomic_fetch_or_explicit_int(ptr: CAtomicInt, value: CInt, memoryOrder: memory_order): CInt = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_and_int")
   def atomic_fetch_and_int(ptr: CAtomicInt, value: CInt): CInt = extern
 
   @name("scalanative_atomic_fetch_and_explicit_int")
   def atomic_fetch_and_explicit_int(ptr: CAtomicInt, value: CInt, memoryOrder: memory_order): CInt = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_xor_int")
   def atomic_fetch_xor_int(ptr: CAtomicInt, value: CInt): CInt = extern
 
   @name("scalanative_atomic_fetch_xor_explicit_int")
   def atomic_fetch_xor_explicit_int(ptr: CAtomicInt, value: CInt, memoryOrder: memory_order): CInt = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 41)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 42)
   type CAtomicLong = Ptr[CLong]
 
   @name("scalanative_atomic_init_long")
@@ -320,37 +321,37 @@ object atomic {
                                   memoryOrderOnSuccess: memory_order,
                                   memoryOrderOnFailure: memory_order): CBool = extern
 
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_add_long")
   def atomic_fetch_add_long(ptr: CAtomicLong, value: CLong): CLong = extern
 
   @name("scalanative_atomic_fetch_add_explicit_long")
   def atomic_fetch_add_explicit_long(ptr: CAtomicLong, value: CLong, memoryOrder: memory_order): CLong = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_sub_long")
   def atomic_fetch_sub_long(ptr: CAtomicLong, value: CLong): CLong = extern
 
   @name("scalanative_atomic_fetch_sub_explicit_long")
   def atomic_fetch_sub_explicit_long(ptr: CAtomicLong, value: CLong, memoryOrder: memory_order): CLong = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_or_long")
   def atomic_fetch_or_long(ptr: CAtomicLong, value: CLong): CLong = extern
 
   @name("scalanative_atomic_fetch_or_explicit_long")
   def atomic_fetch_or_explicit_long(ptr: CAtomicLong, value: CLong, memoryOrder: memory_order): CLong = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_and_long")
   def atomic_fetch_and_long(ptr: CAtomicLong, value: CLong): CLong = extern
 
   @name("scalanative_atomic_fetch_and_explicit_long")
   def atomic_fetch_and_explicit_long(ptr: CAtomicLong, value: CLong, memoryOrder: memory_order): CLong = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_xor_long")
   def atomic_fetch_xor_long(ptr: CAtomicLong, value: CLong): CLong = extern
 
   @name("scalanative_atomic_fetch_xor_explicit_long")
   def atomic_fetch_xor_explicit_long(ptr: CAtomicLong, value: CLong, memoryOrder: memory_order): CLong = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 41)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 42)
   type CAtomicUnsignedByte = Ptr[UByte]
 
   @name("scalanative_atomic_init_ubyte")
@@ -398,37 +399,37 @@ object atomic {
                                   memoryOrderOnSuccess: memory_order,
                                   memoryOrderOnFailure: memory_order): CBool = extern
 
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_add_ubyte")
   def atomic_fetch_add_ubyte(ptr: CAtomicUnsignedByte, value: UByte): UByte = extern
 
   @name("scalanative_atomic_fetch_add_explicit_ubyte")
   def atomic_fetch_add_explicit_ubyte(ptr: CAtomicUnsignedByte, value: UByte, memoryOrder: memory_order): UByte = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_sub_ubyte")
   def atomic_fetch_sub_ubyte(ptr: CAtomicUnsignedByte, value: UByte): UByte = extern
 
   @name("scalanative_atomic_fetch_sub_explicit_ubyte")
   def atomic_fetch_sub_explicit_ubyte(ptr: CAtomicUnsignedByte, value: UByte, memoryOrder: memory_order): UByte = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_or_ubyte")
   def atomic_fetch_or_ubyte(ptr: CAtomicUnsignedByte, value: UByte): UByte = extern
 
   @name("scalanative_atomic_fetch_or_explicit_ubyte")
   def atomic_fetch_or_explicit_ubyte(ptr: CAtomicUnsignedByte, value: UByte, memoryOrder: memory_order): UByte = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_and_ubyte")
   def atomic_fetch_and_ubyte(ptr: CAtomicUnsignedByte, value: UByte): UByte = extern
 
   @name("scalanative_atomic_fetch_and_explicit_ubyte")
   def atomic_fetch_and_explicit_ubyte(ptr: CAtomicUnsignedByte, value: UByte, memoryOrder: memory_order): UByte = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_xor_ubyte")
   def atomic_fetch_xor_ubyte(ptr: CAtomicUnsignedByte, value: UByte): UByte = extern
 
   @name("scalanative_atomic_fetch_xor_explicit_ubyte")
   def atomic_fetch_xor_explicit_ubyte(ptr: CAtomicUnsignedByte, value: UByte, memoryOrder: memory_order): UByte = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 41)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 42)
   type CAtomicUnsignedShort = Ptr[CUnsignedShort]
 
   @name("scalanative_atomic_init_ushort")
@@ -476,37 +477,37 @@ object atomic {
                                   memoryOrderOnSuccess: memory_order,
                                   memoryOrderOnFailure: memory_order): CBool = extern
 
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_add_ushort")
   def atomic_fetch_add_ushort(ptr: CAtomicUnsignedShort, value: CUnsignedShort): CUnsignedShort = extern
 
   @name("scalanative_atomic_fetch_add_explicit_ushort")
   def atomic_fetch_add_explicit_ushort(ptr: CAtomicUnsignedShort, value: CUnsignedShort, memoryOrder: memory_order): CUnsignedShort = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_sub_ushort")
   def atomic_fetch_sub_ushort(ptr: CAtomicUnsignedShort, value: CUnsignedShort): CUnsignedShort = extern
 
   @name("scalanative_atomic_fetch_sub_explicit_ushort")
   def atomic_fetch_sub_explicit_ushort(ptr: CAtomicUnsignedShort, value: CUnsignedShort, memoryOrder: memory_order): CUnsignedShort = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_or_ushort")
   def atomic_fetch_or_ushort(ptr: CAtomicUnsignedShort, value: CUnsignedShort): CUnsignedShort = extern
 
   @name("scalanative_atomic_fetch_or_explicit_ushort")
   def atomic_fetch_or_explicit_ushort(ptr: CAtomicUnsignedShort, value: CUnsignedShort, memoryOrder: memory_order): CUnsignedShort = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_and_ushort")
   def atomic_fetch_and_ushort(ptr: CAtomicUnsignedShort, value: CUnsignedShort): CUnsignedShort = extern
 
   @name("scalanative_atomic_fetch_and_explicit_ushort")
   def atomic_fetch_and_explicit_ushort(ptr: CAtomicUnsignedShort, value: CUnsignedShort, memoryOrder: memory_order): CUnsignedShort = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_xor_ushort")
   def atomic_fetch_xor_ushort(ptr: CAtomicUnsignedShort, value: CUnsignedShort): CUnsignedShort = extern
 
   @name("scalanative_atomic_fetch_xor_explicit_ushort")
   def atomic_fetch_xor_explicit_ushort(ptr: CAtomicUnsignedShort, value: CUnsignedShort, memoryOrder: memory_order): CUnsignedShort = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 41)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 42)
   type CAtomicUnsignedInt = Ptr[CUnsignedInt]
 
   @name("scalanative_atomic_init_uint")
@@ -554,37 +555,37 @@ object atomic {
                                   memoryOrderOnSuccess: memory_order,
                                   memoryOrderOnFailure: memory_order): CBool = extern
 
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_add_uint")
   def atomic_fetch_add_uint(ptr: CAtomicUnsignedInt, value: CUnsignedInt): CUnsignedInt = extern
 
   @name("scalanative_atomic_fetch_add_explicit_uint")
   def atomic_fetch_add_explicit_uint(ptr: CAtomicUnsignedInt, value: CUnsignedInt, memoryOrder: memory_order): CUnsignedInt = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_sub_uint")
   def atomic_fetch_sub_uint(ptr: CAtomicUnsignedInt, value: CUnsignedInt): CUnsignedInt = extern
 
   @name("scalanative_atomic_fetch_sub_explicit_uint")
   def atomic_fetch_sub_explicit_uint(ptr: CAtomicUnsignedInt, value: CUnsignedInt, memoryOrder: memory_order): CUnsignedInt = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_or_uint")
   def atomic_fetch_or_uint(ptr: CAtomicUnsignedInt, value: CUnsignedInt): CUnsignedInt = extern
 
   @name("scalanative_atomic_fetch_or_explicit_uint")
   def atomic_fetch_or_explicit_uint(ptr: CAtomicUnsignedInt, value: CUnsignedInt, memoryOrder: memory_order): CUnsignedInt = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_and_uint")
   def atomic_fetch_and_uint(ptr: CAtomicUnsignedInt, value: CUnsignedInt): CUnsignedInt = extern
 
   @name("scalanative_atomic_fetch_and_explicit_uint")
   def atomic_fetch_and_explicit_uint(ptr: CAtomicUnsignedInt, value: CUnsignedInt, memoryOrder: memory_order): CUnsignedInt = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_xor_uint")
   def atomic_fetch_xor_uint(ptr: CAtomicUnsignedInt, value: CUnsignedInt): CUnsignedInt = extern
 
   @name("scalanative_atomic_fetch_xor_explicit_uint")
   def atomic_fetch_xor_explicit_uint(ptr: CAtomicUnsignedInt, value: CUnsignedInt, memoryOrder: memory_order): CUnsignedInt = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 41)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 42)
   type CAtomicUnsignedLong = Ptr[CUnsignedLong]
 
   @name("scalanative_atomic_init_ulong")
@@ -632,37 +633,37 @@ object atomic {
                                   memoryOrderOnSuccess: memory_order,
                                   memoryOrderOnFailure: memory_order): CBool = extern
 
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_add_ulong")
   def atomic_fetch_add_ulong(ptr: CAtomicUnsignedLong, value: CUnsignedLong): CUnsignedLong = extern
 
   @name("scalanative_atomic_fetch_add_explicit_ulong")
   def atomic_fetch_add_explicit_ulong(ptr: CAtomicUnsignedLong, value: CUnsignedLong, memoryOrder: memory_order): CUnsignedLong = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_sub_ulong")
   def atomic_fetch_sub_ulong(ptr: CAtomicUnsignedLong, value: CUnsignedLong): CUnsignedLong = extern
 
   @name("scalanative_atomic_fetch_sub_explicit_ulong")
   def atomic_fetch_sub_explicit_ulong(ptr: CAtomicUnsignedLong, value: CUnsignedLong, memoryOrder: memory_order): CUnsignedLong = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_or_ulong")
   def atomic_fetch_or_ulong(ptr: CAtomicUnsignedLong, value: CUnsignedLong): CUnsignedLong = extern
 
   @name("scalanative_atomic_fetch_or_explicit_ulong")
   def atomic_fetch_or_explicit_ulong(ptr: CAtomicUnsignedLong, value: CUnsignedLong, memoryOrder: memory_order): CUnsignedLong = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_and_ulong")
   def atomic_fetch_and_ulong(ptr: CAtomicUnsignedLong, value: CUnsignedLong): CUnsignedLong = extern
 
   @name("scalanative_atomic_fetch_and_explicit_ulong")
   def atomic_fetch_and_explicit_ulong(ptr: CAtomicUnsignedLong, value: CUnsignedLong, memoryOrder: memory_order): CUnsignedLong = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_xor_ulong")
   def atomic_fetch_xor_ulong(ptr: CAtomicUnsignedLong, value: CUnsignedLong): CUnsignedLong = extern
 
   @name("scalanative_atomic_fetch_xor_explicit_ulong")
   def atomic_fetch_xor_explicit_ulong(ptr: CAtomicUnsignedLong, value: CUnsignedLong, memoryOrder: memory_order): CUnsignedLong = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 41)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 42)
   type CAtomicChar = Ptr[CChar]
 
   @name("scalanative_atomic_init_char")
@@ -710,37 +711,37 @@ object atomic {
                                   memoryOrderOnSuccess: memory_order,
                                   memoryOrderOnFailure: memory_order): CBool = extern
 
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_add_char")
   def atomic_fetch_add_char(ptr: CAtomicChar, value: CChar): CChar = extern
 
   @name("scalanative_atomic_fetch_add_explicit_char")
   def atomic_fetch_add_explicit_char(ptr: CAtomicChar, value: CChar, memoryOrder: memory_order): CChar = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_sub_char")
   def atomic_fetch_sub_char(ptr: CAtomicChar, value: CChar): CChar = extern
 
   @name("scalanative_atomic_fetch_sub_explicit_char")
   def atomic_fetch_sub_explicit_char(ptr: CAtomicChar, value: CChar, memoryOrder: memory_order): CChar = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_or_char")
   def atomic_fetch_or_char(ptr: CAtomicChar, value: CChar): CChar = extern
 
   @name("scalanative_atomic_fetch_or_explicit_char")
   def atomic_fetch_or_explicit_char(ptr: CAtomicChar, value: CChar, memoryOrder: memory_order): CChar = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_and_char")
   def atomic_fetch_and_char(ptr: CAtomicChar, value: CChar): CChar = extern
 
   @name("scalanative_atomic_fetch_and_explicit_char")
   def atomic_fetch_and_explicit_char(ptr: CAtomicChar, value: CChar, memoryOrder: memory_order): CChar = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_xor_char")
   def atomic_fetch_xor_char(ptr: CAtomicChar, value: CChar): CChar = extern
 
   @name("scalanative_atomic_fetch_xor_explicit_char")
   def atomic_fetch_xor_explicit_char(ptr: CAtomicChar, value: CChar, memoryOrder: memory_order): CChar = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 41)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 42)
   type CAtomicCSize = Ptr[CSize]
 
   @name("scalanative_atomic_init_csize")
@@ -788,37 +789,37 @@ object atomic {
                                   memoryOrderOnSuccess: memory_order,
                                   memoryOrderOnFailure: memory_order): CBool = extern
 
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_add_csize")
   def atomic_fetch_add_csize(ptr: CAtomicCSize, value: CSize): CSize = extern
 
   @name("scalanative_atomic_fetch_add_explicit_csize")
   def atomic_fetch_add_explicit_csize(ptr: CAtomicCSize, value: CSize, memoryOrder: memory_order): CSize = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_sub_csize")
   def atomic_fetch_sub_csize(ptr: CAtomicCSize, value: CSize): CSize = extern
 
   @name("scalanative_atomic_fetch_sub_explicit_csize")
   def atomic_fetch_sub_explicit_csize(ptr: CAtomicCSize, value: CSize, memoryOrder: memory_order): CSize = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_or_csize")
   def atomic_fetch_or_csize(ptr: CAtomicCSize, value: CSize): CSize = extern
 
   @name("scalanative_atomic_fetch_or_explicit_csize")
   def atomic_fetch_or_explicit_csize(ptr: CAtomicCSize, value: CSize, memoryOrder: memory_order): CSize = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_and_csize")
   def atomic_fetch_and_csize(ptr: CAtomicCSize, value: CSize): CSize = extern
 
   @name("scalanative_atomic_fetch_and_explicit_csize")
   def atomic_fetch_and_explicit_csize(ptr: CAtomicCSize, value: CSize, memoryOrder: memory_order): CSize = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_xor_csize")
   def atomic_fetch_xor_csize(ptr: CAtomicCSize, value: CSize): CSize = extern
 
   @name("scalanative_atomic_fetch_xor_explicit_csize")
   def atomic_fetch_xor_explicit_csize(ptr: CAtomicCSize, value: CSize, memoryOrder: memory_order): CSize = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 41)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 42)
   type CAtomicPtr = Ptr[Word]
 
   @name("scalanative_atomic_init_intptr")
@@ -866,37 +867,37 @@ object atomic {
                                   memoryOrderOnSuccess: memory_order,
                                   memoryOrderOnFailure: memory_order): CBool = extern
 
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_add_intptr")
   def atomic_fetch_add_intptr(ptr: CAtomicPtr, value: Word): Word = extern
 
   @name("scalanative_atomic_fetch_add_explicit_intptr")
   def atomic_fetch_add_explicit_intptr(ptr: CAtomicPtr, value: Word, memoryOrder: memory_order): Word = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_sub_intptr")
   def atomic_fetch_sub_intptr(ptr: CAtomicPtr, value: Word): Word = extern
 
   @name("scalanative_atomic_fetch_sub_explicit_intptr")
   def atomic_fetch_sub_explicit_intptr(ptr: CAtomicPtr, value: Word, memoryOrder: memory_order): Word = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_or_intptr")
   def atomic_fetch_or_intptr(ptr: CAtomicPtr, value: Word): Word = extern
 
   @name("scalanative_atomic_fetch_or_explicit_intptr")
   def atomic_fetch_or_explicit_intptr(ptr: CAtomicPtr, value: Word, memoryOrder: memory_order): Word = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_and_intptr")
   def atomic_fetch_and_intptr(ptr: CAtomicPtr, value: Word): Word = extern
 
   @name("scalanative_atomic_fetch_and_explicit_intptr")
   def atomic_fetch_and_explicit_intptr(ptr: CAtomicPtr, value: Word, memoryOrder: memory_order): Word = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 89)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 90)
   @name("scalanative_atomic_fetch_xor_intptr")
   def atomic_fetch_xor_intptr(ptr: CAtomicPtr, value: Word): Word = extern
 
   @name("scalanative_atomic_fetch_xor_explicit_intptr")
   def atomic_fetch_xor_explicit_intptr(ptr: CAtomicPtr, value: Word, memoryOrder: memory_order): Word = extern
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 96)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 97)
 
   type CAtomicFlag = Ptr[Boolean]
   
@@ -919,7 +920,7 @@ object atomic {
 
 
 import atomic._
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 119)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 120)
 object CAtomicByte{
   def apply(initialValue: Byte)(implicit zone: Zone): CAtomicByte = {
     val ref = new CAtomicByte(zone.alloc(sizeof[Byte]).asInstanceOf[atomic.CAtomicByte])
@@ -991,7 +992,7 @@ final class CAtomicByte(private val underlying: atomic.CAtomicByte) extends AnyV
   def fetchXor(value: Byte): Byte = atomic_fetch_xor_byte(underlying, value)
   def fetchXor(value: Byte, memoryOrder: memory_order): Byte = atomic_fetch_xor_explicit_byte(underlying, value, memoryOrder)
 }
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 119)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 120)
 object CAtomicShort{
   def apply(initialValue: CShort)(implicit zone: Zone): CAtomicShort = {
     val ref = new CAtomicShort(zone.alloc(sizeof[CShort]).asInstanceOf[atomic.CAtomicShort])
@@ -1063,7 +1064,7 @@ final class CAtomicShort(private val underlying: atomic.CAtomicShort) extends An
   def fetchXor(value: CShort): CShort = atomic_fetch_xor_short(underlying, value)
   def fetchXor(value: CShort, memoryOrder: memory_order): CShort = atomic_fetch_xor_explicit_short(underlying, value, memoryOrder)
 }
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 119)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 120)
 object CAtomicInt{
   def apply(initialValue: CInt)(implicit zone: Zone): CAtomicInt = {
     val ref = new CAtomicInt(zone.alloc(sizeof[CInt]).asInstanceOf[atomic.CAtomicInt])
@@ -1135,7 +1136,7 @@ final class CAtomicInt(private val underlying: atomic.CAtomicInt) extends AnyVal
   def fetchXor(value: CInt): CInt = atomic_fetch_xor_int(underlying, value)
   def fetchXor(value: CInt, memoryOrder: memory_order): CInt = atomic_fetch_xor_explicit_int(underlying, value, memoryOrder)
 }
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 119)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 120)
 object CAtomicLong{
   def apply(initialValue: CLong)(implicit zone: Zone): CAtomicLong = {
     val ref = new CAtomicLong(zone.alloc(sizeof[CLong]).asInstanceOf[atomic.CAtomicLong])
@@ -1207,7 +1208,7 @@ final class CAtomicLong(private val underlying: atomic.CAtomicLong) extends AnyV
   def fetchXor(value: CLong): CLong = atomic_fetch_xor_long(underlying, value)
   def fetchXor(value: CLong, memoryOrder: memory_order): CLong = atomic_fetch_xor_explicit_long(underlying, value, memoryOrder)
 }
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 119)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 120)
 object CAtomicUnsignedByte{
   def apply(initialValue: UByte)(implicit zone: Zone): CAtomicUnsignedByte = {
     val ref = new CAtomicUnsignedByte(zone.alloc(sizeof[UByte]).asInstanceOf[atomic.CAtomicUnsignedByte])
@@ -1279,7 +1280,7 @@ final class CAtomicUnsignedByte(private val underlying: atomic.CAtomicUnsignedBy
   def fetchXor(value: UByte): UByte = atomic_fetch_xor_ubyte(underlying, value)
   def fetchXor(value: UByte, memoryOrder: memory_order): UByte = atomic_fetch_xor_explicit_ubyte(underlying, value, memoryOrder)
 }
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 119)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 120)
 object CAtomicUnsignedShort{
   def apply(initialValue: CUnsignedShort)(implicit zone: Zone): CAtomicUnsignedShort = {
     val ref = new CAtomicUnsignedShort(zone.alloc(sizeof[CUnsignedShort]).asInstanceOf[atomic.CAtomicUnsignedShort])
@@ -1351,7 +1352,7 @@ final class CAtomicUnsignedShort(private val underlying: atomic.CAtomicUnsignedS
   def fetchXor(value: CUnsignedShort): CUnsignedShort = atomic_fetch_xor_ushort(underlying, value)
   def fetchXor(value: CUnsignedShort, memoryOrder: memory_order): CUnsignedShort = atomic_fetch_xor_explicit_ushort(underlying, value, memoryOrder)
 }
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 119)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 120)
 object CAtomicUnsignedInt{
   def apply(initialValue: CUnsignedInt)(implicit zone: Zone): CAtomicUnsignedInt = {
     val ref = new CAtomicUnsignedInt(zone.alloc(sizeof[CUnsignedInt]).asInstanceOf[atomic.CAtomicUnsignedInt])
@@ -1423,7 +1424,7 @@ final class CAtomicUnsignedInt(private val underlying: atomic.CAtomicUnsignedInt
   def fetchXor(value: CUnsignedInt): CUnsignedInt = atomic_fetch_xor_uint(underlying, value)
   def fetchXor(value: CUnsignedInt, memoryOrder: memory_order): CUnsignedInt = atomic_fetch_xor_explicit_uint(underlying, value, memoryOrder)
 }
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 119)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 120)
 object CAtomicUnsignedLong{
   def apply(initialValue: CUnsignedLong)(implicit zone: Zone): CAtomicUnsignedLong = {
     val ref = new CAtomicUnsignedLong(zone.alloc(sizeof[CUnsignedLong]).asInstanceOf[atomic.CAtomicUnsignedLong])
@@ -1495,7 +1496,7 @@ final class CAtomicUnsignedLong(private val underlying: atomic.CAtomicUnsignedLo
   def fetchXor(value: CUnsignedLong): CUnsignedLong = atomic_fetch_xor_ulong(underlying, value)
   def fetchXor(value: CUnsignedLong, memoryOrder: memory_order): CUnsignedLong = atomic_fetch_xor_explicit_ulong(underlying, value, memoryOrder)
 }
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 119)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 120)
 object CAtomicChar{
   def apply(initialValue: CChar)(implicit zone: Zone): CAtomicChar = {
     val ref = new CAtomicChar(zone.alloc(sizeof[CChar]).asInstanceOf[atomic.CAtomicChar])
@@ -1567,7 +1568,7 @@ final class CAtomicChar(private val underlying: atomic.CAtomicChar) extends AnyV
   def fetchXor(value: CChar): CChar = atomic_fetch_xor_char(underlying, value)
   def fetchXor(value: CChar, memoryOrder: memory_order): CChar = atomic_fetch_xor_explicit_char(underlying, value, memoryOrder)
 }
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 119)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 120)
 object CAtomicCSize{
   def apply(initialValue: CSize)(implicit zone: Zone): CAtomicCSize = {
     val ref = new CAtomicCSize(zone.alloc(sizeof[CSize]).asInstanceOf[atomic.CAtomicCSize])
@@ -1639,7 +1640,7 @@ final class CAtomicCSize(private val underlying: atomic.CAtomicCSize) extends An
   def fetchXor(value: CSize): CSize = atomic_fetch_xor_csize(underlying, value)
   def fetchXor(value: CSize, memoryOrder: memory_order): CSize = atomic_fetch_xor_explicit_csize(underlying, value, memoryOrder)
 }
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 119)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 120)
 object CAtomicPtr{
   def apply(initialValue: Word)(implicit zone: Zone): CAtomicPtr = {
     val ref = new CAtomicPtr(zone.alloc(sizeof[Word]).asInstanceOf[atomic.CAtomicPtr])
@@ -1711,7 +1712,7 @@ final class CAtomicPtr(private val underlying: atomic.CAtomicPtr) extends AnyVal
   def fetchXor(value: Word): Word = atomic_fetch_xor_intptr(underlying, value)
   def fetchXor(value: Word, memoryOrder: memory_order): Word = atomic_fetch_xor_explicit_intptr(underlying, value, memoryOrder)
 }
-// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 191)
+// ###sourceLocation(file: "nativelib/src/main/scala/scala/scalanative/unsafe/CAtomic.scala.gyb", line: 192)
 
 object CAtomicRef{
   def apply[T <: AnyRef: Tag](initialValue: T)(implicit zone: Zone): CAtomicRef[T] = {

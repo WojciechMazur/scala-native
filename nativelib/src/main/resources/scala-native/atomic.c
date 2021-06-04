@@ -864,86 +864,86 @@
       return atomic_fetch_xor_explicit(atm, val, memoryOrder);
     }
 // ###sourceLocation(file: "nativelib/src/main/resources/scala-native/atomic.c.gyb", line: 30)
-  void scalanative_atomic_init_intptr_t(intptr_t* atm, intptr_t init_value) {
+  void scalanative_atomic_init_intptr(intptr_t* atm, intptr_t init_value) {
     *atm = ATOMIC_VAR_INIT(init_value);
   }
 
-  intptr_t scalanative_atomic_load_intptr_t(_Atomic(intptr_t)* atm) {
+  intptr_t scalanative_atomic_load_intptr(_Atomic(intptr_t)* atm) {
       return atomic_load(atm);
   }
 
-  intptr_t scalanative_atomic_load_explicit_intptr_t(_Atomic(intptr_t)* atm, memory_order memoryOrder) {
+  intptr_t scalanative_atomic_load_explicit_intptr(_Atomic(intptr_t)* atm, memory_order memoryOrder) {
       return atomic_load_explicit(atm, memoryOrder);
   }
 
-  void scalanative_atomic_store_intptr_t(_Atomic(intptr_t)* atm, intptr_t val) {
+  void scalanative_atomic_store_intptr(_Atomic(intptr_t)* atm, intptr_t val) {
     atomic_store(atm, val);
   }
 
-    void scalanative_atomic_store_explicit_intptr_t(_Atomic(intptr_t)* atm, intptr_t val, memory_order memoryOrder) {
+    void scalanative_atomic_store_explicit_intptr(_Atomic(intptr_t)* atm, intptr_t val, memory_order memoryOrder) {
     atomic_store_explicit(atm, val, memoryOrder);
   }
 
-  intptr_t scalanative_atomic_exchange_intptr_t(_Atomic(intptr_t)* atm, intptr_t val) {
+  intptr_t scalanative_atomic_exchange_intptr(_Atomic(intptr_t)* atm, intptr_t val) {
     return atomic_exchange(atm, val);
   }
 
-    intptr_t scalanative_atomic_exchange_explicit_intptr_t(_Atomic(intptr_t)* atm, intptr_t val, memory_order memoryOrder) {
+    intptr_t scalanative_atomic_exchange_explicit_intptr(_Atomic(intptr_t)* atm, intptr_t val, memory_order memoryOrder) {
     return atomic_exchange_explicit(atm, val, memoryOrder);
   }
 
 
 // ###sourceLocation(file: "nativelib/src/main/resources/scala-native/atomic.c.gyb", line: 60)
-    bool scalanative_atomic_compare_exchange_strong_intptr_t(_Atomic(intptr_t)* atm, intptr_t* expected, intptr_t desired) {
+    bool scalanative_atomic_compare_exchange_strong_intptr(_Atomic(intptr_t)* atm, intptr_t* expected, intptr_t desired) {
         return atomic_compare_exchange_strong(atm, expected, desired);
     }
 
-    bool scalanative_atomic_compare_exchange_strong_explicit_intptr_t(_Atomic(intptr_t)* atm, intptr_t* expected, intptr_t desired, memory_order onSucc, memory_order onFail) {
+    bool scalanative_atomic_compare_exchange_strong_explicit_intptr(_Atomic(intptr_t)* atm, intptr_t* expected, intptr_t desired, memory_order onSucc, memory_order onFail) {
       return atomic_compare_exchange_strong_explicit(atm, expected, desired, onSucc, onFail);
     }
 // ###sourceLocation(file: "nativelib/src/main/resources/scala-native/atomic.c.gyb", line: 60)
-    bool scalanative_atomic_compare_exchange_weak_intptr_t(_Atomic(intptr_t)* atm, intptr_t* expected, intptr_t desired) {
+    bool scalanative_atomic_compare_exchange_weak_intptr(_Atomic(intptr_t)* atm, intptr_t* expected, intptr_t desired) {
         return atomic_compare_exchange_weak(atm, expected, desired);
     }
 
-    bool scalanative_atomic_compare_exchange_weak_explicit_intptr_t(_Atomic(intptr_t)* atm, intptr_t* expected, intptr_t desired, memory_order onSucc, memory_order onFail) {
+    bool scalanative_atomic_compare_exchange_weak_explicit_intptr(_Atomic(intptr_t)* atm, intptr_t* expected, intptr_t desired, memory_order onSucc, memory_order onFail) {
       return atomic_compare_exchange_weak_explicit(atm, expected, desired, onSucc, onFail);
     }
 // ###sourceLocation(file: "nativelib/src/main/resources/scala-native/atomic.c.gyb", line: 68)
 
 // ###sourceLocation(file: "nativelib/src/main/resources/scala-native/atomic.c.gyb", line: 70)
-  intptr_t scalanative_atomic_fetch_add_intptr_t(_Atomic(intptr_t)* atm, intptr_t val) {
+  intptr_t scalanative_atomic_fetch_add_intptr(_Atomic(intptr_t)* atm, intptr_t val) {
     return atomic_fetch_add(atm, val);
   }
-  intptr_t scalanative_atomic_fetch_add_explicit_intptr_t(_Atomic(intptr_t)* atm, intptr_t val, memory_order memoryOrder) {
+  intptr_t scalanative_atomic_fetch_add_explicit_intptr(_Atomic(intptr_t)* atm, intptr_t val, memory_order memoryOrder) {
       return atomic_fetch_add_explicit(atm, val, memoryOrder);
     }
 // ###sourceLocation(file: "nativelib/src/main/resources/scala-native/atomic.c.gyb", line: 70)
-  intptr_t scalanative_atomic_fetch_sub_intptr_t(_Atomic(intptr_t)* atm, intptr_t val) {
+  intptr_t scalanative_atomic_fetch_sub_intptr(_Atomic(intptr_t)* atm, intptr_t val) {
     return atomic_fetch_sub(atm, val);
   }
-  intptr_t scalanative_atomic_fetch_sub_explicit_intptr_t(_Atomic(intptr_t)* atm, intptr_t val, memory_order memoryOrder) {
+  intptr_t scalanative_atomic_fetch_sub_explicit_intptr(_Atomic(intptr_t)* atm, intptr_t val, memory_order memoryOrder) {
       return atomic_fetch_sub_explicit(atm, val, memoryOrder);
     }
 // ###sourceLocation(file: "nativelib/src/main/resources/scala-native/atomic.c.gyb", line: 70)
-  intptr_t scalanative_atomic_fetch_and_intptr_t(_Atomic(intptr_t)* atm, intptr_t val) {
+  intptr_t scalanative_atomic_fetch_and_intptr(_Atomic(intptr_t)* atm, intptr_t val) {
     return atomic_fetch_and(atm, val);
   }
-  intptr_t scalanative_atomic_fetch_and_explicit_intptr_t(_Atomic(intptr_t)* atm, intptr_t val, memory_order memoryOrder) {
+  intptr_t scalanative_atomic_fetch_and_explicit_intptr(_Atomic(intptr_t)* atm, intptr_t val, memory_order memoryOrder) {
       return atomic_fetch_and_explicit(atm, val, memoryOrder);
     }
 // ###sourceLocation(file: "nativelib/src/main/resources/scala-native/atomic.c.gyb", line: 70)
-  intptr_t scalanative_atomic_fetch_or_intptr_t(_Atomic(intptr_t)* atm, intptr_t val) {
+  intptr_t scalanative_atomic_fetch_or_intptr(_Atomic(intptr_t)* atm, intptr_t val) {
     return atomic_fetch_or(atm, val);
   }
-  intptr_t scalanative_atomic_fetch_or_explicit_intptr_t(_Atomic(intptr_t)* atm, intptr_t val, memory_order memoryOrder) {
+  intptr_t scalanative_atomic_fetch_or_explicit_intptr(_Atomic(intptr_t)* atm, intptr_t val, memory_order memoryOrder) {
       return atomic_fetch_or_explicit(atm, val, memoryOrder);
     }
 // ###sourceLocation(file: "nativelib/src/main/resources/scala-native/atomic.c.gyb", line: 70)
-  intptr_t scalanative_atomic_fetch_xor_intptr_t(_Atomic(intptr_t)* atm, intptr_t val) {
+  intptr_t scalanative_atomic_fetch_xor_intptr(_Atomic(intptr_t)* atm, intptr_t val) {
     return atomic_fetch_xor(atm, val);
   }
-  intptr_t scalanative_atomic_fetch_xor_explicit_intptr_t(_Atomic(intptr_t)* atm, intptr_t val, memory_order memoryOrder) {
+  intptr_t scalanative_atomic_fetch_xor_explicit_intptr(_Atomic(intptr_t)* atm, intptr_t val, memory_order memoryOrder) {
       return atomic_fetch_xor_explicit(atm, val, memoryOrder);
     }
 // ###sourceLocation(file: "nativelib/src/main/resources/scala-native/atomic.c.gyb", line: 30)

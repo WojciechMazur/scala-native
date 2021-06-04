@@ -21,7 +21,7 @@
             ('uint64_t','ulong'),
             ('char','char'),
             ('unsigned char','uchar'),
-            ('intptr_t', 'intptr_t'),
+            ('intptr_t', 'intptr'),
             ('size_t','csize')]
 
 }%

@@ -23,10 +23,10 @@ class AtomicReferenceArray[E <: AnyRef] extends Serializable {
   final private var array: Array[E] = null
 
   @alwaysinline
-  def nativeArray: ObjectArray = array.asInstanceOf[ObjectArray]
+  private[concurrent] def nativeArray: ObjectArray = array.asInstanceOf[ObjectArray]
 
   @alwaysinline
-  implicit def ptrRefToAtomicRef(ptr: Ptr[Object]): CAtomicRef[E] =
+  private implicit def ptrRefToAtomicRef(ptr: Ptr[Object]): CAtomicRef[E] =
     new CAtomicRef[E](ptr.asInstanceOf[Ptr[E]])
 
   /**

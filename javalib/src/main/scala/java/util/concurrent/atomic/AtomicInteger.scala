@@ -28,7 +28,7 @@ class AtomicInteger(private[this] var value: Int)
   // This class should not define any other values to ensure that underlying field
   // would always be placed at first slot of fields layout.
   @alwaysinline
-  private[this] def valueRef: CAtomicInt = new CAtomicInt(
+  private[concurrent] def valueRef: CAtomicInt = new CAtomicInt(
     // Assumess object fields are stored in memory directly after Ptr[Rtti]
     (fromRawPtr[Ptr[Byte]](Intrinsics.castObjectToRawPtr(this)) + 1)
       .asInstanceOf[Ptr[Int]]

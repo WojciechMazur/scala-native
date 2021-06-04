@@ -13,7 +13,7 @@ import scala.scalanative.unsafe.atomic.memory_order._
 import scala.scalanative.runtime.{Intrinsics, fromRawPtr}
 
 object AtomicStampedReference {
-  private case class StampedReference[V <: AnyRef](ref: V, stamp: Int)
+  private[concurrent] case class StampedReference[V <: AnyRef](ref: V, stamp: Int)
 }
 
 import AtomicStampedReference._
@@ -29,7 +29,7 @@ class AtomicStampedReference[V <: AnyRef] private (
   // This class should not define any other values to ensure that underlying field
   // would always be placed at first slot of fields layout.
   @alwaysinline
-  private[this] def valueRef: CAtomicRef[StampedReference[V]] = {
+  private[concurrent] def valueRef: CAtomicRef[StampedReference[V]] = {
     new CAtomicRef(
       // Assumess object fields are stored in memory directly after Ptr[Rtti]
       (fromRawPtr[Ptr[Byte]](Intrinsics.castObjectToRawPtr(this)) + 1)

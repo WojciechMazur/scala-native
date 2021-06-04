@@ -22,10 +22,10 @@ class AtomicLongArray extends Serializable {
   final private var array: Array[Long] = null
 
   @alwaysinline
-  def nativeArray: LongArray = array.asInstanceOf[LongArray]
+  private[concurrent] def nativeArray: LongArray = array.asInstanceOf[LongArray]
 
   @alwaysinline
-  implicit def ptrLongToAtomicLong(ptr: Ptr[Long]): CAtomicLong =
+  private implicit def ptrLongToAtomicLong(ptr: Ptr[Long]): CAtomicLong =
     new CAtomicLong(ptr)
 
   /**

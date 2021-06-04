@@ -20,7 +20,7 @@ class AtomicBoolean private (private var value: Byte) extends Serializable {
   // This class should not define any other values to ensure that underlying field
   // would always be placed at first slot of fields layout.
   @alwaysinline
-  private[this] def valueRef: CAtomicByte = new CAtomicByte(
+  private[concurrent] def valueRef: CAtomicByte = new CAtomicByte(
     // Assumess object fields are stored in memory directly after Ptr[Rtti]
     (fromRawPtr[Ptr[Byte]](Intrinsics.castObjectToRawPtr(this)) + 1)
       .asInstanceOf[Ptr[Byte]]
@@ -143,7 +143,7 @@ class AtomicBoolean private (private var value: Byte) extends Serializable {
    * @return the value
    * @since 9
    */
-  final def getPlain: Boolean = value
+  final def getPlain(): Boolean = value
 
   /**
    * Sets the value to {@code newValue}, with memory semantics

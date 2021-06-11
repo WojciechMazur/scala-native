@@ -103,8 +103,6 @@ abstract class AbstractExecutorService extends ExecutorService {
   }
 
   override def invokeAny[T](tasks: util.Collection[_ <: Callable[T]]): T = {
-    println("invokeAny")
-
     try {
       doInvokeAny(tasks, false, 0)
     } catch {
@@ -117,14 +115,11 @@ abstract class AbstractExecutorService extends ExecutorService {
   override def invokeAny[T](tasks: java.util.Collection[_ <: Callable[T]],
                             timeout: Long,
                             unit: TimeUnit): T = {
-    println("invokeAny")
     doInvokeAny(tasks, true, unit.toNanos(timeout))
   }
 
   override def invokeAll[T](tasks: java.util.Collection[_ <: Callable[T]])
       : java.util.List[Future[T]] = {
-            println("invokeAll")
-
     if (tasks == null) throw new NullPointerException()
     val futures: util.List[Future[T]] =
       new util.ArrayList[Future[T]](tasks.size())
@@ -162,7 +157,6 @@ abstract class AbstractExecutorService extends ExecutorService {
   override def invokeAll[T](tasks: util.Collection[_ <: Callable[T]],
                             timeout: Long,
                             unit: TimeUnit): util.List[Future[T]] = {
-    println("invokeAll")
     if (tasks == null || unit == null) throw new NullPointerException()
     var nanos: Long = unit.toNanos(timeout)
     val futures: util.List[Future[T]] =

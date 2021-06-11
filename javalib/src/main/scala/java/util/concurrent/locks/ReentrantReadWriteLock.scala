@@ -28,7 +28,7 @@ class ReentrantReadWriteLock extends ReadWriteLock with java.io.Serializable {
 
   def isWriteLocked: Boolean = sync.isWriteLocked
 
-  def isWriteLockedByCurrentThread: Boolean = sync.isHeldExclusively
+  def isWriteLockedByCurrentThread: Boolean = sync.isHeldExclusively()
 
   def getWriteHoldCount: Int = sync.getWriteHoldCount
 
@@ -112,7 +112,7 @@ object ReentrantReadWriteLock {
     def writerShouldBlock(): Boolean
 
     override protected final def tryRelease(releases: Int): Boolean = {
-      if (!isHeldExclusively)
+      if (!isHeldExclusively())
         throw new IllegalMonitorStateException()
       val nextc: Int    = getState - releases
       val free: Boolean = exclusiveCount(nextc) == 0
@@ -134,7 +134,7 @@ object ReentrantReadWriteLock {
         setState(c + acquires)
         true
       }
-      if (writerShouldBlock() || !compareAndSetState(c, c + acquires))
+      if (writerShouldBlock() || !state.compareAndSet(c, c + acquires))
         return false
       setExclusiveOwnerThread(current)
       true
@@ -161,7 +161,7 @@ object ReentrantReadWriteLock {
       while (true) {
         val c: Int     = getState
         val nextc: Int = c - SHARED_UNIT
-        if (compareAndSetState(c, nextc))
+        if (state.compareAndSet(c, nextc))
           return nextc == 0
       }
       // for the compiler
@@ -178,7 +178,7 @@ object ReentrantReadWriteLock {
       if (exclusiveCount(c) != 0 && getExclusiveOwnerThread != current)
         return -1
       val r: Int = sharedCount(c)
-      if (!readerShouldBlock() && r < MAX_COUNT && compareAndSetState(
+      if (!readerShouldBlock() && r < MAX_COUNT && state.compareAndSet(
             c,
             c + SHARED_UNIT)) {
         if (r == 0) {
@@ -221,7 +221,7 @@ object ReentrantReadWriteLock {
         }
         if (sharedCount(c) == MAX_COUNT)
           throw new Error("Maximum lock count exceeded")
-        if (compareAndSetState(c, c + SHARED_UNIT)) {
+        if (state.compareAndSet(c, c + SHARED_UNIT)) {
           if (sharedCount(c) == 0) {
             firstReader = current
             firstReaderHoldCount = 1
@@ -254,7 +254,7 @@ object ReentrantReadWriteLock {
         if (w == MAX_COUNT)
           throw new Error("Maximum lock count exceeded")
       }
-      if (!compareAndSetState(c, c + 1))
+      if (!state.compareAndSet(c, c + 1))
         return false
       setExclusiveOwnerThread(current)
       true
@@ -269,7 +269,7 @@ object ReentrantReadWriteLock {
         val r: Int = sharedCount(c)
         if (r == MAX_COUNT)
           throw new Error("Maximum lock count exceeded")
-        if (compareAndSetState(c, c + SHARED_UNIT)) {
+        if (state.compareAndSet(c, c + SHARED_UNIT)) {
           if (r == 0) {
             firstReader = current
             firstReaderHoldCount = 1
@@ -291,8 +291,9 @@ object ReentrantReadWriteLock {
       false
     }
 
-    override protected[ReentrantReadWriteLock] final def isHeldExclusively
-        : Boolean = getExclusiveOwnerThread() == Thread.currentThread()
+    override protected[ReentrantReadWriteLock] final def isHeldExclusively()
+        : Boolean =
+      getExclusiveOwnerThread() == Thread.currentThread()
 
     final def newCondition: ConditionObject = new ConditionObject()
 
@@ -452,9 +453,9 @@ object ReentrantReadWriteLock {
       super.toString + s
     }
 
-    def isHeldByCurrentThread: Boolean = sync.isHeldExclusively
+    def isHeldByCurrentThread(): Boolean = sync.isHeldExclusively()
 
-    def getHoldCount: Int = sync.getWriteHoldCount
+    def getHoldCount(): Int = sync.getWriteHoldCount
 
   }
 

@@ -11,7 +11,7 @@ import scala.language.implicitConversions
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
 import scala.scalanative.unsafe.atomic.memory_order._
-import scala.scalanative.runtime.{Intrinsics, fromRawPtr}
+import scala.scalanative.runtime.MemoryLayout
 
 import java.util.function.LongBinaryOperator
 import java.util.function.LongUnaryOperator

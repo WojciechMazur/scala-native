@@ -1,7 +1,7 @@
 package java.lang.invoke
 
-import scala.scalanative.runtime.Atomic._
-import scala.scalanative.runtime.Atomic.memory_order._
+import scala.scalanative.unsafe.atomic._
+import scala.scalanative.unsafe.atomic.memory_order._
 import scala.scalanative.annotation._
 
 class VarHandle {}

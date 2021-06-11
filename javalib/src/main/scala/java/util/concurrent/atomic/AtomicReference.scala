@@ -10,9 +10,11 @@ import scala.annotation.tailrec
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
 import scala.scalanative.unsafe.atomic.memory_order._
-import scala.scalanative.runtime.{Intrinsics, fromRawPtr}
+import scala.scalanative.runtime.Intrinsics.{elemRawPtr, castObjectToRawPtr}
+import scala.scalanative.runtime.{fromRawPtr, MemoryLayout}
 import java.util.function.BinaryOperator
 import java.util.function.UnaryOperator
+import scala.scalanative.runtime.Intrinsics
 
 @SerialVersionUID(-1848883965231344442L)
 class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
@@ -24,11 +26,12 @@ class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
   // This class should not define any other values to ensure that underlying field
   // would always be placed at first slot of fields layout.
   @alwaysinline
-  private[concurrent] def valueRef: CAtomicRef[V] = new CAtomicRef[V](
-    // Assumess object fields are stored in memory directly after Ptr[Rtti]
-    (fromRawPtr[Ptr[Byte]](Intrinsics.castObjectToRawPtr(this)) + 1)
-      .asInstanceOf[Ptr[V]]
-  )
+  private[concurrent] def valueRef: CAtomicRef[V] =
+    new CAtomicRef[V]({
+      // Assumess object fields are stored in memory directly after Ptr[Rtti]
+      fromRawPtr(
+        elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset))
+    })
 
   /**
    * Returns the current value,

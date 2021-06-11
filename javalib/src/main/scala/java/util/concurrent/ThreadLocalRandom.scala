@@ -680,7 +680,8 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
       v2 = 2 * nextDouble - 1
       s = v1 * v1 + v2 * v2
     } while ({ s >= 1 || s == 0 })
-    val multiplier = StrictMath.sqrt(-2 * StrictMath.log(s) / s)
+
+    val multiplier = Math.sqrt(-2 * Math.log(s) / s)
     ThreadLocalRandom.nextLocalGaussian.set(
       java.lang.Double.valueOf(v2 * multiplier).doubleValue()
     )

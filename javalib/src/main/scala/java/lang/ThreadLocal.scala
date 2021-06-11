@@ -18,29 +18,17 @@ class ThreadLocal[T] {
 
   @SuppressWarnings(Array("unchecked"))
   def get(): T = {
-    // Optimized for the fast path
-    val currentThread: Thread = Thread.currentThread()
-    var vals: Values          = values(currentThread)
-    if (vals != null) {
-      val table: Array[Object] = vals.getTable
-      val index: Int           = hash & vals.getMask
-      if (this.reference == table(index)) {
-        return table(index + 1).asInstanceOf[T]
-      }
-    } else {
-      vals = initializeValues(currentThread)
-    }
+    val vals: Values         = values(Thread.currentThread())
+    val table: Array[Object] = vals.getTable()
+    val index: Int           = hash & vals.getMask()
 
-    vals.getAfterMiss(this).asInstanceOf[T]
+    if (this.reference == table(index)) {
+      table(index + 1).asInstanceOf[T]
+    } else vals.getAfterMiss(this).asInstanceOf[T]
   }
 
   def set(value: T): Unit = {
-    val currentThread: Thread = Thread.currentThread()
-    var vals: Values          = values(currentThread)
-    if (vals == null) {
-      vals = initializeValues(currentThread)
-    }
-
+    var vals: Values = values(Thread.currentThread())
     vals.put(this, value.asInstanceOf[Object])
   }
 
@@ -52,11 +40,6 @@ class ThreadLocal[T] {
     }
   }
 
-  def initializeValues(current: Thread): Values = {
-    current.localValues = new ThreadLocal.Values()
-    current.localValues
-  }
-
   def values(current: Thread): Values = current.localValues
 }
 
@@ -64,86 +47,30 @@ object ThreadLocal {
 
   private val hashCounter: AtomicInteger = new AtomicInteger(0)
 
-  class Values {
-
+  private[java] class Values private (private var table: Array[Object]) {
     import Values._
 
-    private var table: Array[Object] = null
-
-    private var mask: Int = 0
-
-    private var size: Int = 0
-
+    private var size: Int       = 0
     private var tombstones: Int = 0
+    private var clean: Int      = 0
 
-    private var maximumLoad: Int = 0
+    private def mask: Int        = table.length - 1
+    private def maximumLoad: Int = table.length / 3
 
-    private var clean: Int = 0
-
-    initializeTable(INITIAL_SIZE)
-
-    def this(fromParent: Values) {
-      this()
-      table = fromParent.table.clone()
-      mask = fromParent.mask
+    def this(fromParent: Values) = {
+      this(table = Values.inherit(fromParent))
       size = fromParent.size
       tombstones = fromParent.tombstones
-      maximumLoad = fromParent.maximumLoad
       clean = fromParent.clean
-      inheritValues(fromParent)
     }
 
-    def getTable: Array[Object] = table
-
-    def getMask: Int = mask
-
-    @SuppressWarnings(Array("unchecked"))
-    private def inheritValues(fromParent: Values): Unit = {
-      val table: Array[Object]    = this.table
-      var i: Int                  = this.table.length
-      var continue: scala.Boolean = false
-      while (i >= 0) {
-        continue = false
-        val k: Object = table(i)
-
-        if (k == null || k == TOMBSTONE) {
-          continue = true
-        }
-
-        if (!continue) {
-          val reference: Reference[InheritableThreadLocal[Object]] =
-            k.asInstanceOf[Reference[InheritableThreadLocal[Object]]]
-
-          val key: InheritableThreadLocal[Object] = reference.get()
-          if (key != null) {
-            // Replace value with filtered value
-            // We should just let exceptions bubble out and tank
-            // the thread creation
-
-            table(i + 1) = key.childValue(fromParent.table(i + 1))
-          } else {
-            table(i) = TOMBSTONE
-            table(i + 1) = null
-            fromParent.table(i) = TOMBSTONE
-            fromParent.table(i + 1) = null
-
-            tombstones += 1
-            fromParent.tombstones += 1
-
-            size -= 1
-            fromParent.size -= 1
-          }
-        }
-        i -= 2
-      }
+    def this() = {
+      this(table = new Array[Object](Values.InitialSize))
     }
 
-    private def initializeTable(capacity: Int): Unit = {
-      this.table = new Array[Object](capacity << 1)
-      this.mask = table.length - 1
-      this.clean = 0
-      this.maximumLoad = capacity * 2 / 3
-    }
+    def getTable(): Array[Object] = table
+
+    def getMask(): Int = mask
 
     private def cleanUp(): Unit = {
       if (rehash()) return
@@ -159,13 +86,13 @@ object ThreadLocal {
         continue = false
         val k: Object = table(index)
 
-        if (k == TOMBSTONE || k == null) continue = true
+        if (k == Tombstone || k == null) continue = true
 
         if (!continue) {
           val reference: Reference[ThreadLocal[_]] =
             k.asInstanceOf[Reference[ThreadLocal[_]]]
           if (reference.get() == null) {
-            table(index) = TOMBSTONE
+            table(index) = Tombstone
             table(index + 1) = null
             tombstones += 1
             size -= 1
@@ -182,16 +109,13 @@ object ThreadLocal {
     private def rehash(): scala.Boolean = {
       if (tombstones + size < maximumLoad) return false
 
-      val capacity: Int = table.length >> 1
-
-      var newCapacity: Int = capacity
-
-      if (size > (capacity >> 1)) {
-        newCapacity = capacity << 1
+      val newCapacity: Int = (table.length >> 1) match {
+        case capacity if (size > capacity) => capacity << 1
+        case capacity                      => capacity
       }
 
       val oldTable: Array[Object] = table
-      initializeTable(newCapacity)
+      this.table = new Array[Object](newCapacity)
 
       tombstones = 0
 
@@ -202,7 +126,7 @@ object ThreadLocal {
       while (i >= 0) {
         continue = false
         val k: Object = oldTable(i)
-        if (k == null || k == TOMBSTONE) continue = true
+        if (k == null || k == Tombstone) continue = true
 
         if (!continue) {
           val reference: Reference[ThreadLocal[_]] =
@@ -261,7 +185,7 @@ object ThreadLocal {
           return
         }
 
-        if (firstTombstone == -1 && k == TOMBSTONE) firstTombstone = index
+        if (firstTombstone == -1 && k == Tombstone) firstTombstone = index
 
         index = next(index)
       }
@@ -307,7 +231,7 @@ object ThreadLocal {
           if (this.table == table) {
             // If we passed a tombstone and that slot still
             // contains a tombstone
-            if (firstTombstone > -1 && table(firstTombstone) == TOMBSTONE) {
+            if (firstTombstone > -1 && table(firstTombstone) == Tombstone) {
               table(firstTombstone) = key.reference
               table(firstTombstone + 1) = value
               tombstones -= 1
@@ -334,7 +258,7 @@ object ThreadLocal {
           return value
         }
 
-        if (firstTombstone == -1 && reference == TOMBSTONE)
+        if (firstTombstone == -1 && reference == Tombstone)
           // Keep track of this tombstone so we can overwrite it.
           firstTombstone = index
 
@@ -352,7 +276,7 @@ object ThreadLocal {
         val reference: Object = table(index)
 
         if (reference == key.reference) {
-          table(index) = TOMBSTONE
+          table(index) = Tombstone
           table(index + 1) = null
           tombstones += 1
           size -= 1
@@ -371,10 +295,39 @@ object ThreadLocal {
 
   object Values {
 
-    private final val INITIAL_SIZE: Int = 16
+    private final val InitialCapacity = 16
+    private final val InitialSize     = InitialCapacity << 1
 
-    private final val TOMBSTONE: Object = new Object()
+    private case object Tombstone
 
+    private def inherit(fromParent: Values): Array[Object] = {
+      val table = fromParent.getTable().clone()
+      for {
+        i <- (table.length - 2) to 0 by -2
+        next    = i + 1
+        current = table(i) if current != null && current != Tombstone
+        // Array can contain only null, Tombstone or Reference
+        reference = current
+          .asInstanceOf[Reference[InheritableThreadLocal[Object]]]
+      } {
+        reference.get() match {
+          case null =>
+            table(i) = Tombstone
+            table(next) = null
+            fromParent.table(i) = Tombstone
+            fromParent.table(next) = null
+            fromParent.tombstones += 1
+            fromParent.size -= 1
+
+          case key =>
+            // Replace value with filtered value
+            // We should just let exceptions bubble out and tank
+            // the thread creation
+            table(next) = key.childValue(fromParent.table(next))
+        }
+      }
+      table
+    }
   }
 
 }

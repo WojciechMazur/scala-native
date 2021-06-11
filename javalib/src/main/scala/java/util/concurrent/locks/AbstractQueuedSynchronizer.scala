@@ -5,15 +5,16 @@
  */
 
 package java.util.concurrent.locks
+
 import java.util.ArrayList
 import java.util.Collection
 import java.util.Date
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.ForkJoinPool
 import java.util.concurrent.RejectedExecutionException
-import scala.scalanative.unsafe._
 import scala.annotation.tailrec
 import scala.util.control.Breaks._
+import java.util.concurrent.atomic.{AtomicReference, AtomicInteger}
 
 /**
  * Provides a framework for implementing blocking locks and related
@@ -281,45 +282,18 @@ object AbstractQueuedSynchronizer { // Node status bits, also used as argument a
 
   /** CLH Nodes */
   abstract private[locks] class Node {
-    private[locks] val prev
-        : CAtomicRef[Node] = ??? //()   // initially attached via casTail
-    private[locks] val next
-        : CAtomicRef[Node] = ??? //new ()   // visibly nonnull when signallable
-    private[locks] val waiter
-        : CAtomicRef[Thread] = ??? //new () // visibly nonnull when enqueued
-    private[locks] val status
-        : CAtomicInt = ??? // new (0)        // written by owner, atomic bit ops by others
-
-    // methods for atomic operations
-    final private[locks] def casPrev(
-        c: AbstractQueuedSynchronizer.Node,
-        v: AbstractQueuedSynchronizer.Node): Boolean = { // for cleanQueue
-      prev.compareExchangeStrong(c, v)._1
-    }
-
-    final private[locks] def casNext(
-        c: AbstractQueuedSynchronizer.Node,
-        v: AbstractQueuedSynchronizer.Node): Boolean = {
-      next.compareExchangeStrong(c, v)._1
-    }
+    private[locks] val prev   = new AtomicReference[Node]()   // initially attached via casTail
+    private[locks] val next   = new AtomicReference[Node]()   // visibly nonnull when signallable
+    private[locks] val waiter = new AtomicReference[Thread]() // visibly nonnull when enqueued
+    private[locks] val status = new AtomicInteger(0)          // written by owner, atomic bit ops by others
 
     final private[locks] def getAndUnsetStatus(v: Int): Int = { // for signalling
-      status.fetchAnd(~v)
-    }
-
-    final private[locks] def setPrevRelaxed(
-        p: AbstractQueuedSynchronizer.Node): Unit = {
-      // for off-queue assignment
-      prev.store(p)
-    }
-
-    final private[locks] def setStatusRelaxed(s: Int): Unit = {
-      status.store(s)
+      status.valueRef.fetchAnd(~v)
     }
 
     final private[locks] def clearStatus(): Unit = {
       // for reducing unneeded signals
-      status.store(0)
+      status.set(0)
     }
   }
 
@@ -343,7 +317,7 @@ object AbstractQueuedSynchronizer { // Node status bits, also used as argument a
      * untimed Condition waits, not timed versions.
      */
     override final def isReleasable: Boolean = {
-      status.load() <= 1 || Thread.currentThread.isInterrupted()
+      status.get() <= 1 || Thread.currentThread.isInterrupted()
     }
 
     override final def block: Boolean = {
@@ -363,10 +337,10 @@ object AbstractQueuedSynchronizer { // Node status bits, also used as argument a
   private def signalNext(h: AbstractQueuedSynchronizer.Node): Unit = {
     for {
       h <- Option(h)
-      s <- Option(h.next.load()) if s.status.load() != 0
+      s <- Option(h.next.get()) if s.status.get() != 0
     } {
       s.getAndUnsetStatus(WAITING)
-      LockSupport.unpark(s.waiter.load())
+      LockSupport.unpark(s.waiter.get())
     }
   }
 }
@@ -380,57 +354,37 @@ abstract class AbstractQueuedSynchronizer protected ()
   /**
    * Head of the wait queue, lazily initialized.
    */
-  private val head: CAtomicRef[Node] = ???// new CAtomicRef[Node]()
+  private val head = new AtomicReference[Node]()
 
   /**
    * Tail of the wait queue. After initialization, modified only via casTail.
    */
-  private val tail: CAtomicRef[Node]  = ??? // new CAtomicRef[Node]()
+  private val tail = new AtomicReference[Node]()
 
   /**
    * The synchronization state.
    */
-  private val state: CAtomicInt = ??? //new CAtomicInt(0)
+  protected val state = new AtomicInteger(0)
 
   /**
    * Returns the current value of synchronization state.
    * This operation has memory semantics of a {@code volatile} read.
    * @return current state value
    */
-  final protected def getState(): Int = state.load()
+  final protected def getState(): Int = state.get()
 
   /**
    * Sets the value of synchronization state.
    * This operation has memory semantics of a {@code volatile} write.
    * @param newState the new state value
    */
-  final protected def setState(newState: Int): Unit = state.store(newState)
-
-  /**
-   * Atomically sets synchronization state to the given updated
-   * value if the current state value equals the expected value.
-   * This operation has memory semantics of a {@code volatile} read
-   * and write.
-   *
-   * @param expect the expected value
-   * @param update the new value
-   * @return {@code true} if successful. False return indicates that the actual
-   *         value was not equal to the expected value.
-   */
-  final protected def compareAndSetState(expect: Int, update: Int): Boolean = {
-    state.compareExchangeStrong(expect, update)._1
-  }
-
-  private def casTail(c: AbstractQueuedSynchronizer.Node,
-                      v: AbstractQueuedSynchronizer.Node): Boolean = {
-    tail.compareExchangeStrong(c, v)._1
-  }
+  final protected def setState(newState: Int): Unit = state.set(newState)
 
   /** tries once to CAS a new dummy node for head */
   private def tryInitializeHead(): Unit = {
     val h = new AbstractQueuedSynchronizer.ExclusiveNode()
-    if (head.compareExchangeStrong(null, h)._1) {
-      tail.store(h)
+    if (head.compareAndSet(null, h)) {
+      tail.set(h)
     }
   }
 
@@ -442,18 +396,18 @@ abstract class AbstractQueuedSynchronizer protected ()
       node: AbstractQueuedSynchronizer.Node): Unit = {
     @tailrec
     def tryEnqueue(): Unit = {
-      val t = tail.load()
-      node.setPrevRelaxed(t) // avoid unnecessary fence
+      val t = tail.get()
+      node.prev.setOpaque(t) // avoid unnecessary fence
       t match {
         case null =>
           // initialize
           tryInitializeHead()
           tryEnqueue()
 
-        case t if casTail(t, node) =>
-          t.next.store(node)
-          if (t.status.load() < 0) { // wake up to clean link
-            LockSupport.unpark(node.waiter.load())
+        case t if tail.compareAndSet(t, node) =>
+          t.next.set(node)
+          if (t.status.get() < 0) { // wake up to clean link
+            LockSupport.unpark(node.waiter.get())
           }
         case _ => tryEnqueue()
       }
@@ -468,9 +422,9 @@ abstract class AbstractQueuedSynchronizer protected ()
     def checkLoop(t: AbstractQueuedSynchronizer.Node): Boolean = {
       if (t == null) false
       else if (t eq node) true
-      else checkLoop(t.prev.load())
+      else checkLoop(t.prev.get())
     }
-    checkLoop(tail.load())
+    checkLoop(tail.get())
   }
 
   /**
@@ -511,14 +465,14 @@ abstract class AbstractQueuedSynchronizer protected ()
 
     @tailrec
     def firstOrPredecessor(): (Boolean, Option[Node]) = {
-      val pred    = Option(node.prev.load())
-      val isFirst = pred.exists(head.load() == _)
+      val pred    = Option(node.prev.get())
+      val isFirst = pred.exists(head.get() == _)
       pred match {
         case Some(node) if !isFirst =>
-          if (node.status.load() < 0) {
+          if (node.status.get() < 0) {
             cleanQueue()
             firstOrPredecessor()
-          } else if (node.prev.load() == null) {
+          } else if (node.prev == null) {
             Thread.onSpinWait()
             firstOrPredecessor()
           } else (isFirst, pred)
@@ -550,10 +504,10 @@ abstract class AbstractQueuedSynchronizer protected ()
 
         if (acquired) {
           pred.foreach { pred =>
-            node.prev.store(null)
-            head.store(node)
-            pred.next.store(null)
-            node.waiter.store(null)
+            node.prev.set(null)
+            head.set(node)
+            pred.next.set(null)
+            node.waiter.set(null)
             if (shared) {
               node match {
                 case node: AbstractQueuedSynchronizer.SharedNode =>
@@ -570,23 +524,23 @@ abstract class AbstractQueuedSynchronizer protected ()
       }
 
       if (pred.isEmpty) { // try to enqueue
-        node.waiter.store(Thread.currentThread())
-        val t = tail.load()
-        node.setPrevRelaxed(t) // avoid unnecessary fence
+        node.waiter.set(Thread.currentThread())
+        val t = tail.get()
+        node.prev.setOpaque(t) // avoid unnecessary fence
         if (t == null) {
           tryInitializeHead()
-        } else if (!casTail(t, node)) {
-          node.setPrevRelaxed(null); // back out
+        } else if (!tail.compareAndSet(t, node)) {
+          node.prev.setOpaque(null); // back out
         } else {
-          t.next.store(node)
+          t.next.set(node)
         }
         acquireLoop(isFirst, pred, interrupted, spins)
       } else if (isFirst && spins != 0) {
         // reduce unfairness on rewaits
         Thread.onSpinWait()
         acquireLoop(isFirst, pred, interrupted, (spins - 1).toByte)
-      } else if (node.status.load() == 0) {
-        node.status.store(WAITING)
+      } else if (node.status.get() == 0) {
+        node.status.set(WAITING)
         acquireLoop(isFirst, pred, interrupted, spins)
       } else {
 
@@ -622,8 +576,8 @@ abstract class AbstractQueuedSynchronizer protected ()
    */
   private def cleanQueue(): Unit = breakable {
     while (true) { // restart point
-      var q = tail.load()
-      val p = if (q != null) q.prev.load() else null
+      var q = tail.get()
+      val p = if (q != null) q.prev.get() else null
 
       var s: Node = null
       var n: Node = null
@@ -632,23 +586,23 @@ abstract class AbstractQueuedSynchronizer protected ()
           return ()
 
         val isIncosisient =
-          if (s == null) tail.load() != q
-          else s.prev.load() != q || s.status.load() < 0
+          if (s == null) tail.get() != q
+          else s.prev.get() != q || s.status.get() < 0
         if (isIncosisient) break
 
-        if (q.status.load() < 0) { //canceled
+        if (q.status.get() < 0) { //canceled
           val casNode =
-            if (s == null) casTail(q, p)
-            else s.casPrev(q, p)
-          if (casNode && q.prev.load() == p) {
-            p.casNext(q, s); // OK if fails
-            if (p.prev.load() == null)
+            if (s == null) tail.compareAndSet(q, p)
+            else s.prev.compareAndSet(q, p)
+          if (casNode && q.prev.get() == p) {
+            p.next.compareAndSet(q, s); // OK if fails
+            if (p.prev.get() == null)
               signalNext(p);
           }
           break
         }
         s = q;
-        q = q.prev.load();
+        q = q.prev.get();
       }
     }
   }
@@ -664,9 +618,9 @@ abstract class AbstractQueuedSynchronizer protected ()
                             interrupted: Boolean,
                             interruptible: Boolean): Int = {
     if (node != null) {
-      node.waiter.store(null)
-      node.status.store(AbstractQueuedSynchronizer.CANCELLED)
-      if (node.prev.load() != null) cleanQueue()
+      node.waiter.set(null)
+      node.status.set(AbstractQueuedSynchronizer.CANCELLED)
+      if (node.prev.get() != null) cleanQueue()
     }
 
     if (!interrupted) 0
@@ -890,7 +844,7 @@ abstract class AbstractQueuedSynchronizer protected ()
    */
   final def release(arg: Int): Boolean = {
     if (tryRelease(arg)) {
-      AbstractQueuedSynchronizer.signalNext(head.load())
+      AbstractQueuedSynchronizer.signalNext(head.get())
       true
     } else false
   }
@@ -974,7 +928,7 @@ abstract class AbstractQueuedSynchronizer protected ()
    */
   final def releaseShared(arg: Int): Boolean = {
     if (tryReleaseShared(arg)) {
-      AbstractQueuedSynchronizer.signalNext(head.load())
+      AbstractQueuedSynchronizer.signalNext(head.get())
       true
     } else false
   }
@@ -988,15 +942,15 @@ abstract class AbstractQueuedSynchronizer protected ()
    * @return {@code true} if there may be other threads waiting to acquire
    */
   final def hasQueuedThreads: Boolean = {
-    val h = head.load()
+    val h = head.get()
     @tailrec
     def loop(p: Node): Boolean = {
       if (p != h && p != null) {
-        if (p.status.load() >= 0) true
-        else loop(p.prev.load())
+        if (p.status.get() >= 0) true
+        else loop(p.prev.get())
       } else false
     }
-    loop(tail.load())
+    loop(tail.get())
   }
 
   /**
@@ -1008,7 +962,7 @@ abstract class AbstractQueuedSynchronizer protected ()
    *
    * @return {@code true} if there has ever been contention
    */
-  final def hasContended: Boolean = head.load != null
+  final def hasContended: Boolean = head.get() != null
 
   /**
    * Returns the first (longest-waiting) thread in the queue, or
@@ -1025,22 +979,22 @@ abstract class AbstractQueuedSynchronizer protected ()
     // traverse from tail on stale reads
     @tailrec
     def loop(p: Node, first: Thread): Thread = {
-      val q = if (p != null) p.prev.load() else null
+      val q = if (p != null) p.prev.get() else null
       if (q == null) first
       else {
-        val newFirst = Option(q.waiter.load()).getOrElse(first)
+        val newFirst = Option(q.waiter.get()).getOrElse(first)
         loop(q, newFirst)
       }
     }
 
-    val h = head.load()
+    val h = head.get()
     if (h == null) null
     else {
-      val s     = h.next.load()
-      val first = if (s != null) s.waiter.load() else null
+      val s     = h.next.get()
+      val first = if (s != null) s.waiter.get() else null
 
-      if (s == null || first == null || s.prev.load() == null) {
-        loop(tail.load(), first)
+      if (s == null || first == null || s.prev.get() == null) {
+        loop(tail.get(), first)
       } else null
     }
   }
@@ -1057,10 +1011,10 @@ abstract class AbstractQueuedSynchronizer protected ()
    */
   final def isQueued(thread: Thread): Boolean = {
     if (thread == null) throw new NullPointerException
-    var p = tail.load()
+    var p = tail.get()
     while ({ p != null }) {
-      if (p.waiter.load() == thread) return true
-      p = p.prev.load()
+      if (p.waiter.get() == thread) return true
+      p = p.prev.get()
     }
     false
   }
@@ -1076,9 +1030,9 @@ abstract class AbstractQueuedSynchronizer protected ()
    */
   final private[locks] def apparentlyFirstQueuedIsExclusive() = {
     val isNotShared = for {
-      h <- Option(head.load())
-      s <- Option(h.next.load())
-      _ <- Option(s.waiter.load())
+      h <- Option(head.get())
+      s <- Option(h.next.get())
+      _ <- Option(s.waiter.get())
     } yield !s.isInstanceOf[AbstractQueuedSynchronizer.SharedNode]
 
     isNotShared.getOrElse(false)
@@ -1128,11 +1082,11 @@ abstract class AbstractQueuedSynchronizer protected ()
    * @since 1.7
    */
   final def hasQueuedPredecessors(): Boolean = {
-    val h     = head.load()
-    val s     = if (h != null) h.next.load() else null
-    val first = if (s != null) s.waiter.load() else null
+    val h     = head.get()
+    val s     = if (h != null) h.next.get() else null
+    val first = if (s != null) s.waiter.get() else null
     val current =
-      if (h != null && (s == null || first == null || s.prev.load() == null)) {
+      if (h != null && (s == null || first == null || s.prev.get() == null)) {
         getFirstQueuedThread()
       } else first
     current != null && first != Thread.currentThread()
@@ -1153,23 +1107,23 @@ abstract class AbstractQueuedSynchronizer protected ()
         case null => acc
         case p =>
           val n =
-            if (p.waiter.load() != null) acc + 1
+            if (p.waiter.get() != null) acc + 1
             else acc
-          loop(p.prev.load(), n)
+          loop(p.prev.get(), n)
       }
     }
-    loop(tail.load(), 0)
+    loop(tail.get(), 0)
   }
 
   private def getThreads(pred: Node => Boolean): Collection[Thread] = {
     val list = new ArrayList[Thread]
-    var p    = tail.load()
+    var p    = tail.get()
     while (p != null) {
       if (pred(p)) {
-        val t = p.waiter.load()
+        val t = p.waiter.get()
         if (t != null) list.add(t)
       }
-      p = p.prev.load()
+      p = p.prev.get()
     }
     list
   }
@@ -1365,7 +1319,7 @@ abstract class AbstractQueuedSynchronizer protected ()
      */
     override final def signal(): Unit = {
       val first = firstWaiter
-      if (!isHeldExclusively) throw new IllegalMonitorStateException
+      if (!isHeldExclusively()) throw new IllegalMonitorStateException
       if (first != null) doSignal(first, false)
     }
 
@@ -1378,7 +1332,7 @@ abstract class AbstractQueuedSynchronizer protected ()
      */
     override final def signalAll(): Unit = {
       val first = firstWaiter
-      if (!isHeldExclusively) throw new IllegalMonitorStateException
+      if (!isHeldExclusively()) throw new IllegalMonitorStateException
       if (first != null) doSignal(first, true)
     }
 
@@ -1390,9 +1344,9 @@ abstract class AbstractQueuedSynchronizer protected ()
      */
     private def enableWait(
         node: AbstractQueuedSynchronizer.ConditionNode): Int = {
-      if (isHeldExclusively) {
-        node.waiter.store(Thread.currentThread)
-        node.setStatusRelaxed(
+      if (isHeldExclusively()) {
+        node.waiter.set(Thread.currentThread)
+        node.status.setOpaque(
           AbstractQueuedSynchronizer.COND | AbstractQueuedSynchronizer.WAITING)
         val last = lastWaiter
 
@@ -1407,7 +1361,7 @@ abstract class AbstractQueuedSynchronizer protected ()
       }
 
       // lock not held or inconsistent
-      node.status.store(
+      node.status.set(
         AbstractQueuedSynchronizer.CANCELLED
       )
       throw new IllegalMonitorStateException()
@@ -1420,7 +1374,7 @@ abstract class AbstractQueuedSynchronizer protected ()
      * @return true if is reacquiring
      */
     private def canReacquire(node: AbstractQueuedSynchronizer.ConditionNode) = { // check links, not status to avoid enqueue race
-      node != null && node.prev.load() != null && isEnqueued(node)
+      node != null && node.prev.get() != null && isEnqueued(node)
     }
 
     /**
@@ -1435,7 +1389,7 @@ abstract class AbstractQueuedSynchronizer protected ()
 
         while (w != null) {
           val next = w.nextWaiter
-          if ((w.status.load() & AbstractQueuedSynchronizer.COND) == 0) {
+          if ((w.status.get() & AbstractQueuedSynchronizer.COND) == 0) {
             w.nextWaiter = null
             if (trail == null) firstWaiter = next
             else trail.nextWaiter = next
@@ -1466,7 +1420,7 @@ abstract class AbstractQueuedSynchronizer protected ()
       var rejected    = false
       while (!canReacquire(node)) {
         if (Thread.interrupted()) interrupted = true
-        else if ((node.status.load() & AbstractQueuedSynchronizer.COND) != 0)
+        else if ((node.status.get() & AbstractQueuedSynchronizer.COND) != 0)
           try {
             if (rejected) node.block
             else ForkJoinPool.managedBlock(node)
@@ -1519,7 +1473,7 @@ abstract class AbstractQueuedSynchronizer protected ()
             if (cancelled) {
               break
               // else interrupted after signal
-            } else if ((node.status.load() &
+            } else if ((node.status.get() &
                          AbstractQueuedSynchronizer.COND) != 0) {
               try {
                 if (rejected) node.block
@@ -1736,7 +1690,7 @@ abstract class AbstractQueuedSynchronizer protected ()
 
       var w = firstWaiter
       while (w != null) {
-        if ((w.status.load() & AbstractQueuedSynchronizer.COND) != 0)
+        if ((w.status.get() & AbstractQueuedSynchronizer.COND) != 0)
           return true
 
         w = w.nextWaiter
@@ -1760,7 +1714,7 @@ abstract class AbstractQueuedSynchronizer protected ()
       var n = 0
       var w = firstWaiter
       while (w != null) {
-        if ((w.status.load() & AbstractQueuedSynchronizer.COND) != 0)
+        if ((w.status.get() & AbstractQueuedSynchronizer.COND) != 0)
           n += 1
 
         w = w.nextWaiter
@@ -1783,8 +1737,8 @@ abstract class AbstractQueuedSynchronizer protected ()
       val list = new ArrayList[Thread]
       var w    = firstWaiter
       while (w != null) {
-        if ((w.status.load() & AbstractQueuedSynchronizer.COND) != 0) {
-          val t = w.waiter.load()
+        if ((w.status.get() & AbstractQueuedSynchronizer.COND) != 0) {
+          val t = w.waiter.get()
           if (t != null) list.add(t)
         }
 

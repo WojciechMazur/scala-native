@@ -31,7 +31,7 @@ class ReentrantLock extends Lock with java.io.Serializable {
 
   def getHoldCount: Int = sync.getHoldCount
 
-  def isHeldByCurrentThread: Boolean = sync.isHeldExclusively
+  def isHeldByCurrentThread: Boolean = sync.isHeldExclusively()
 
   def isLocked: Boolean = sync.isLocked
 
@@ -95,9 +95,9 @@ object ReentrantLock {
 
     final def nonfairTryAcquire(acquires: Int): Boolean = {
       val current: Thread = Thread.currentThread()
-      val c: Int          = getState
+      val c: Int          = getState()
       if (c == 0) {
-        if (compareAndSetState(0, acquires)) {
+        if (state.compareAndSet(0, acquires)) {
           setExclusiveOwnerThread(current)
           return true
         }
@@ -111,9 +111,10 @@ object ReentrantLock {
     }
 
     override protected final def tryRelease(releases: Int): Boolean = {
-      val c: Int = getState - releases
-      if (Thread.currentThread() != getExclusiveOwnerThread)
+      val c: Int = getState() - releases
+      if (Thread.currentThread() != getExclusiveOwnerThread())
         throw new IllegalMonitorStateException()
+
       var free: Boolean = false
       if (c == 0) {
         free = true
@@ -123,7 +124,7 @@ object ReentrantLock {
       free
     }
 
-    override protected[locks] final def isHeldExclusively: Boolean =
+    override protected[locks] final def isHeldExclusively(): Boolean =
       getExclusiveOwnerThread == Thread.currentThread()
 
     final def newCondition(): ConditionObject = new ConditionObject()
@@ -151,7 +152,7 @@ object ReentrantLock {
   final class NonfairSync extends Sync {
 
     def lock(): Unit = {
-      if (compareAndSetState(0, 1))
+      if (state.compareAndSet(0, 1))
         setExclusiveOwnerThread(Thread.currentThread())
       else
         acquire(1)
@@ -177,7 +178,7 @@ object ReentrantLock {
       val c: Int          = getState
       if (c == 0) {
         if (!hasQueuedPredecessors &&
-            compareAndSetState(0, acquires)) {
+            state.compareAndSet(0, acquires)) {
           setExclusiveOwnerThread(current)
           return true
         }

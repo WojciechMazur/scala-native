@@ -3,6 +3,7 @@ package scala.scalanative
 import scalanative.annotation.alwaysinline
 import scalanative.unsafe._
 import scalanative.runtime.Intrinsics._
+import scalanative.runtime.monitor._
 
 package object runtime {
 
@@ -10,12 +11,21 @@ package object runtime {
   def intrinsic: Nothing = throwUndefined()
 
   /** Get monitor for given object. */
-  @alwaysinline def getMonitor(obj: Object): Monitor = Monitor.dummy
+  @alwaysinline def getMonitor(obj: Object): Monitor = {
+    new Monitor(
+      BasicMonitor(
+        fromRawPtr(
+          elemRawPtr(castObjectToRawPtr(obj),
+                     MemoryLayout.Object.LockWordOffset)))
+    )
+  }
 
   /** Initialize runtime with given arguments and return the rest as Java-style
    *  array.
    */
   def init(argc: Int, rawargv: RawPtr): scala.Array[String] = {
+    val _ = Thread.currentThread() // Initialize MainThread
+
     val argv = fromRawPtr[CString](rawargv)
     val args = new scala.Array[String](argc - 1)
 
@@ -48,8 +58,8 @@ package object runtime {
 
   /** Called by the generated code in case of incorrect class cast. */
   @noinline def throwClassCast(from: RawPtr, to: RawPtr): Nothing = {
-    val fromName = loadObject(elemRawPtr(from, 16))
-    val toName = loadObject(elemRawPtr(to, 16))
+    val fromName = loadObject(elemRawPtr(from, MemoryLayout.Rtti.NameOffset))
+    val toName   = loadObject(elemRawPtr(to, MemoryLayout.Rtti.NameOffset))
     throw new java.lang.ClassCastException(
       s"$fromName cannot be cast to $toName"
     )

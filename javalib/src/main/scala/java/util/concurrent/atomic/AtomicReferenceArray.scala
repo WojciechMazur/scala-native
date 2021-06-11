@@ -12,7 +12,6 @@ import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
 import scala.scalanative.unsafe.atomic.memory_order._
 import scala.scalanative.runtime.ObjectArray
-import scala.scalanative.runtime.{Intrinsics, fromRawPtr}
 import java.util.Arrays
 import java.util.function.BinaryOperator
 import java.util.function.UnaryOperator

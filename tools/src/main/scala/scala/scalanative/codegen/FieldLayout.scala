@@ -5,8 +5,10 @@ import scalanative.nir._
 import scalanative.linker.{Class, Field}
 
 class FieldLayout(meta: Metadata, cls: Class) {
+  import FieldLayout._
+
   def index(fld: Field) =
-    entries.indexOf(fld) + 1
+    entries.indexOf(fld) + ObjectHeader.size
   val entries: Seq[Field] = {
     val base = cls.parent.fold {
       Seq.empty[Field]
@@ -15,8 +17,7 @@ class FieldLayout(meta: Metadata, cls: Class) {
   }
   val struct: Type.StructValue = {
     val data = entries.map(_.ty)
-    val body = Type.Ptr +: data
-    Type.StructValue(body)
+    Type.StructValue(ObjectHeader ++ data)
   }
   val layout = MemoryLayout(struct.tys)
   val size = layout.size
@@ -26,4 +27,11 @@ class FieldLayout(meta: Metadata, cls: Class) {
     Val.StructValue(
       Seq(Val.Const(Val.ArrayValue(Type.Long, layout.offsetArray)))
     )
+}
+
+object FieldLayout {
+  final val ObjectHeader = Seq(
+    Type.Ptr, // RTTI
+    Type.Ptr  // LockWord
+  )
 }

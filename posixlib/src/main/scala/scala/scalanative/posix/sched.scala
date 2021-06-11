@@ -46,3 +46,11 @@ object sched {
   type sched_param = CStruct5[CInt, CInt, timespec, timespec, CInt]
 
 }
+
+object schedOps {
+  import sched._
+  implicit class SchedParamOps(ref: Ptr[sched_param]) {
+    def priority: CInt                = ref._1
+    def priority_=(value: CInt): Unit = ref._1 = value
+  }
+}

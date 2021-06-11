@@ -41,10 +41,11 @@ class RuntimeTypeInformation(meta: Metadata, info: ScopeInfo) {
       case _ =>
         -1
     })
+    val lockWord = Val.Null
     val classConst =
       Val.Global(Rt.Class.name.member(Sig.Generated("type")), Type.Ptr)
     val base = Val.StructValue(
-      Seq(classConst, typeId, traitId, typeStr)
+      Seq(classConst, lockWord, typeId, traitId, typeStr)
     )
     info match {
       case cls: Class =>

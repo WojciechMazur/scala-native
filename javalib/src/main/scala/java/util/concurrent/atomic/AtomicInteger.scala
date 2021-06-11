@@ -11,7 +11,8 @@ import scala.annotation.tailrec
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
 import scala.scalanative.unsafe.atomic.memory_order._
-import scala.scalanative.runtime.{Intrinsics, fromRawPtr}
+import scala.scalanative.runtime.Intrinsics.{elemRawPtr, castObjectToRawPtr}
+import scala.scalanative.runtime.{fromRawPtr, MemoryLayout}
 import java.util.function.IntBinaryOperator
 import java.util.function.IntUnaryOperator
 
@@ -30,10 +31,9 @@ class AtomicInteger(private[this] var value: Int)
   @alwaysinline
   private[concurrent] def valueRef: CAtomicInt = new CAtomicInt(
     // Assumess object fields are stored in memory directly after Ptr[Rtti]
-    (fromRawPtr[Ptr[Byte]](Intrinsics.castObjectToRawPtr(this)) + 1)
-      .asInstanceOf[Ptr[Int]]
+    fromRawPtr(elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset))
   )
-
+  
   /**
    * Returns the current value,
    * with memory effects as specified by {@link VarHandle# getVolatile}.

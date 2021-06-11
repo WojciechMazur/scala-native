@@ -11,7 +11,8 @@ import scala.annotation.tailrec
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
 import scala.scalanative.unsafe.atomic.memory_order._
-import scala.scalanative.runtime.{Intrinsics, fromRawPtr}
+import scala.scalanative.runtime.Intrinsics.{elemRawPtr, castObjectToRawPtr}
+import scala.scalanative.runtime.{fromRawPtr, MemoryLayout}
 import java.util.function.LongBinaryOperator
 import java.util.function.LongUnaryOperator
 
@@ -26,8 +27,8 @@ class AtomicLong(private[this] var value: Long)
   @alwaysinline
   private[concurrent] def valueRef: CAtomicLong = new CAtomicLong(
     // Assumess object fields are stored in memory directly after Ptr[Rtti]
-    (fromRawPtr[Ptr[Byte]](Intrinsics.castObjectToRawPtr(this)) + 1)
-      .asInstanceOf[Ptr[Long]]
+    fromRawPtr(elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset))
+
   )
 
   def this() {
@@ -382,7 +383,8 @@ class AtomicLong(private[this] var value: Long)
    * @param newValue the new value
    * @since 9
    */
-  final def setOpaque(newValue: Long): Unit = valueRef.store(newValue, memory_order_relaxed)
+  final def setOpaque(newValue: Long): Unit =
+    valueRef.store(newValue, memory_order_relaxed)
 
   /**
    * Returns the current value,

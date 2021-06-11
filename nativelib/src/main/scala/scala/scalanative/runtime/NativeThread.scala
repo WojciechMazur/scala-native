@@ -1,11 +1,12 @@
 package scala.scalanative
 package runtime
 
-import native.{extern, name, CSize, CInt}
-import posix.sys.types.pthread_t
+import scala.scalanative.unsafe._
+import scala.scalanative.unsigned._
 
 @extern
 object NativeThread {
+  type pthread_t = ULong
 
   @name("get_max_priority")
   def THREAD_MAX_PRIORITY: Int = extern

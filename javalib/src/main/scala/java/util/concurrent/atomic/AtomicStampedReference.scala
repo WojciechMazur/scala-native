@@ -10,10 +10,12 @@ import scala.annotation.tailrec
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
 import scala.scalanative.unsafe.atomic.memory_order._
-import scala.scalanative.runtime.{Intrinsics, fromRawPtr}
+import scala.scalanative.runtime.Intrinsics.{elemRawPtr, castObjectToRawPtr}
+import scala.scalanative.runtime.{fromRawPtr, MemoryLayout}
 
 object AtomicStampedReference {
-  private[concurrent] case class StampedReference[V <: AnyRef](ref: V, stamp: Int)
+  private[concurrent] case class StampedReference[V <: AnyRef](ref: V,
+                                                               stamp: Int)
 }
 
 import AtomicStampedReference._
@@ -32,8 +34,8 @@ class AtomicStampedReference[V <: AnyRef] private (
   private[concurrent] def valueRef: CAtomicRef[StampedReference[V]] = {
     new CAtomicRef(
       // Assumess object fields are stored in memory directly after Ptr[Rtti]
-      (fromRawPtr[Ptr[Byte]](Intrinsics.castObjectToRawPtr(this)) + 1)
-        .asInstanceOf[Ptr[StampedReference[V]]]
+      fromRawPtr(
+        elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset))
     )
   }
 

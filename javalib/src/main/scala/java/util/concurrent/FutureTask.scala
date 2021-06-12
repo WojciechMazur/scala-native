@@ -3,7 +3,7 @@ package java.util.concurrent
 // Ported from Harmony
 
 import locks._
-import scala.scalanative.unsafe._
+import java.util.concurrent.atomic.AtomicReference
 
 class FutureTask[V] extends RunnableFuture[V] {
 
@@ -58,7 +58,7 @@ class FutureTask[V] extends RunnableFuture[V] {
      * indicates that the results are accessible.  Must be
      * volatile, to ensure visibility upon completion.
      */
-    private val runner: CAtomicRef[Thread] = ??? //new CAtomicRef[Thread]()
+    private val runner = new AtomicReference[Thread](null: Thread)
 
     private def ranOrCancelled(state: Int): Boolean =
       (state & (RAN | CANCELLED)) != 0
@@ -67,14 +67,14 @@ class FutureTask[V] extends RunnableFuture[V] {
       if (innerIsDone) 1 else -1
 
     override def tryReleaseShared(ignore: Int): Boolean = {
-      runner.store(null.asInstanceOf[Thread])
+      runner.set(null: Thread)
       true
     }
 
     def innerIsCancelled: Boolean = getState == CANCELLED
 
     def innerIsDone: Boolean =
-      ranOrCancelled(getState) && runner.load() == null.asInstanceOf[Thread]
+      ranOrCancelled(getState) && runner.get() == null
 
     def innerGet: V = {
       acquireSharedInterruptibly(0)
@@ -107,7 +107,7 @@ class FutureTask[V] extends RunnableFuture[V] {
           releaseShared(0)
           return
         }
-        if (compareAndSetState(s, RAN)) {
+        if (state.compareAndSet(s, RAN)) {
           result = v
           releaseShared(0)
           done()
@@ -129,7 +129,7 @@ class FutureTask[V] extends RunnableFuture[V] {
           releaseShared(0)
           return
         }
-        if (compareAndSetState(s, RAN)) {
+        if (state.compareAndSet(s, RAN)) {
           exception = t
           releaseShared(0)
           done()
@@ -145,11 +145,11 @@ class FutureTask[V] extends RunnableFuture[V] {
         val s: Int = getState
         if (ranOrCancelled(s))
           return false
-        if (compareAndSetState(s, CANCELLED))
+        if (state.compareAndSet(s, CANCELLED))
           break = true
       }
       if (mayInterruptIfRunning) {
-        val r: Thread = runner.load()
+        val r: Thread = runner.get()
         if (r != null)
           r.interrupt()
       }
@@ -159,10 +159,10 @@ class FutureTask[V] extends RunnableFuture[V] {
     }
 
     def innerRun(): Unit = {
-      if (!compareAndSetState(READY, RUNNING))
+      if (!state.compareAndSet(READY, RUNNING))
         return
 
-      runner.store(Thread.currentThread())
+      runner.set(Thread.currentThread())
       if (getState == RUNNING) { // recheck after setting thread
         var result: V = null.asInstanceOf[V]
         try {
@@ -180,14 +180,14 @@ class FutureTask[V] extends RunnableFuture[V] {
     }
 
     def innerRunAndReset: Boolean = {
-      if (!compareAndSetState(READY, RUNNING))
+      if (!state.compareAndSet(READY, RUNNING))
         return false
       try {
-        runner.store(Thread.currentThread())
+        runner.set(Thread.currentThread())
         if (getState == RUNNING)
           callable.call() // don't set result
-        runner.store(null.asInstanceOf[Thread])
-        compareAndSetState(RUNNING, READY)
+        runner.set(null.asInstanceOf[Thread])
+        state.compareAndSet(RUNNING, READY)
       } catch {
         case ex: Throwable => {
           setException(ex)

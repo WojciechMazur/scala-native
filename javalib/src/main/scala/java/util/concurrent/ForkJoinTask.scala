@@ -16,8 +16,7 @@ import java.util.RandomAccess;
 import java.util.concurrent.locks.LockSupport;
 import scala.scalanative.annotation.stub
 import scala.annotation.tailrec
-import scala.scalanative.unsafe._
-import scala.scalanative.posix.sys.stat
+import java.util.concurrent.atomic.{AtomicReference, AtomicInteger}
 
 /**
  * Abstract base class for tasks that run within a {@link ForkJoinPool}.
@@ -64,7 +63,8 @@ import scala.scalanative.posix.sys.stat
  * exceptions, but, when possible, contain stack traces (as displayed
  * for example using {@code ex.printStackTrace()}) of both the thread
  * that initiated the computation as well as the thread actually
- * encountering the exception; minimally only the lattevar
+ * encountering the exception; minimally only the latter.
+ *
  * <p>It is possible to define and use ForkJoinTasks that may block,
  * but doing so requires three further considerations: (1) Completion
  * of few if any <em>other</em> tasks should be dependent on a task
@@ -180,42 +180,36 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
 
   // Fields
   // @volatile
-  private[concurrent] val status
-      : CAtomicInt = ??? // new CAtomicInt(0)         // accessed directly by pool and workers
-  private val aux
-      : CAtomicRef[Aux] = ??? //new CAtomicRef[Aux](null) // either waiters or thrown Exception
+  private[concurrent] val status = new AtomicInteger(0)                // accessed directly by pool and workers
+  private val aux                = new AtomicReference[Aux](null: Aux) // either waiters or thrown Exception
 
   // Support for atomic operations
   private def getAndBitwiseOrStatus(v: Int): Int = {
-    status.fetchXor(v)
-  }
-  private def casStatus(c: Int, v: Int): Boolean = {
-    ???
-    // status.compareAndSwapStrong(c, v)._1
-  }
-  private def casAux(c: Aux, v: Aux): Boolean = {
-    ???
-    // aux.compareAndSwapStrong(c, v)._1
+    status.valueRef.fetchXor(v)
   }
 
   /** Removes and unparks waiters */
+  @tailrec
   private def signalWaiters(): Unit = {
     @tailrec
-    def acquireAux(): Aux = {
-      val a = aux.load()
-      if (a != null && a.ex.isEmpty && casAux(a, null)) a
-      else acquireAux()
+    def unparkThreads(a: Option[Aux]): Unit = {
+      a match {
+        case None => ()
+        case Some(a) =>
+          if (a.thread != Thread.currentThread() && a.thread != null) {
+            LockSupport.unpark(a.thread)
+          }
+          unparkThreads(a.next)
+      }
     }
 
-    var currentAux = Option(acquireAux())
-    while (currentAux.isDefined) {
-      val a      = currentAux.get
-      val thread = a.thread
-      // don't self-signal
-      if (thread != null && thread != Thread.currentThread()) {
-        LockSupport.unpark(thread)
-      }
-      currentAux = a.next
+    aux.get() match {
+      case null => ()
+      case a if a.ex == null =>
+        println(a)
+        if (aux.compareAndSet(a, null)) unparkThreads(Some(a))
+        else signalWaiters()
+      case _ => ()
     }
   }
 
@@ -235,11 +229,11 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    * @return status on exit
    */
   private def trySetCancelled(): Int = {
-    var s = status.load()
+    var s = status.get()
     while ({
-      val lastStatus = status.load()
+      val lastStatus = status.get()
       s = lastStatus | DONE | ABNORMAL
-      lastStatus >= 0 && !casStatus(lastStatus, s)
+      lastStatus >= 0 && !status.compareAndSet(lastStatus, s)
     }) ()
     signalWaiters()
     s
@@ -257,16 +251,18 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
     @tailrec
     def setupLoop(installed: Boolean,
                   optAux: Option[Aux]): (Int, Option[Aux]) = {
-      val s = status.load()
+      val s = status.get()
       if (s < 0) s -> optAux
       else {
-        val a = aux.load()
+        val a = aux.get()
         val h = Aux(Thread.currentThread(), Some(ex), Some(a))
-        if (!installed && (a == null || a.ex.isEmpty) && casAux(a, h)) {
+        if (!installed && (a == null || a.ex.isEmpty) && aux.compareAndSet(a,
+                                                                           h)) {
           setupLoop(installed = true, Some(a)) // list of waiters replaced by h
         } else {
           val newStatus = s | DONE | ABNORMAL | THROWN
-          if (installed && casStatus(s, newStatus)) newStatus -> optAux
+          if (installed && status.compareAndSet(s, newStatus))
+            newStatus -> optAux
           else setupLoop(installed, optAux)
         }
       }
@@ -306,14 +302,16 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    * @return status on exit from this method
    */
   private[concurrent] final def doExec(): Int = {
-    val s = status.load()
+    val s = status.get()
     if (s < 0) s
     else
       try {
-        if (exec()) setDone()
-        else s
+        if (exec()) {
+          setDone()
+        } else s
       } catch {
         case ex: Throwable =>
+          ex.printStackTrace()
           trySetException(ex)
       }
   }
@@ -391,7 +389,7 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
     // while ((s = status) >= 0) {
     //     Aux a; long ns;
     //     if (fail || (fail = (pool != null && pool.mode < 0)))
-    //         casStatus(s, s | (DONE | ABNORMAL)); // try to cancel
+    //         status.compareAndSet(s, s | (DONE | ABNORMAL)); // try to cancel
     //     else if (parked && Thread.interrupted()) {
     //         if (interruptible) {
     //             s = ABNORMAL;
@@ -412,7 +410,7 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
     //     else if (node != null) {
     //         if ((a = aux) != null && a.ex != null)
     //             Thread.onSpinWait();     // exception in progress
-    //         else if (queued = casAux(node.next = a, node))
+    //         else if (queued = aux.compareAndSet(node.next = a, node))
     //             LockSupport.setCurrentBlocker(this);
     //     }
     //     else {
@@ -435,7 +433,7 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
     //                 if (a == node) {
     //                     if (trail != null)
     //                         trail.casNext(trail, next);
-    //                     else if (casAux(a, next))
+    //                     else if (aux.compareAndSet(a, next))
     //                         break outer; // cannot be re-encountered
     //                     break;           // restart
     //                 } else {
@@ -642,11 +640,11 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
   }
 
   final def isDone(): Boolean = {
-    status.load < 0;
+    status.get() < 0;
   }
 
   final def isCancelled(): Boolean = {
-    (status.load & (ABNORMAL | THROWN)) == ABNORMAL;
+    (status.get() & (ABNORMAL | THROWN)) == ABNORMAL;
   }
 
   /**
@@ -655,7 +653,7 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    * @return {@code true} if this task threw an exception or was cancelled
    */
   final def isCompletedAbnormally(): Boolean = {
-    (status.load & ABNORMAL) != 0;
+    (status.get() & ABNORMAL) != 0;
   }
 
   /**
@@ -666,7 +664,7 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    * exception and was not cancelled
    */
   final def isCompletedNormally(): Boolean = {
-    (status.load & (DONE | ABNORMAL)) == DONE;
+    (status.get() & (DONE | ABNORMAL)) == DONE;
   }
 
   /**
@@ -677,7 +675,7 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    * @return the exception, or {@code null} if none
    */
   final def getException(): Throwable = {
-    getException(status.load());
+    getException(status.get());
   }
 
   /**
@@ -798,7 +796,7 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    */
   @stub()
   final def quietlyJoin(): Unit = {
-    if (status.load >= 0)
+    if (status.get() >= 0)
       awaitDone(null, false, false, false, 0L);
   }
 
@@ -873,8 +871,8 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    */
   @stub()
   def reinitialize(): Unit = {
-    aux.store(null);
-    status.store(0);
+    aux.set(null);
+    status.set(0);
   }
 
   /**
@@ -909,7 +907,6 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    *
    * @return the result, or {@code null} if not completed
    */
-  @stub()
   def getRawResult(): V
 
   /**
@@ -919,7 +916,6 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    *
    * @param value the value
    */
-  @stub()
   protected def setRawResult(value: V): Unit
 
   /**
@@ -935,7 +931,6 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    *
    * @return {@code true} if this task is known to have completed normally
    */
-  @stub()
   protected def exec(): Boolean;
 
   // tag operations
@@ -946,9 +941,8 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    * @return the tag for this task
    * @since 1.8
    */
-  @stub()
   final def getForkJoinTaskTag(): Short = {
-    status.load().toShort;
+    status.get().toShort;
   }
 
   /**
@@ -962,7 +956,7 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
   final def setForkJoinTaskTag(newValue: Short): Short = {
     ???
     // for (int s;;) {
-    //     if (casStatus(s = status, (s & ~SMASK) | (newValue & SMASK)))
+    //     if (status.compareAndSet(s = status, (s & ~SMASK) | (newValue & SMASK)))
     //         return (short)s;
     // }
   }
@@ -988,7 +982,7 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
     // for (int s;;) {
     //     if ((short)(s = status) != expect)
     //         return false;
-    //     if (casStatus(s, (s & ~SMASK) | (update & SMASK)))
+    //     if (status.compareAndSet(s, (s & ~SMASK) | (update & SMASK)))
     //         return true;
     // }
   }
@@ -1454,60 +1448,64 @@ object ForkJoinTask {
    * @return a task, or {@code null} if none are available
    * @since 9
    */
-  @stub()
   protected def pollSubmission(): ForkJoinTask[_] = {
-    ???
-    // Thread t;
-    // return (((t = Thread.currentThread()) instanceof ForkJoinWorkerThread) ?
-    //         ((ForkJoinWorkerThread)t).pool.pollSubmission() : null);
+    Thread.currentThread() match {
+      case t: ForkJoinWorkerThread => t.pool.pollSubmission()
+      case _                       => null
+    }
   }
 
-//  /**
-//      * Adapter for Runnables. This implements RunnableFuture
-//      * to be compliant with AbstractExecutorService constraints
-//      * when used in ForkJoinPool.
-//      */
-//     private[concurrent] final class AdaptedRunnable[T] extends ForkJoinTask[T]
-//         implements RunnableFuture<T> {
-//         @SuppressWarnings("serial") // Conditionally serializable
-//         final Runnable runnable;
-//         @SuppressWarnings("serial") // Conditionally serializable
-//         T result;
-//         AdaptedRunnable(Runnable runnable, T result) {
-//             if (runnable == null) throw new NullPointerException();
-//             this.runnable = runnable;
-//             this.result = result; // OK to set this even before completion
-//         }
-//         public final T getRawResult() { return result; }
-//         public final void setRawResult(T v) { result = v; }
-//         public final boolean exec() { runnable.run(); return true; }
-//         public final void run() { invoke(); }
-//         public String toString() {
-//             return super.toString() + "[Wrapped task = " + runnable + "]";
-//         }
-//         private static final long serialVersionUID = 5232453952276885070L;
-//     }
+  /**
+   * Adapter for Runnables. This implements RunnableFuture
+   * to be compliant with AbstractExecutorService constraints
+   * when used in ForkJoinPool.
+   */
+  @SerialVersionUID(5232453952276885070L)
+  private[concurrent] final class AdaptedRunnable[T](runnable: Runnable,
+                                                     private var result: T)
+      extends ForkJoinTask[T]
+      with RunnableFuture[T] {
+    if (runnable == null) {
+      throw new NullPointerException()
+    }
 
-//     /**
-//      * Adapter for Runnables without results.
-//      */
-//     static final class AdaptedRunnableAction extends ForkJoinTask<Void>
-//         implements RunnableFuture<Void> {
-//         @SuppressWarnings("serial") // Conditionally serializable
-//         final Runnable runnable;
-//         AdaptedRunnableAction(Runnable runnable) {
-//             if (runnable == null) throw new NullPointerException();
-//             this.runnable = runnable;
-//         }
-//         public final Void getRawResult() { return null; }
-//         public final void setRawResult(Void v) { }
-//         public final boolean exec() { runnable.run(); return true; }
-//         public final void run() { invoke(); }
-//         public String toString() {
-//             return super.toString() + "[Wrapped task = " + runnable + "]";
-//         }
-//         private static final long serialVersionUID = 5232453952276885070L;
-//     }
+    def run(): Unit = invoke()
+
+    protected def exec(): Boolean = {
+      runnable.run()
+      true
+    }
+
+    protected def setRawResult(value: T): Unit = result = value
+    def getRawResult(): T                      = result
+
+    override def toString(): String = {
+      super.toString() + "[Wrapped task = " + runnable + "]";
+    }
+  }
+
+  /**
+   * Adapter for Runnables without results.
+   */
+  @SerialVersionUID(5232453952276885070L)
+  private[concurrent] final class AdaptedRunnableAction(runnable: Runnable)
+      extends ForkJoinTask[Unit]
+      with RunnableFuture[Unit] {
+    if (runnable == null) throw new NullPointerException()
+
+    protected def exec(): Boolean = {
+      runnable.run()
+      true
+    }
+
+    def run(): Unit = invoke()
+
+    def getRawResult(): Unit                      = ()
+    protected def setRawResult(value: Unit): Unit = ()
+
+    override def toString(): String =
+      super.toString() + "[Wrapped task = " + runnable + "]"
+  }
 
   /**
    * Adapter for Runnables in which failure forces worker exception.
@@ -1542,84 +1540,83 @@ object ForkJoinTask {
     }
   }
 
-//     /**
-//      * Adapter for Callables.
-//      */
-//     static final class AdaptedCallable<T> extends ForkJoinTask<T>
-//         implements RunnableFuture<T> {
-//         @SuppressWarnings("serial") // Conditionally serializable
-//         final Callable<? extends T> callable;
-//         @SuppressWarnings("serial") // Conditionally serializable
-//         T result;
-//         AdaptedCallable(Callable<? extends T> callable) {
-//             if (callable == null) throw new NullPointerException();
-//             this.callable = callable;
-//         }
-//         public final T getRawResult() { return result; }
-//         public final void setRawResult(T v) { result = v; }
-//         public final boolean exec() {
-//             try {
-//                 result = callable.call();
-//                 return true;
-//             } catch (RuntimeException rex) {
-//                 throw rex;
-//             } catch (Exception ex) {
-//                 throw new RuntimeException(ex);
-//             }
-//         }
-//         public final void run() { invoke(); }
-//         public String toString() {
-//             return super.toString() + "[Wrapped task = " + callable + "]";
-//         }
-//         private static final long serialVersionUID = 2838392045355241008L;
-//     }
+  /**
+   * Adapter for Callables.
+   */
+  @SerialVersionUID(2838392045355241008L)
+  final class AdaptedCallable[T](callable: Callable[T])
+      extends ForkJoinTask[T]
+      with RunnableFuture[T] {
+    if (callable == null) throw new NullPointerException();
 
-//     static final class AdaptedInterruptibleCallable<T> extends ForkJoinTask<T>
-//         implements RunnableFuture<T> {
-//         @SuppressWarnings("serial") // Conditionally serializable
-//         final Callable<? extends T> callable;
-//         @SuppressWarnings("serial") // Conditionally serializable
-//         transient volatile Thread runner;
-//         T result;
-//         AdaptedInterruptibleCallable(Callable<? extends T> callable) {
-//             if (callable == null) throw new NullPointerException();
-//             this.callable = callable;
-//         }
-//         public final T getRawResult() { return result; }
-//         public final void setRawResult(T v) { result = v; }
-//         public final boolean exec() {
-//             Thread.interrupted();
-//             runner = Thread.currentThread();
-//             try {
-//                 if (!isDone()) // recheck
-//                     result = callable.call();
-//                 return true;
-//             } catch (RuntimeException rex) {
-//                 throw rex;
-//             } catch (Exception ex) {
-//                 throw new RuntimeException(ex);
-//             } finally {
-//                 runner = null;
-//                 Thread.interrupted();
-//             }
-//         }
-//         public final void run() { invoke(); }
-//         public final boolean cancel(boolean mayInterruptIfRunning) {
-//             Thread t;
-//             boolean stat = super.cancel(false);
-//             if (mayInterruptIfRunning && (t = runner) != null) {
-//                 try {
-//                     t.interrupt();
-//                 } catch (Throwable ignore) {
-//                 }
-//             }
-//             return stat;
-//         }
-//         public String toString() {
-//             return super.toString() + "[Wrapped task = " + callable + "]";
-//         }
-//         private static final long serialVersionUID = 2838392045355241008L;
-//     }
+    private var result: T = _
+
+    def getRawResult(): T                      = result
+    protected def setRawResult(value: T): Unit = result = result
+    protected def exec(): Boolean = {
+      try {
+        result = callable.call()
+        true
+      } catch {
+        case ex: RuntimeException => throw ex
+        case ex: Exception        => throw new RuntimeException(ex)
+      }
+    }
+
+    def run(): Unit = invoke()
+    override def toString(): String =
+      super.toString() + "[Wrapped task = " + callable + "]";
+  }
+
+  @SerialVersionUID(2838392045355241008L)
+  final class AdaptedInterruptibleCallable[T](callable: Callable[T])
+      extends ForkJoinTask[T]
+      with RunnableFuture[T] {
+    if (callable == null) throw new NullPointerException()
+
+    // private val Atomic
+    private[concurrent] val runner = new AtomicReference[Thread]()
+    private var result: T          = _
+
+    def getRawResult(): T                      = result
+    protected def setRawResult(value: T): Unit = result = value
+    def run(): Unit                            = invoke()
+
+    protected def exec(): Boolean = {
+      Thread.interrupted()
+      runner.set(Thread.currentThread())
+      try {
+        if (!isDone())
+          result = callable.call()
+        true
+      } catch {
+        case ex: RuntimeException => throw ex
+        case ex: Exception        => throw new RuntimeException(ex)
+      } finally {
+        runner.set(null: Thread)
+        Thread.interrupted()
+      }
+    }
+
+    override def cancel(mayInterruptIfRunning: Boolean): Boolean = {
+      val status = super.cancel(false)
+      if (mayInterruptIfRunning) {
+        runner.get() match {
+          case null => ()
+          case runner =>
+            try {
+              runner.interrupt()
+            } catch {
+              case _: Throwable => ()
+            }
+        }
+      }
+      status
+    }
+
+    override def toString(): String =
+      super.toString() + "[Wrapped task = " + callable + "]";
+  }
 
   /**
    * Returns a new {@code ForkJoinTask} that performs the {@code run}

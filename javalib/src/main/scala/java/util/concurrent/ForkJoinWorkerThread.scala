@@ -44,7 +44,6 @@ class ForkJoinWorkerThread private[concurrent] (
   if (pool.ueh != null) {
     super.setUncaughtExceptionHandler(pool.ueh)
   }
-  println("worker thread")
   private[concurrent] val workQueue =
     new ForkJoinPool.WorkQueue(this, isInnocuous);
 
@@ -106,7 +105,9 @@ class ForkJoinWorkerThread private[concurrent] (
    * threads work correctly even before this thread starts
    * processing tasks.
    */
-  protected def onStart(): Unit = {}
+  protected def onStart(): Unit = {
+    println(s"starting $this")
+  }
 
   /**
    * Performs cleanup associated with termination of this worker
@@ -116,7 +117,10 @@ class ForkJoinWorkerThread private[concurrent] (
    * @param exception the exception causing this thread to abort due
    * to an unrecoverable error, or {@code null} if completed normally
    */
-  protected def onTermination(exception: Throwable): Unit = {}
+  protected def onTermination(exception: Throwable): Unit = {
+    println(s"terminating $this")
+    exception.printStackTrace()
+  }
 
   /**
    * This method is required to be public, but should never be
@@ -134,9 +138,9 @@ class ForkJoinWorkerThread private[concurrent] (
         onStart();
         p.runWorker(w);
       } catch {
-        case ex: Throwable =>
-          exception = ex
+        case ex: Throwable => exception = ex
       } finally {
+        println(s"terminating $this - $exception")
         try {
           onTermination(exception);
         } catch {

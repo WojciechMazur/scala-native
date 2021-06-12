@@ -224,14 +224,12 @@ class Thread private[lang] (
   }
 
   def run(): Unit = {
-    println(s"run $this")
     if (target != null) {
       target.run()
     }
   }
 
   def start(): Unit = synchronized {
-    println(s"start $this")
     lock.synchronized {
       if (started) {
         throw new IllegalThreadStateException(
@@ -452,7 +450,6 @@ object Thread {
   }
 
   def sleep(millis: scala.Long, nanos: scala.Int): Unit = {
-    println(s"Sleep ${Thread.currentThread()}")
     import scala.scalanative.posix.errno.EINTR
     import scala.scalanative.unsafe._
     import scala.scalanative.posix.unistd

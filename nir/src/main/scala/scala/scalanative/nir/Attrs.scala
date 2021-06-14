@@ -9,7 +9,7 @@ sealed abstract class Attr {
 }
 
 object Attr {
-  sealed abstract class Inline extends Attr
+  sealed abstract class Inline   extends Attr
   case object MayInline extends Inline // no information
   case object InlineHint extends Inline // user hinted at inlining
   case object NoInline extends Inline // should never inline
@@ -19,7 +19,7 @@ object Attr {
   case object MaySpecialize extends Specialize
   case object NoSpecialize extends Specialize
 
-  sealed abstract class Opt extends Attr
+  sealed abstract class Opt             extends Attr
   case object UnOpt extends Opt
   case object NoOpt extends Opt
   case object DidOpt extends Opt
@@ -29,19 +29,19 @@ object Attr {
   case object Stub extends Attr
   case object Extern extends Attr
   final case class Link(name: String) extends Attr
-  case object Abstract extends Attr
+  case object Abstract          extends Attr
+  final case object Volatile          extends Attr
 }
 
-final case class Attrs(
-    inlineHint: Inline = MayInline,
-    specialize: Specialize = MaySpecialize,
-    opt: Opt = UnOpt,
-    isExtern: Boolean = false,
-    isDyn: Boolean = false,
-    isStub: Boolean = false,
-    isAbstract: Boolean = false,
-    links: Seq[Attr.Link] = Seq()
-) {
+final case class Attrs(inlineHint: Inline = MayInline,
+                       specialize: Specialize = MaySpecialize,
+                       opt: Opt = UnOpt,
+                       isExtern: Boolean = false,
+                       isDyn: Boolean = false,
+                       isStub: Boolean = false,
+                       isAbstract: Boolean = false,
+                       isVolatile: Boolean = false,
+                       links: Seq[Attr.Link] = Seq()) {
   def toSeq: Seq[Attr] = {
     val out = Seq.newBuilder[Attr]
 
@@ -52,6 +52,7 @@ final case class Attrs(
     if (isDyn) out += Dyn
     if (isStub) out += Stub
     if (isAbstract) out += Abstract
+    if (isVolatile) out += Volatile
     out ++= links
 
     out.result()
@@ -61,14 +62,15 @@ object Attrs {
   val None = new Attrs()
 
   def fromSeq(attrs: Seq[Attr]): Attrs = {
-    var inline = None.inlineHint
+    var inline     = None.inlineHint
     var specialize = None.specialize
-    var opt = None.opt
-    var isExtern = false
-    var isDyn = false
-    var isStub = false
+    var opt        = None.opt
+    var isExtern   = false
+    var isDyn      = false
+    var isStub     = false
     var isAbstract = false
-    val links = Seq.newBuilder[Attr.Link]
+    var isVolatile = false
+    val links      = Seq.newBuilder[Attr.Link]
 
     attrs.foreach {
       case attr: Inline     => inline = attr
@@ -79,17 +81,17 @@ object Attrs {
       case Stub             => isStub = true
       case link: Attr.Link  => links += link
       case Abstract         => isAbstract = true
+      case Volatile         => isVolatile = true
     }
 
-    new Attrs(
-      inline,
-      specialize,
-      opt,
-      isExtern,
-      isDyn,
-      isStub,
-      isAbstract,
-      links.result()
-    )
+    new Attrs(inline,
+              specialize,
+              opt,
+              isExtern,
+              isDyn,
+              isStub,
+              isAbstract,
+              isVolatile,
+              links.result())
   }
 }

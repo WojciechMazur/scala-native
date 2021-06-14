@@ -30,16 +30,14 @@ class Buffer(implicit fresh: Fresh) {
   def jump(to: Local, args: Seq[Val])(implicit pos: Position): Unit =
     this += Inst.Jump(Next.Label(to, args))
   def branch(value: Val, thenp: Next, elsep: Next)(implicit
-      pos: Position
-  ): Unit =
+                                                   pos: Position): Unit =
     this += Inst.If(value, thenp, elsep)
   def branchLinktime(condition: LinktimeCondition, thenp: Next, elsep: Next)(
       implicit pos: Position
   ): Unit =
     this += Inst.LinktimeIf(condition, thenp, elsep)
   def switch(value: Val, default: Next, cases: Seq[Next])(implicit
-      pos: Position
-  ): Unit =
+                                                          pos: Position): Unit =
     this += Inst.Switch(value, default, cases)
   def raise(value: Val, unwind: Next)(implicit pos: Position): Unit =
     this += Inst.Throw(value, unwind)
@@ -51,47 +49,47 @@ class Buffer(implicit fresh: Fresh) {
   }
   def let(op: Op, unwind: Next)(implicit pos: Position): Val =
     let(fresh(), op, unwind)
-  def call(ty: Type, ptr: Val, args: Seq[Val], unwind: Next)(implicit
-      pos: Position
-  ): Val =
+  def call(ty: Type, ptr: Val, args: Seq[Val], unwind: Next)(
+      implicit
+      pos: Position): Val =
     let(Op.Call(ty, ptr, args), unwind)
-  def load(ty: Type, ptr: Val, unwind: Next)(implicit pos: Position): Val =
-    let(Op.Load(ty, ptr), unwind)
-  def store(ty: Type, ptr: Val, value: Val, unwind: Next)(implicit
-      pos: Position
-  ): Val =
-    let(Op.Store(ty, ptr, value), unwind)
-  def elem(ty: Type, ptr: Val, indexes: Seq[Val], unwind: Next)(implicit
-      pos: Position
-  ): Val =
+  def load(ty: Type, ptr: Val, unwind: Next, isAtomic: Boolean)(
+      implicit pos: Position): Val =
+    let(Op.Load(ty, ptr, isAtomic), unwind)
+  def store(ty: Type, ptr: Val, value: Val, unwind: Next, isAtomic: Boolean)(
+      implicit
+      pos: Position): Val =
+    let(Op.Store(ty, ptr, value, isAtomic), unwind)
+  def elem(ty: Type, ptr: Val, indexes: Seq[Val], unwind: Next)(
+      implicit
+      pos: Position): Val =
     let(Op.Elem(ty, ptr, indexes), unwind)
   def extract(aggr: Val, indexes: Seq[Int], unwind: Next)(implicit
-      pos: Position
-  ): Val =
+                                                          pos: Position): Val =
     let(Op.Extract(aggr, indexes), unwind)
-  def insert(aggr: Val, value: Val, indexes: Seq[Int], unwind: Next)(implicit
-      pos: Position
-  ): Val =
+  def insert(aggr: Val, value: Val, indexes: Seq[Int], unwind: Next)(
+      implicit
+      pos: Position): Val =
     let(Op.Insert(aggr, value, indexes), unwind)
   def stackalloc(ty: Type, n: Val, unwind: Next)(implicit pos: Position): Val =
     let(Op.Stackalloc(ty, n), unwind)
-  def bin(bin: nir.Bin, ty: Type, l: Val, r: Val, unwind: Next)(implicit
-      pos: Position
-  ): Val =
+  def bin(bin: nir.Bin, ty: Type, l: Val, r: Val, unwind: Next)(
+      implicit
+      pos: Position): Val =
     let(Op.Bin(bin, ty, l, r), unwind)
-  def comp(comp: nir.Comp, ty: Type, l: Val, r: Val, unwind: Next)(implicit
-      pos: Position
-  ): Val =
+  def comp(comp: nir.Comp, ty: Type, l: Val, r: Val, unwind: Next)(
+      implicit
+      pos: Position): Val =
     let(Op.Comp(comp, ty, l, r), unwind)
-  def conv(conv: nir.Conv, ty: Type, value: Val, unwind: Next)(implicit
-      pos: Position
-  ): Val =
+  def conv(conv: nir.Conv, ty: Type, value: Val, unwind: Next)(
+      implicit
+      pos: Position): Val =
     let(Op.Conv(conv, ty, value), unwind)
   def classalloc(name: Global, unwind: Next)(implicit pos: Position): Val =
     let(Op.Classalloc(name), unwind)
-  def fieldload(ty: Type, obj: Val, name: Global, unwind: Next)(implicit
-      pos: Position
-  ): Val =
+  def fieldload(ty: Type, obj: Val, name: Global, unwind: Next)(
+      implicit
+      pos: Position): Val =
     let(Op.Fieldload(ty, obj, name), unwind)
   def fieldstore(ty: Type, obj: Val, name: Global, value: Val, unwind: Next)(
       implicit pos: Position
@@ -120,16 +118,14 @@ class Buffer(implicit fresh: Fresh) {
   def varload(slot: Val, unwind: Next)(implicit pos: Position): Val =
     let(Op.Varload(slot), unwind)
   def varstore(slot: Val, value: Val, unwind: Next)(implicit
-      pos: Position
-  ): Val =
+                                                    pos: Position): Val =
     let(Op.Varstore(slot, value), unwind)
   def arrayalloc(ty: Type, init: Val, unwind: Next)(implicit
-      pos: Position
-  ): Val =
+                                                    pos: Position): Val =
     let(Op.Arrayalloc(ty, init), unwind)
-  def arrayload(ty: Type, arr: Val, idx: Val, unwind: Next)(implicit
-      pos: Position
-  ): Val =
+  def arrayload(ty: Type, arr: Val, idx: Val, unwind: Next)(
+      implicit
+      pos: Position): Val =
     let(Op.Arrayload(ty, arr, idx), unwind)
   def arraystore(ty: Type, arr: Val, idx: Val, value: Val, unwind: Next)(
       implicit pos: Position

@@ -9,14 +9,16 @@ case class Prelude(
     compat: Int,
     revision: Int,
     hasEntryPoints: Boolean
-)
+) {
+  final val supportsAtomicOps = compat >= 5 && revision >= 9
+}
 
 object Prelude {
   val length = 13
 
   def readFrom(buffer: ByteBuffer, bufferName: String): Prelude = {
-    val magic = buffer.getInt()
-    val compat = buffer.getInt()
+    val magic    = buffer.getInt()
+    val compat   = buffer.getInt()
     val revision = buffer.getInt()
 
     assert(magic == Versions.magic, "Can't read non-NIR file.")

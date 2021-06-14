@@ -243,7 +243,8 @@ object Lower {
             val toty = Val.Local(fresh(), Type.Ptr)
 
             buf.label(slowPath, Seq(obj, toty))
-            val fromty = buf.let(Op.Load(Type.Ptr, obj), unwind)
+            val fromty =
+              buf.let(Op.Load(Type.Ptr, obj, isAtomic = false), unwind)
             buf.call(
               throwClassCastTy,
               throwClassCastVal,
@@ -370,9 +371,14 @@ object Lower {
         case op: Op.Var =>
           ()
         case Op.Varload(Val.Local(slot, Type.Var(ty))) =>
-          buf.let(n, Op.Load(ty, Val.Local(slot, Type.Ptr)), unwind)
+          buf.let(n,
+                  Op.Load(ty, Val.Local(slot, Type.Ptr), isAtomic = false),
+                  unwind)
         case Op.Varstore(Val.Local(slot, Type.Var(ty)), value) =>
-          buf.let(n, Op.Store(ty, Val.Local(slot, Type.Ptr), value), unwind)
+          buf.let(
+            n,
+            Op.Store(ty, Val.Local(slot, Type.Ptr), value, isAtomic = false),
+            unwind)
         case op: Op.Arrayalloc =>
           genArrayallocOp(buf, n, op)
         case op: Op.Arrayload =>
@@ -438,24 +444,32 @@ object Lower {
         implicit
         pos: Position) = {
       val Op.Fieldload(ty, obj, name) = op
+      val FieldRef(_, field)          = name
+      val isAtomic                    = field.attrs.isVolatile
 
       val elem = genFieldElemOp(buf, genVal(buf, obj), name)
-      buf.let(n, Op.Load(ty, elem), unwind)
+      buf.let(n, Op.Load(ty, elem, isAtomic = isAtomic), unwind)
     }
 
     def genFieldstoreOp(buf: Buffer, n: Local, op: Op.Fieldstore)(
         implicit
         pos: Position) = {
       val Op.Fieldstore(ty, obj, name, value) = op
+      val FieldRef(_, field)                  = name
+      val isAtomic                            = field.attrs.isVolatile
 
       val elem = genFieldElemOp(buf, genVal(buf, obj), name)
-      genStoreOp(buf, n, Op.Store(ty, elem, value))
+      genStoreOp(buf, n, Op.Store(ty, elem, value, isAtomic = isAtomic))
     }
 
     def genStoreOp(buf: Buffer, n: Local, op: Op.Store)(implicit
                                                         pos: Position) = {
-      val Op.Store(ty, ptr, value) = op
-      buf.let(n, Op.Store(ty, genVal(buf, ptr), genVal(buf, value)), unwind)
+      val Op.Store(ty, ptr, value, isAtomic) = op
+
+      buf.let(
+        n,
+        Op.Store(ty, genVal(buf, ptr), genVal(buf, value), isAtomic = isAtomic),
+        unwind)
     }
 
     def genCompOp(buf: Buffer, n: Local, op: Op.Comp)(implicit
@@ -494,7 +508,7 @@ object Lower {
           s"The virtual table of ${cls.name} does not contain $sig"
         )
 
-        val typeptr = let(Op.Load(Type.Ptr, obj), unwind)
+        val typeptr = let(Op.Load(Type.Ptr, obj, isAtomic = false), unwind)
         val methptrptr = let(
           Op.Elem(
             rtti(cls).struct,
@@ -504,15 +518,15 @@ object Lower {
           unwind
         )
 
-        let(n, Op.Load(Type.Ptr, methptrptr), unwind)
+        let(n, Op.Load(Type.Ptr, methptrptr, isAtomic = false), unwind)
       }
 
       def genTraitVirtualLookup(trt: Trait): Unit = {
         val sigid   = dispatchTable.traitSigIds(sig)
-        val typeptr = let(Op.Load(Type.Ptr, obj), unwind)
+        val typeptr = let(Op.Load(Type.Ptr, obj, isAtomic = false), unwind)
         val idptr =
           let(Op.Elem(meta.Rtti, typeptr, meta.RttiTraitIdIndex), unwind)
-        val id = let(Op.Load(Type.Int, idptr), unwind)
+        val id = let(Op.Load(Type.Int, idptr, isAtomic = false), unwind)
         val rowptr = let(
           Op.Elem(
             Type.Ptr,
@@ -523,7 +537,7 @@ object Lower {
         )
         val methptrptr =
           let(Op.Elem(Type.Ptr, rowptr, Seq(id)), unwind)
-        let(n, Op.Load(Type.Ptr, methptrptr), unwind)
+        let(n, Op.Load(Type.Ptr, methptrptr, isAtomic = false), unwind)
       }
 
       def genMethodLookup(scope: ScopeInfo): Unit = {
@@ -610,10 +624,10 @@ object Lower {
           meta.linked.dynsigs.zipWithIndex.find(_._1 == sig).get._2
 
         // Load the type information pointer
-        val typeptr = load(Type.Ptr, obj, unwind)
+        val typeptr = load(Type.Ptr, obj, unwind, isAtomic = false)
         // Load the dynamic hash map for given type, make sure it's not null
         val mapelem = elem(classRttiType, typeptr, meta.RttiDynmapIndex, unwind)
-        val mapptr  = load(Type.Ptr, mapelem, unwind)
+        val mapptr  = load(Type.Ptr, mapelem, unwind, isAtomic = false)
         // If hash map is not null, it has to contain at least one entry
         throwIfNull(mapptr)
         // Perform dynamic dispatch via dyndispatch helper
@@ -625,7 +639,7 @@ object Lower {
         )
         // Hash map lookup can still not contain given signature
         throwIfNull(methptrptr)
-        let(n, Op.Load(Type.Ptr, methptrptr), unwind)
+        let(n, Op.Load(Type.Ptr, methptrptr, isAtomic = false), unwind)
       }
 
       genGuardNotNull(buf, obj)
@@ -668,15 +682,15 @@ object Lower {
 
       ty match {
         case ClassRef(cls) if meta.ranges(cls).length == 1 =>
-          val typeptr = let(Op.Load(Type.Ptr, obj), unwind)
+          val typeptr = let(Op.Load(Type.Ptr, obj, isAtomic = false), unwind)
           let(Op.Comp(Comp.Ieq, Type.Ptr, typeptr, rtti(cls).const), unwind)
 
         case ClassRef(cls) =>
           val range   = meta.ranges(cls)
-          val typeptr = let(Op.Load(Type.Ptr, obj), unwind)
+          val typeptr = let(Op.Load(Type.Ptr, obj, isAtomic = false), unwind)
           val idptr =
             let(Op.Elem(meta.Rtti, typeptr, meta.RttiClassIdIndex), unwind)
-          val id = let(Op.Load(Type.Int, idptr), unwind)
+          val id = let(Op.Load(Type.Int, idptr, isAtomic = false), unwind)
           val ge =
             let(Op.Comp(Comp.Sle, Type.Int, Val.Int(range.start), id), unwind)
           val le =
@@ -684,10 +698,10 @@ object Lower {
           let(Op.Bin(Bin.And, Type.Bool, ge, le), unwind)
 
         case TraitRef(trt) =>
-          val typeptr = let(Op.Load(Type.Ptr, obj), unwind)
+          val typeptr = let(Op.Load(Type.Ptr, obj, isAtomic = false), unwind)
           val idptr =
             let(Op.Elem(meta.Rtti, typeptr, meta.RttiClassIdIndex), unwind)
-          val id = let(Op.Load(Type.Int, idptr), unwind)
+          val id = let(Op.Load(Type.Int, idptr, isAtomic = false), unwind)
           val boolptr = let(
             Op.Elem(
               hasTraitTables.classHasTraitTy,
@@ -696,7 +710,7 @@ object Lower {
             ),
             unwind
           )
-          let(Op.Load(Type.Bool, boolptr), unwind)
+          let(Op.Load(Type.Bool, boolptr, isAtomic = false), unwind)
 
         case _ =>
           util.unsupported(s"is[$ty] $obj")
@@ -1075,7 +1089,7 @@ object Lower {
       val arrTy    = arrayMemoryLayout(ty)
       val elemPath = Seq(Val.Int(0), Val.Int(4), idx)
       val elemPtr  = buf.elem(arrTy, arr, elemPath, unwind)
-      buf.let(n, Op.Load(ty, elemPtr), unwind)
+      buf.let(n, Op.Load(ty, elemPtr, isAtomic = false), unwind)
     }
 
     def genArraystoreOp(buf: Buffer, n: Local, op: Op.Arraystore)(
@@ -1091,7 +1105,7 @@ object Lower {
       val arrTy = arrayMemoryLayout(ty)
       val elemPtr =
         buf.elem(arrTy, arr, Seq(Val.Int(0), Val.Int(4), idx), unwind)
-      genStoreOp(buf, n, Op.Store(ty, elemPtr, value))
+      genStoreOp(buf, n, Op.Store(ty, elemPtr, value, isAtomic = false))
     }
 
     def genArraylengthOp(buf: Buffer, n: Local, op: Op.Arraylength)(
@@ -1106,7 +1120,7 @@ object Lower {
       genGuardNotNull(buf, arr)
       val arrTy  = arrayMemoryLayout(Type.Nothing)
       val lenPtr = buf.elem(arrTy, arr, Seq(Val.Int(0), Val.Int(2)), unwind)
-      buf.let(n, Op.Load(Type.Int, lenPtr), unwind)
+      buf.let(n, Op.Load(Type.Int, lenPtr, isAtomic = false), unwind)
     }
 
     def genStringVal(value: String): Val = {

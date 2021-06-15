@@ -201,7 +201,6 @@ object Generate {
           ),
           Inst.Let(module.name, Op.Module(entry.top), unwind),
           Inst.Let(Op.Call(entryMainTy, entryMain, Seq(module, arr)), unwind),
-          Inst.Let(Op.Call(RuntimeLoopSig, RuntimeLoop, Seq(module)), unwind),
           Inst.Ret(Val.Int(0)),
           Inst.Label(handler, Seq(exc)),
           Inst.Let(
@@ -394,12 +393,6 @@ object Generate {
       )
     val RuntimeInit =
       Val.Global(RuntimeInitName, Type.Ptr)
-    val RuntimeLoopSig =
-      Type.Function(Seq(Runtime), Type.Unit)
-    val RuntimeLoopName =
-      Runtime.name.member(Sig.Method("loop", Seq(Type.Unit)))
-    val RuntimeLoop =
-      Val.Global(RuntimeLoopName, Type.Ptr)
 
     val MainName = extern("main")
     val MainSig  = Type.Function(Seq(Type.Int, Type.Ptr), Type.Int)
@@ -430,11 +423,5 @@ object Generate {
   }
 
   val depends =
-    Seq(
-      ObjectArray.name,
-      Runtime.name,
-      RuntimeInit.name,
-      RuntimeLoop.name,
-      PrintStackTraceName
-    )
+    Seq(ObjectArray.name, Runtime.name, RuntimeInit.name, PrintStackTraceName)
 }

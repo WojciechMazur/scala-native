@@ -43,6 +43,9 @@ sealed trait NativeConfig {
   /** Shall we optimize the resulting NIR code? */
   def optimize: Boolean
 
+  /** Shall be compiled with multithreading support */
+  def multithreadingSupport: Boolean
+
   /** Map of properties resolved at linktime */
   def linktimeProperties: Map[String, Any]
 
@@ -87,6 +90,9 @@ sealed trait NativeConfig {
 
   /** Create a new config with given linktime properites */
   def withLinktimeProperties(value: Map[String, Any]): NativeConfig
+
+  /** Create a new config with support for multithreading */
+  def withMultithreadingSupport(enabled: Boolean): NativeConfig
 }
 
 object NativeConfig {
@@ -106,7 +112,8 @@ object NativeConfig {
       dump = false,
       linkStubs = false,
       optimize = false,
-      linktimeProperties = Map.empty
+      multithreadingSupport = false,
+      customLinktimeProperties = Map.empty
     )
 
   private final case class Impl(
@@ -122,7 +129,8 @@ object NativeConfig {
       check: Boolean,
       dump: Boolean,
       optimize: Boolean,
-      linktimeProperties: Map[String, Any]
+      multithreadingSupport: Boolean,
+      customLinktimeProperties: Map[String, Any]
   ) extends NativeConfig {
 
     def withClang(value: Path): NativeConfig =
@@ -165,6 +173,18 @@ object NativeConfig {
     def withOptimize(value: Boolean): NativeConfig =
       copy(optimize = value)
 
+    def withMultithreadingSupport(enabled: Boolean): NativeConfig =
+      copy(multithreadingSupport = enabled)
+
+    def linktimeProperties: Map[String, Any] = {
+      val linktimeInfo = "scala.scalanative.meta.linktimeinfo"
+      val predefined = Map(
+        s"$linktimeInfo.isMultithreadingEnabled" -> multithreadingSupport,
+        s"$linktimeInfo.isWindows" -> Platform.isWindows
+      )
+      predefined ++ customLinktimeProperties
+    }
+
     override def withLinktimeProperties(v: Map[String, Any]): NativeConfig = {
       def isNumberOrString(value: Any) = {
         def hasSupportedType = value match {
@@ -189,7 +209,7 @@ object NativeConfig {
         )
       }
 
-      copy(linktimeProperties = v)
+      copy(customLinktimeProperties = v)
     }
 
     override def toString: String = {

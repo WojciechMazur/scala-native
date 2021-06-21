@@ -19,6 +19,9 @@ object Discover {
   def optimize(): Boolean =
     getenv("SCALANATIVE_OPTIMIZE").forall(_.toBoolean)
 
+  def multithreadingSupport(): Boolean =
+    getenv("SCALANATIVE_MULTITHREADING").exists(_.toBoolean)
+
   /** LTO variant used for release mode from SCALANATIVE_LTO env var or default.
    */
   def LTO(): LTO =
@@ -82,12 +85,7 @@ object Discover {
   }
 
   /** Find default linktime resolve properties */
-  def linktimeProperties(): Map[String, Any] = {
-    val linktimeInfo = "scala.scalanative.meta.linktimeinfo"
-    Map(
-      s"$linktimeInfo.isWindows" -> Platform.isWindows
-    )
-  }
+  def linktimeProperties(): Map[String, Any] = Map.empty
 
   /** Tests whether the clang compiler is greater or equal to the minumum
    *  version required.

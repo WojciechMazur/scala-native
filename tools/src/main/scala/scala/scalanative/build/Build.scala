@@ -63,18 +63,22 @@ object Build {
       val generated = ScalaNative.codegen(fconfig, optimized)
 
       val objectPaths = config.logger.time("Compiling to native code") {
+        // compile generated LLVM IR
+        val llObjectPaths = LLVM.compile(fconfig, generated)
+
         /* Used to pass alternative paths of compiled native (lib) sources,
          * eg: reused native sources used in partests.
          */
         val libObjectPaths = scala.util.Properties
-          .propOrNone("scalanative.build.paths.libObj")
-          .fold(findAndCompileNativeSources(fconfig, linked.links)) {
-            _.split(java.io.File.pathSeparatorChar).toSeq
+          .propOrNone("scalanative.build.paths.libobj") match {
+          case None =>
+            findAndCompileNativeSources(fconfig, linked)
+          case Some(libObjectPaths) =>
+            libObjectPaths
+              .split(java.io.File.pathSeparatorChar)
+              .toSeq
               .map(Paths.get(_))
-          }
-
-        // compile generated ll
-        val llObjectPaths = LLVM.compile(fconfig, generated)
+        }
 
         libObjectPaths ++ llObjectPaths
       }
@@ -83,14 +87,14 @@ object Build {
     }
 
   def findAndCompileNativeSources(config: Config,
-                                  linked: Seq[nir.Attr.Link]): Seq[Path] = {
+                                  linkerResult: linker.Result): Seq[Path] = {
     import NativeLib._
     findNativeLibs(config.classPath, config.workdir)
       .map(unpackNativeCode)
       .flatMap { destPath =>
         val paths = findNativePaths(config.workdir, destPath)
         val (projPaths, projConfig) =
-          Filter.filterNativelib(config, linked, destPath, paths)
+          Filter.filterNativelib(config, linkerResult, destPath, paths)
         LLVM.compile(projConfig, projPaths)
       }
   }

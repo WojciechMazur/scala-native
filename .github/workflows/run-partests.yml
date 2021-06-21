@@ -1,0 +1,95 @@
+name: Run Scala partests
+on:
+  # This workflow can be started manually
+  workflow_dispatch:
+  # Runs automatically every Saturday at 10:00 PM (UTC)
+  schedule:
+    - cron: "0 22 * * SAT"
+
+jobs:
+  # Copied from 'run-tests.yml'. Make sure this files are in sync!
+  build-image:
+    name: Build image
+    runs-on: ubuntu-18.04
+    outputs:
+      image-name: ${{ steps.build-image.outputs.image-base-name }}
+    strategy:
+      matrix:
+        arch: [amd64]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Cache docker
+        id: cache
+        uses: actions/cache@v1
+        with:
+          path: /tmp/docker-registry
+          key: docker-registry-${{ hashFiles('ci-docker/Dockerfile') }}
+      - name: Run local image registry
+        run: docker run -d -p 5000:5000 --restart=always --name registry -v /tmp/docker-registry:/var/lib/registry registry:2 && npx wait-on tcp:5000
+
+      - name: Build image
+        id: build-image
+        run: |
+          imageBase="scala-native-testing:linux"
+          imageName="${imageBase}-${{ matrix.arch }}"
+          echo "::set-output name=image-base-name::${imageBase}"
+          echo "::set-output name=image-full-name::${imageName}"
+
+          docker run --rm --privileged multiarch/qemu-user-static:register
+          docker pull localhost:5000/${imageName} || true
+          docker build \
+          -t ${imageName} \
+          --cache-from=localhost:5000/${imageName} \
+          --build-arg TARGET_DOCKER_PLATFORM=library \
+          --build-arg HOST_ARCHITECTURE=${{ matrix.arch }}  \
+          --cpuset-cpus=0 \
+          ci-docker
+
+      - name: Store image in cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          imageName=${{ steps.build-image.outputs.image-full-name }}
+          docker tag $imageName localhost:5000/${imageName} && \
+          docker push localhost:5000/${imageName}
+
+  test-partests:
+    name: Test runtime
+    runs-on: ubuntu-18.04
+    needs: [build-image]
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: [2.13.6, 2.12.14, 2.11.12]
+        build-mode: [debug, release-fast]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Calculate binary version
+        run: |
+          version=${{ matrix.scala }}
+          echo "binary-version=${version%.*}" >> $GITHUB_ENV
+
+      # Loads cache with dependencies created in test-tools job
+      - name: Cache dependencies
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cache/coursier
+            ~/.sbt/boot
+          key: ${{ runner.os }}-deps-${{ env.binary-version }}-${{ hashFiles('**/*.sbt') }}-${{ hashFiles('**/build.properties') }}
+
+      # Loads cached content of local docker registry containing built images.
+      - name: Cache docker
+        uses: actions/cache@v1
+        with:
+          path: /tmp/docker-registry
+          key: docker-registry-${{ hashFiles('ci-docker/Dockerfile') }}
+
+      - name: Run tests
+        env:
+          SCALANATIVE_MODE: ${{ matrix.build-mode }}
+          SCALANATIVE_GC: immix
+          SCALANATIVE_OPTIMIZE: true
+          SCALA_VERSION: ${{ matrix.scala }}
+          TEST_COMMAND: "scalaPartestTests/testOnly -- --showDiff"
+        run: ./ci-docker/run-test-gha.sh "${{ needs.build-image.outputs.image-name }}-amd64"

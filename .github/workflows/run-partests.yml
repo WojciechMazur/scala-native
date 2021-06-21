@@ -1,5 +1,6 @@
 name: Run Scala partests
 on:
+  pull_request:
   # This workflow can be started manually
   workflow_dispatch:
   # Runs automatically every Saturday at 10:00 PM (UTC)

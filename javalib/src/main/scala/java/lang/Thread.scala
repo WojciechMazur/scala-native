@@ -5,11 +5,8 @@ import java.lang.Thread._
 import scala.scalanative.unsafe._
 import scala.scalanative.unsigned._
 import scala.scalanative.runtime.{NativeThread => NThread}
-import scala.scalanative.posix.sys.types.{pthread_attr_t, pthread_t}
-import scala.scalanative.posix.pthread._
-import scala.scalanative.posix.sched._
-import scala.scalanative.libc.errno
 import java.util.concurrent.atomic.{AtomicReference, AtomicLong}
+import scala.annotation.tailrec
 
 // Ported from Harmony
 
@@ -44,7 +41,9 @@ class Thread private[lang] (
   private[java] val parkBlocker: AtomicReference[Object] =
     new AtomicReference[Object]()
 
-  private[this] var underlying: NativeThread = _
+  private[java] val nativeThread: AtomicReference[NativeThread] =
+    new AtomicReference()
+  private[java] def underlying: NativeThread = nativeThread.get()
 
   // constructors
   def this(group: ThreadGroup,
@@ -159,10 +158,15 @@ class Thread private[lang] (
     lock.synchronized {
       if (started) interruptedState = true
     }
+    if (underlying.state == NativeThread.State.Parked) {
+      println(s"Unparking $this by interruption")
+      util.concurrent.locks.LockSupport.unpark(this)
+    }
   }
 
   def getStackTrace(): Array[StackTraceElement] =
     new Array[StackTraceElement](0)
+
   @deprecated
   def countStackFrames(): Int = 0 //deprecated
 
@@ -229,7 +233,7 @@ class Thread private[lang] (
     }
   }
 
-  def start(): Unit = synchronized {
+  def start(): Unit = {
     lock.synchronized {
       if (started) {
         throw new IllegalThreadStateException(
@@ -237,53 +241,35 @@ class Thread private[lang] (
       }
       group.add(this)
 
-      underlying = NativeThread.factory.startThread(this)
+      nativeThread.set(NativeThread.factory.startThread(this))
 
       while (!this.started) {
         try {
-          lock.wait()
+          Thread.onSpinWait()
         } catch {
           case e: InterruptedException =>
             Thread.currentThread().interrupt()
         }
       }
+      underlying.state = NativeThread.State.Running
     }
   }
 
   def getState(): State = {
-    lock.synchronized {
-      if (started && !isAlive) return State.TERMINATED
+    import NativeThread.State._
+    import State._
+    underlying.state match {
+      case Terminated            => TERMINATED
+      case WaitingWithTimeout    => TIMED_WAITING
+      case Waiting | Parked      => WAITING
+      case WaitingOnMonitorEnter => BLOCKED
+      case Running               => RUNNABLE
+      case New                   => NEW
     }
-    State.RUNNABLE
-    // val state = VMThreadManager.getState(this)
-
-    // if (0 != (state & VMThreadManager.TM_THREAD_STATE_TERMINATED))
-    //   State.TERMINATED
-    // else if (0 != (state & VMThreadManager.TM_THREAD_STATE_WAITING_WITH_TIMEOUT))
-    //   State.TIMED_WAITING
-    // else if (0 != (state & VMThreadManager.TM_THREAD_STATE_WAITING)
-    //          || 0 != (state & VMThreadManager.TM_THREAD_STATE_PARKED))
-    //   State.WAITING
-    // else if (0 != (state & VMThreadManager.TM_THREAD_STATE_BLOCKED_ON_MONITOR_ENTER))
-    //   State.BLOCKED
-    // else if (0 != (state & VMThreadManager.TM_THREAD_STATE_RUNNABLE))
-    //   State.RUNNABLE
-
-    // //TODO track down all situations where a thread is really in RUNNABLE state
-    // // but TM_THREAD_STATE_RUNNABLE is not set.  In the meantime, leave the following
-    // // TM_THREAD_STATE_ALIVE test as it is.
-    // else if (0 != (state & VMThreadManager.TM_THREAD_STATE_ALIVE))
-    //   State.RUNNABLE
-    // else State.NEW
   }
 
   @deprecated
-  final def stop(): Unit = {
-    lock.synchronized {
-      if (isAlive())
-        stop(new ThreadDeath())
-    }
-  }
+  final def stop(): Unit = stop(new ThreadDeath())
 
   @deprecated
   final def stop(throwable: Throwable): Unit = {
@@ -329,6 +315,13 @@ object Thread {
                      inheritableValues = new ThreadLocal.Values()) {
     setName("main")
     NativeThread.TLS.currentThread = this
+    nativeThread.set {
+      new PosixThread(null, this) {
+        override def setPriority(priority: CInt): Unit = ()
+        override def stop(): Unit                      = sys.exit()
+        state = NativeThread.State.Running
+      }
+    }
   }
 
   import scala.collection.mutable
@@ -404,9 +397,7 @@ object Thread {
 
   def holdsLock(obj: Object): scala.Boolean = ???
 
-  def `yield`(): Unit = {
-    sched_yield()
-  }
+  def `yield`(): Unit = NativeThread.`yield`()
 
   def getAllStackTraces(): java.util.Map[Thread, Array[StackTraceElement]] = {
     var parent: ThreadGroup =

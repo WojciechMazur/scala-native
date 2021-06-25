@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit
 
 // Ported from Harmony
 
+@SerialVersionUID(7373984872572414699L)
 class ReentrantLock extends Lock with java.io.Serializable {
 
   import ReentrantLock._
@@ -87,8 +88,7 @@ class ReentrantLock extends Lock with java.io.Serializable {
 
 object ReentrantLock {
 
-  private final val serialVersionUID: Long = 7373984872572414699L
-
+  @SerialVersionUID(-5179523762034025860L)
   abstract class Sync extends AbstractQueuedSynchronizer { self =>
 
     def lock(): Unit
@@ -97,7 +97,7 @@ object ReentrantLock {
       val current: Thread = Thread.currentThread()
       val c: Int          = getState()
       if (c == 0) {
-        if (state.compareAndSet(0, acquires)) {
+        if (compareAndSetState(0, acquires)) {
           setExclusiveOwnerThread(current)
           return true
         }
@@ -143,16 +143,11 @@ object ReentrantLock {
 
   }
 
-  object Sync {
-
-    private final val serialVersionUID: Long = -5179523762034025860L
-
-  }
-
+  @SerialVersionUID(7316153563782823691L)
   final class NonfairSync extends Sync {
 
     def lock(): Unit = {
-      if (state.compareAndSet(0, 1))
+      if (compareAndSetState(0, 1))
         setExclusiveOwnerThread(Thread.currentThread())
       else
         acquire(1)
@@ -160,15 +155,9 @@ object ReentrantLock {
 
     override protected def tryAcquire(acquires: Int): Boolean =
       nonfairTryAcquire(acquires)
-
   }
 
-  object NonfairSync {
-
-    private final val serialVersionUID: Long = 7316153563782823691L
-
-  }
-
+  @SerialVersionUID(-3000897897090466540L)
   final class FairSync extends Sync {
 
     def lock(): Unit = acquire(1)
@@ -178,7 +167,7 @@ object ReentrantLock {
       val c: Int          = getState
       if (c == 0) {
         if (!hasQueuedPredecessors &&
-            state.compareAndSet(0, acquires)) {
+            compareAndSetState(0, acquires)) {
           setExclusiveOwnerThread(current)
           return true
         }
@@ -193,11 +182,4 @@ object ReentrantLock {
     }
 
   }
-
-  object FairSync {
-
-    private final val serialVersionUID: Long = -3000897897090466540L
-
-  }
-
 }

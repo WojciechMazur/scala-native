@@ -192,22 +192,19 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
   @tailrec
   private def signalWaiters(): Unit = {
     @tailrec
-    def unparkThreads(a: Option[Aux]): Unit = {
-      a match {
-        case None => ()
-        case Some(a) =>
-          if (a.thread != Thread.currentThread() && a.thread != null) {
-            LockSupport.unpark(a.thread)
-          }
-          unparkThreads(a.next)
+    def unparkThreads(a: Aux): Unit = {
+      if (a != null) {
+        if (a.thread != Thread.currentThread() && a.thread != null) {
+          LockSupport.unpark(a.thread)
+        }
+        unparkThreads(a.next.orNull)
       }
     }
 
     aux.get() match {
       case null => ()
       case a if a.ex == null =>
-        println(a)
-        if (aux.compareAndSet(a, null)) unparkThreads(Some(a))
+        if (aux.compareAndSet(a, null)) unparkThreads(a)
         else signalWaiters()
       case _ => ()
     }
@@ -256,14 +253,18 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
       else {
         val a = aux.get()
         val h = Aux(Thread.currentThread(), Some(ex), Some(a))
-        if (!installed && (a == null || a.ex.isEmpty) && aux.compareAndSet(a,
-                                                                           h)) {
-          setupLoop(installed = true, Some(a)) // list of waiters replaced by h
-        } else {
-          val newStatus = s | DONE | ABNORMAL | THROWN
-          if (installed && status.compareAndSet(s, newStatus))
-            newStatus -> optAux
-          else setupLoop(installed, optAux)
+        val isNowInstalled = {
+          !installed &&
+          (a == null || a.ex.isEmpty) &&
+          aux.compareAndSet(a, h)
+        }
+
+        if (!isNowInstalled) setupLoop(false, optAux)
+        else {
+          val newStatus   = s | DONE | ABNORMAL | THROWN
+          val replacedAux = Some(a) // list of waiters replaced by h
+          if (status.compareAndSet(s, newStatus)) newStatus -> replacedAux
+          else setupLoop(isNowInstalled, replacedAux)
         }
       }
     }
@@ -282,9 +283,8 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    *
    * @return status on exit
    */
-  @stub()
   private[concurrent] def trySetException(ex: Throwable): Int = {
-    return trySetThrown(ex);
+    trySetThrown(ex);
   }
 
   // /**
@@ -302,18 +302,19 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    * @return status on exit from this method
    */
   private[concurrent] final def doExec(): Int = {
-    val s = status.get()
-    if (s < 0) s
-    else
-      try {
-        if (exec()) {
-          setDone()
-        } else s
-      } catch {
-        case ex: Throwable =>
-          ex.printStackTrace()
-          trySetException(ex)
-      }
+
+    status.get() match {
+      case s if s >= 0 =>
+        try {
+          val completed = exec()
+          if (completed) setDone()
+          else s
+        } catch {
+          case ex: Throwable =>
+            trySetException(ex)
+        }
+      case s => s
+    }
   }
 
   /**
@@ -794,7 +795,6 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    * collections of tasks when some have been cancelled or otherwise
    * known to have aborted.
    */
-  @stub()
   final def quietlyJoin(): Unit = {
     if (status.get() >= 0)
       awaitDone(null, false, false, false, 0L);
@@ -805,7 +805,6 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    * necessary, without returning its result or throwing its
    * exception.
    */
-  @stub()
   final def quietlyInvoke(): Unit = {
     if (doExec() >= 0)
       awaitDone(null, true, false, false, 0L);
@@ -814,11 +813,10 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
   // Versions of join/get for pool.invoke* methods that use external,
   // possibly-non-commonPool submits
 
-  @stub()
   final def awaitPoolInvoke(pool: ForkJoinPool): Unit = {
     awaitDone(pool, false, false, false, 0L);
   }
-  @stub()
+
   final def awaitPoolInvoke(pool: ForkJoinPool, nanos: Long) = {
     awaitDone(pool, false, true, true, nanos);
   }
@@ -869,7 +867,6 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    * unaffected. To clear this value, you can invoke {@code
    * setRawResult(null)}.
    */
-  @stub()
   def reinitialize(): Unit = {
     aux.set(null);
     status.set(0);

@@ -14,44 +14,41 @@ import scala.collection.immutable
 import java.util.concurrent.TimeUnit
 import scala.scalanative.posix
 import scala.scalanative.posix.errno.ETIMEDOUT
+import scala.scalanative.libc.string
+import java.lang.Thread.State._
 
 object LockSupport {
-  private final val bufferSlotSize        = (pthread_mutex_t_size + pthread_cond_t_size).toInt
-  final val initialBufferCapacity = 32
-
-  private var freeList      = List.empty[Int]
-  private val parkedThreads = mutable.Map.empty[Thread, Int]
-  private var nativeBuffer: ByteArray = {
-    val initialBufferSize = initialBufferCapacity * bufferSlotSize
-    val array             = new Array[Byte](initialBufferSize).asInstanceOf[ByteArray]
-
-    freeList = 0.until(initialBufferCapacity).toList
-
-    array
-  }
-
   def getBlocker(t: Thread): Object = t.parkBlocker.get()
 
-  def park(): Unit = usingNextFreeSlot { (lock, condition, slotIdx) =>
+  def park(): Unit = {
     val currentThread = Thread.currentThread()
-
-    if (currentThread.isAlive() && currentThread.underlying.skipParking) {
-      currentThread.underlying.skipParking = false
-    } else {
-      parkedThreads(currentThread) = slotIdx
-
-      withLock(lock) {
-        while (parkedThreads.contains(currentThread)) {
-          pthread_cond_wait(condition, lock) match {
-            case 0 => ()
-            case errno =>
-              throw new RuntimeException(
-                s"Waiting on thread unparking failed - errCode $errno")
+    val nativeThread  = currentThread.underlying
+    withLocked(nativeThread) {
+      if (nativeThread.unparkEvents > 0) {
+        nativeThread.unparkEvents = 0
+      } else {
+        nativeThread.state = NativeThread.State.Parked
+        while (!wasUnparked(nativeThread)) {
+          nativeThread match {
+            case thread: PosixThread =>
+              pthread_cond_wait(thread.condition, thread.lock) match {
+                case 0 => ()
+                case errno =>
+                  throw new RuntimeException(
+                    s"Waiting on thread unparking failed - ${fromCString(
+                      string.strerror(errno))}")
+              }
+            case _ => ???
           }
         }
+        nativeThread.state = NativeThread.State.Running
       }
     }
+  }
 
+  @alwaysinline
+  private[this] def wasUnparked(nativeThread: NativeThread): Boolean = {
+    nativeThread.state == NativeThread.State.Running
   }
 
   def park(blocker: Object): Unit = {
@@ -62,21 +59,27 @@ object LockSupport {
 
   def parkNanos(nanos: Long): Unit = {
     val currentThread = Thread.currentThread()
-    if (currentThread.isAlive() && currentThread.underlying.skipParking) {
-      currentThread.underlying.skipParking = false
-    } else {
-      val deadlineSpec = stackalloc[timespec]
+    val nativeThread  = currentThread.underlying
 
-      val deadline            = System.nanoTime() + nanos
-      val NanosecondsInSecond = 1000000000
-      deadlineSpec.tv_sec = deadline / NanosecondsInSecond
-      deadlineSpec.tv_nsec = deadline % NanosecondsInSecond
+    withLocked(nativeThread) {
+      if (nativeThread.unparkEvents > 0) {
+        nativeThread.unparkEvents = 0
+      } else {
+        nativeThread.state = NativeThread.State.Parked
 
-      usingNextFreeSlot { (lock, condition, slotIdx) =>
-        parkedThreads(currentThread) = slotIdx
-        withLock(lock) {
-          waitForThreadUnparking(currentThread, condition, lock, deadlineSpec)
+        nativeThread match {
+          case _: PosixThread =>
+            val deadlineSpec = stackalloc[timespec]
+
+            val deadline            = System.nanoTime() + nanos
+            val NanosecondsInSecond = 1000000000
+            deadlineSpec.tv_sec = deadline / NanosecondsInSecond
+            deadlineSpec.tv_nsec = deadline % NanosecondsInSecond
+            waitForThreadUnparking(nativeThread, deadlineSpec)
+
+          case _ => ???
         }
+        nativeThread.state = NativeThread.State.Running
       }
     }
   }
@@ -89,21 +92,25 @@ object LockSupport {
 
   def parkUntil(deadline: Long): Unit = {
     val currentThread = Thread.currentThread()
+    val nativeThread  = currentThread.underlying
 
-    if (currentThread.isAlive() && currentThread.underlying.skipParking) {
-      currentThread.underlying.skipParking = false
-    } else {
-      val deadlineSpec         = stackalloc[timespec]
-      val MillisecondsInSecond = 1000
-      deadlineSpec.tv_sec = TimeUnit.MILLISECONDS.toSeconds(deadline)
-      deadlineSpec.tv_nsec =
-        TimeUnit.MILLISECONDS.toNanos(deadline % MillisecondsInSecond)
+    withLocked(nativeThread) {
+      if (nativeThread.unparkEvents > 0) {
+        nativeThread.unparkEvents = 0
+      } else {
+        nativeThread.state = NativeThread.State.Parked
+        nativeThread match {
+          case _: PosixThread =>
+            val deadlineSpec         = stackalloc[timespec]
+            val MillisecondsInSecond = 1000
+            deadlineSpec.tv_sec = TimeUnit.MILLISECONDS.toSeconds(deadline)
+            deadlineSpec.tv_nsec =
+              TimeUnit.MILLISECONDS.toNanos(deadline % MillisecondsInSecond)
+            waitForThreadUnparking(nativeThread, deadlineSpec)
 
-      usingNextFreeSlot { (lock, condition, slotIdx) =>
-        parkedThreads(currentThread) = slotIdx
-        withLock(lock) {
-          waitForThreadUnparking(currentThread, condition, lock, deadlineSpec)
+          case _ => ???
         }
+        nativeThread.state = NativeThread.State.Running
       }
     }
   }
@@ -116,123 +123,80 @@ object LockSupport {
 
   def unpark(thread: Thread): Unit = {
     if (thread != null) {
-      parkedThreads
-        .remove(thread)
-        .map(getSlotAtIdx(_))
-        .fold {
-          thread.underlying.skipParking = true
-        } {
-          case (mutex, condition) =>
-            withLock(mutex) {
-              pthread_cond_signal(condition) match {
-                case 0 => ()
-                case errno =>
-                  throw new RuntimeException(
-                    s"Failed to signal thread unparking - errno $errno")
-              }
+      val nativeThread = thread.underlying
+      withLocked(nativeThread) {
+        nativeThread.state match {
+          case NativeThread.State.Parked =>
+            nativeThread.state = NativeThread.State.Running
+            nativeThread match {
+              case thread: PosixThread =>
+                pthread_cond_signal(thread.condition) match {
+                  case 0 => ()
+                  case errno =>
+                    val errorMsg = fromCString(string.strerror(errno))
+                    throw new RuntimeException(
+                      s"Failed to signal thread unparking - $errorMsg")
+                }
+              case _ => ???
             }
+
+          case _ =>
+            // Race between park/unpark won
+            // Increase unparkEvents count to ignore next park call
+            nativeThread.unparkEvents += 1
         }
-    }
-  }
-
-  def setCurrentBlocker(blocker: Object): Unit = {
-    setBlocker(Thread.currentThread(), blocker)
-  }
-
-  @alwaysinline
-  private def setBlocker(thread: Thread, blocker: Object): Unit = {
-    thread.parkBlocker.setOpaque(blocker)
-  }
-
-  private def getNextFreeSlot(): Int = {
-    def resize() = {
-      val newBuffer       = new Array[Byte](nativeBuffer.length * 2)
-      val newNativeBuffer = newBuffer.asInstanceOf[ByteArray]
-      Array.copy(nativeBuffer, 0, newBuffer, 0, nativeBuffer.length)
-
-      freeList = (nativeBuffer.length / bufferSlotSize)
-        .until(newBuffer.length / bufferSlotSize)
-        .toList
-      nativeBuffer = newNativeBuffer
-    }
-
-    freeList.synchronized {
-      freeList match {
-        case Nil =>
-          resize()
-          getNextFreeSlot
-        case head :: tail =>
-          freeList = tail
-          head
       }
     }
   }
 
   @alwaysinline
-  private def getSlotAtIdx(idx: Int, nativeArray: ByteArray = nativeBuffer) = {
-    val slotOffset = idx * bufferSlotSize
-    val mutexPtr = nativeArray
-      .at(slotOffset)
-      .asInstanceOf[Ptr[pthread_mutex_t]]
-    val conditionPtr = nativeArray
-      .at(slotOffset + pthread_mutex_t_size.toInt)
-      .asInstanceOf[Ptr[pthread_cond_t]]
-
-    (mutexPtr, conditionPtr)
+  private def setCurrentBlocker(blocker: Object): Unit = {
+    Thread.currentThread.parkBlocker.setOpaque(blocker)
   }
 
-  private def usingNextFreeSlot(
-      fn: (Ptr[pthread_mutex_t], Ptr[pthread_cond_t], Int) => Unit): Unit = {
-    val slot               = getNextFreeSlot()
-    val (mutex, condition) = getSlotAtIdx(slot)
-
-    assert(0 == pthread_mutex_init(mutex, null))
-    assert(0 == pthread_cond_init(condition, null))
-
-    try {
-      fn(mutex, condition, slot)
-    } finally {
-      assert(0 == pthread_cond_destroy(condition))
-      assert(0 == pthread_mutex_destroy(mutex))
-    }
-
-    freeList ::= slot
-  }
-
-  final val TimeoutCode = ETIMEDOUT
+  private final val TimeoutCode = ETIMEDOUT
 
   @inline
-  private def waitForThreadUnparking(thread: Thread,
-                                     condition: Ptr[pthread_cond_t],
-                                     lock: Ptr[pthread_mutex_t],
+  private def waitForThreadUnparking(thread: NativeThread,
                                      deadline: Ptr[timespec]): Unit = {
-    while (parkedThreads.contains(thread)) {
-      pthread_cond_timedwait(condition, lock, deadline) match {
-        case 0 => ()
-        case TimeoutCode =>
-          unpark(thread)
-        case errno =>
-          throw new RuntimeException(
-            s"Failed to wait on thread unparking - $errno")
+    while (!wasUnparked(thread)) {
+      thread match {
+        case thread: PosixThread =>
+          pthread_cond_timedwait(thread.condition, thread.lock, deadline) match {
+            case 0           => ()
+            case TimeoutCode => thread.state = NativeThread.State.Running
+            case errno =>
+              val errorMsg = fromCString(string.strerror(errno))
+              throw new RuntimeException(
+                s"Failed to wait on thread unparking - $errorMsg")
+          }
+        case _ => ???
       }
     }
   }
 
   @inline
-  private def withLock(lock: Ptr[pthread_mutex_t])(fn: => Unit): Unit = {
+  private def withLocked(thread: NativeThread)(fn: => Unit): Unit = {
     @alwaysinline
-    def checkResult(res: Int): Unit = {
+    def checkResult(res: Int, op: => String): Unit = {
       res match {
-        case 0       => ()
-        case errCode => throw new RuntimeException(s"Failed to lock or unlock @ ${Thread.currentThread()}")
+        case 0 => ()
+        case errCode =>
+          val errorMsg = fromCString(string.strerror(errCode))
+          throw new RuntimeException(
+            s"Failed to $op @ ${Thread.currentThread()} - $errorMsg")
       }
     }
+    val lock = thread match {
+      case nativeThread: PosixThread => nativeThread.lock
+      case other                     => sys.error(s"withLocked support for $other not implemented")
+    }
 
-    checkResult(pthread_mutex_lock(lock))
+    checkResult(pthread_mutex_lock(lock), "lock")
     try {
       fn
     } finally {
-      checkResult(pthread_mutex_unlock(lock))
+      checkResult(pthread_mutex_unlock(lock), "unlock")
     }
   }
 }

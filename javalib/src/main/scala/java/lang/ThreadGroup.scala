@@ -261,7 +261,7 @@ class ThreadGroup(name: String, parent: ThreadGroup, isTop: Boolean)
   }
 
   @throws[IllegalThreadStateException]
-  def add(thread: Thread): Unit = {
+  private[lang] def add(thread: Thread): Unit = {
     childrenThreads.synchronized {
       if (destroyed) {
         throw new IllegalThreadStateException(
@@ -272,7 +272,7 @@ class ThreadGroup(name: String, parent: ThreadGroup, isTop: Boolean)
   }
 
   @throws[IllegalThreadStateException]
-  def add(group: ThreadGroup): Unit = {
+  private[lang] def add(group: ThreadGroup): Unit = {
     childrenGroups.synchronized {
       if (destroyed) {
         throw new IllegalThreadStateException(
@@ -282,14 +282,14 @@ class ThreadGroup(name: String, parent: ThreadGroup, isTop: Boolean)
     }
   }
 
-  def remove(thread: Thread): Unit = {
+  private[lang] def remove(thread: Thread): Unit = {
     childrenThreads.synchronized {
       childrenThreads -= thread
     }
     destroyIfEmptyDeamon()
   }
 
-  private def remove(group: ThreadGroup): Unit = {
+  private[lang] def remove(group: ThreadGroup): Unit = {
     childrenGroups.synchronized {
       childrenGroups -= group
     }

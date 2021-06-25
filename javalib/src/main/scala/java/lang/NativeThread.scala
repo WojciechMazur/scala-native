@@ -114,6 +114,11 @@ object NativeThread {
     def currentThread: Thread = extern
   }
 
+  @extern
+  object Intrinsics {
+    @name("scalanative_yieldProcessor")
+    def yieldProcessor(): Unit = extern
+  }
 }
 
 private[lang] final case class PosixThread(underlying: pthread_t,

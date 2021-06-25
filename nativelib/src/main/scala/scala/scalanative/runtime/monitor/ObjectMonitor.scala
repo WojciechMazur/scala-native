@@ -1,12 +1,10 @@
 package scala.scalanative.runtime.monitor
 
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicReference
-import scala.annotation.tailrec
-import scala.annotation.nowarn
+import scala.scalanative.annotation.alwaysinline
+import java.util.concurrent.locks.ReentrantLock
 
 /**
- * Heavy weight monitor created only upon detecion of entering monitor by multiple threads, upon detection
+ * Heavy weight monitor created only upon detection of entering monitor by multiple threads, upon detection
  * of access from multiple threads is inflated in ObjectMonitor
  *
  * Even though BasicMonitor and ObjectMonitor share the same interface, we don't define it explicityly.
@@ -15,47 +13,49 @@ import scala.annotation.nowarn
  * @param lockWordRef Pointer to LockWord, internal field of every object header
  */
 private[runtime] class ObjectMonitor {
-  private var recursionCount: Int = 0
-  private var owner: Thread       = null
-  private val waitList            = new AtomicReference[Set[Thread]](Set.empty)
-  private var isLocked            = new AtomicBoolean(false)
+  private val lock      = new ReentrantLock(true)
+  private val condition = lock.newCondition()
 
-// Todo move to javalib to allow usage of Posix/Windows
+  def enter(): Unit = lock.lock()
+  def exit(): Unit  = lock.unlock()
 
-  def _notify(): Unit                        = ()
-  def _notifyAll(): Unit                     = ()
-  def _wait(): Unit                          = ()
-  def _wait(timeout: Long): Unit             = ()
-  def _wait(timeout: Long, nanos: Int): Unit = ()
-
-  def enter(): Unit = {
-    val currentThread = Thread.currentThread()
-    tryEnter(currentThread)
-    waitList.updateAndGet(_ - currentThread)
+  def _notify(): Unit = {
+    checkOwnership()
+    condition.signal()
   }
 
-  @nowarn("msg=deprecated")
-  def exit(): Unit = {
-    if (recursionCount == 0) {
-      owner = null
-      isLocked.setOpaque(false)
-      waitList.get().foreach(_.resume())
-    } else {
-      recursionCount -= 1
+  def _notifyAll(): Unit = {
+    checkOwnership()
+    condition.signalAll()
+  }
+
+  @alwaysinline def _wait(): Unit                    = _wait(0L, 0)
+  @alwaysinline def _wait(timeoutMillis: Long): Unit = _wait(timeoutMillis, 0)
+  def _wait(timeoutMillis: Long, nanos: Int): Unit = {
+    checkOwnership()
+
+    if (nanos < 0 || nanos > 999999) {
+      throw new IllegalArgumentException(
+        "nanosecond timeout value out of range")
+    }
+
+    if (timeoutMillis < 0) {
+      throw new IllegalArgumentException("timeoutMillis value is negative")
+    }
+
+    val waitNanos = timeoutMillis * 1000000 + nanos
+    if (waitNanos == 0L) condition.await()
+    else condition.awaitNanos(waitNanos)
+
+    if (Thread.interrupted()) {
+      throw new InterruptedException()
     }
   }
 
-  @tailrec
-  @nowarn("msg=deprecated")
-  private def tryEnter(thread: Thread): Unit = {
-    if (isLocked.compareAndSet(false, true)) {
-      owner = thread
-    } else if (owner eq thread) {
-      recursionCount += 1
-    } else {
-      waitList.updateAndGet(_ + thread)
-      thread.suspend()
-      tryEnter(thread)
+  private def checkOwnership(): Unit = {
+    if (!lock.isHeldByCurrentThread()) {
+      throw new IllegalMonitorStateException(
+        "thread is not an owner this object")
     }
   }
 }

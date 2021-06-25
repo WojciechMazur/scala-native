@@ -105,9 +105,7 @@ class ForkJoinWorkerThread private[concurrent] (
    * threads work correctly even before this thread starts
    * processing tasks.
    */
-  protected def onStart(): Unit = {
-    println(s"starting $this")
-  }
+  protected def onStart(): Unit = ()
 
   /**
    * Performs cleanup associated with termination of this worker
@@ -118,8 +116,9 @@ class ForkJoinWorkerThread private[concurrent] (
    * to an unrecoverable error, or {@code null} if completed normally
    */
   protected def onTermination(exception: Throwable): Unit = {
-    println(s"terminating $this")
-    exception.printStackTrace()
+    if (exception != null) {
+      exception.printStackTrace()
+    }
   }
 
   /**
@@ -128,7 +127,6 @@ class ForkJoinWorkerThread private[concurrent] (
    * {@link ForkJoinTask}s.
    */
   override def run(): Unit = {
-    println("worker thread run")
     var exception: Throwable = null;
     val p                    = pool;
     val w                    = workQueue;
@@ -140,7 +138,6 @@ class ForkJoinWorkerThread private[concurrent] (
       } catch {
         case ex: Throwable => exception = ex
       } finally {
-        println(s"terminating $this - $exception")
         try {
           onTermination(exception);
         } catch {

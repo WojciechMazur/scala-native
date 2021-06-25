@@ -78,7 +78,7 @@ object ThreadLocalRandom {
       if (p == 0) 1
       else p // skip 0
     val seed = mix64(seeder.getAndAdd(SEEDER_INCREMENT))
-    val t    = Thread.currentThread
+    val t    = Thread.currentThread()
     t.threadLocalRandomSeed = seed
     t.threadLocalRandomProbe = probe
   }
@@ -289,10 +289,8 @@ object ThreadLocalRandom {
   private[concurrent] def advanceProbe(probe0: Int) = {
     var probe = probe0
     probe ^= probe << 13 // xorshift
-
     probe ^= probe >>> 17
     probe ^= probe << 5
-    //    U.putInt(Thread.currentThread, PROBE, probe)
     Thread.currentThread().threadLocalRandomProbe = probe
     probe
   }

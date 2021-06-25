@@ -320,9 +320,9 @@ object AbstractQueuedLongSynchronizer { // Node status bits, also used as argume
       status.get() <= 1 || Thread.currentThread.isInterrupted()
     }
 
-    override final def block: Boolean = {
+    override final def block(): Boolean = {
       while (!isReleasable()) {
-        LockSupport.park()
+        LockSupport.park(this)
       }
       true
     }
@@ -379,6 +379,10 @@ abstract class AbstractQueuedLongSynchronizer protected ()
    * @param newState the new state value
    */
   final protected def setState(newState: Long): Unit = state.set(newState)
+
+  final protected def compareAndSetState(expected: Long,
+                                         newState: Long): Boolean =
+    state.compareAndSet(expected, newState)
 
   /** tries once to CAS a new dummy node for head */
   private def tryInitializeHead(): Unit = {
@@ -446,10 +450,90 @@ abstract class AbstractQueuedLongSynchronizer protected ()
                                    time: Long): Long = {
     val current = Thread.currentThread
 
-    val node =
-      if (_node != null) _node
-      else if (shared) new SharedNode()
-      else new ExclusiveNode()
+    var node: Node         = _node
+    var pred: Option[Node] = None
+    var interrupted        = false
+    var first              = false
+    var spins              = 0
+    var postSpins          = 0
+
+    @tailrec
+    def fetchFirstOrPredecesor(): Unit = {
+      if (!first) {
+        pred = for {
+          n <- Option(node)
+          p <- Option(n.prev.get())
+        } yield p
+        pred match {
+          case None => ()
+          case Some(pred) =>
+            first = head.get() == pred
+            if (!first) {
+              if (pred.status.get() < 0) {
+                cleanQueue()
+                fetchFirstOrPredecesor()
+              } else if (pred.prev.get() == null) {
+                Thread.onSpinWait()
+                fetchFirstOrPredecesor()
+              } else ()
+            }
+        }
+      }
+    }
+
+    def doTryAcquire(): Boolean =
+      try {
+        if (shared) tryAcquireShared(arg) >= 0
+        else tryAcquire(arg)
+      } catch {
+        case ex: Throwable =>
+          cancelAcquire(node, interrupted, false)
+          throw ex
+      }
+
+    def onFirstAcquired(): Unit = {
+      node.prev.set(null)
+      head.set(node)
+      pred.foreach(_.next.set(null))
+      node.waiter.set(null)
+      node match {
+        case node: SharedNode if shared => signalNext(node)
+        case _                          => ()
+      }
+      if (interrupted) {
+        current.interrupt()
+      }
+    }
+
+    def initNode() = {
+      node =
+        if (shared) new SharedNode()
+        else new ExclusiveNode()
+    }
+
+    def onEmptyPred(): Unit = {
+      node.waiter.set(current)
+      val t = tail.get()
+      node.prev.setPlain(t)
+      if (t == null) tryInitializeHead()
+      else if (!tail.compareAndSet(t, node)) node.prev.setPlain(null)
+      else t.next.set(node)
+    }
+
+    def await(): Boolean = {
+      postSpins = ((postSpins << 1) | 1).min(255)
+      spins = postSpins
+      if (!timed) LockSupport.park(this)
+      else {
+        val nanos = time - System.nanoTime()
+        if (nanos > 0L) LockSupport.parkNanos(this, nanos)
+        else return true
+      }
+
+      node.clearStatus()
+      interrupted |= Thread.interrupted()
+      interrupted && interruptible
+    }
 
     /*
      * Repeatedly:
@@ -462,111 +546,28 @@ abstract class AbstractQueuedLongSynchronizer protected ()
      *  else if WAITING status not set, set and retry
      *  else park and clear WAITING status, and check cancellation
      */
-
-    @tailrec
-    def firstOrPredecessor(): (Boolean, Option[Node]) = {
-      val pred    = Option(node.prev.get())
-      val isFirst = pred.exists(head.get() == _)
-      pred match {
-        case Some(node) if !isFirst =>
-          if (node.status.get() < 0) {
-            cleanQueue()
-            firstOrPredecessor()
-          } else if (node.prev == null) {
-            Thread.onSpinWait()
-            firstOrPredecessor()
-          } else (isFirst, pred)
-
-        case _ => (isFirst, pred)
-      }
-    }
-
-    @tailrec
-    def acquireLoop(wasFirst: Boolean,
-                    prevPred: Option[Node],
-                    interrupted: Boolean,
-                    spins: Byte): Int = {
-      val (isFirst, pred) =
-        if (wasFirst) (wasFirst, prevPred)
-        else firstOrPredecessor()
-
-      if (isFirst || pred.isEmpty) {
-        val acquired = {
-          try {
-            if (shared) tryAcquireShared(arg) >= 0
-            else tryAcquire(arg)
-          } catch {
-            case ex: Throwable =>
-              cancelAcquire(node, interrupted, false)
-              false
-          }
-        }
-
-        if (acquired) {
-          pred.foreach { pred =>
-            node.prev.set(null)
-            head.set(node)
-            pred.next.set(null)
-            node.waiter.set(null)
-            if (shared) {
-              node match {
-                case node: AbstractQueuedLongSynchronizer.SharedNode =>
-                  signalNext(node)
-                case _ => ()
-              }
-            }
-            if (interrupted) {
-              current.interrupt()
-            }
-          }
+    while (true) {
+      fetchFirstOrPredecesor()
+      if (first || pred.isEmpty) {
+        if (doTryAcquire()) {
+          if (first) onFirstAcquired()
           return 1
         }
       }
 
-      if (pred.isEmpty) { // try to enqueue
-        node.waiter.set(Thread.currentThread())
-        val t = tail.get()
-        node.prev.setOpaque(t) // avoid unnecessary fence
-        if (t == null) {
-          tryInitializeHead()
-        } else if (!tail.compareAndSet(t, node)) {
-          node.prev.setOpaque(null); // back out
-        } else {
-          t.next.set(node)
-        }
-        acquireLoop(isFirst, pred, interrupted, spins)
-      } else if (isFirst && spins != 0) {
-        // reduce unfairness on rewaits
+      if (node == null) initNode()
+      else if (pred.isEmpty) onEmptyPred()
+      else if (first && spins != 0) {
+        spins -= 1
         Thread.onSpinWait()
-        acquireLoop(isFirst, pred, interrupted, (spins - 1).toByte)
       } else if (node.status.get() == 0) {
         node.status.set(WAITING)
-        acquireLoop(isFirst, pred, interrupted, spins)
       } else {
-
-        if (!timed) {
-          LockSupport.park(this);
-        } else {
-          val nanos = time - System.nanoTime()
-          if (nanos > 0L)
-            LockSupport.parkNanos(this, nanos);
-          else
-            return cancelAcquire(node, interrupted, interruptible)
-        }
-
-        node.clearStatus()
-        val wasInterrupted = interrupted || Thread.interrupted()
-        val postSpins      = ((spins << 1) | 1).toByte
-
-        if (wasInterrupted && interruptible)
-          cancelAcquire(node, interrupted, interruptible)
-        else acquireLoop(isFirst, pred, wasInterrupted, postSpins)
+        val shouldExit = await()
+        if (shouldExit) return cancelAcquire(node, interrupted, interruptible)
       }
     }
-    acquireLoop(wasFirst = false,
-                prevPred = None,
-                interrupted = false,
-                spins = 0.toByte)
+    cancelAcquire(node, interrupted, interruptible)
   }
 
   /**
@@ -880,9 +881,12 @@ abstract class AbstractQueuedLongSynchronizer protected ()
    * @throws InterruptedException if the current thread is interrupted
    */ @throws[InterruptedException]
   final def acquireSharedInterruptibly(arg: Long): Unit = {
-    if (Thread.interrupted() ||
-        (tryAcquireShared(arg) < 0 && acquire(null, arg, true, true, false, 0L) < 0))
+    if (Thread.interrupted() || {
+          tryAcquireShared(arg) < 0 &&
+          acquire(null, arg, true, true, false, 0L) < 0
+        }) {
       throw new InterruptedException
+    }
   }
 
   /**
@@ -958,7 +962,7 @@ abstract class AbstractQueuedLongSynchronizer protected ()
    *
    * @return {@code true} if there has ever been contention
    */
-  final def hasContended: Boolean = head != null
+  final def hasContended: Boolean = head.get() != null
 
   /**
    * Returns the first (longest-waiting) thread in the queue, or
@@ -1411,7 +1415,6 @@ abstract class AbstractQueuedLongSynchronizer protected ()
     override final def awaitUninterruptibly(): Unit = {
       val node       = new AbstractQueuedLongSynchronizer.ConditionNode
       val savedState = enableWait(node)
-      LockSupport.setCurrentBlocker(this) // for back-compatibility
 
       var interrupted = false
       var rejected    = false
@@ -1419,7 +1422,7 @@ abstract class AbstractQueuedLongSynchronizer protected ()
         if (Thread.interrupted()) interrupted = true
         else if ((node.status.get() & AbstractQueuedLongSynchronizer.COND) != 0)
           try {
-            if (rejected) node.block
+            if (rejected) node.block()
             else ForkJoinPool.managedBlock(node)
           } catch {
             case ex: RejectedExecutionException =>
@@ -1429,7 +1432,6 @@ abstract class AbstractQueuedLongSynchronizer protected ()
           }
         else Thread.onSpinWait() // awoke while enqueuing
       }
-      LockSupport.setCurrentBlocker(null)
       node.clearStatus()
       acquire(node, savedState, false, false, false, 0L)
 
@@ -1456,7 +1458,6 @@ abstract class AbstractQueuedLongSynchronizer protected ()
 
       val node       = new AbstractQueuedLongSynchronizer.ConditionNode
       val savedState = enableWait(node)
-      LockSupport.setCurrentBlocker(this)
 
       var interrupted = false
       var cancelled   = false
@@ -1473,7 +1474,7 @@ abstract class AbstractQueuedLongSynchronizer protected ()
             } else if ((node.status.get() &
                          AbstractQueuedLongSynchronizer.COND) != 0) {
               try {
-                if (rejected) node.block
+                if (rejected) node.block()
                 else ForkJoinPool.managedBlock(node)
               } catch {
                 case ex: RejectedExecutionException =>
@@ -1486,7 +1487,6 @@ abstract class AbstractQueuedLongSynchronizer protected ()
         }
       }
 
-      LockSupport.setCurrentBlocker(null)
       node.clearStatus()
       acquire(node, savedState, false, false, false, 0L)
       if (interrupted) {

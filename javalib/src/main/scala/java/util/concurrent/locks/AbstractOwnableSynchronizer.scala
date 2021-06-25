@@ -1,19 +1,17 @@
 package java.util.concurrent
 package locks
 
+import java.util.concurrent.atomic.AtomicReference
+
+@SerialVersionUID(3737899427754241961L)
 abstract class AbstractOwnableSynchronizer extends java.io.Serializable {
 
-  private var exclusiveOwnerThread: Thread = _
+  private val exclusiveOwnerThread = new AtomicReference[Thread]
 
   protected final def setExclusiveOwnerThread(t: Thread): Unit =
-    exclusiveOwnerThread = t
+    exclusiveOwnerThread.set(t)
 
-  protected final def getExclusiveOwnerThread(): Thread = exclusiveOwnerThread
-
-}
-
-object AbstractOwnableSynchronizer {
-
-  private final val serialVersionUID: Long = 3737899427754241961L
+  protected final def getExclusiveOwnerThread(): Thread =
+    exclusiveOwnerThread.get()
 
 }

@@ -84,7 +84,7 @@ lazy val mimaSettings: Seq[Setting[_]] = Seq(
 inThisBuild(
   Def.settings(
     organization := "org.scala-native", // Maven <groupId>
-    version := nativeVersion, // Maven <version>
+    version := nativeVersion,           // Maven <version>
     scalaVersion := scala212,
     crossScalaVersions := libCrossScalaVersions,
     scalacOptions ++= Seq(
@@ -167,7 +167,7 @@ lazy val mavenPublishSettings: Seq[Setting[_]] = Seq(
     val travis = Try(sys.env("TRAVIS")).getOrElse("false") == "true"
     val pr = Try(sys.env("TRAVIS_PULL_REQUEST"))
       .getOrElse("false") != "false"
-    val branch = Try(sys.env("TRAVIS_BRANCH")).getOrElse("")
+    val branch   = Try(sys.env("TRAVIS_BRANCH")).getOrElse("")
     val snapshot = version.value.trim.endsWith("SNAPSHOT")
 
     (travis, pr, branch, snapshot) match {
@@ -186,9 +186,9 @@ lazy val mavenPublishSettings: Seq[Setting[_]] = Seq(
   }.value,
   credentials ++= {
     for {
-      realm <- sys.env.get("MAVEN_REALM")
-      domain <- sys.env.get("MAVEN_DOMAIN")
-      user <- sys.env.get("MAVEN_USER")
+      realm    <- sys.env.get("MAVEN_REALM")
+      domain   <- sys.env.get("MAVEN_DOMAIN")
+      user     <- sys.env.get("MAVEN_USER")
       password <- sys.env.get("MAVEN_PASSWORD")
     } yield {
       Credentials(realm, domain, user, password)
@@ -312,7 +312,7 @@ lazy val tools =
     .settings(
       libraryDependencies ++= Seq(
         "org.scalacheck" %% "scalacheck" % "1.14.3" % "test",
-        "org.scalatest" %% "scalatest" % "3.1.1" % "test"
+        "org.scalatest"  %% "scalatest"  % "3.1.1"  % "test"
       ),
       Test / fork := true,
       Test / javaOptions ++= {
@@ -372,7 +372,7 @@ lazy val nscplugin =
       ),
       libraryDependencies ++= Seq(
         "org.scala-lang" % "scala-compiler" % scalaVersion.value,
-        "org.scala-lang" % "scala-reflect" % scalaVersion.value
+        "org.scala-lang" % "scala-reflect"  % scalaVersion.value
       ),
       exportJars := true
     )
@@ -475,7 +475,7 @@ lazy val javalibCommonSettings = Def.settings(
     val previous = (Compile / scalacOptions).value
     val javaBootClasspath =
       scala.tools.util.PathResolver.Environment.javaBootClassPath
-    val classDir = (Compile / classDirectory).value.getAbsolutePath
+    val classDir  = (Compile / classDirectory).value.getAbsolutePath
     val separator = sys.props("path.separator")
     "-javabootclasspath" +: s"$classDir$separator$javaBootClasspath" +: previous
   },
@@ -574,10 +574,10 @@ lazy val scalalib =
           update
       }.value,
       fetchScalaSource := {
-        val s = streams.value
+        val s        = streams.value
         val cacheDir = s.cacheDirectory
-        val ver = scalaVersion.value
-        val trgDir = (fetchScalaSource / artifactPath).value
+        val ver      = scalaVersion.value
+        val trgDir   = (fetchScalaSource / artifactPath).value
 
         val report = (fetchScalaSource / update).value
         val scalaLibSourcesJar = report
@@ -621,7 +621,7 @@ lazy val scalalib =
         val ver = scalaVersion.value
 
         // SN Port: sjs uses baseDirectory.value.getParentFile here.
-        val base = baseDirectory.value
+        val base  = baseDirectory.value
         val parts = ver.split(Array('.', '-'))
         val verList = parts.inits.map { ps =>
           val len = ps.mkString(".").length
@@ -648,7 +648,7 @@ lazy val scalalib =
           f.getPath.replace(java.io.File.separator, "/")
 
         val sources = mutable.ListBuffer.empty[File]
-        val paths = mutable.Set.empty[String]
+        val paths   = mutable.Set.empty[String]
 
         val s = streams.value
 
@@ -658,10 +658,8 @@ lazy val scalalib =
           src <- (srcDir ** "*.scala").get
         } {
           val normSrc = normPath(src)
-          val path = normSrc.substring(normSrcDir.length)
-          val useless =
-            path.contains("/scala/collection/parallel/") ||
-              path.contains("/scala/util/parsing/")
+          val path    = normSrc.substring(normSrcDir.length)
+          val useless = path.contains("/scala/util/parsing/")
           if (!useless) {
             if (paths.add(path))
               sources += src
@@ -747,12 +745,12 @@ lazy val testsCommonSettings = Def.settings(
     Tests.Argument(TestFrameworks.JUnit, "-a", "-s", "-v")
   ),
   Test / envVars ++= Map(
-    "USER" -> "scala-native",
-    "HOME" -> System.getProperty("user.home"),
-    "SCALA_NATIVE_ENV_WITH_EQUALS" -> "1+1=2",
-    "SCALA_NATIVE_ENV_WITHOUT_VALUE" -> "",
-    "SCALA_NATIVE_ENV_WITH_UNICODE" -> 0x2192.toChar.toString,
-    "SCALA_NATIVE_USER_DIR" -> System.getProperty("user.dir")
+        "USER"                           -> "scala-native",
+        "HOME"                           -> System.getProperty("user.home"),
+        "SCALA_NATIVE_ENV_WITH_EQUALS"   -> "1+1=2",
+        "SCALA_NATIVE_ENV_WITHOUT_VALUE" -> "",
+        "SCALA_NATIVE_ENV_WITH_UNICODE"  -> 0x2192.toChar.toString,
+        "SCALA_NATIVE_USER_DIR"          -> System.getProperty("user.dir")
   )
 )
 
@@ -775,7 +773,7 @@ lazy val tests =
       }
     )
     .dependsOn(
-      nscplugin % "plugin",
+      nscplugin   % "plugin",
       junitPlugin % "plugin",
       allCoreLibs,
       testInterface,
@@ -813,8 +811,8 @@ lazy val testsExt = project
     sharedTestSource(withBlacklist = false)
   )
   .dependsOn(
-    nscplugin % "plugin",
-    junitPlugin % "plugin",
+    nscplugin     % "plugin",
+    junitPlugin   % "plugin",
     testInterface % "test",
     tests,
     junitRuntime,
@@ -856,7 +854,7 @@ lazy val testingCompiler =
     .settings(
       libraryDependencies ++= Seq(
         "org.scala-lang" % "scala-compiler" % scalaVersion.value,
-        "org.scala-lang" % "scala-reflect" % scalaVersion.value
+        "org.scala-lang" % "scala-reflect"  % scalaVersion.value
       ),
       Compile / unmanagedSourceDirectories ++= {
         val oldCompat: File = baseDirectory.value / "src/main/compat-old"
@@ -893,7 +891,7 @@ lazy val testInterface =
     .settings(mavenPublishSettings)
     .settings(testInterfaceCommonSourcesSettings)
     .dependsOn(
-      nscplugin % "plugin",
+      nscplugin   % "plugin",
       junitPlugin % "plugin",
       allCoreLibs,
       testInterfaceSbtDefs,
@@ -923,8 +921,8 @@ lazy val testRunner =
 // JUnit modules and settings ------------------------------------------------
 
 lazy val jUnitJVMDependencies = Seq(
-  "com.novocode" % "junit-interface" % "0.11" % "test",
-  "junit" % "junit" % "4.13.2" % "test"
+  "com.novocode" % "junit-interface" % "0.11"   % "test",
+  "junit"        % "junit"           % "4.13.2" % "test"
 )
 
 lazy val junitRuntime =
@@ -975,10 +973,10 @@ lazy val junitTestOutputsNative =
       }
     )
     .dependsOn(
-      nscplugin % "plugin",
-      junitRuntime % "test",
+      nscplugin        % "plugin",
+      junitRuntime     % "test",
       junitAsyncNative % "test",
-      testInterface % "test"
+      testInterface    % "test"
     )
 
 lazy val junitTestOutputsJVM =

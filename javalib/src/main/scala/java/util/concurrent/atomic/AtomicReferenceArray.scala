@@ -22,7 +22,8 @@ class AtomicReferenceArray[E <: AnyRef] extends Serializable {
   final private var array: Array[E] = null
 
   @alwaysinline
-  private[concurrent] def nativeArray: ObjectArray = array.asInstanceOf[ObjectArray]
+  private[concurrent] def nativeArray: ObjectArray =
+    array.asInstanceOf[ObjectArray]
 
   @alwaysinline
   private implicit def ptrRefToAtomicRef(ptr: Ptr[Object]): CAtomicRef[E] =
@@ -179,7 +180,7 @@ class AtomicReferenceArray[E <: AnyRef] extends Serializable {
       if (weakCompareAndSetVolatile(i, prev, newNext)) prev
       else {
         val newPrev = get(i)
-        loop(newPrev, newNext, prev == newPrev)
+        loop(newPrev, newNext, prev eq newPrev)
       }
     }
     loop(get(i), null.asInstanceOf[E], false)
@@ -208,7 +209,7 @@ class AtomicReferenceArray[E <: AnyRef] extends Serializable {
       if (weakCompareAndSetVolatile(i, prev, newNext)) newNext
       else {
         val newPrev = get(i)
-        loop(newPrev, newNext, prev == newPrev)
+        loop(newPrev, newNext, prev eq newPrev)
       }
     }
     loop(get(i), null.asInstanceOf[E], false)
@@ -243,7 +244,7 @@ class AtomicReferenceArray[E <: AnyRef] extends Serializable {
       if (weakCompareAndSetVolatile(i, prev, newNext)) prev
       else {
         val newPrev = get(i)
-        loop(newPrev, newNext, prev == newPrev)
+        loop(newPrev, newNext, prev eq newPrev)
       }
     }
     loop(get(i), null.asInstanceOf[E], false)
@@ -278,7 +279,7 @@ class AtomicReferenceArray[E <: AnyRef] extends Serializable {
       if (weakCompareAndSetVolatile(i, prev, newNext)) newNext
       else {
         val newPrev = get(i)
-        loop(newPrev, newNext, prev == newPrev)
+        loop(newPrev, newNext, prev eq newPrev)
       }
     }
     loop(get(i), null.asInstanceOf[E], false)

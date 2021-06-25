@@ -23,7 +23,8 @@ class AtomicBoolean private (private var value: Byte) extends Serializable {
   @alwaysinline
   private[concurrent] def valueRef: CAtomicByte = new CAtomicByte(
     // Assumess object fields are stored in memory directly after Ptr[Rtti]
-    fromRawPtr(elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset))
+    fromRawPtr(
+      elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset))
   )
 
   def this() {

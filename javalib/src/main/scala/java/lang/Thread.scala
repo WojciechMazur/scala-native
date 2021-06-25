@@ -362,7 +362,7 @@ object Thread {
 
   }
 
-  def onSpinWait(): Unit = {}
+  def onSpinWait(): Unit = NativeThread.Intrinsics.yieldProcessor()
 
   def getDefaultUncaughtExceptionHandler(): UncaughtExceptionHandler =
     defaultExceptionHandler

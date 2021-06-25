@@ -33,9 +33,11 @@ object unistd {
   def truncate(path: CString, length: off_t): CInt                = extern
   def unlink(path: CString): CInt                                 = extern
   def usleep(usecs: CUnsignedInt): CInt                           = extern
-  def vfork(): CInt                                               = extern
-  def write(fildes: CInt, buf: Ptr[_], nbyte: CSize): CInt        = extern
-  def sysconf(name: Int): Long                                    = extern
+  def nanosleep(requested: Ptr[time.timespec],
+                remaining: Ptr[time.timespec]): CInt       = extern
+  def vfork(): CInt                                        = extern
+  def write(fildes: CInt, buf: Ptr[_], nbyte: CSize): CInt = extern
+  def sysconf(name: Int): Long                             = extern
 
   @name("scalanative_chown")
   def chown(path: CString, owner: uid_t, group: gid_t): CInt = extern

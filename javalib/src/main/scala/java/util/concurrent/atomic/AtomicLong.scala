@@ -27,8 +27,8 @@ class AtomicLong(private[this] var value: Long)
   @alwaysinline
   private[concurrent] def valueRef: CAtomicLong = new CAtomicLong(
     // Assumess object fields are stored in memory directly after Ptr[Rtti]
-    fromRawPtr(elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset))
-
+    fromRawPtr(
+      elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset))
   )
 
   def this() {

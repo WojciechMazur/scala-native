@@ -22,6 +22,8 @@ class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
     this(null.asInstanceOf[V])
   }
 
+  assert(valueRef.load == value, "Value reference does not match field")
+
   // Pointer to field containing underlying Integer.
   // This class should not define any other values to ensure that underlying field
   // would always be placed at first slot of fields layout.
@@ -47,7 +49,7 @@ class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
    *
    * @param newValue the new value
    */
-  final def set(newValue: V): Unit = { valueRef.store(newValue) }
+  final def set(newValue: V): Unit = valueRef.store(newValue)
 
   /**
    * Sets the value to {@code newValue},
@@ -104,8 +106,8 @@ class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
    * @since 9
    */
   final def weakCompareAndSetPlain(expectedValue: V, newValue: V): Boolean = {
-    if (value == expectedValue) {
-      value == newValue
+    if (value eq expectedValue) {
+      value = newValue
       true
     } else false
   }
@@ -270,9 +272,8 @@ class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
    * @param newValue the new value
    * @since 9
    */
-  final def setOpaque(newValue: V): Unit = {
+  final def setOpaque(newValue: V): Unit =
     valueRef.store(newValue, memory_order_relaxed)
-  }
 
   /**
    * Returns the current value,

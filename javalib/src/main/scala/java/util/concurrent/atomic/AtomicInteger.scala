@@ -31,9 +31,10 @@ class AtomicInteger(private[this] var value: Int)
   @alwaysinline
   private[concurrent] def valueRef: CAtomicInt = new CAtomicInt(
     // Assumess object fields are stored in memory directly after Ptr[Rtti]
-    fromRawPtr(elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset))
+    fromRawPtr(
+      elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset))
   )
-  
+
   /**
    * Returns the current value,
    * with memory effects as specified by {@link VarHandle# getVolatile}.

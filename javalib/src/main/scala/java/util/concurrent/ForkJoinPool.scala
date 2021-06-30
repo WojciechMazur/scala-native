@@ -1370,10 +1370,8 @@ class ForkJoinPool(parallelism: Int,
   /**
    * Readjusts RC count called from ForkJoinTask after blocking.
    */
-  @stub()
   private[concurrent] final def uncompensate(): Unit = {
-    ???
-    // getAndAddCtl(RC_UNIT)
+    ctl.getAndAdd(RC_UNIT)
   }
 
   /**
@@ -1386,66 +1384,97 @@ class ForkJoinPool(parallelism: Int,
    * @param canHelp if false, compensate only
    * @return task status on exit, or UNCOMPENSATE for compensated blocking
    */
-  @stub()
   private[concurrent] final def helpJoin(task: ForkJoinTask[_],
                                          w: WorkQueue,
                                          canHelp: Boolean): Int = {
-    ???
-    // int s = 0
-    // if (task != null && w != null) {
-    //     int wsrc = w.source, wid = w.config & SMASK, r = wid + 2
-    //     boolean scan = true
-    //     long c = 0L                          // track ctl stability
-    //     outer: for () {
-    //         if ((s = task.status) < 0)
-    //             break
-    //         else if (` = !scan) {          // previous scan was empty
-    //             if (mode < 0)
-    //                 ForkJoinTask.cancelIgnoringExceptions(task)
-    //             else if (c == (c = ctl) && (s = tryCompensate(c)) >= 0)
-    //                 break                    // block
-    //         }
-    //         else if (canHelp) {               // scan for subtasks
-    //             WorkQueue[] qs = queues
-    //             int n = (qs == null) ? 0 : qs.length, m = n - 1
-    //             for (int i = n i > 0 i -= 2, r += 2) {
-    //                 int j WorkQueue q, x, y Array[ForkJoinTask[_]]()  a
-    //                 if ((q = qs[j = r & m]) != null) {
-    //                     int sq = q.source & SMASK, cap, b
-    //                     if ((a = q.array) != null && (cap = a.length) > 0) {
-    //                         int k = (cap - 1) & (b = q.base)
-    //                         int nextBase = b + 1, src = j | SRC, sx
-    //                         ForkJoinTask[_] t = WorkQueue.getSlot(a, k)
-    //                         boolean eligible = sq == wid ||
-    //                             ((x = qs[sq & m]) != null &&   // indirect
-    //                              ((sx = (x.source & SMASK)) == wid ||
-    //                               ((y = qs[sx & m]) != null && // 2-indirect
-    //                                (y.source & SMASK) == wid)))
-    //                         if ((s = task.status) < 0)
-    //                             break outer
-    //                         else if ((q.source & SMASK) != sq ||
-    //                                  q.base != b)
-    //                             scan = true          // inconsistent
-    //                         else if (t == null)
-    //                             scan |= (a[nextBase & (cap - 1)] != null ||
-    //                                      q.top != b) // lagging
-    //                         else if (eligible) {
-    //                             if (WorkQueue.casSlotToNull(a, k, t)) {
-    //                                 q.base = nextBase
-    //                                 w.source = src
-    //                                 t.doExec()
-    //                                 w.source = wsrc
-    //                             }
-    //                             scan = true
-    //                             break
-    //                         }
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-    // return s
+    var s = 0
+    if (task != null && w != null) {
+      val wSrc = w.source.get()
+      val wid  = w.config & SMASK
+      var scan = true
+      var c    = 0L
+      while (true) {
+        s = task.status.get()
+        if (s < 0) return s
+        else if ({ scan = !scan; scan }) { // previous scan was empty
+          if (mode.get() < 0)
+            ForkJoinTask.cancelIgnoringExceptions(task)
+          else {
+            def ctlIsConsistient() = {
+              val prevC = c
+              c = ctl.get()
+              prevC == c
+            }
+            def componsated() = {
+              s = tryCompensate(c)
+              s >= 0
+            }
+            if (ctlIsConsistient() && componsated()) {
+              return s // block
+            }
+          }
+        } else if (canHelp) {
+          val qs = queues
+          val n  = if (qs != null) qs.length else 0
+          val m  = n - 1
+          var r  = wid + 2
+          breakable {
+            for {
+              _ <- n until 0 by -2
+              j        = r & m
+              _        = r += 2
+              q        = qs(j) if q != null
+              a        = q.array if a != null
+              cap      = a.length if cap > 0
+              b        = q.base.get()
+              nextBase = b + 1
+              k        = (cap - 1) & b
+              sq       = q.source.get() & SMASK
+              t        = WorkQueue.getSlot(a, k)
+            } {
+              def isEligable = {
+                @tailrec
+                def checkQueueSourceIsEligable(
+                    queueId: Int,
+                    recursiveChecks: Int): Boolean = {
+                  queueId == wid || {
+                    qs(queueId) match {
+                      case null                      => false
+                      case _ if recursiveChecks == 0 => false
+                      case nextQueue =>
+                        checkQueueSourceIsEligable(
+                          nextQueue.source.get() & SMASK,
+                          recursiveChecks - 1)
+                    }
+                  }
+                }
+                checkQueueSourceIsEligable(sq, 2)
+              }
+
+              s = task.status.get()
+              if (s <= 0) return s
+              else if ((q.source.get() & SMASK) != sq || q.base.get() != b) {
+                scan = true //inconsistent
+              } else if (t == null) {
+                val shouldScan = a(nextBase & (cap - 1)) != null ||
+                  q.top != b //lagging
+                scan |= shouldScan
+              } else if (isEligable) {
+                if (WorkQueue.casSlotToNull(a, k, t)) {
+                  q.base.set(nextBase)
+                  w.source.set(j | SRC)
+                  t.doExec()
+                  w.source.set(wSrc)
+                }
+                scan = true
+                break()
+              }
+            }
+          }
+        }
+      }
+    }
+    s
   }
 
   /**
@@ -1457,65 +1486,74 @@ class ForkJoinPool(parallelism: Int,
    * @param owned true if owned by a ForkJoinWorkerThread
    * @return task status on exit
    */
-  @stub()
   private[concurrent] final def helpComplete(task: ForkJoinTask[_],
                                              w: WorkQueue,
                                              owned: Boolean): Int = {
-    ???
-    // int s = 0
-    // if (task != null && w != null) {
-    //     int r = w.config
-    //     boolean scan = true, locals = true
-    //     long c = 0L
-    //     outer: for () {
-    //         if (locals) {                     // try locals before scanning
-    //             if ((s = w.helpComplete(task, owned, 0)) < 0)
-    //                 break
-    //             locals = false
-    //         }
-    //         else if ((s = task.status) < 0)
-    //             def e
-    //         else if (scan = !scan) {
-    //             if (c == (c = ctl))
-    //                 break
-    //         }
-    //         else {                            // scan for subtasks
-    //             WorkQueue[] qs = queues
-    //             int n = (qs == null) ? 0 : qs.length
-    //             for (int i = n i > 0 --i, ++r) {
-    //                 int j, cap, b WorkQueue q Array[ForkJoinTask[_]]()  a
-    //                 boolean eligible = false
-    //                 if ((q = qs[j = r & (n - 1)]) != null &&
-    //                     (a = q.array) != null && (cap = a.length) > 0) {
-    //                     int k = (cap - 1) & (b = q.base), nextBase = b + 1
-    //                     ForkJoinTask[_] t = WorkQueue.getSlot(a, k)
-    //                     if (t instanceof CountedCompleter) {
-    //                         CountedCompleter<?> f = (CountedCompleter<?>)t
-    //                         do {} while (!(eligible = (f == task)) &&
-    //                                      (f = f.completer) != null)
-    //                     }
-    //                     if ((s = task.status) < 0)
-    //                         break outer
-    //                     else if (q.base != b)
-    //                         scan = true       // inconsistent
-    //                     else if (t == null)
-    //                         scan |= (a[nextBase & (cap - 1)] != null ||
-    //                                  q.top != b)
-    //                     else if (eligible) {
-    //                         if (WorkQueue.casSlotToNull(a, k, t)) {
-    //                             q.setBaseOpaque(nextBase)
-    //                             t.doExec()
-    //                             locals = true
-    //                         }
-    //                         scan = true
-    //                         break
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-    // return s
+    var s = 0
+    if (task != null && w != null) {
+      var r      = w.config
+      var scan   = true
+      var locals = true
+      var c      = 0L
+      while (true) {
+        if (locals) { // try locals before scanning
+          s = w.helpComplete(task, owned, 0)
+          if (s < 0) return s
+          else locals = false
+        } else if ({ s = task.status.get(); s < 0 }) return s
+        else if ({ scan = !scan; scan }) {
+          val prevCtl = c
+          c = ctl.get()
+          if (prevCtl == c) return s
+        } else { // scan for subtasks
+          val qs = queues
+          val n  = if (qs != null) qs.length else 0
+          for {
+            _ <- n until 0 by -1
+            j        = r & (n - 1)
+            _        = r += 1
+            q        = qs(j) if q != null
+            a        = q.array if a != null
+            cap      = a.length if cap > 0
+            b        = q.base.get()
+            nextBase = b + 1
+            k        = (cap - 1) & b
+            t        = WorkQueue.getSlot(a, k)
+          } {
+            @tailrec
+            def checkEligable(current: CountedCompleter[_]): Boolean = {
+              current match {
+                case `task` => true
+                case null   => false
+                case _      => checkEligable(current.completer)
+              }
+            }
+            val isEligable = t match {
+              case completer: CountedCompleter[_] => checkEligable(completer)
+              case _                              => false
+            }
+            s = task.status.get()
+            if (s < 0) return s
+            else if (q.base.get() != b)
+              scan = true // inconsistent
+            else if (t == null) {
+              val shouldScan = a(nextBase & (cap - 1)) != null ||
+                q.top != b
+              scan |= shouldScan
+            } else if (isEligable) {
+              if (WorkQueue.casSlotToNull(a, k, t)) {
+                q.setBaseOpaque(nextBase)
+                t.doExec()
+                locals = true
+              }
+              scan = true
+              break()
+            }
+          }
+        }
+      }
+    }
+    return s
   }
 
   /**
@@ -1804,13 +1842,14 @@ class ForkJoinPool(parallelism: Int,
   /**
    * Returns queue for an external thread, if one exists
    */
-  @stub()
   private[concurrent] final def externalQueue(): WorkQueue = {
-    ???
-    // WorkQueue[] qs
-    // int r = ThreadLocalRandom.getProbe(), n
-    // return ((qs = queues) != null && (n = qs.length) > 0 && r != 0) ?
-    //     qs[(n - 1) & (r << 1)] : null
+    val r  = ThreadLocalRandom.getProbe()
+    val qs = queues
+    val n  = if (qs != null) qs.length else 0
+    if (n > 0 && r != 0) {
+      val idx = (n - 1) & (r << 1)
+      qs(idx)
+    } else null
   }
 
   // Termination
@@ -2132,11 +2171,8 @@ class ForkJoinPool(parallelism: Int,
    *
    * @return the targeted parallelism level of this pool
    */
-  @stub()
   def getParallelism(): Int = {
-    ???
-    // int par = mode & SMASK
-    // return (par > 0) ? par : 1
+    (mode.getOpaque() & SMASK).max(1)
   }
 
   /**
@@ -2839,14 +2875,14 @@ object ForkJoinPool {
    * possibly ever submitted a common pool task (nonzero probe), or
    * null if none.
    */
-  @stub()
   private[concurrent] def commonQueue(): WorkQueue = {
-    ???
-    // ForkJoinPool p WorkQueue[] qs
-    // int r = ThreadLocalRandom.getProbe(), n
-    // return ((p = common) != null && (qs = p.queues) != null &&
-    //         (n = qs.length) > 0 && r != 0) ?
-    //     qs[(n - 1) & (r << 1)] : null
+    val r   = ThreadLocalRandom.getProbe()
+    val p   = common
+    val qs  = if (common != null) p.queues else null
+    val n   = if (qs != null) qs.length else 0
+    val idx = (n - 1) & (r << 1)
+    if (n > 0 && r != 0) qs(idx)
+    else null
   }
 
   /**
@@ -2955,9 +2991,8 @@ object ForkJoinPool {
    * @return the common pool instance
    * @since 1.8
    */
-  @stub()
   def commonPool(): ForkJoinPool = {
-    // assert common != null : "static init error"
+    assert(common != null, "Common pool not initialized")
     common
   }
 
@@ -3268,73 +3303,84 @@ object ForkJoinPool {
     /**
      * Pops the given task for owner only if it is at the current top.
      */
-    @stub()
     final def tryUnpush(task: ForkJoinTask[_]): Boolean = {
-      ???
-      // int s = top, cap Array[ForkJoinTask[_]]()  a
-      // if ((a = array) != null && (cap = a.length) > 0 && base != s-- &&
-      //     casSlotToNull(a, (cap - 1) & s, task)) {
-      //     top = s
-      //     return true
-      // }
-      // return false
+      val s    = top
+      val newS = s - 1
+      val a    = array
+      val cap  = if (a != null) a.length else 0
+      if (cap > 0 &&
+          base.get() != s &&
+          WorkQueue.casSlotToNull(a, (cap - 1) & newS, task)) {
+        top = newS
+        true
+      } else false
     }
 
     /**
      * Locking version of tryUnpush.
      */
-    @stub()
     final def externalTryUnpush(task: ForkJoinTask[_]): Boolean = {
-      ???
-      // boolean taken = false
-      // for () {
-      //     int s = top, cap, k Array[ForkJoinTask[_]]()  a
-      //     if ((a = array) == null || (cap = a.length) <= 0 ||
-      //         a[k = (cap - 1) & (s - 1)] != task)
-      //         break
-      //     if (tryLock()) {
-      //         if (top == s && array == a) {
-      //             if (taken = casSlotToNull(a, k, task)) {
-      //                 top = s - 1
-      //                 source = 0
-      //                 break
-      //             }
-      //         }
-      //         source = 0 // release lock for retry
-      //     }
-      //     Thread.yield() // trylock failure
-      // }
-      // return taken
+      while (true) {
+        val s   = top
+        val a   = array
+        val cap = if (a != null) a.length else 0
+        val k   = (cap - 1) & (s - 1)
+        if (cap <= 0 || a(k) != task) return false
+        else if (tryLock()) {
+          if (top == s && array == a) {
+            if (WorkQueue.casSlotToNull(a, k, task))
+              top = s - 1
+            source.set(0)
+            return true
+          }
+          source.set(0) // release lock for retry
+        }
+        Thread.`yield`() // trylock failure
+      }
+      false
     }
 
     /**
      * Deep form of tryUnpush: Traverses from top and removes task if
      * present, shifting others to fill gap.
      */
-    @stub()
     final def tryRemove(task: ForkJoinTask[_], owned: Boolean): Boolean = {
-      ???
-      // boolean taken = false
-      // int p = top, cap Array[ForkJoinTask[_]]()  a ForkJoinTask[_] t
-      // if ((a = array) != null && task != null && (cap = a.length) > 0) {
-      //     int m = cap - 1, s = p - 1, d = p - base
-      //     for (int i = s, k d > 0 --i, --d) {
-      //         if ((t = a[k = i & m]) == task) {
-      //             if (owned || tryLock()) {
-      //                 if ((owned || (array == a && top == p)) &&
-      //                     (taken = casSlotToNull(a, k, t))) {
-      //                     for (int j = i j != s ) // shift down
-      //                         a[j & m] = getAndClearSlot(a, ++j & m)
-      //                     top = s
-      //                 }
-      //                 if (!owned)
-      //                     source = 0
-      //             }
-      //             break
-      //         }
-      //     }
-      // }
-      // return taken
+      val p     = top
+      val a     = array
+      val cap   = if (a != null) a.length else 0
+      var taken = false
+
+      if (task != null && cap > 0) {
+        val m = cap - 1
+        val s = p - 1
+        val d = p - base.get()
+
+        @tailrec
+        def loop(i: Int, d: Int): Unit = {
+          val k = i & m
+          a(k) match {
+            case `task` =>
+              if (owned || tryLock()) {
+                if ((owned || (array == a && top == p)) &&
+                    WorkQueue.casSlotToNull(a, k, task)) {
+                  for (j <- i.until(s)) {
+                    a(j & m) = getAndClearSlot(a, (j + 1) & m)
+                  }
+                  top = s
+                  taken = true
+                }
+                if (!owned) source.set(0)
+              }
+
+            case _ =>
+              if (d > 0) loop(i - 1, d - 1)
+          }
+        }
+
+        loop(i = s, d = d)
+      }
+
+      taken
     }
 
     // variants of poll
@@ -3468,43 +3514,59 @@ object ForkJoinPool {
      * @param limit max runs, or zero for no limit
      * @return task status on exit
      */
-    @stub()
     final def helpComplete(task: ForkJoinTask[_],
                            owned: Boolean,
                            limit: Int): Int = {
-      ???
-      // int status = 0, cap, k, p, s ForkJoinTask<?>[] a ForkJoinTask<?> t
-      // while (task != null && (status = task.status) >= 0 &&
-      //        (a = array) != null && (cap = a.length) > 0 &&
-      //        (t = a[k = (cap - 1) & (s = (p = top) - 1)])
-      //        instanceof CountedCompleter) {
-      //     CountedCompleter<?> f = (CountedCompleter<?>)t
-      //     boolean taken = false
-      //     for () {     // exec if root task is a completer of t
-      //         if (f == task) {
-      //             if (owned) {
-      //                 if ((taken = casSlotToNull(a, k, t)))
-      //                     top = s
-      //             }
-      //             else if (tryLock()) {
-      //                 if (top == p && array == a &&
-      //                     (taken = casSlotToNull(a, k, t)))
-      //                     top = s
-      //                 source = 0
-      //             }
-      //             if (taken)
-      //                 t.doExec()
-      //             else if (!owned)
-      //                 Thread.yield() // tryLock failure
-      //             break
-      //         }
-      //         else if ((f = f.completer) == null)
-      //             break
-      //     }
-      //     if (taken && limit != 0 && --limit == 0)
-      //         break
-      // }
-      // return status
+      def loop(currentLimit: Int): Int = {
+        val status = task.status.get()
+        val p      = top
+        val s      = p - 1
+        val a      = array
+        val cap    = if (a != null) a.length else 0
+        val k      = (cap - 1) & s
+        val t      = if (cap > 0) a(k) else null
+
+        var taken = false
+        @inline
+        def updateAndCheckTaked() = {
+          taken = WorkQueue.casSlotToNull(a, k, t)
+          taken
+        }
+
+        @tailrec
+        def doTryComplete(current: CountedCompleter[_]): Unit = {
+          current match {
+            case `task` =>
+              if (owned) {
+                if (updateAndCheckTaked()) top = s
+              } else if (tryLock()) {
+                if (top == p && array == a && updateAndCheckTaked()) {
+                  top = s
+                }
+                source.set(0)
+              }
+              if (taken) t.doExec()
+              else if (!owned) Thread.`yield`() // tryLock failure
+              return
+
+            case _ =>
+              val next = current.completer
+              if (next == null) ()
+              else doTryComplete(next)
+          }
+        }
+
+        t match {
+          case completer: CountedCompleter[_] if status >= 0 =>
+            doTryComplete(completer)
+          case task => ()
+        }
+        if (taken && limit != 0 && currentLimit - 1 == 0) status
+        else loop(currentLimit = currentLimit - 1)
+      }
+
+      if (task == null) 0
+      else loop(limit)
     }
 
     /**

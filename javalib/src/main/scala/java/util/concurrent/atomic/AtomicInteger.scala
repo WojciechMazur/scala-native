@@ -374,7 +374,7 @@ class AtomicInteger(private[this] var value: Int)
    * @return the value
    * @since 9
    */
-  final def getOpaque: Int = valueRef.load(memory_order_relaxed)
+  final def getOpaque(): Int = valueRef.load(memory_order_relaxed)
 
   /**
    * Sets the value to {@code newValue},
@@ -393,7 +393,7 @@ class AtomicInteger(private[this] var value: Int)
    * @return the value
    * @since 9
    */
-  final def getAcquire: Int = valueRef.load(memory_order_acquire)
+  final def getAcquire(): Int = valueRef.load(memory_order_acquire)
 
   /**
    * Sets the value to {@code newValue},

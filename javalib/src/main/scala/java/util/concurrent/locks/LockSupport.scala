@@ -150,7 +150,7 @@ object LockSupport {
 
   @alwaysinline
   private def setCurrentBlocker(blocker: Object): Unit = {
-    Thread.currentThread.parkBlocker.setOpaque(blocker)
+    Thread.currentThread().parkBlocker.setOpaque(blocker)
   }
 
   private final val TimeoutCode = ETIMEDOUT

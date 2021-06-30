@@ -58,7 +58,7 @@ class ForkJoinWorkerThread private[concurrent] (
    * @throws NullPointerException if pool is null
    */
   /**/
-  private[concurrent] def this(group: ThreadGroup, pool: ForkJoinPool) {
+  private[concurrent] def this(group: ThreadGroup, pool: ForkJoinPool) = {
     this(group, pool, false, false);
   }
 
@@ -68,7 +68,7 @@ class ForkJoinWorkerThread private[concurrent] (
    * @param pool the pool this thread works in
    * @throws NullPointerException if pool is null
    */
-  protected def this(pool: ForkJoinPool) {
+  protected def this(pool: ForkJoinPool) = {
     this(null, pool, false, false);
   }
 

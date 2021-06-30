@@ -48,7 +48,7 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
   /** Wait queue for waiting puts */
   private final val notFull: Condition = putLock.newCondition()
 
-  def this() {
+  def this() = {
     this(Integer.MAX_VALUE)
   }
 
@@ -58,7 +58,7 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
     try {
       var n: Int = 0
       val it     = c.iterator()
-      while (it.hasNext) {
+      while (it.hasNext()) {
         val e: E = it.next()
         if (e == null)
           throw new NullPointerException()
@@ -303,7 +303,7 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
       var trail: Node[E] = head
       var p: Node[E]     = trail.next
       while (p != null) {
-        if (o.equals(p.item)) {
+        if (o == p.item) {
           unlink(p, trail)
           return true
         }
@@ -321,7 +321,7 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
     @tailrec
     def loop(current: Node[E]): Boolean = {
       if (current == null) false
-      else if (o.equals(current.item)) true
+      else if (o == current.item) true
       else loop(current.next)
     }
 
@@ -334,7 +334,7 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
     }
   }
 
-  override def toArray: Array[Object] = {
+  override def toArray(): Array[Object] = {
     fullyLock()
     try {
       val size: Int        = count.get()
@@ -357,26 +357,33 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
     fullyLock()
     try {
       val size: Int = count.get()
-      if (a.length < size) {}
-      //TODO grow input array
+      val arr =
+        if (a.length < size) a
+        else {
+          val componentType = a.getClass().getComponentType()
+          reflect
+            .ClassTag(componentType)
+            .newArray(size)
+            .asInstanceOf[Array[T]]
+        }
 
       var k: Int     = 0
       var p: Node[E] = head.next
       while (p != null) {
-        a(k) = p.item.asInstanceOf[T]
+        arr(k) = p.item.asInstanceOf[T]
 
         k += 1
         p = p.next
       }
-      if (a.length > k)
-        a(k) = null.asInstanceOf[T]
-      a
+      if (arr.length > k)
+        arr(k) = null.asInstanceOf[T]
+      arr
     } finally {
       fullyUnlock()
     }
   }
 
-  override def toString: String = {
+  override def toString(): String = {
     fullyLock()
     try {
       super.toString
@@ -528,7 +535,7 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
           if (current.item != null) n += 1
           current = succ(current)
         }
-      } finally fullyUnlock
+      } finally fullyUnlock()
 
       for (i <- 0 until n) {
         val e = es(i).asInstanceOf[E]
@@ -544,12 +551,22 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
 
   override def removeAll(c: util.Collection[_]): Boolean = {
     if (c == null) throw new NullPointerException
-    bulkRemove(e => c.contains(e))
+    bulkRemove(
+      // Scala 2.11 support
+      new Predicate[E] {
+        def test(e: E): Boolean = c.contains(e)
+      }
+    )
   }
 
   override def retainAll(c: util.Collection[_]): Boolean = {
     if (c == null) throw new NullPointerException
-    bulkRemove(e => !c.contains(e))
+    bulkRemove(
+      // Scala 2.11 support
+      new Predicate[E] {
+        def test(e: E): Boolean = !c.contains(e)
+      }
+    )
   }
 
   /**
@@ -726,7 +743,7 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
 
     var exhausted = false // true when no more nodes
 
-    var est: Long = size // size estimate
+    var est: Long = size() // size estimate
 
     override def estimateSize(): Long = est
 
@@ -799,7 +816,7 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
                 exhausted = true
                 None
             }
-          } finally fullyUnlock
+          } finally fullyUnlock()
 
         elem.foreach { e =>
           action.accept(e)

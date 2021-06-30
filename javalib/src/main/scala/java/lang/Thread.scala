@@ -122,10 +122,14 @@ class Thread private[lang] (
   final def getThreadGroup(): ThreadGroup = group
 
   def getContextClassLoader(): ClassLoader =
-    lock.synchronized(contextClassLoader)
+    lock.synchronized {
+      contextClassLoader
+    }
 
   def setContextClassLoader(classLoader: ClassLoader): Unit =
-    lock.synchronized(contextClassLoader = classLoader)
+    lock.synchronized {
+      contextClassLoader = classLoader
+    }
 
   def getUncaughtExceptionHandler(): Thread.UncaughtExceptionHandler = {
     if (exceptionHandler != null)
@@ -143,7 +147,7 @@ class Thread private[lang] (
 
   final def setDaemon(daemon: scala.Boolean): Unit = {
     lock.synchronized {
-      if (isAlive)
+      if (isAlive())
         throw new IllegalThreadStateException()
       this.daemon = daemon
     }
@@ -163,17 +167,17 @@ class Thread private[lang] (
   def getStackTrace(): Array[StackTraceElement] =
     new Array[StackTraceElement](0)
 
-  @deprecated
+  @deprecated("Deprecated for removal", "1.2")
   def countStackFrames(): Int = 0
 
-  @deprecated
+  @deprecated("Deprecated for removal", "1.7")
   def destroy(): Unit =
     // this method is not implemented
     throw new NoSuchMethodError()
 
   //synchronized
   final def join(): Unit = {
-    while (isAlive) wait()
+    while (isAlive()) wait()
   }
 
   final def join(ml: scala.Long): Unit = lock.synchronized {
@@ -183,7 +187,7 @@ class Thread private[lang] (
     else {
       val end: scala.Long         = System.currentTimeMillis() + millis
       var continue: scala.Boolean = true
-      while (isAlive && continue) {
+      while (isAlive() && continue) {
         wait(millis)
         millis = end - System.currentTimeMillis()
         if (millis <= 0)
@@ -203,7 +207,7 @@ class Thread private[lang] (
       val end: scala.Long         = System.nanoTime() + 1000000 * millis + nanos.toLong
       var rest: scala.Long        = 0L
       var continue: scala.Boolean = true
-      while (isAlive && continue) {
+      while (isAlive() && continue) {
         wait(millis, nanos)
         rest = end - System.nanoTime()
         if (rest <= 0)
@@ -216,7 +220,7 @@ class Thread private[lang] (
     }
   }
 
-  @deprecated
+  @deprecated("Deprecated for removal", "1.7")
   final def resume(): Unit = {
     if (started) nativeThread.resume()
   }
@@ -262,21 +266,21 @@ class Thread private[lang] (
     }
   }
 
-  @deprecated
+  @deprecated("Deprecated for removal", "1.7")
   final def stop(): Unit = stop(new ThreadDeath())
 
-  @deprecated
+  @deprecated("Deprecated for removal", "1.7")
   final def stop(throwable: Throwable): Unit = {
     if (throwable == null)
       throw new NullPointerException("The argument is null!")
     lock.synchronized {
-      if (isAlive && started) {
+      if (isAlive() && started) {
         nativeThread.stop()
       }
     }
   }
 
-  @deprecated
+  @deprecated("Deprecated for removal", "1.7")
   final def suspend(): Unit = {
     if (started) {
       nativeThread.suspend()
@@ -404,12 +408,12 @@ object Thread {
 
   def getAllStackTraces(): java.util.Map[Thread, Array[StackTraceElement]] = {
     var parent: ThreadGroup =
-      new ThreadGroup(currentThread().getThreadGroup, "Temporary")
-    var newParent: ThreadGroup = parent.getParent
+      new ThreadGroup(currentThread().getThreadGroup(), "Temporary")
+    var newParent: ThreadGroup = parent.getParent()
     parent.destroy()
     while (newParent != null) {
       parent = newParent
-      newParent = parent.getParent
+      newParent = parent.getParent()
     }
     var threadsCount: Int          = parent.activeCount() + 1
     var count: Int                 = 0
@@ -428,7 +432,7 @@ object Thread {
       new util.HashMap[Thread, Array[StackTraceElement]](count + 1)
     var i: Int = 0
     while (i < count) {
-      val ste: Array[StackTraceElement] = liveThreads(i).getStackTrace
+      val ste: Array[StackTraceElement] = liveThreads(i).getStackTrace()
       if (ste.length != 0)
         map.put(liveThreads(i), ste)
       i += 1
@@ -457,7 +461,7 @@ object Thread {
   def sleep(millis: scala.Long): Unit = sleep(millis, 0)
 
   trait UncaughtExceptionHandler {
-    def uncaughtException(t: Thread, e: Throwable)
+    def uncaughtException(t: Thread, e: Throwable): Unit
   }
 
 }

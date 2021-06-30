@@ -87,7 +87,7 @@ object Executors {
 
   /**
    * Creates a work-stealing thread pool using the number of
-   * {@linkplain Runtime#availableProcessors available processors}
+   * {@linkplain Runtime#availableProcessors() available processors}
    * as its target parallelism level.
    *
    * @return the newly created thread pool
@@ -95,7 +95,7 @@ object Executors {
    * @since 1.8
    */
   def newWorkStealingPool: ExecutorService =
-    new ForkJoinPool(Runtime.getRuntime.availableProcessors,
+    new ForkJoinPool(Runtime.getRuntime().availableProcessors(),
                      ForkJoinPool.defaultForkJoinWorkerThreadFactory,
                      null,
                      true)
@@ -507,7 +507,7 @@ object Executors {
       try {
         val action = new PrivilegedExceptionAction[T]() {
           @throws[Exception]
-          override def run(): T = task.call
+          override def run(): T = task.call()
         }
         AccessController.doPrivileged(action, acc)
       } catch {
@@ -530,7 +530,7 @@ object Executors {
     final private[concurrent] var acc: AccessControlContext =
       AccessController.getContext()
     final private[concurrent] var ccl: ClassLoader =
-      Thread.currentThread.getContextClassLoader()
+      Thread.currentThread().getContextClassLoader()
 
     @throws[Exception]
     override def call(): T = {
@@ -538,12 +538,12 @@ object Executors {
         new PrivilegedExceptionAction[T]() {
           @throws[Exception]
           override def run(): T = {
-            val t: Thread       = Thread.currentThread
+            val t: Thread       = Thread.currentThread()
             val cl: ClassLoader = t.getContextClassLoader()
             if (ccl eq cl) { return task.call() }
             else {
               t.setContextClassLoader(ccl)
-              try return task.call
+              try return task.call()
               finally {
                 t.setContextClassLoader(cl)
               }
@@ -571,17 +571,18 @@ object Executors {
   private class DefaultThreadFactory private[concurrent] ()
       extends ThreadFactory {
     //Originally SecurityManager threadGroup was tried first
-    final private val group: ThreadGroup = Thread.currentThread.getThreadGroup()
+    final private val group: ThreadGroup =
+      Thread.currentThread().getThreadGroup()
 
     final private val threadNumber: AtomicInteger = new AtomicInteger(1)
     final private var namePrefix: String =
-      "pool-" + DefaultThreadFactory.poolNumber.getAndIncrement + "-thread-"
+      "pool-" + DefaultThreadFactory.poolNumber.getAndIncrement() + "-thread-"
 
     override def newThread(r: Runnable): Thread = {
       val t: Thread =
-        new Thread(group, r, namePrefix + threadNumber.getAndIncrement, 0)
-      if (t.isDaemon) { t.setDaemon(false) }
-      if (t.getPriority != Thread.NORM_PRIORITY) {
+        new Thread(group, r, namePrefix + threadNumber.getAndIncrement(), 0)
+      if (t.isDaemon()) { t.setDaemon(false) }
+      if (t.getPriority() != Thread.NORM_PRIORITY) {
         t.setPriority(Thread.NORM_PRIORITY)
       }
       return t
@@ -596,13 +597,13 @@ object Executors {
     final private[concurrent] val acc: AccessControlContext =
       AccessController.getContext()
     final private[concurrent] val ccl: ClassLoader =
-      Thread.currentThread.getContextClassLoader()
+      Thread.currentThread().getContextClassLoader()
     override def newThread(r: Runnable): Thread = {
       return super.newThread(new Runnable() {
         override def run(): Unit = {
           AccessController.doPrivileged(new PrivilegedAction[AnyRef]() {
             override def run(): Void = {
-              Thread.currentThread.setContextClassLoader(ccl)
+              Thread.currentThread().setContextClassLoader(ccl)
               r.run()
               return null
             }
@@ -637,13 +638,13 @@ object Executors {
         reachabilityFence(this)
       }
     }
-    override def isShutdown: Boolean = {
+    override def isShutdown(): Boolean = {
       try return executor.isShutdown()
       finally {
         reachabilityFence(this)
       }
     }
-    override def isTerminated: Boolean = {
+    override def isTerminated(): Boolean = {
       try return executor.isTerminated()
       finally {
         reachabilityFence(this)
@@ -714,7 +715,7 @@ object Executors {
   private class FinalizableDelegatedExecutorService private[concurrent] (
       executor: ExecutorService)
       extends Executors.DelegatedExecutorService(executor) {
-    @deprecated()
+    @deprecated("finalize method is deprecated", "1.7")
     override protected def finalize(): Unit = { super.shutdown() }
   }
 

@@ -47,10 +47,10 @@ class ReentrantLock extends Lock with java.io.Serializable {
 
   final def hasQueuedThreads(thread: Thread): Boolean = sync.isQueued(thread)
 
-  final def getQueueLength: Int = sync.getQueueLength
+  final def getQueueLength(): Int = sync.getQueueLength()
 
   protected def getQeueuedThreads: java.util.Collection[Thread] =
-    sync.getQueuedThreads
+    sync.getQueuedThreads()
 
   def hasWaiters(condition: Condition): Boolean = {
     if (condition == null)
@@ -81,7 +81,7 @@ class ReentrantLock extends Lock with java.io.Serializable {
     val o: Thread = sync.getOwner
     val s: String = {
       if (o == null) "[Unlocked]"
-      else "[Locked by thread " + o.getName + "]"
+      else "[Locked by thread " + o.getName() + "]"
     }
 
     super.toString + s
@@ -104,7 +104,7 @@ object ReentrantLock {
           setExclusiveOwnerThread(current)
           return true
         }
-      } else if (current == getExclusiveOwnerThread) {
+      } else if (current == getExclusiveOwnerThread()) {
         val nextc = c + acquires
         if (nextc < 0) throw new Error("Maximum lock count exceeded")
         setState(nextc)
@@ -128,16 +128,16 @@ object ReentrantLock {
     }
 
     override protected[locks] final def isHeldExclusively(): Boolean =
-      getExclusiveOwnerThread == Thread.currentThread()
+      getExclusiveOwnerThread() == Thread.currentThread()
 
     final def newCondition(): ConditionObject = new ConditionObject()
 
     final def getOwner: Thread =
-      if (getState == 0) null else getExclusiveOwnerThread
+      if (getState() == 0) null else getExclusiveOwnerThread()
 
-    final def getHoldCount: Int = if (isHeldExclusively()) getState else 0
+    final def getHoldCount: Int = if (isHeldExclusively()) getState() else 0
 
-    final def isLocked: Boolean = getState != 0
+    final def isLocked: Boolean = getState() != 0
 
     private def readObject(s: java.io.ObjectInputStream): Unit = {
       s.defaultReadObject()
@@ -167,14 +167,14 @@ object ReentrantLock {
 
     override protected def tryAcquire(acquires: Int): Boolean = {
       val current: Thread = Thread.currentThread()
-      val c: Int          = getState
+      val c: Int          = getState()
       if (c == 0) {
-        if (!hasQueuedPredecessors &&
+        if (!hasQueuedPredecessors() &&
             compareAndSetState(0, acquires)) {
           setExclusiveOwnerThread(current)
           return true
         }
-      } else if (current == getExclusiveOwnerThread) {
+      } else if (current == getExclusiveOwnerThread()) {
         val nextc: Int = c + acquires
         if (nextc < 0)
           throw new Error("Maximum lock count exceeded")

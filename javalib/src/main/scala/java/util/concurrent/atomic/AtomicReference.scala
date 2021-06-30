@@ -18,11 +18,11 @@ import scala.scalanative.runtime.Intrinsics
 
 @SerialVersionUID(-1848883965231344442L)
 class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
-  def this() {
+  def this() = {
     this(null.asInstanceOf[V])
   }
 
-  assert(valueRef.load == value, "Value reference does not match field")
+  assert(valueRef.load() == value, "Value reference does not match field")
 
   // Pointer to field containing underlying Integer.
   // This class should not define any other values to ensure that underlying field

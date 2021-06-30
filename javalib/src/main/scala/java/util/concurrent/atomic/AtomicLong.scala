@@ -31,7 +31,7 @@ class AtomicLong(private[this] var value: Long)
       elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset))
   )
 
-  def this() {
+  def this() = {
     this(0)
   }
 

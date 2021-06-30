@@ -401,7 +401,7 @@ abstract class CountedCompleter[T](
     atomicPending: AtomicInteger)
     extends ForkJoinTask[T] {
 
-  protected def this() {
+  protected def this() = {
     this(completer = null: CountedCompleter[_],
          atomicPending = new AtomicInteger(0))
   }
@@ -418,7 +418,7 @@ abstract class CountedCompleter[T](
    * @param completer this task's completer, or {@code null} if none
    * @param initialPendingCount the initial pending count
    */
-  def this(completer: CountedCompleter[_], initialPendingCount: Int) {
+  def this(completer: CountedCompleter[_], initialPendingCount: Int) = {
     this(completer, new AtomicInteger(initialPendingCount))
   }
 
@@ -428,7 +428,7 @@ abstract class CountedCompleter[T](
    *
    * @param completer this task's completer, or {@code null} if none
    */
-  def this(completer: CountedCompleter[_]) {
+  def this(completer: CountedCompleter[_]) = {
     this(completer, 0)
   }
 

@@ -4,7 +4,6 @@ import java.util
 import java.lang.Thread.UncaughtExceptionHandler
 import java.util.ScalaOps._
 import scala.collection.mutable.Set
-import scala.annotation.nowarn
 import scala.annotation.tailrec
 import scala.collection.mutable.ListBuffer
 
@@ -82,8 +81,10 @@ class ThreadGroup(name: String, parent: ThreadGroup, isTop: Boolean)
     }
   }
 
-  @deprecated
-  def allowchildrenThreadSuspension(b: scala.Boolean): scala.Boolean = true
+  @deprecated(
+    "The definition of this call depends on suspend(), which is deprecated",
+    "1.7")
+  def allowThreadSuspension(b: scala.Boolean): scala.Boolean = true
 
   def destroy(): Unit = {
     if (destroyed) {
@@ -204,8 +205,7 @@ class ThreadGroup(name: String, parent: ThreadGroup, isTop: Boolean)
     else parentOf(group.getParent())
   }
 
-  @nowarn("msg=method resume in class Thread is deprecated")
-  @deprecated
+  @deprecated("Uses deprecated Thread.resume method", "1.7")
   def resume(): Unit = {
     childrenThreads.synchronized {
       childrenThreads.foreach(_.resume())
@@ -215,8 +215,7 @@ class ThreadGroup(name: String, parent: ThreadGroup, isTop: Boolean)
     }
   }
 
-  @nowarn("msg=method stop in class Thread is deprecated")
-  @deprecated
+  @deprecated("Uses deprecated Thread.stop method", "1.7")
   def stop(): Unit = {
     childrenThreads.synchronized {
       childrenThreads.foreach(_.stop())
@@ -226,8 +225,7 @@ class ThreadGroup(name: String, parent: ThreadGroup, isTop: Boolean)
     }
   }
 
-  @nowarn("msg=method suspend in class Thread is deprecated")
-  @deprecated
+  @deprecated("Uses deprecated Thread.suspend method", "1.7")
   def suspend(): Unit = {
     childrenThreads.synchronized {
       childrenThreads.foreach(_.suspend())

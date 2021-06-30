@@ -296,7 +296,6 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    * @return status on exit from this method
    */
   private[concurrent] final def doExec(): Int = {
-
     status.get() match {
       case s if s >= 0 =>
         try {
@@ -459,7 +458,7 @@ abstract class ForkJoinTask[V] private[concurrent] ()
         }
       }
 
-      Option(aux.get) match {
+      Option(aux.get()) match {
         case Some(a @ Aux(_, None)) =>
           val shouldRestart = tryCancel(a, null)
           if (shouldRestart)
@@ -569,7 +568,7 @@ abstract class ForkJoinTask[V] private[concurrent] ()
       case worker: ForkJoinWorkerThread =>
         worker.workQueue.push(this, worker.pool)
       case _ =>
-        ForkJoinPool.commonPool.externalPush(this)
+        ForkJoinPool.commonPool().externalPush(this)
     }
     this
   }
@@ -623,7 +622,7 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    * this task is suppressed. After this method returns
    * successfully, unless there is an intervening call to {@link
    * #reinitialize}, subsequent calls to {@link #isCancelled},
-   * {@link #isDone}, and {@code cancel} will return {@code true}
+   * {@link #isDone()}, and {@code cancel} will return {@code true}
    * and calls to {@link #join} and related methods will result in
    * {@code CancellationException}.
    *

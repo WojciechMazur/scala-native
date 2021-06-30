@@ -35,7 +35,7 @@ class AtomicReferenceArray[E <: AnyRef] extends Serializable {
    *
    * @param length the length of the array
    */
-  def this(length: Int) {
+  def this(length: Int) = {
     this()
     array = new Array[Object](length).asInstanceOf[Array[E]]
   }
@@ -47,7 +47,7 @@ class AtomicReferenceArray[E <: AnyRef] extends Serializable {
    * @param array the array to copy elements from
    * @throws NullPointerException if array is null
    */
-  def this(array: Array[E]) {
+  def this(array: Array[E]) = {
     this()
     this.array = Arrays.copyOf[E](array, array.length)
   }

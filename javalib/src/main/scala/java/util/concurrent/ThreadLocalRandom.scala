@@ -488,7 +488,7 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
    * @return a pseudorandom value
    */
   final private[concurrent] def internalNextDouble()(origin: Double,
-                                                   bound: Double) = {
+                                                     bound: Double) = {
     var r = (nextLong() >>> 11) * ThreadLocalRandom.DOUBLE_UNIT
     if (origin < bound) {
       r = r * (bound - origin) + origin

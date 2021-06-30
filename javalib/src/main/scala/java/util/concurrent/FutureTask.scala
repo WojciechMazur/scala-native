@@ -205,7 +205,8 @@ class FutureTask[V] private () extends RunnableFuture[V] {
     }
   }
   override def run(): Unit = {
-    if (state != NEW || !atomicRunner.compareAndSet(null, Thread.currentThread()))
+    if (state != NEW || !atomicRunner.compareAndSet(null,
+                                                    Thread.currentThread()))
       return
     try {
       val c = callable
@@ -238,7 +239,8 @@ class FutureTask[V] private () extends RunnableFuture[V] {
    * @return {@code true} if successfully run and reset
    */
   protected def runAndReset: Boolean = {
-    if (state != NEW || !atomicRunner.compareAndSet(null, Thread.currentThread()))
+    if (state != NEW || !atomicRunner.compareAndSet(null,
+                                                    Thread.currentThread()))
       return false
 
     var ran = false

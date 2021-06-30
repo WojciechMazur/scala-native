@@ -45,7 +45,7 @@ object signal {
   // macOS CUnsignedInt
   // Linux CStruct1[CArray[CUnsignedLong, Nat.Digit[Nat._1, Nat._6]]]
   type sigset_t = Ptr[Byte]
-  
+
   @name("scalanative_sizeof_sigset_t")
   def sizeof_sigset_t(): CSize = extern
 

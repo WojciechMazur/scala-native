@@ -717,7 +717,7 @@ abstract class CountedCompleter[T](
   /**
    * Implements execution conventions for CountedCompleters.
    */
-  override final protected def exec: Boolean = {
+  override final protected def exec(): Boolean = {
     compute()
     false
   }
@@ -731,7 +731,7 @@ abstract class CountedCompleter[T](
    *
    * @return the result of the computation
    */
-  override def getRawResult: T = null.asInstanceOf[T]
+  override def getRawResult(): T = null.asInstanceOf[T]
 
   /**
    * A method that result-bearing CountedCompleters may optionally

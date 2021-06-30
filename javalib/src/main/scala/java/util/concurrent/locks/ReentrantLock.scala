@@ -1,9 +1,12 @@
+/*
+ * Written by Doug Lea with assistance from members of JCP JSR-166
+ * Expert Group and released to the public domain, as explained at
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+
 package java.util
 package concurrent.locks
-
 import java.util.concurrent.TimeUnit
-
-// Ported from Harmony
 
 @SerialVersionUID(7373984872572414699L)
 class ReentrantLock extends Lock with java.io.Serializable {

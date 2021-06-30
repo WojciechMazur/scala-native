@@ -175,7 +175,10 @@ import java.util.concurrent.atomic.{AtomicReference, AtomicInteger}
  * @since 1.7
  * @author Doug Lea
  */
-abstract class ForkJoinTask[V] extends Future[V] with Serializable {
+@SerialVersionUID(-7721805057305804111L)
+abstract class ForkJoinTask[V] private[concurrent] ()
+    extends Future[V]
+    with Serializable {
   import ForkJoinTask._
 
   // Fields
@@ -202,7 +205,7 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
     }
 
     aux.get() match {
-      case a @ Aux(_, None) => 
+      case a @ Aux(_, None) =>
         if (aux.compareAndSet(a, null)) unparkThreads(a)
         else signalWaiters()
       case _ => ()
@@ -285,14 +288,6 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
   private[concurrent] def trySetException(ex: Throwable): Int = {
     trySetThrown(ex);
   }
-
-  // /**
-  //  * Constructor for subclasses to call.
-  //  */
-// @stub()
-  // private[concurrent] def this() {
-
-  // }
 
   /**
    * Unless done, calls exec and records status if completed, but
@@ -761,8 +756,8 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    * @throws InterruptedException if the current thread is not a
    * member of a ForkJoinPool and was interrupted while waiting
    */
-  @throws(classOf[InterruptedException])
-  @throws(classOf[ExecutionException])
+  @throws[InterruptedException]
+  @throws[ExecutionException]
   @stub()
   final def get(): V = {
     ???
@@ -786,9 +781,9 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    * member of a ForkJoinPool and was interrupted while waiting
    * @throws TimeoutException if the wait timed out
    */
-  @throws(classOf[InterruptedException])
-  @throws(classOf[ExecutionException])
-  @throws(classOf[TimeoutException])
+  @throws[InterruptedException]
+  @throws[ExecutionException]
+  @throws[TimeoutException]
   @stub()
   final def get(timeout: Long, unit: TimeUnit): V = {
     ???
@@ -838,8 +833,8 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
     getRawResult()
   }
 
-  @throws(classOf[InterruptedException])
-  @throws(classOf[ExecutionException])
+  @throws[InterruptedException]
+  @throws[ExecutionException]
   @stub()
   final def getForPoolInvoke(pool: ForkJoinPool): V = {
     ???
@@ -849,9 +844,9 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
     // return getRawResult();
   }
 
-  @throws(classOf[InterruptedException])
-  @throws(classOf[ExecutionException])
-  @throws(classOf[TimeoutException])
+  @throws[InterruptedException]
+  @throws[ExecutionException]
+  @throws[TimeoutException]
   @stub()
   final def getForPoolInvoke(pool: ForkJoinPool, nanos: Long): V = {
     ???
@@ -1002,7 +997,7 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    * @serialData the current run status and the exception thrown
    * during execution, or {@code null} if none
    */
-  @throws(classOf[java.io.IOException])
+  @throws[java.io.IOException]
   @stub()
   private def writeObject(s: java.io.ObjectOutputStream): Unit = {
     ???
@@ -1018,8 +1013,8 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    *         could not be found
    * @throws java.io.IOException if an I/O error occurs
    */
-  @throws(classOf[java.io.IOException])
-  @throws(classOf[ClassNotFoundException])
+  @throws[java.io.IOException]
+  @throws[ClassNotFoundException]
   @stub()
   private def readObject(s: java.io.ObjectInputStream): Unit = {
     ???
@@ -1674,18 +1669,4 @@ object ForkJoinTask {
     ???
     // return new AdaptedInterruptibleCallable<T>(callable);
   }
-
-  // Serialization support
-  private final val serialVersionUID = -7721805057305804111L;
-
-  // static {
-  //     try {
-  //         MethodHandles.Lookup l = MethodHandles.lookup();
-  //         STATUS = l.findVarHandle(ForkJoinTask.class, "status", int.class);
-  //         AUX = l.findVarHandle(ForkJoinTask.class, "aux", Aux.class);
-  //     } catch (ReflectiveOperationException e) {
-  //         throw new ExceptionInInitializerError(e);
-  //     }
-  // }
-
 }

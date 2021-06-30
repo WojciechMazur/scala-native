@@ -715,7 +715,6 @@ object Executors {
   private class FinalizableDelegatedExecutorService private[concurrent] (
       executor: ExecutorService)
       extends Executors.DelegatedExecutorService(executor) {
-    @deprecated("finalize method is deprecated", "1.7")
     override protected def finalize(): Unit = { super.shutdown() }
   }
 

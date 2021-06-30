@@ -197,13 +197,12 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
         if (a.thread != Thread.currentThread() && a.thread != null) {
           LockSupport.unpark(a.thread)
         }
-        unparkThreads(a.next.orNull)
+        unparkThreads(a.next.get())
       }
     }
 
     aux.get() match {
-      case null => ()
-      case a if a.ex == null =>
+      case a @ Aux(_, None) => 
         if (aux.compareAndSet(a, null)) unparkThreads(a)
         else signalWaiters()
       case _ => ()
@@ -245,6 +244,7 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    * @return status on exit
    */
   private[concurrent] final def trySetThrown(ex: Throwable): Int = {
+    val h = Aux(Thread.currentThread(), Option(ex))
     @tailrec
     def setupLoop(installed: Boolean,
                   optAux: Option[Aux]): (Int, Option[Aux]) = {
@@ -252,7 +252,6 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
       if (s < 0) s -> optAux
       else {
         val a = aux.get()
-        val h = Aux(Thread.currentThread(), Some(ex), Some(a))
         val isNowInstalled = {
           !installed &&
           (a == null || a.ex.isEmpty) &&
@@ -273,7 +272,7 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
     while (currentAux.isDefined) {
       val a = currentAux.get
       LockSupport.unpark(a.thread)
-      currentAux = a.next
+      currentAux = Option(a.next.get())
     }
     s
   }
@@ -328,130 +327,163 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    * @param nanos if timed, timeout value
    * @return ABNORMAL if interrupted, else status on exit
    */
-  @stub()
-  private def awaitDone(pool: ForkJoinPool,
+  private def awaitDone(_pool: ForkJoinPool,
                         ran: Boolean,
                         interruptible: Boolean,
                         timed: Boolean,
                         nanos: Long): Int = {
-    ???
-    // ForkJoinPool p; boolean internal; int s; Thread t;
-    // ForkJoinPool.WorkQueue q = null;
-    // if ((t = Thread.currentThread()) instanceof ForkJoinWorkerThread) {
-    //     ForkJoinWorkerThread wt = (ForkJoinWorkerThread)t;
-    //     p = wt.pool;
-    //     if (pool == null)
-    //         pool = p;
-    //     if (internal = (pool == p))
-    //         q = wt.workQueue;
-    // }
-    // else {
-    //     internal = false;
-    //     p = ForkJoinPool.common;
-    //     if (pool == null)
-    //         pool = p;
-    //     if (pool == p && p != null)
-    //         q = p.externalQueue();
-    // }
-    // if (interruptible && Thread.interrupted())
-    //     return ABNORMAL;
-    // if ((s = status) < 0)
-    //     return s;
-    // long deadline = 0L;
-    // if (timed) {
-    //     if (nanos <= 0L)
-    //         return 0;
-    //     else if ((deadline = nanos + System.nanoTime()) == 0L)
-    //         deadline = 1L;
-    // }
-    // boolean uncompensate = false;
-    // if (q != null && p != null) {  // try helping
-    //     // help even in timed mode if pool has no parallelism
-    //     boolean canHelp = !timed || (p.mode & SMASK) == 0;
-    //     if (canHelp) {
-    //         if ((this instanceof CountedCompleter) &&
-    //             (s = p.helpComplete(this, q, internal)) < 0)
-    //             return s;
-    //         if (!ran && ((!internal && q.externalTryUnpush(this)) ||
-    //                      q.tryRemove(this, internal)) && (s = doExec()) < 0)
-    //             return s;
-    //     }
-    //     if (internal) {
-    //         if ((s = p.helpJoin(this, q, canHelp)) < 0)
-    //             return s;
-    //         if (s == UNCOMPENSATE)
-    //             uncompensate = true;
-    //     }
-    // }
-    // // block until done or cancelled wait
-    // boolean interrupted = false, queued = false;
-    // boolean parked = false, fail = false;
-    // Aux node = null;
-    // while ((s = status) >= 0) {
-    //     Aux a; long ns;
-    //     if (fail || (fail = (pool != null && pool.mode < 0)))
-    //         status.compareAndSet(s, s | (DONE | ABNORMAL)); // try to cancel
-    //     else if (parked && Thread.interrupted()) {
-    //         if (interruptible) {
-    //             s = ABNORMAL;
-    //             break;
-    //         }
-    //         interrupted = true;
-    //     }
-    //     else if (queued) {
-    //         if (deadline != 0L) {
-    //             if ((ns = deadline - System.nanoTime()) <= 0L)
-    //                 break;
-    //             LockSupport.parkNanos(ns);
-    //         }
-    //         else
-    //             LockSupport.park();
-    //         parked = true;
-    //     }
-    //     else if (node != null) {
-    //         if ((a = aux) != null && a.ex != null)
-    //             Thread.onSpinWait();     // exception in progress
-    //         else if (queued = aux.compareAndSet(node.next = a, node))
-    //             LockSupport.setCurrentBlocker(this);
-    //     }
-    //     else {
-    //         try {
-    //             node = new Aux(Thread.currentThread(), null);
-    //         } catch (Throwable ex) {     // cannot create
-    //             fail = true;
-    //         }
-    //     }
-    // }
-    // if (pool != null && uncompensate)
-    //     pool.uncompensate();
+    var s = 0
+    val (currentPool, isInternal, queue) = Thread.currentThread() match {
+      case worker: ForkJoinWorkerThread =>
+        val p          = worker.getPool()
+        val isInternal = _pool == null || _pool == p
+        val queue =
+          if (isInternal) Option(worker.workQueue)
+          else None
+        (p, isInternal, queue)
 
-    // if (queued) {
-    //     LockSupport.setCurrentBlocker(null);
-    //     if (s >= 0) { // cancellation similar to AbstractQueuedSynchronizer
-    //         outer: for (Aux a; (a = aux) != null && a.ex == null; ) {
-    //             for (Aux trail = null;;) {
-    //                 Aux next = a.next;
-    //                 if (a == node) {
-    //                     if (trail != null)
-    //                         trail.casNext(trail, next);
-    //                     else if (aux.compareAndSet(a, next))
-    //                         break outer; // cannot be re-encountered
-    //                     break;           // restart
-    //                 } else {
-    //                     trail = a;
-    //                     if ((a = next) == null)
-    //                         break outer;
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     else {
-    //         signalWaiters();             // help clean or signal
-    //         if (interrupted)
-    //             Thread.currentThread().interrupt();
-    //     }
-    // }
-    // return s;
+      case _ =>
+        val p          = ForkJoinPool.commonPool()
+        val isInternal = false
+        val queue =
+          if ((_pool == null || _pool == p) && p != null)
+            Option(p.externalQueue())
+          else None
+        (p, isInternal, queue)
+    }
+    val pool = Option(_pool).getOrElse(currentPool)
+
+    if (interruptible && Thread.interrupted()) return ABNORMAL
+    s = status.get()
+    if (s < 0) return s
+
+    val deadline = {
+      if (!timed) None
+      else if (nanos <= 0L) return 0
+      else Some(nanos + System.nanoTime())
+    }
+
+    val uncompensate = {
+      queue match {
+        case Some(q) if currentPool != null =>
+          val canHelp = !timed || (currentPool.mode.get() & SMASK) == 0
+          if (canHelp) {
+            if (this.isInstanceOf[CountedCompleter[_]]) {
+              s = currentPool.helpComplete(this, q, isInternal)
+              if (s < 0) return s
+            }
+            def tryUnpushOrRemove() = {
+              !isInternal && q.externalTryUnpush(this) ||
+              q.tryRemove(this, isInternal)
+            }
+            def tryExec() = {
+              s = doExec()
+              s < 0
+            }
+            if (!ran && tryUnpushOrRemove() && tryExec()) return s
+          }
+
+          if (!isInternal) false
+          else {
+            s = currentPool.helpJoin(this, q, canHelp)
+            if (s < 0) return s
+            s == UNCOMPENSATE
+          }
+        case _ => false
+      }
+    }
+
+    var interrupted          = false
+    var queued               = false
+    var auxNode: Option[Aux] = None
+    // block until done or cancelled wait
+    def block(): Unit = {
+      var parked = false
+      var fail   = false
+
+      while ({
+        s = status.get()
+        s >= 0
+      }) {
+        def checkShouldFail() = {
+          fail = pool != null && pool.mode.get() < 0
+          fail
+        }
+
+        if (fail || checkShouldFail())
+          status.compareAndSet(s, s | DONE | ABNORMAL) // try to cancel
+        else if (parked && Thread.interrupted()) {
+          if (interruptible) return s = ABNORMAL
+          else interrupted = true
+        } else if (queued) {
+          deadline match {
+            case Some(deadline) =>
+              if (deadline > System.nanoTime())
+                LockSupport.parkUntil(this, deadline)
+              else return
+            case None => LockSupport.park(this)
+          }
+          parked = true
+        } else {
+          auxNode match {
+            case Some(node) =>
+              Option(aux.get()) match {
+                case Some(a) if a.ex.isDefined =>
+                  Thread.onSpinWait() // exception in progress
+                case nextNode =>
+                  node.next.set(nextNode.orNull)
+                  queued = aux.compareAndSet(nextNode.orNull, node)
+              }
+            case None =>
+              try {
+                auxNode = Some(new Aux(Thread.currentThread(), None))
+              } catch {
+                case ex: Throwable => // cannot create
+                  fail = true;
+              }
+          }
+        }
+      }
+    }
+
+    @tailrec
+    def cancel(): Unit = {
+      @tailrec
+      def tryCancel(a: Aux, trail: Aux): Boolean = {
+        val next = a.next.get()
+        if (auxNode.contains(a)) {
+          if (trail != null)
+            trail.next.compareAndSet(trail, next)
+          else if (aux.compareAndSet(a, next)) false // cannot be re-encountered
+          else true                                  // restart
+        } else {
+          next match {
+            case null => false
+            case next => tryCancel(a = next, trail = a)
+          }
+        }
+      }
+
+      Option(aux.get) match {
+        case Some(a @ Aux(_, None)) =>
+          val shouldRestart = tryCancel(a, null)
+          if (shouldRestart)
+            cancel()
+        case _ => ()
+      }
+    }
+
+    block()
+    if (pool != null && uncompensate) {
+      pool.uncompensate()
+    }
+
+    if (queued) cancel()
+    else {
+      signalWaiters() // help clean or signal
+      if (interrupted) Thread.currentThread().interrupt();
+    }
+    s
   }
 
   /**
@@ -468,35 +500,14 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    *
    * @return the exception, or null if none
    */
-  @stub()
   private def getThrowableException(): Throwable = {
-    ???
-    // Throwable ex; Aux a;
-    // if ((a = aux) == null)
-    //     ex = null;
-    // else if ((ex = a.ex) != null && a.thread != Thread.currentThread()) {
-    //     try {
-    //         Constructor<?> noArgCtor = null, oneArgCtor = null;
-    //         for (Constructor<?> c : ex.getClass().getConstructors()) {
-    //             Class<?>[] ps = c.getParameterTypes();
-    //             if (ps.length == 0)
-    //                 noArgCtor = c;
-    //             else if (ps.length == 1 && ps[0] == Throwable.class) {
-    //                 oneArgCtor = c;
-    //                 break;
-    //             }
-    //         }
-    //         if (oneArgCtor != null)
-    //             ex = (Throwable)oneArgCtor.newInstance(ex);
-    //         else if (noArgCtor != null) {
-    //             Throwable rx = (Throwable)noArgCtor.newInstance();
-    //             rx.initCause(ex);
-    //             ex = rx;
-    //         }
-    //     } catch (Exception ignore) {
-    //     }
-    // }
-    // return ex;
+    aux.get() match {
+      case null => null
+      case a =>
+        a.ex
+          .filter(_ => a.thread == Thread.currentThread()) // JSR-166 used reflection here to spawn new instance
+          .orNull
+    }
   }
 
   /**
@@ -516,28 +527,29 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    * Throws exception associated with the given status, or
    * CancellationException if none recorded.
    */
-  @stub()
   private def reportException(s: Int): Unit = {
-    ???
-    // ForkJoinTask.<RuntimeException>uncheckedThrow(
-    //     (s & THROWN) != 0 ? getThrowableException() : null);
+    val exception = (s & THROWN) match {
+      case 0 => null
+      case _ => getThrowableException()
+    }
+    uncheckedThrow(exception)
   }
 
   /**
    * Throws exception for (timed or untimed) get, wrapping if
    * necessary in an ExecutionException.
    */
-  @stub()
   private def reportExecutionException(s: Int) = {
-    ???
-    // Throwable ex = null;
-    // if (s == ABNORMAL)
-    //     ex = new InterruptedException();
-    // else if (s >= 0)
-    //     ex = new TimeoutException();
-    // else if ((s & THROWN) != 0 && (ex = getThrowableException()) != null)
-    //     ex = new ExecutionException(ex);
-    // ForkJoinTask.<RuntimeException>uncheckedThrow(ex);
+    val exception: Throwable =
+      if (s == ABNORMAL) new InterruptedException()
+      else if (s >= 0) new TimeoutException()
+      else if ((s & THROWN) != 0) {
+        getThrowableException() match {
+          case null => null
+          case ex   => new ExecutionException(ex)
+        }
+      } else null
+    uncheckedThrow(exception)
   }
 
   // public methods
@@ -557,15 +569,14 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    *
    * @return {@code this}, to simplify usage
    */
-  @stub()
   final def fork(): ForkJoinTask[V] = {
-    ???
-    // Thread t; ForkJoinWorkerThread w;
-    // if ((t = Thread.currentThread()) instanceof ForkJoinWorkerThread)
-    //     (w = (ForkJoinWorkerThread)t).workQueue.push(this, w.pool);
-    // else
-    //     ForkJoinPool.common.externalPush(this);
-    // return this;
+    Thread.currentThread() match {
+      case worker: ForkJoinWorkerThread =>
+        worker.workQueue.push(this, worker.pool)
+      case _ =>
+        ForkJoinPool.commonPool.externalPush(this)
+    }
+    this
   }
 
   /**
@@ -579,15 +590,15 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    *
    * @return the computed result
    */
-  @stub()
   final def join(): V = {
-    ???
-    // int s;
-    // if ((s = status) >= 0)
-    //     s = awaitDone(null, false, false, false, 0L);
-    // if ((s & ABNORMAL) != 0)
-    //     reportException(s);
-    // return getRawResult();
+    var s = status.get()
+    if (s >= 0) {
+      s = awaitDone(null, false, false, false, 0L)
+    }
+    if ((s & ABNORMAL) != 0) {
+      reportException(s)
+    }
+    getRawResult()
   }
 
   /**
@@ -598,15 +609,15 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    *
    * @return the computed result
    */
-  @stub()
   final def invoke(): V = {
-    ???
-    // int s;
-    // if ((s = doExec()) >= 0)
-    //     s = awaitDone(null, true, false, false, 0L);
-    // if ((s & ABNORMAL) != 0)
-    //     reportException(s);
-    // return getRawResult();
+    var s = doExec()
+    if (s >= 0) {
+      s = awaitDone(null, true, false, false, 0L)
+    }
+    if ((s & ABNORMAL) != 0) {
+      reportException(s)
+    }
+    getRawResult()
   }
 
   /**
@@ -735,7 +746,6 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    *
    * @since 1.8
    */
-  @stub()
   final def quietlyComplete(): Unit = {
     setDone();
   }
@@ -882,15 +892,15 @@ abstract class ForkJoinTask[V] extends Future[V] with Serializable {
    *
    * @return {@code true} if unforked
    */
-  @stub()
   def tryUnfork(): Boolean = {
-    ???
-    // Thread t; ForkJoinPool.WorkQueue q;
-    // return ((t = Thread.currentThread()) instanceof ForkJoinWorkerThread)
-    //     ? (q = ((ForkJoinWorkerThread)t).workQueue) != null
-    //        && q.tryUnpush(this)
-    //     : (q = ForkJoinPool.commonQueue()) != null
-    //        && q.externalTryUnpush(this);
+    Thread.currentThread() match {
+      case worker: ForkJoinWorkerThread =>
+        val q = worker.workQueue
+        q != null && q.tryUnpush(this)
+      case _ =>
+        val q = ForkJoinPool.commonQueue()
+        q != null && q.externalTryUnpush(this)
+    }
   }
 
   // Extension methods
@@ -1048,26 +1058,8 @@ object ForkJoinTask {
    * waiters. Cancelled waiters try to unsplice.
    */
   private[concurrent] final case class Aux(thread: Thread,
-                                           ex: Option[Throwable],
-                                           next: Option[Aux]) {
-    @stub
-    private[concurrent] final def casNext(c: Aux, v: Aux): Boolean = { // used only in cancellation
-      ???
-      // return NEXT.compareAndSet(this, c, v);
-    }
-
-  }
-
-  object Aux {
-    private final var NEXT: VarHandle = _;
-    // static {
-    //     try {
-    //         NEXT = MethodHandles.lookup()
-    //             .findVarHandle(Aux.class, "next", Aux.class);
-    //     } catch (ReflectiveOperationException e) {
-    //         throw new ExceptionInInitializerError(e);
-    //     }
-    // }
+                                           ex: Option[Throwable]) {
+    val next = new AtomicReference[Aux]()
   }
 
   /*

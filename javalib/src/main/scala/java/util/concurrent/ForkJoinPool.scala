@@ -2153,7 +2153,6 @@ class ForkJoinPool(parallelism: Int,
    *
    * @return the factory used for constructing new workers
    */
-  @stub()
   def getFactory(): ForkJoinWorkerThreadFactory = factory
 
   /**
@@ -2162,7 +2161,6 @@ class ForkJoinPool(parallelism: Int,
    *
    * @return the handler, or {@code null} if none
    */
-  @stub()
   def getUncaughtExceptionHandler(): UncaughtExceptionHandler = ueh
 
   /**
@@ -2244,7 +2242,6 @@ class ForkJoinPool(parallelism: Int,
    *
    * @return {@code true} if all threads are currently idle
    */
-  @stub()
   def isQuiescent(): Boolean = canStop()
 
   /**

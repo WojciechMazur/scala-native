@@ -33,23 +33,23 @@ class ReentrantLock extends Lock with java.io.Serializable {
 
   override def newCondition(): Condition = sync.newCondition()
 
-  def getHoldCount: Int = sync.getHoldCount
+  def getHoldCount(): Int = sync.getHoldCount()
 
-  def isHeldByCurrentThread: Boolean = sync.isHeldExclusively()
+  def isHeldByCurrentThread(): Boolean = sync.isHeldExclusively()
 
-  def isLocked: Boolean = sync.isLocked
+  def isLocked(): Boolean = sync.isLocked()
 
-  def isFair: Boolean = sync.isInstanceOf[FairSync]
+  def isFair(): Boolean = sync.isInstanceOf[FairSync]
 
-  protected def getOwner: Thread = sync.getOwner
+  protected def getOwner(): Thread = sync.getOwner()
 
-  final def hasQueuedThreads: Boolean = sync.hasQueuedThreads
+  final def hasQueuedThreads(): Boolean = sync.hasQueuedThreads()
 
   final def hasQueuedThreads(thread: Thread): Boolean = sync.isQueued(thread)
 
   final def getQueueLength(): Int = sync.getQueueLength()
 
-  protected def getQeueuedThreads: java.util.Collection[Thread] =
+  protected def getQeueuedThreads(): java.util.Collection[Thread] =
     sync.getQueuedThreads()
 
   def hasWaiters(condition: Condition): Boolean = {
@@ -77,14 +77,14 @@ class ReentrantLock extends Lock with java.io.Serializable {
     sync.getWaitingThreads(condition.asInstanceOf[Sync#ConditionObject])
   }
 
-  override def toString: String = {
-    val o: Thread = sync.getOwner
+  override def toString(): String = {
+    val o: Thread = sync.getOwner()
     val s: String = {
       if (o == null) "[Unlocked]"
       else "[Locked by thread " + o.getName() + "]"
     }
 
-    super.toString + s
+    super.toString() + s
   }
 
 }
@@ -92,8 +92,7 @@ class ReentrantLock extends Lock with java.io.Serializable {
 object ReentrantLock {
 
   @SerialVersionUID(-5179523762034025860L)
-  abstract class Sync extends AbstractQueuedSynchronizer { self =>
-
+  abstract class Sync extends AbstractQueuedSynchronizer {
     def lock(): Unit
 
     final def nonfairTryAcquire(acquires: Int): Boolean = {
@@ -132,12 +131,12 @@ object ReentrantLock {
 
     final def newCondition(): ConditionObject = new ConditionObject()
 
-    final def getOwner: Thread =
+    final def getOwner(): Thread =
       if (getState() == 0) null else getExclusiveOwnerThread()
 
-    final def getHoldCount: Int = if (isHeldExclusively()) getState() else 0
+    final def getHoldCount(): Int = if (isHeldExclusively()) getState() else 0
 
-    final def isLocked: Boolean = getState() != 0
+    final def isLocked(): Boolean = getState() != 0
 
     private def readObject(s: java.io.ObjectInputStream): Unit = {
       s.defaultReadObject()

@@ -941,7 +941,7 @@ abstract class AbstractQueuedSynchronizer protected ()
    *
    * @return {@code true} if there may be other threads waiting to acquire
    */
-  final def hasQueuedThreads: Boolean = {
+  final def hasQueuedThreads(): Boolean = {
     val h = head.get()
     @tailrec
     def loop(p: Node): Boolean = {
@@ -962,7 +962,7 @@ abstract class AbstractQueuedSynchronizer protected ()
    *
    * @return {@code true} if there has ever been contention
    */
-  final def hasContended: Boolean = head.get() != null
+  final def hasContended(): Boolean = head.get() != null
 
   /**
    * Returns the first (longest-waiting) thread in the queue, or
@@ -1174,9 +1174,9 @@ abstract class AbstractQueuedSynchronizer protected ()
    *
    * @return a string identifying this synchronizer, as well as its state
    */
-  override def toString: String =
+  override def toString(): String =
     super.toString + "[State = " + getState() + ", " +
-      (if (hasQueuedThreads) "non" else "") + "empty queue]"
+      (if (hasQueuedThreads()) "non" else "") + "empty queue]"
 
   /**
    * Queries whether the given ConditionObject

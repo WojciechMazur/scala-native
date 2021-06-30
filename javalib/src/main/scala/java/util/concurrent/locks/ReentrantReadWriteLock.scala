@@ -23,27 +23,27 @@ class ReentrantReadWriteLock extends ReadWriteLock with java.io.Serializable {
 
   def readLock(): ReentrantReadWriteLock.ReadLock = readerLock
 
-  final def isFair: Boolean = sync.isInstanceOf[FairSync]
+  final def isFair(): Boolean = sync.isInstanceOf[FairSync]
 
-  protected def getOwner: Thread = sync.getOwner
+  protected def getOwner(): Thread = sync.getOwner()
 
-  def getReadLockCount: Int = sync.getReadLockCount
+  def getReadLockCount(): Int = sync.getReadLockCount()
 
-  def isWriteLocked: Boolean = sync.isWriteLocked
+  def isWriteLocked(): Boolean = sync.isWriteLocked()
 
-  def isWriteLockedByCurrentThread: Boolean = sync.isHeldExclusively()
+  def isWriteLockedByCurrentThread(): Boolean = sync.isHeldExclusively()
 
-  def getWriteHoldCount: Int = sync.getWriteHoldCount
+  def getWriteHoldCount(): Int = sync.getWriteHoldCount()
 
-  def getReadHoldCount: Int = sync.getReadHoldCount
+  def getReadHoldCount(): Int = sync.getReadHoldCount()
 
-  protected def getQueuedWriterThreads: java.util.Collection[Thread] =
+  protected def getQueuedWriterThreads(): java.util.Collection[Thread] =
     sync.getExclusiveQueuedThreads()
 
-  protected def getQueuedReaderThreads: java.util.Collection[Thread] =
+  protected def getQueuedReaderThreads(): java.util.Collection[Thread] =
     sync.getSharedQueuedThreads()
 
-  final def hasQueuedThreads: Boolean = sync.hasQueuedThreads
+  final def hasQueuedThreads(): Boolean = sync.hasQueuedThreads()
 
   final def hasQueuedThread(thread: Thread): Boolean = sync.isQueued(thread)
 
@@ -77,12 +77,12 @@ class ReentrantReadWriteLock extends ReadWriteLock with java.io.Serializable {
     sync.getWaitingThreads(condition.asInstanceOf[Sync#ConditionObject])
   }
 
-  override def toString: String = {
-    val c = sync.getCount
+  override def toString(): String = {
+    val c = sync.getCount()
     val w = Sync.exclusiveCount(c)
     val r = Sync.sharedCount(c)
 
-    super.toString + "[Write locks = " + w + ", Read locks = " + r + "]"
+    super.toString() + "[Write locks = " + w + ", Read locks = " + r + "]"
   }
 
 }
@@ -296,20 +296,20 @@ object ReentrantReadWriteLock {
         : Boolean =
       getExclusiveOwnerThread() == Thread.currentThread()
 
-    final def newCondition: ConditionObject = new ConditionObject()
+    final def newCondition(): ConditionObject = new ConditionObject()
 
-    final def getOwner: Thread =
+    final def getOwner(): Thread =
       if (exclusiveCount(getState()) == 0) null else getExclusiveOwnerThread()
 
-    final def getReadLockCount: Int = sharedCount(getState())
+    final def getReadLockCount(): Int = sharedCount(getState())
 
-    final def isWriteLocked: Boolean = sharedCount(getState()) != 0
+    final def isWriteLocked(): Boolean = sharedCount(getState()) != 0
 
-    final def getWriteHoldCount: Int =
+    final def getWriteHoldCount(): Int =
       if (isHeldExclusively()) exclusiveCount(getState()) else 0
 
-    final def getReadHoldCount: Int = {
-      if (getReadLockCount == 0) return 0
+    final def getReadHoldCount(): Int = {
+      if (getReadLockCount() == 0) return 0
       val current: Thread = Thread.currentThread()
       if (firstReader == current) return firstReaderHoldCount
 
@@ -321,13 +321,7 @@ object ReentrantReadWriteLock {
       count
     }
 
-    private def readObject(s: java.io.ObjectInputStream): Unit = {
-      s.defaultReadObject()
-      readHolds = new ThreadLocalHoldCounter()
-      setState(0)
-    }
-
-    final def getCount: Int = getState()
+    final def getCount(): Int = getState()
 
   }
 
@@ -389,6 +383,7 @@ object ReentrantReadWriteLock {
 
   }
 
+  @SerialVersionUID(-5992448646407690164L)
   class ReadLock extends Lock with java.io.Serializable {
 
     private final var sync: Sync = _
@@ -413,18 +408,13 @@ object ReentrantReadWriteLock {
       throw new UnsupportedOperationException()
 
     override def toString: String = {
-      val r = sync.getReadLockCount
-      super.toString + "[Read lock = " + r + "]"
+      val r = sync.getReadLockCount()
+      super.toString() + "[Read lock = " + r + "]"
     }
 
   }
 
-  object ReadLock {
-
-    private final val serialVersionUID: Long = -5992448646407690164L
-
-  }
-
+  @SerialVersionUID(-5992448646407690164L)
   class WriteLock extends Lock with java.io.Serializable {
 
     private final var sync: Sync = _
@@ -445,10 +435,10 @@ object ReentrantReadWriteLock {
 
     override def unlock(): Unit = sync.release(1)
 
-    override def newCondition(): Condition = sync.newCondition
+    override def newCondition(): Condition = sync.newCondition()
 
     override def toString: String = {
-      val o: Thread = sync.getOwner
+      val o: Thread = sync.getOwner()
       val s: String =
         if (o == null) "[Unlocked]"
         else "[Locked by thread " + o.getName() + "]"
@@ -457,13 +447,7 @@ object ReentrantReadWriteLock {
 
     def isHeldByCurrentThread(): Boolean = sync.isHeldExclusively()
 
-    def getHoldCount(): Int = sync.getWriteHoldCount
-
-  }
-
-  object WriteLock {
-
-    private final val serialVersionUID: Long = -5992448646407690164L
+    def getHoldCount(): Int = sync.getWriteHoldCount()
 
   }
 

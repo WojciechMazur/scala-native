@@ -22,10 +22,10 @@ object LockSupport {
 
   def park(): Unit = {
     val currentThread = Thread.currentThread()
-    val nativeThread  = currentThread.underlying
+    val nativeThread  = currentThread.nativeThread
     withLocked(nativeThread) {
-      if (nativeThread.unparkEvents > 0) {
-        nativeThread.unparkEvents = 0
+      if (nativeThread.skipNextUnparkEvent) {
+        nativeThread.skipNextUnparkEvent = false
       } else {
         nativeThread.state = NativeThread.State.Parked
         while (!wasUnparked(nativeThread)) {
@@ -59,11 +59,11 @@ object LockSupport {
 
   def parkNanos(nanos: Long): Unit = {
     val currentThread = Thread.currentThread()
-    val nativeThread  = currentThread.underlying
+    val nativeThread  = currentThread.nativeThread
 
     withLocked(nativeThread) {
-      if (nativeThread.unparkEvents > 0) {
-        nativeThread.unparkEvents = 0
+      if (nativeThread.skipNextUnparkEvent) {
+        nativeThread.skipNextUnparkEvent = false
       } else {
         nativeThread.state = NativeThread.State.Parked
 
@@ -92,11 +92,11 @@ object LockSupport {
 
   def parkUntil(deadline: Long): Unit = {
     val currentThread = Thread.currentThread()
-    val nativeThread  = currentThread.underlying
+    val nativeThread  = currentThread.nativeThread
 
     withLocked(nativeThread) {
-      if (nativeThread.unparkEvents > 0) {
-        nativeThread.unparkEvents = 0
+      if (nativeThread.skipNextUnparkEvent) {
+        nativeThread.skipNextUnparkEvent = false
       } else {
         nativeThread.state = NativeThread.State.Parked
         nativeThread match {
@@ -123,7 +123,7 @@ object LockSupport {
 
   def unpark(thread: Thread): Unit = {
     if (thread != null) {
-      val nativeThread = thread.underlying
+      val nativeThread = thread.nativeThread
       withLocked(nativeThread) {
         nativeThread.state match {
           case NativeThread.State.Parked =>
@@ -141,9 +141,8 @@ object LockSupport {
             }
 
           case _ =>
-            // Race between park/unpark won
-            // Increase unparkEvents count to ignore next park call
-            nativeThread.unparkEvents += 1
+            // Race between park/unpark won, ignore next park event
+            nativeThread.skipNextUnparkEvent = true
         }
       }
     }
@@ -189,7 +188,9 @@ object LockSupport {
     }
     val lock = thread match {
       case nativeThread: PosixThread => nativeThread.lock
-      case other                     => sys.error(s"withLocked support for $other not implemented")
+      case other =>
+        sys.error(s"withLocked support for $other not implemented, thread=${Thread
+          .currentThread()}, nativeThread=${Thread.currentThread().nativeThread}")
     }
 
     checkResult(pthread_mutex_lock(lock), "lock")

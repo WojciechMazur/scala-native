@@ -3,10 +3,9 @@ package java.lang
 import java.util
 import java.lang.Thread._
 import scala.scalanative.unsafe._
-import scala.scalanative.unsigned._
-import scala.scalanative.runtime.{NativeThread => NThread}
 import java.util.concurrent.atomic.{AtomicReference, AtomicLong}
 import scala.annotation.tailrec
+import java.util.concurrent.locks.LockSupport
 
 // Ported from Harmony
 
@@ -41,9 +40,7 @@ class Thread private[lang] (
   private[java] val parkBlocker: AtomicReference[Object] =
     new AtomicReference[Object]()
 
-  private[java] val nativeThread: AtomicReference[NativeThread] =
-    new AtomicReference()
-  private[java] def underlying: NativeThread = nativeThread.get()
+  private[java] var nativeThread: NativeThread = _
 
   // constructors
   def this(group: ThreadGroup,
@@ -56,7 +53,7 @@ class Thread private[lang] (
       target = target,
       stackSize =
         if (stacksize > 0) stacksize
-        else NativeThread.factory.DefaultStackSize.toLong,
+        else NativeThread.DefaultStackSize.toLong,
       inheritableValues =
         if (inheritThreadLocals)
           new ThreadLocal.Values(Thread.currentThread().inheritableValues)
@@ -118,7 +115,7 @@ class Thread private[lang] (
     }
     this.priority = priority
     if (started) {
-      underlying.setPriority(priority)
+      nativeThread.setPriority(priority)
     }
   }
 
@@ -158,9 +155,8 @@ class Thread private[lang] (
     lock.synchronized {
       if (started) interruptedState = true
     }
-    if (underlying.state == NativeThread.State.Parked) {
-      println(s"Unparking $this by interruption")
-      util.concurrent.locks.LockSupport.unpark(this)
+    if (nativeThread.state == NativeThread.State.Parked) {
+      LockSupport.unpark(this)
     }
   }
 
@@ -168,7 +164,7 @@ class Thread private[lang] (
     new Array[StackTraceElement](0)
 
   @deprecated
-  def countStackFrames(): Int = 0 //deprecated
+  def countStackFrames(): Int = 0
 
   @deprecated
   def destroy(): Unit =
@@ -180,8 +176,7 @@ class Thread private[lang] (
     while (isAlive) wait()
   }
 
-  // synchronized
-  final def join(ml: scala.Long): Unit = {
+  final def join(ml: scala.Long): Unit = lock.synchronized {
     var millis: scala.Long = ml
     if (millis == 0)
       join()
@@ -197,8 +192,7 @@ class Thread private[lang] (
     }
   }
 
-  //synchronized
-  final def join(ml: scala.Long, n: Int): Unit = {
+  final def join(ml: scala.Long, n: Int): Unit = lock.synchronized {
     var nanos: Int         = n
     var millis: scala.Long = ml
     if (millis < 0 || nanos < 0 || nanos > 999999)
@@ -224,7 +218,7 @@ class Thread private[lang] (
 
   @deprecated
   final def resume(): Unit = {
-    if (started) underlying.resume()
+    if (started) nativeThread.resume()
   }
 
   def run(): Unit = {
@@ -241,9 +235,9 @@ class Thread private[lang] (
       }
       group.add(this)
 
-      nativeThread.set(NativeThread.factory.startThread(this))
+      nativeThread = NativeThread(this)
 
-      while (!this.started) {
+      while (!started) {
         try {
           Thread.onSpinWait()
         } catch {
@@ -251,14 +245,14 @@ class Thread private[lang] (
             Thread.currentThread().interrupt()
         }
       }
-      underlying.state = NativeThread.State.Running
+      nativeThread.state = NativeThread.State.Running
     }
   }
 
   def getState(): State = {
     import NativeThread.State._
     import State._
-    underlying.state match {
+    nativeThread.state match {
       case Terminated            => TERMINATED
       case WaitingWithTimeout    => TIMED_WAITING
       case Waiting | Parked      => WAITING
@@ -277,7 +271,7 @@ class Thread private[lang] (
       throw new NullPointerException("The argument is null!")
     lock.synchronized {
       if (isAlive && started) {
-        underlying.stop()
+        nativeThread.stop()
       }
     }
   }
@@ -285,7 +279,7 @@ class Thread private[lang] (
   @deprecated
   final def suspend(): Unit = {
     if (started) {
-      underlying.suspend()
+      nativeThread.suspend()
     }
   }
 
@@ -308,19 +302,29 @@ class Thread private[lang] (
 }
 
 object Thread {
+  // Thread Local Storage
+  @extern
+  object TLS {
+    @name("scalanative_set_currentThread")
+    def currentThread_=(thread: Thread): Unit = extern
+
+    @name("scalanative_currentThread")
+    def currentThread: Thread = extern
+  }
+
   object MainThread
       extends Thread(group = new ThreadGroup(ThreadGroup.System, "main"),
                      target = null: Runnable,
-                     stackSize = NativeThread.factory.DefaultStackSize.toLong,
+                     stackSize = NativeThread.DefaultStackSize.toLong,
                      inheritableValues = new ThreadLocal.Values()) {
     setName("main")
-    NativeThread.TLS.currentThread = this
-    nativeThread.set {
-      new PosixThread(null, this) {
-        override def setPriority(priority: CInt): Unit = ()
-        override def stop(): Unit                      = sys.exit()
-        state = NativeThread.State.Running
-      }
+    TLS.currentThread = this
+    nativeThread = new PosixThread(null, this) {
+      override def setPriority(priority: CInt): Unit = ()
+      override def stop(): Unit                      = sys.exit()
+      override def suspend(): Unit                   = LockSupport.park()
+      override def resume(): Unit                    = LockSupport.unpark(this.thread)
+      state = NativeThread.State.Running
     }
   }
 
@@ -352,7 +356,6 @@ object Thread {
         throw new IllegalArgumentException("No enum const Thread.State." + name)
       }
     }
-
   }
 
   def onSpinWait(): Unit = NativeThread.Intrinsics.yieldProcessor()
@@ -379,7 +382,7 @@ object Thread {
   def activeCount(): Int = currentThread().getThreadGroup().activeCount()
 
   def currentThread(): Thread =
-    NativeThread.TLS.currentThread match {
+    TLS.currentThread match {
       case null   => MainThread
       case thread => thread
     }

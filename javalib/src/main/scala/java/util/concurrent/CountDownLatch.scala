@@ -134,7 +134,7 @@ object CountDownLatch {
       extends AbstractQueuedSynchronizer {
     setState(count)
 
-    private[concurrent] def getCount()() = getState()
+    private[concurrent] def getCount() = getState()
 
     override protected def tryAcquireShared(acquires: Int): Int = {
       if (getState() == 0) 1
@@ -157,7 +157,7 @@ object CountDownLatch {
 }
 
 class CountDownLatch(sync: CountDownLatch.Sync) {
-  def this(count: Int) {
+  def this(count: Int) = {
     this(sync = {
       if (count < 0) throw new IllegalArgumentException("count < 0")
       new CountDownLatch.Sync(count)

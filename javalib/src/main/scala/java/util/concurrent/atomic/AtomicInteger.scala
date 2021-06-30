@@ -21,7 +21,7 @@ class AtomicInteger(private[this] var value: Int)
     extends Number
     with Serializable {
 
-  def this() {
+  def this() = {
     this(0)
   }
 
@@ -326,7 +326,7 @@ class AtomicInteger(private[this] var value: Int)
    *
    * @jls 5.1.2 Widening Primitive Conversion
    */
-  override def longValue(): Long = get.toLong
+  override def longValue(): Long = get().toLong
 
   /**
    * Returns the current value of this {@code AtomicInteger} as a

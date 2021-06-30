@@ -158,7 +158,7 @@ abstract class AbstractExecutorService() extends ExecutorService {
         if (!break && f != null) {
           active -= 1
           try {
-            return f.get
+            return f.get()
           } catch {
             case ie: InterruptedException => throw ie
             case eex: ExecutionException  => ee = eex
@@ -205,18 +205,18 @@ abstract class AbstractExecutorService() extends ExecutorService {
     var done: Boolean = false
     try {
       val it = tasks.iterator()
-      while (it.hasNext) {
+      while (it.hasNext()) {
         val f: RunnableFuture[T] = newTaskFor(it.next())
         futures.add(f)
         execute(f)
       }
 
       val it1 = futures.iterator()
-      while (it1.hasNext) {
+      while (it1.hasNext()) {
         val f = it1.next()
-        if (!f.isDone) {
+        if (!f.isDone()) {
           try {
-            f.get
+            f.get()
           } catch {
             case ignore: CancellationException =>
             case ignore: ExecutionException    =>
@@ -228,7 +228,7 @@ abstract class AbstractExecutorService() extends ExecutorService {
     } finally {
       if (!done) {
         val it = futures.iterator()
-        while (it.hasNext) it.next().cancel(true)
+        while (it.hasNext()) it.next().cancel(true)
       }
     }
   }
@@ -244,14 +244,14 @@ abstract class AbstractExecutorService() extends ExecutorService {
     var done: Boolean = false
     try {
       val it = tasks.iterator()
-      while (it.hasNext) futures.add(newTaskFor(it.next()))
+      while (it.hasNext()) futures.add(newTaskFor(it.next()))
 
       var lastTime: Long = System.nanoTime()
 
       // Interleave time checks and calls to execute in case
       // executor doesn't have any/much parallelism.
       var it1 = futures.iterator()
-      while (it1.hasNext) {
+      while (it1.hasNext()) {
         execute(it.next().asInstanceOf[Runnable])
         val now: Long = System.nanoTime()
         nanos -= now - lastTime
@@ -261,9 +261,9 @@ abstract class AbstractExecutorService() extends ExecutorService {
       }
 
       it1 = futures.iterator()
-      while (it1.hasNext) {
+      while (it1.hasNext()) {
         val f: Future[T] = it1.next()
-        if (!f.isDone) {
+        if (!f.isDone()) {
           if (nanos <= 0)
             return futures
           try {
@@ -284,7 +284,7 @@ abstract class AbstractExecutorService() extends ExecutorService {
     } finally {
       if (!done) {
         val it = futures.iterator()
-        while (it.hasNext) it.next().cancel(true)
+        while (it.hasNext()) it.next().cancel(true)
       }
     }
   }

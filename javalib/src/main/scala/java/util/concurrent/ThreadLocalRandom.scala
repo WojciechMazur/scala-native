@@ -250,7 +250,7 @@ object ThreadLocalRandom {
 
       if (index < fence) {
         consumer.accept(
-          ThreadLocalRandom.current().internalNextDouble(origin, bound))
+          ThreadLocalRandom.current().internalNextDouble()(origin, bound))
         index += 1
         return true
       }
@@ -266,7 +266,7 @@ object ThreadLocalRandom {
         var i   = index
         index = fence
         while ({
-          rng.internalNextDouble(origin, bound)
+          rng.internalNextDouble()(origin, bound)
           i += 1
           i < fence
         }) ()
@@ -369,7 +369,7 @@ object ThreadLocalRandom {
    * The next seed for default constructors.
    */
   private val seeder = new AtomicLong(
-    mix64(System.currentTimeMillis) ^ mix64(System.nanoTime))
+    mix64(System.currentTimeMillis()) ^ mix64(System.nanoTime()))
 
 //  try {
 //    val sec: String = VM.getSavedProperty("java.util.secureRandomSeed")
@@ -417,7 +417,7 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
    * @return the next pseudorandom value from this random number
    *         generator's sequence
    */
-  override protected def next(bits: Int): Int = nextInt >>> (32 - bits)
+  override protected def next(bits: Int): Int = nextInt() >>> (32 - bits)
 
   /**
    * The form of nextLong used by LongStream Spliterators.  If
@@ -481,15 +481,15 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
   }
 
   /**
-   * The form of nextDouble used by DoubleStream Spliterators.
+   * The form of nextDouble() used by DoubleStream Spliterators.
    *
    * @param origin the least value, unless greater than bound
    * @param bound the upper bound (exclusive), must not equal origin
    * @return a pseudorandom value
    */
-  final private[concurrent] def internalNextDouble(origin: Double,
+  final private[concurrent] def internalNextDouble()(origin: Double,
                                                    bound: Double) = {
-    var r = (nextLong >>> 11) * ThreadLocalRandom.DOUBLE_UNIT
+    var r = (nextLong() >>> 11) * ThreadLocalRandom.DOUBLE_UNIT
     if (origin < bound) {
       r = r * (bound - origin) + origin
       if (r >= bound) { // correct for rounding
@@ -506,7 +506,7 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
    *
    * @return a pseudorandom {@code int} value
    */
-  override def nextInt(): Int = ThreadLocalRandom.mix32(nextSeed)
+  override def nextInt(): Int = ThreadLocalRandom.mix32(nextSeed())
 
   /**
    * Returns a pseudorandom {@code int} value between zero (inclusive)
@@ -520,14 +520,14 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
   override def nextInt(bound: Int): Int = {
     if (bound <= 0)
       throw new IllegalArgumentException(ThreadLocalRandom.BAD_BOUND)
-    var r = ThreadLocalRandom.mix32(nextSeed)
+    var r = ThreadLocalRandom.mix32(nextSeed())
     val m = bound - 1
     if ((bound & m) == 0) r &= m
     else {
       var u = r >>> 1
       r = u & bound
       while ((u + m - r) < 0) {
-        u = ThreadLocalRandom.mix32(nextSeed) >>> 1
+        u = ThreadLocalRandom.mix32(nextSeed()) >>> 1
       }
     }
     r
@@ -555,7 +555,7 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
    *
    * @return a pseudorandom {@code long} value
    */
-  override def nextLong(): Long = ThreadLocalRandom.mix64(nextSeed)
+  override def nextLong(): Long = ThreadLocalRandom.mix64(nextSeed())
 
   /**
    * Returns a pseudorandom {@code long} value between zero (inclusive)
@@ -621,7 +621,7 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
     if (!(bound > 0.0))
       throw new IllegalArgumentException(ThreadLocalRandom.BAD_BOUND)
     val result =
-      (ThreadLocalRandom.mix64(nextSeed) >>> 11) * ThreadLocalRandom.DOUBLE_UNIT * bound
+      (ThreadLocalRandom.mix64(nextSeed()) >>> 11) * ThreadLocalRandom.DOUBLE_UNIT * bound
     if (result < bound) result
     else
       java.lang.Double
@@ -642,7 +642,7 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
   def nextDouble(origin: Double, bound: Double): Double = {
     if (!(origin < bound))
       throw new IllegalArgumentException(ThreadLocalRandom.BAD_RANGE)
-    internalNextDouble(origin, bound)
+    internalNextDouble()(origin, bound)
   }
 
   /**
@@ -660,22 +660,22 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
    *         (inclusive) and one (exclusive)
    */
   override def nextFloat(): Float =
-    (ThreadLocalRandom.mix32(nextSeed) >>> 8) * ThreadLocalRandom.FLOAT_UNIT
+    (ThreadLocalRandom.mix32(nextSeed()) >>> 8) * ThreadLocalRandom.FLOAT_UNIT
   override def nextGaussian()
       : Double = { // Use nextLocalGaussian instead of nextGaussian field
     val d =
-      ThreadLocalRandom.nextLocalGaussian.get.asInstanceOf[java.lang.Double]
+      ThreadLocalRandom.nextLocalGaussian.get().asInstanceOf[java.lang.Double]
     if (d != null) {
       ThreadLocalRandom.nextLocalGaussian.set(null.asInstanceOf[Double])
-      return d.doubleValue
+      return d.doubleValue()
     }
     var v1 = .0
     var v2 = .0
     var s  = .0
     do {
-      v1 = 2 * nextDouble - 1 // between -1 and 1
+      v1 = 2 * nextDouble() - 1 // between -1 and 1
 
-      v2 = 2 * nextDouble - 1
+      v2 = 2 * nextDouble() - 1
       s = v1 * v1 + v2 * v2
     } while ({ s >= 1 || s == 0 })
 

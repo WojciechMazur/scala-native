@@ -757,7 +757,7 @@ class ForkJoinPool(parallelism: Int,
            minimumRunnable: Int,
            saturate: Predicate[ForkJoinPool],
            keepAliveTime: Long,
-           unit: TimeUnit) {
+           unit: TimeUnit) = {
     this(parallelism = {
       if (parallelism <= 0 || parallelism > ForkJoinPool.MAX_CAP)
         throw new IllegalArgumentException()
@@ -823,7 +823,7 @@ class ForkJoinPool(parallelism: Int,
   def this(parallelism: Int,
            factory: ForkJoinPool.ForkJoinWorkerThreadFactory,
            handler: UncaughtExceptionHandler,
-           asyncMode: Boolean) {
+           asyncMode: Boolean) = {
     this(parallelism,
          factory,
          handler,
@@ -851,7 +851,7 @@ class ForkJoinPool(parallelism: Int,
    *         because it does not hold {@link
    *         java.lang.RuntimePermission}{@code ("modifyThread")}
    */
-  def this(parallelism: Int) {
+  def this(parallelism: Int) = {
     this(parallelism,
          ForkJoinPool.defaultForkJoinWorkerThreadFactory,
          null,
@@ -870,7 +870,7 @@ class ForkJoinPool(parallelism: Int,
    *         because it does not hold {@link
    *         java.lang.RuntimePermission}{@code ("modifyThread")}
    */
-  def this() {
+  def this() = {
     this(
       Math.min(ForkJoinPool.MAX_CAP, Runtime.getRuntime().availableProcessors())
     )
@@ -1217,7 +1217,7 @@ class ForkJoinPool(parallelism: Int,
         for (i <- 0 until n by 2) {
           if (ctl.get() != c) { // already signalled
             checkTermination = false
-            break
+            break()
           } else {
             for {
               q <- Option(qs(i))
@@ -1232,7 +1232,7 @@ class ForkJoinPool(parallelism: Int,
                 w.phase.set(phase) // self-signal
               }
               checkTermination = false
-              break
+              break()
             }
           }
         }
@@ -1668,7 +1668,7 @@ class ForkJoinPool(parallelism: Int,
     //                         w.source = wsrc = prevSrc
     //                         locals = true
     //                     }
-    //                     break
+    //                     break()
     //                 }
     //                 else if (!busy) {
     //                     if (q.top != b || a[nextBase & (cap - 1)] != null)
@@ -2108,7 +2108,7 @@ class ForkJoinPool(parallelism: Int,
     //         fs.add(f)
     //         externalSubmit(f)
     //         if (root.isDone())
-    //             break
+    //             break()
     //     }
     //     return root.getForPoolInvoke(this)
     // } finally {
@@ -2139,7 +2139,7 @@ class ForkJoinPool(parallelism: Int,
     //         fs.add(f)
     //         externalSubmit(f)
     //         if (root.isDone())
-    //             break
+    //             break()
     //     }
     //     return root.getForPoolInvoke(this, nanos)
     // } finally {
@@ -3138,7 +3138,7 @@ object ForkJoinPool {
      * Constructor used by ForkJoinWorkerThreads. Most fields
      * are initialized upon thread start, in pool.registerWorker.
      */
-    def this(owner: ForkJoinWorkerThread, isInnocuous: Boolean) {
+    def this(owner: ForkJoinWorkerThread, isInnocuous: Boolean) = {
       this(Some(owner))
       this.config = if (isInnocuous) INNOCUOUS else 0
     }
@@ -3146,7 +3146,7 @@ object ForkJoinPool {
     /**
      * Constructor used for external queues.
      */
-    def this(config: Int) {
+    def this(config: Int) = {
       this(owner = None)
       this.array = new Array[ForkJoinTask[_]](INITIAL_QUEUE_CAPACITY)
       this.config = config

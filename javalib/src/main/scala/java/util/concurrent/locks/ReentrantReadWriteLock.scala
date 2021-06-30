@@ -47,10 +47,10 @@ class ReentrantReadWriteLock extends ReadWriteLock with java.io.Serializable {
 
   final def hasQueuedThread(thread: Thread): Boolean = sync.isQueued(thread)
 
-  final def getQueueLength: Int = sync.getQueueLength
+  final def getQueueLength(): Int = sync.getQueueLength()
 
-  protected def getQueuedThreads: java.util.Collection[Thread] =
-    sync.getQueuedThreads
+  protected def getQueuedThreads(): java.util.Collection[Thread] =
+    sync.getQueuedThreads()
 
   def hasWaiters(condition: Condition): Boolean = {
     if (condition == null)
@@ -106,7 +106,7 @@ object ReentrantReadWriteLock {
     //transient
     private var firstReaderHoldCount: Int = _
 
-    setState(getState)
+    setState(getState())
 
     def readerShouldBlock(): Boolean
 
@@ -115,7 +115,7 @@ object ReentrantReadWriteLock {
     override protected final def tryRelease(releases: Int): Boolean = {
       if (!isHeldExclusively())
         throw new IllegalMonitorStateException()
-      val nextc: Int    = getState - releases
+      val nextc: Int    = getState() - releases
       val free: Boolean = exclusiveCount(nextc) == 0
       if (free)
         setExclusiveOwnerThread(null)
@@ -125,7 +125,7 @@ object ReentrantReadWriteLock {
 
     override protected final def tryAcquire(acquires: Int): Boolean = {
       val current: Thread = Thread.currentThread()
-      val c: Int          = getState
+      val c: Int          = getState()
       val w: Int          = exclusiveCount(c)
       if (c != 0) {
         if (w == 0 || current != getExclusiveOwnerThread())
@@ -149,7 +149,7 @@ object ReentrantReadWriteLock {
         else firstReaderHoldCount -= 1
       } else {
         var rh: HoldCounter = cacheHoldCounter
-        if (rh == null || rh.tid != current.getId)
+        if (rh == null || rh.tid != current.getId())
           rh = readHolds.get()
         val count: Int = rh.count
         if (count <= 1) {
@@ -160,7 +160,7 @@ object ReentrantReadWriteLock {
         rh.count -= 1
       }
       while (true) {
-        val c: Int     = getState
+        val c: Int     = getState()
         val nextc: Int = c - SHARED_UNIT
         if (state.compareAndSet(c, nextc))
           return nextc == 0
@@ -175,8 +175,8 @@ object ReentrantReadWriteLock {
 
     override protected final def tryAcquireShared(unused: Int): Int = {
       val current: Thread = Thread.currentThread()
-      val c: Int          = getState
-      if (exclusiveCount(c) != 0 && getExclusiveOwnerThread != current)
+      val c: Int          = getState()
+      if (exclusiveCount(c) != 0 && getExclusiveOwnerThread() != current)
         return -1
       val r: Int = sharedCount(c)
       if (!readerShouldBlock() && r < MAX_COUNT && state.compareAndSet(
@@ -189,7 +189,7 @@ object ReentrantReadWriteLock {
           firstReaderHoldCount += 1
         } else {
           var rh: HoldCounter = cacheHoldCounter
-          if (rh == null || rh.tid != current.getId) {
+          if (rh == null || rh.tid != current.getId()) {
             rh = readHolds.get()
             cacheHoldCounter = rh
           } else if (rh.count == 0)
@@ -204,15 +204,15 @@ object ReentrantReadWriteLock {
     final def fullTryAcquireShared(current: Thread): Int = {
       var rh: HoldCounter = null
       while (true) {
-        val c: Int = getState
+        val c: Int = getState()
         if (exclusiveCount(c) != 0) {
-          if (getExclusiveOwnerThread != current) return -1
+          if (getExclusiveOwnerThread() != current) return -1
         } else if (readerShouldBlock()) {
           if (firstReader == current) {} else {
             if (rh == null) {
               rh = cacheHoldCounter
-              if (rh == null || rh.tid != current.getId) {
-                rh = readHolds.get
+              if (rh == null || rh.tid != current.getId()) {
+                rh = readHolds.get()
                 if (rh.count == 0)
                   readHolds.remove()
               }
@@ -231,7 +231,7 @@ object ReentrantReadWriteLock {
           } else {
             if (rh == null)
               rh = cacheHoldCounter
-            if (rh == null || rh.tid != current.getId)
+            if (rh == null || rh.tid != current.getId())
               rh = readHolds.get()
             else if (rh.count == 0)
               readHolds.set(rh)
@@ -247,10 +247,10 @@ object ReentrantReadWriteLock {
 
     final def tryWriteLock(): Boolean = {
       val current: Thread = Thread.currentThread()
-      val c: Int          = getState
+      val c: Int          = getState()
       if (c != 0) {
         val w = exclusiveCount(c)
-        if (w == 0 || current != getExclusiveOwnerThread)
+        if (w == 0 || current != getExclusiveOwnerThread())
           return false
         if (w == MAX_COUNT)
           throw new Error("Maximum lock count exceeded")
@@ -264,8 +264,8 @@ object ReentrantReadWriteLock {
     final def tryReadLock(): Boolean = {
       val current: Thread = Thread.currentThread()
       while (true) {
-        val c: Int = getState
-        if (exclusiveCount(c) != 0 && getExclusiveOwnerThread != current)
+        val c: Int = getState()
+        if (exclusiveCount(c) != 0 && getExclusiveOwnerThread() != current)
           return false
         val r: Int = sharedCount(c)
         if (r == MAX_COUNT)
@@ -278,7 +278,7 @@ object ReentrantReadWriteLock {
             firstReaderHoldCount += 1
           } else {
             var rh: HoldCounter = cacheHoldCounter
-            if (rh == null || rh.tid != current.getId) {
+            if (rh == null || rh.tid != current.getId()) {
               rh = readHolds.get()
               cacheHoldCounter = rh
             } else if (rh.count == 0)
@@ -299,14 +299,14 @@ object ReentrantReadWriteLock {
     final def newCondition: ConditionObject = new ConditionObject()
 
     final def getOwner: Thread =
-      if (exclusiveCount(getState) == 0) null else getExclusiveOwnerThread
+      if (exclusiveCount(getState()) == 0) null else getExclusiveOwnerThread()
 
-    final def getReadLockCount: Int = sharedCount(getState)
+    final def getReadLockCount: Int = sharedCount(getState())
 
-    final def isWriteLocked: Boolean = sharedCount(getState) != 0
+    final def isWriteLocked: Boolean = sharedCount(getState()) != 0
 
     final def getWriteHoldCount: Int =
-      if (isHeldExclusively) exclusiveCount(getState) else 0
+      if (isHeldExclusively()) exclusiveCount(getState()) else 0
 
     final def getReadHoldCount: Int = {
       if (getReadLockCount == 0) return 0
@@ -314,9 +314,9 @@ object ReentrantReadWriteLock {
       if (firstReader == current) return firstReaderHoldCount
 
       val rh: HoldCounter = cacheHoldCounter
-      if (rh != null && rh.tid == current.getId) return rh.count
+      if (rh != null && rh.tid == current.getId()) return rh.count
 
-      val count: Int = readHolds.get.count
+      val count: Int = readHolds.get().count
       if (count == 0) readHolds.remove()
       count
     }
@@ -327,7 +327,7 @@ object ReentrantReadWriteLock {
       setState(0)
     }
 
-    final def getCount: Int = getState
+    final def getCount: Int = getState()
 
   }
 
@@ -348,7 +348,7 @@ object ReentrantReadWriteLock {
 
       var count: Int = 0
 
-      val tid: Long = Thread.currentThread().getId
+      val tid: Long = Thread.currentThread().getId()
 
     }
 
@@ -377,9 +377,9 @@ object ReentrantReadWriteLock {
 
   final class FairSync extends Sync {
 
-    override def writerShouldBlock(): Boolean = hasQueuedPredecessors
+    override def writerShouldBlock(): Boolean = hasQueuedPredecessors()
 
-    override def readerShouldBlock(): Boolean = hasQueuedPredecessors
+    override def readerShouldBlock(): Boolean = hasQueuedPredecessors()
 
   }
 
@@ -450,7 +450,8 @@ object ReentrantReadWriteLock {
     override def toString: String = {
       val o: Thread = sync.getOwner
       val s: String =
-        if (o == null) "[Unlocked]" else "[Locked by thread " + o.getName + "]"
+        if (o == null) "[Unlocked]"
+        else "[Locked by thread " + o.getName() + "]"
       super.toString + s
     }
 

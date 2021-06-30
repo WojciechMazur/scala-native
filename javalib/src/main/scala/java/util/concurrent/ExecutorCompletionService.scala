@@ -15,7 +15,7 @@ class ExecutorCompletionService[V](
   if (executor == null || completionQueue == null)
     throw new NullPointerException()
 
-  def this(executor: Executor) {
+  def this(executor: Executor) = {
     this(executor, new LinkedBlockingQueue[Future[V]])
   }
 
@@ -48,7 +48,7 @@ class ExecutorCompletionService[V](
     f
   }
 
-  override def take(): Future[V] = completionQueue.take
+  override def take(): Future[V] = completionQueue.take()
 
   override def poll(): Future[V] = completionQueue.poll()
 

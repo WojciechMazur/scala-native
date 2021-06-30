@@ -52,7 +52,7 @@ object FutureTask {
    * for more detailed explanation.
    */
   final private[concurrent] class WaitNode private[concurrent] () {
-    private[concurrent] var thread         = Thread.currentThread
+    private[concurrent] var thread         = Thread.currentThread()
     private[concurrent] var next: WaitNode = null
   }
 }
@@ -96,12 +96,12 @@ class FutureTask[V] private () extends RunnableFuture[V] {
   @alwaysinline def waiters: WaitNode            = atomicWaiters.get()
   @alwaysinline def waiters_=(v: WaitNode): Unit = atomicWaiters.set(v)
 
-  def this(callable: Callable[V]) {
+  def this(callable: Callable[V]) = {
     this()
     this.callable = callable
   }
 
-  def this(runnable: Runnable, result: V) {
+  def this(runnable: Runnable, result: V) = {
     this()
     this.callable = Executors.callable(runnable, result)
   }
@@ -119,8 +119,8 @@ class FutureTask[V] private () extends RunnableFuture[V] {
     throw new ExecutionException(x.asInstanceOf[Throwable])
   }
 
-  override def isCancelled: Boolean = state >= CANCELLED
-  override def isDone: Boolean      = state != NEW
+  override def isCancelled(): Boolean = state >= CANCELLED
+  override def isDone(): Boolean      = state != NEW
   override def cancel(mayInterruptIfRunning: Boolean): Boolean = {
     if (!(state == NEW && atomicState.compareAndSet(
           NEW,
@@ -205,7 +205,7 @@ class FutureTask[V] private () extends RunnableFuture[V] {
     }
   }
   override def run(): Unit = {
-    if (state != NEW || !atomicRunner.compareAndSet(null, Thread.currentThread))
+    if (state != NEW || !atomicRunner.compareAndSet(null, Thread.currentThread()))
       return
     try {
       val c = callable
@@ -238,7 +238,7 @@ class FutureTask[V] private () extends RunnableFuture[V] {
    * @return {@code true} if successfully run and reset
    */
   protected def runAndReset: Boolean = {
-    if (state != NEW || !atomicRunner.compareAndSet(null, Thread.currentThread))
+    if (state != NEW || !atomicRunner.compareAndSet(null, Thread.currentThread()))
       return false
 
     var ran = false
@@ -426,7 +426,6 @@ class FutureTask[V] private () extends RunnableFuture[V] {
       case EXCEPTIONAL                            => "[Completed exceptionally: " + outcome + "]"
       case CANCELLED | INTERRUPTING | INTERRUPTED => "[Cancelled]"
       case _ =>
-        val callable = this.callable
         if (callable == null) "[Not completed]"
         else "[Not completed, task = " + callable + "]"
     }

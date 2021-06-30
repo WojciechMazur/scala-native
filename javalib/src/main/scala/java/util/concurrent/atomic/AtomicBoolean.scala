@@ -27,11 +27,11 @@ class AtomicBoolean private (private var value: Byte) extends Serializable {
       elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset))
   )
 
-  def this() {
+  def this() = {
     this(0.toByte)
   }
 
-  def this(initialValue: Boolean) {
+  def this(initialValue: Boolean) = {
     this(if (initialValue) 1.toByte else 0.toByte)
   }
 

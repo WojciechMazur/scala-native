@@ -32,7 +32,7 @@ class AtomicIntegerArray extends Serializable {
    *
    * @param length the length of the array
    */
-  def this(length: Int) {
+  def this(length: Int) = {
     this()
     this.array = new Array[Int](length)
   }
@@ -44,7 +44,7 @@ class AtomicIntegerArray extends Serializable {
    * @param array the array to copy elements from
    * @throws NullPointerException if array is null
    */
-  def this(array: Array[Int]) {
+  def this(array: Array[Int]) = {
     this()
     this.array = array.clone()
   }
@@ -169,7 +169,7 @@ class AtomicIntegerArray extends Serializable {
    * @param i the index
    * @return the previous value
    */
-  final def getAndIncrement(i: Int): Int = {
+  final def getAndIncrement()(i: Int): Int = {
     nativeArray.at(i).fetchAdd(1)
   }
 

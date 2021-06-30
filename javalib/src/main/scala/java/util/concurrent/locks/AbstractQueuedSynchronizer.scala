@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.{AtomicReference, AtomicInteger}
  * or released.  Given these, the other methods in this class carry
  * out all queuing and blocking mechanics. Subclasses can maintain
  * other state fields, but only the atomically updated {@code int}
- * value manipulated using methods {@link #getState}, {@link
+ * value manipulated using methods {@link #getState()}, {@link
  * #setState} and {@link #compareAndSetState} is tracked with respect
  * to synchronization.
  *
@@ -56,9 +56,9 @@ import java.util.concurrent.atomic.{AtomicReference, AtomicInteger}
  * <p>This class defines a nested {@link ConditionObject} class that
  * can be used as a {@link Condition} implementation by subclasses
  * supporting exclusive mode for which method {@link
- * #isHeldExclusively} reports whether synchronization is exclusively
+ * #isHeldExclusively()} reports whether synchronization is exclusively
  * held with respect to the current thread, method {@link #release}
- * invoked with the current {@link #getState} value fully releases
+ * invoked with the current {@link #getState()} value fully releases
  * this object, and {@link #acquire}, given this saved state value,
  * eventually restores this object to its previous acquired state.  No
  * {@code AbstractQueuedSynchronizer} method otherwise creates such a
@@ -82,7 +82,7 @@ import java.util.concurrent.atomic.{AtomicReference, AtomicInteger}
  *
  * <p>To use this class as the basis of a synchronizer, redefine the
  * following methods, as applicable, by inspecting and/or modifying
- * the synchronization state using {@link #getState}, {@link
+ * the synchronization state using {@link #getState()}, {@link
  * #setState} and/or {@link #compareAndSetState}:
  *
  * <ul>
@@ -90,7 +90,7 @@ import java.util.concurrent.atomic.{AtomicReference, AtomicInteger}
  * <li>{@link #tryRelease}
  * <li>{@link #tryAcquireShared}
  * <li>{@link #tryReleaseShared}
- * <li>{@link #isHeldExclusively}
+ * <li>{@link #isHeldExclusively()}
  * </ul>
  *
  * Each of these methods by default throws {@link
@@ -316,8 +316,8 @@ object AbstractQueuedSynchronizer { // Node status bits, also used as argument a
      * risking fixed pool exhaustion. This is usable only for
      * untimed Condition waits, not timed versions.
      */
-    override final def isReleasable: Boolean = {
-      status.get() <= 1 || Thread.currentThread.isInterrupted()
+    override final def isReleasable(): Boolean = {
+      status.get() <= 1 || Thread.currentThread().isInterrupted()
     }
 
     override final def block(): Boolean = {
@@ -448,7 +448,7 @@ abstract class AbstractQueuedSynchronizer protected ()
                                    interruptible: Boolean,
                                    timed: Boolean,
                                    time: Long): Int = {
-    val current = Thread.currentThread
+    val current = Thread.currentThread()
 
     var node: Node         = _node
     var pred: Option[Node] = None
@@ -589,7 +589,7 @@ abstract class AbstractQueuedSynchronizer protected ()
         val isIncosisient =
           if (s == null) tail.get() != q
           else s.prev.get() != q || s.status.get() < 0
-        if (isIncosisient) break
+        if (isIncosisient) break()
 
         if (q.status.get() < 0) { //canceled
           val casNode =
@@ -600,7 +600,7 @@ abstract class AbstractQueuedSynchronizer protected ()
             if (p.prev.get() == null)
               signalNext(p);
           }
-          break
+          break()
         }
         s = q;
         q = q.prev.get();
@@ -628,7 +628,7 @@ abstract class AbstractQueuedSynchronizer protected ()
     else {
       if (interruptible) AbstractQueuedSynchronizer.CANCELLED
       else {
-        Thread.currentThread.interrupt()
+        Thread.currentThread().interrupt()
         0
       }
     }
@@ -1345,7 +1345,7 @@ abstract class AbstractQueuedSynchronizer protected ()
     private def enableWait(
         node: AbstractQueuedSynchronizer.ConditionNode): Int = {
       if (isHeldExclusively()) {
-        node.waiter.set(Thread.currentThread)
+        node.waiter.set(Thread.currentThread())
         node.status.setOpaque(
           AbstractQueuedSynchronizer.COND | AbstractQueuedSynchronizer.WAITING)
         val last = lastWaiter
@@ -1435,7 +1435,7 @@ abstract class AbstractQueuedSynchronizer protected ()
       acquire(node, savedState, false, false, false, 0L)
 
       if (interrupted)
-        Thread.currentThread.interrupt()
+        Thread.currentThread().interrupt()
     }
 
     /**
@@ -1452,7 +1452,7 @@ abstract class AbstractQueuedSynchronizer protected ()
      * </ol>
      */ @throws[InterruptedException]
     override final def await(): Unit = {
-      if (Thread.interrupted)
+      if (Thread.interrupted())
         throw new InterruptedException
 
       val node       = new AbstractQueuedSynchronizer.ConditionNode
@@ -1468,7 +1468,7 @@ abstract class AbstractQueuedSynchronizer protected ()
             cancelled =
               (node.getAndUnsetStatus(AbstractQueuedSynchronizer.COND) & AbstractQueuedSynchronizer.COND) != 0
             if (cancelled) {
-              break
+              break()
               // else interrupted after signal
             } else if ((node.status.get() &
                          AbstractQueuedSynchronizer.COND) != 0) {
@@ -1493,7 +1493,7 @@ abstract class AbstractQueuedSynchronizer protected ()
           unlinkCancelledWaiters(node)
           throw new InterruptedException
         }
-        Thread.currentThread.interrupt()
+        Thread.currentThread().interrupt()
       }
     }
 
@@ -1526,9 +1526,9 @@ abstract class AbstractQueuedSynchronizer protected ()
       breakable {
         while (!canReacquire(node)) {
           def interruptedOrDeadline(): Boolean = {
-            interrupted |= Thread.interrupted
+            interrupted |= Thread.interrupted()
             interrupted || {
-              nanos = deadline - System.nanoTime
+              nanos = deadline - System.nanoTime()
               nanos <= 0L
             }
           }
@@ -1537,7 +1537,7 @@ abstract class AbstractQueuedSynchronizer protected ()
             cancelled =
               (node.getAndUnsetStatus(AbstractQueuedSynchronizer.COND) &
                 AbstractQueuedSynchronizer.COND) != 0
-            if (cancelled) break
+            if (cancelled) break()
             else LockSupport.parkNanos(this, nanos)
           }
         }
@@ -1551,7 +1551,7 @@ abstract class AbstractQueuedSynchronizer protected ()
         if (interrupted)
           throw new InterruptedException
       } else if (interrupted)
-        Thread.currentThread.interrupt()
+        Thread.currentThread().interrupt()
 
       val remaining = deadline - System.nanoTime() // avoid overflow
       if (remaining <= nanosTimeout) remaining
@@ -1574,7 +1574,7 @@ abstract class AbstractQueuedSynchronizer protected ()
      */
     @throws[InterruptedException]
     final def awaitUntil(deadline: Date): Boolean = {
-      val abstime = deadline.getTime
+      val abstime = deadline.getTime()
       if (Thread.interrupted())
         throw new InterruptedException
 
@@ -1586,10 +1586,10 @@ abstract class AbstractQueuedSynchronizer protected ()
       breakable {
         while (!canReacquire(node)) {
           interrupted |= Thread.interrupted()
-          if (interrupted || System.currentTimeMillis >= abstime) {
+          if (interrupted || System.currentTimeMillis() >= abstime) {
             cancelled =
               (node.getAndUnsetStatus(AbstractQueuedSynchronizer.COND) & AbstractQueuedSynchronizer.COND) != 0
-            if (cancelled) break
+            if (cancelled) break()
             else LockSupport.parkUntil(this, abstime)
           }
         }
@@ -1601,7 +1601,7 @@ abstract class AbstractQueuedSynchronizer protected ()
         unlinkCancelledWaiters(node)
         if (interrupted) throw new InterruptedException
       } else if (interrupted)
-        Thread.currentThread.interrupt()
+        Thread.currentThread().interrupt()
 
       !cancelled
     }
@@ -1646,7 +1646,7 @@ abstract class AbstractQueuedSynchronizer protected ()
             cancelled =
               (node.getAndUnsetStatus(AbstractQueuedSynchronizer.COND) & AbstractQueuedSynchronizer.COND) != 0
             if (cancelled)
-              break
+              break()
             else LockSupport.parkNanos(this, nanos)
           }
         }
@@ -1657,8 +1657,7 @@ abstract class AbstractQueuedSynchronizer protected ()
       if (cancelled) {
         unlinkCancelledWaiters(node)
         if (interrupted) throw new InterruptedException
-      } else if (interrupted) Thread.currentThread.interrupt
-
+      } else if (interrupted) Thread.currentThread().interrupt()
       !cancelled
     }
 
@@ -1681,7 +1680,7 @@ abstract class AbstractQueuedSynchronizer protected ()
      *         returns {@code false}
      */
     final private[locks] def hasWaiters(): Boolean = {
-      if (!isHeldExclusively)
+      if (!isHeldExclusively())
         throw new IllegalMonitorStateException
 
       var w = firstWaiter
@@ -1704,7 +1703,7 @@ abstract class AbstractQueuedSynchronizer protected ()
      *         returns {@code false}
      */
     final private[locks] def getWaitQueueLength(): Int = {
-      if (!isHeldExclusively)
+      if (!isHeldExclusively())
         throw new IllegalMonitorStateException
 
       var n = 0
@@ -1728,7 +1727,7 @@ abstract class AbstractQueuedSynchronizer protected ()
      *         returns {@code false}
      */
     final private[locks] def getWaitingThreads(): Collection[Thread] = {
-      if (!isHeldExclusively)
+      if (!isHeldExclusively())
         throw new IllegalMonitorStateException
       val list = new ArrayList[Thread]
       var w    = firstWaiter

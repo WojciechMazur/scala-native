@@ -22,7 +22,7 @@ import AtomicMarkableReference._
 class AtomicMarkableReference[V <: AnyRef](
     private[this] var value: MarkableReference[V]) {
 
-  def this(initialRef: V, initialMark: Boolean) {
+  def this(initialRef: V, initialMark: Boolean) = {
     this(MarkableReference(initialRef, initialMark))
   }
 

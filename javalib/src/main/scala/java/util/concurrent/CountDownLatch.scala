@@ -1,12 +1,12 @@
-package java.util.concurrent
-
-import java.util.concurrent.locks.AbstractQueuedSynchronizer
-import scala.annotation.tailrec
 /*
  * Written by Doug Lea with assistance from members of JCP JSR-166
  * Expert Group and released to the public domain, as explained at
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
+package java.util.concurrent
+
+import java.util.concurrent.locks.AbstractQueuedSynchronizer
+import scala.annotation.tailrec
 
 /**
  * A synchronization aid that allows one or more threads to wait until

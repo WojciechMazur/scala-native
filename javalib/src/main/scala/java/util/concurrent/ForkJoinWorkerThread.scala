@@ -8,7 +8,6 @@ package java.util.concurrent;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import scala.scalanative.annotation.stub
 
 /*
  * ForkJoinWorkerThreads are managed by ForkJoinPools and perform
@@ -151,38 +150,4 @@ class ForkJoinWorkerThread private[concurrent] (
     }
   }
 
-}
-
-object ForkJoinWorkerThread {
-//   /**
-//      * A worker thread that has no permissions, is not a member of any
-//      * user-defined ThreadGroup, uses the system class loader as
-//      * thread context class loader, and erases all ThreadLocals after
-//      * running each top-level task.
-//      */
-//     static final class InnocuousForkJoinWorkerThread extends ForkJoinWorkerThread {
-//         /** The ThreadGroup for all InnocuousForkJoinWorkerThreads */
-//         private static final ThreadGroup innocuousThreadGroup =
-//             AccessController.doPrivileged(new PrivilegedAction<>() {
-//                 public ThreadGroup run() {
-//                     ThreadGroup group = Thread.currentThread().getThreadGroup();
-//                     for (ThreadGroup p; (p = group.getParent()) != null; )
-//                         group = p;
-//                     return new ThreadGroup(
-//                         group, "InnocuousForkJoinWorkerThreadGroup");
-//                 }});
-
-//         InnocuousForkJoinWorkerThread(ForkJoinPool pool) {
-//             super(innocuousThreadGroup, pool, true, true);
-//         }
-
-//         @Override // to silently fail
-//         public void setUncaughtExceptionHandler(UncaughtExceptionHandler x) { }
-
-//         @Override // paranoically
-//         public void setContextClassLoader(ClassLoader cl) {
-//             if (cl != null && ClassLoader.getSystemClassLoader() != cl)
-//                 throw new SecurityException("setContextClassLoader");
-//         }
-//     }
 }

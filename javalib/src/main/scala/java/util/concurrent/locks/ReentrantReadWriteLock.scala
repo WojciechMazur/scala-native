@@ -1,11 +1,14 @@
+/*
+ * Written by Doug Lea with assistance from members of JCP JSR-166
+ * Expert Group and released to the public domain, as explained at
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+
 package java.util.concurrent.locks
 import java.util.concurrent.TimeUnit
 
-// Ported from Harmony
-
+@SerialVersionUID(-6992448646407690164L)
 class ReentrantReadWriteLock extends ReadWriteLock with java.io.Serializable {
-  self =>
-
   import ReentrantReadWriteLock._
 
   private final val readerLock: ReadLock =
@@ -85,8 +88,6 @@ class ReentrantReadWriteLock extends ReadWriteLock with java.io.Serializable {
 }
 
 object ReentrantReadWriteLock {
-
-  private final val serialVersionUID: Long = -6992448646407690164L
 
   abstract class Sync extends AbstractQueuedSynchronizer {
 

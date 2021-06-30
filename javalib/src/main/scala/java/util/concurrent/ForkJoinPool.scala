@@ -2054,8 +2054,7 @@ class ForkJoinPool(parallelism: Int,
     // }
   }
 
-  @Override
-  @throws(classOf[InterruptedException])
+  @throws[InterruptedException]
   @stub()
   override def invokeAll[T](tasks: Collection[_ <: Callable[T]],
                             timeout: Long,
@@ -2091,8 +2090,8 @@ class ForkJoinPool(parallelism: Int,
     //     throw t
     // }
   }
-  @throws(classOf[InterruptedException])
-  @throws(classOf[ExecutionException])
+  @throws[InterruptedException]
+  @throws[ExecutionException]
   @stub()
   override def invokeAny[T](tasks: Collection[_ <: Callable[T]]): T = {
     ???
@@ -2118,9 +2117,9 @@ class ForkJoinPool(parallelism: Int,
     // }
   }
 
-  @throws(classOf[InterruptedException])
-  @throws(classOf[ExecutionException])
-  @throws(classOf[TimeoutException])
+  @throws[InterruptedException]
+  @throws[ExecutionException]
+  @throws[TimeoutException]
   @stub()
   override def invokeAny[T](tasks: Collection[_ <: Callable[T]],
                             timeout: Long,
@@ -2532,7 +2531,7 @@ class ForkJoinPool(parallelism: Int,
    *         {@code false} if the timeout elapsed before termination
    * @throws InterruptedException if interrupted while waiting
    */
-  @throws(classOf[InterruptedException])
+  @throws[InterruptedException]
   @stub()
   def awaitTermination(timeout: Long, unit: TimeUnit): Boolean = {
     ???
@@ -2589,7 +2588,7 @@ class ForkJoinPool(parallelism: Int,
   }
 
   /** ManagedBlock for ForkJoinWorkerThreads */
-  @throws(classOf[InterruptedException])
+  @throws[InterruptedException]
   private def compensatedBlock(blocker: ManagedBlocker): Unit = {
     if (blocker == null)
       throw new NullPointerException()
@@ -2967,7 +2966,7 @@ object ForkJoinPool {
   }
 
   // helper method for commonPool constructor
-  @throws(classOf[ReflectiveOperationException])
+  @throws[ReflectiveOperationException]
   @stub()
   private def newInstanceFromSystemProperty(property: String): Object = {
     ???
@@ -3692,7 +3691,7 @@ object ForkJoinPool {
      * @throws InterruptedException if interrupted while waiting
      * (the method is not required to do so, but is allowed to)
      */
-    @throws(classOf[InterruptedException])
+    @throws[InterruptedException]
     def block(): Boolean
 
     /**
@@ -3729,7 +3728,7 @@ object ForkJoinPool {
    * @param blocker the blocker task
    * @throws InterruptedException if {@code blocker.block()} did so
    */
-  @throws(classOf[InterruptedException])
+  @throws[InterruptedException]
   def managedBlock(blocker: ManagedBlocker): Unit = {
     Thread.currentThread() match {
       case thread: ForkJoinWorkerThread if thread.pool != null =>
@@ -3739,7 +3738,7 @@ object ForkJoinPool {
   }
 
   /** ManagedBlock for external threads */
-  @throws(classOf[InterruptedException])
+  @throws[InterruptedException]
   private def unmanagedBlock(blocker: ManagedBlocker): Unit = {
     if (blocker == null)
       throw new NullPointerException()

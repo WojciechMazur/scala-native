@@ -6,5 +6,5 @@
 #pragma comment(lib, "legacy_stdio_definitions.lib")
 
 LANGID scalanative_win32_default_language() { return LANG_USER_DEFAULT; }
-
+DWORD scalanative_win32_infinite(){return INFINITE;}
 #endif // defined(Win32)

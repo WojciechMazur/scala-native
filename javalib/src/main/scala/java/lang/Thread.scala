@@ -321,16 +321,23 @@ object Thread {
                      target = null: Runnable,
                      stackSize = NativeThread.DefaultStackSize.toLong,
                      inheritableValues = new ThreadLocal.Values()) {
+    import scala.scalanative.meta.LinktimeInfo.isWindows
+    import scala.scalanative.unsigned._
     setName("main")
     TLS.currentThread = this
-    nativeThread = new PosixThread(null, this) {
+    trait MainThreadOverrides {
+       self: NativeThread => 
       override def setPriority(priority: CInt): Unit = ()
       override def stop(): Unit                      = sys.exit()
       override def suspend(): Unit                   = LockSupport.park()
       override def resume(): Unit                    = LockSupport.unpark(this.thread)
       state = NativeThread.State.Running
     }
+    nativeThread = {
+      if(isWindows) new impl.WindowsThread(null, -1.toUInt, this) with MainThreadOverrides
+     else new impl.PosixThread(null, this) with MainThreadOverrides
   }
+}
 
   import scala.collection.mutable
   private var defaultExceptionHandler: UncaughtExceptionHandler = _

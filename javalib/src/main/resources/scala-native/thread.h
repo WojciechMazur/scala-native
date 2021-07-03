@@ -16,7 +16,8 @@
 #endif
 
 #ifdef _WIN32
-#include <Winnt.h
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
 // YieldProcessor already defined
 #else // Unix
 // Only clang defines __has_builtin, so we first test for a GCC define

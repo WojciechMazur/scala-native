@@ -1,5 +1,3 @@
-#include <threads.h>
-#include <stdio.h>
 #include "thread.h"
 
 typedef void *JavaThread;

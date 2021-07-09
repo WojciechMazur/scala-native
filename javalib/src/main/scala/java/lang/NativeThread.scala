@@ -48,7 +48,7 @@ trait NativeThread {
         skipNextUnparkEvent = false
       } else {
         state = NativeThread.State.Parked
-        while (state != NativeThread.State.Running) {
+        while (state == NativeThread.State.Parked) {
           tryPark()
         }
         state = NativeThread.State.Running
@@ -62,7 +62,9 @@ trait NativeThread {
         skipNextUnparkEvent = false
       } else {
         state = NativeThread.State.Parked
-        tryParkNanos(nanos)
+        while (state == NativeThread.State.Parked) {
+          tryParkNanos(nanos)
+        }
         state = NativeThread.State.Running
       }
     }
@@ -74,7 +76,9 @@ trait NativeThread {
         skipNextUnparkEvent = false
       } else {
         state = NativeThread.State.Parked
-        tryParkUntil(deadline)
+        while (state == NativeThread.State.Parked) {
+          tryParkUntil(deadline)
+        }
         state = NativeThread.State.Running
       }
     }

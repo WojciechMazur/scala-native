@@ -103,7 +103,7 @@ private[java] case class WindowsThread(handle: Handle, id: UInt, thread: Thread)
     )
     if (successfull) {
       if (state == NativeThread.State.Parked) {
-        // spourious wakeup, retry
+        // spurious wakeup, retry
         tryParkTimed(deadline)
       }
     } else {
@@ -153,12 +153,12 @@ object WindowsThread {
   def apply(thread: Thread): WindowsThread = {
     import GCExt._
     val id = stackalloc[DWord]
-    val handle = GCExt.GC_CreateThread(
+    val handle = GC_CreateThread(
       threadAttributes = null,
       stackSize = 0.toUInt, // Default
       startRoutine = NativeThread.threadRoutine,
       routineArg = NativeThread.threadRoutineArgs(thread),
-      creationFlags = 0.toUInt, // Default, run immiedietlly,
+      creationFlags = 0.toUInt, // Default, run immediately,
       threadId = id
     )
 

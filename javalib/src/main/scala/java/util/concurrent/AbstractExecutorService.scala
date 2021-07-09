@@ -8,70 +8,67 @@ package java.util.concurrent
 import java.util
 import java.lang
 
-/**
- * Provides default implementations of {@link ExecutorService}
- * execution methods. This class implements the {@code submit},
- * {@code invokeAny} and {@code invokeAll} methods using a
- * {@link RunnableFuture} returned by {@code newTaskFor}, which defaults
- * to the {@link FutureTask} class provided in this package.  For example,
- * the implementation of {@code submit(Runnable)} creates an
- * associated {@code RunnableFuture} that is executed and
- * returned. Subclasses may override the {@code newTaskFor} methods
- * to return {@code RunnableFuture} implementations other than
- * {@code FutureTask}.
+/** Provides default implementations of {@link ExecutorService} execution
+ *  methods. This class implements the {@code submit}, {@code invokeAny} and
+ *  {@code invokeAll} methods using a {@link RunnableFuture} returned by {@code
+ *  newTaskFor}, which defaults to the {@link FutureTask} class provided in this
+ *  package. For example, the implementation of {@code submit(Runnable)} creates
+ *  an associated {@code RunnableFuture} that is executed and returned.
+ *  Subclasses may override the {@code newTaskFor} methods to return {@code
+ *  RunnableFuture} implementations other than {@code FutureTask}.
  *
- * <p><b>Extension example.</b> Here is a sketch of a class
- * that customizes {@link ThreadPoolExecutor} to use
- * a {@code CustomTask} class instead of the default {@code FutureTask}:
- * <pre> {@code
- * public class CustomThreadPoolExecutor extends ThreadPoolExecutor {
+ *  <p><b>Extension example.</b> Here is a sketch of a class that customizes
+ *  {@link ThreadPoolExecutor} to use a {@code CustomTask} class instead of the
+ *  default {@code FutureTask}: <pre> {@code public class
+ *  CustomThreadPoolExecutor extends ThreadPoolExecutor {
  *
- *   static class CustomTask<V> implements RunnableFuture<V> { ... }
+ *  static class CustomTask<V> implements RunnableFuture<V> { ... }
  *
- *   protected <V> RunnableFuture<V> newTaskFor(Callable<V> c) {
- *       return new CustomTask<V>(c);
- *   }
- *   protected <V> RunnableFuture<V> newTaskFor(Runnable r, V v) {
- *       return new CustomTask<V>(r, v);
- *   }
- *   // ... add constructors, etc.
- * }}</pre>
+ *  protected <V> RunnableFuture<V> newTaskFor(Callable<V> c) { return new
+ *  CustomTask<V>(c); } protected <V> RunnableFuture<V> newTaskFor(Runnable r, V
+ *  v) { return new CustomTask<V>(r, v); } // ... add constructors, etc.
+ *  }}</pre>
  *
- * @since 1.5
- * @author Doug Lea
+ *  @since 1.5
+ *    @author Doug Lea
  */
 abstract class AbstractExecutorService() extends ExecutorService {
 
-  /**
-   * Returns a {@code RunnableFuture} for the given runnable and default
-   * value.
+  /** Returns a {@code RunnableFuture} for the given runnable and default value.
    *
-   * @param runnable the runnable task being wrapped
-   * @param value the default value for the returned future
-   * @param <T> the type of the given value
-   * @return a {@code RunnableFuture} which, when run, will run the
-   * underlying runnable and which, as a {@code Future}, will yield
-   * the given value as its result and provide for cancellation of
-   * the underlying task
-   * @since 1.6
-   */
-  protected[concurrent] def newTaskFor[T](runnable: Runnable,
-                                          value: T): RunnableFuture[T] =
-    new FutureTask[T](runnable, value)
-
-  /**
-   * Returns a {@code RunnableFuture} for the given callable task.
-   *
-   * @param callable the callable task being wrapped
-   * @param <T> the type of the callable's result
-   * @return a {@code RunnableFuture} which, when run, will call the
-   * underlying callable and which, as a {@code Future}, will yield
-   * the callable's result as its result and provide for
-   * cancellation of the underlying task
-   * @since 1.6
+   *  @param runnable
+   *    the runnable task being wrapped
+   *  @param value
+   *    the default value for the returned future
+   *  @param <T>
+   *    the type of the given value
+   *  @return
+   *    a {@code RunnableFuture} which, when run, will run the underlying
+   *    runnable and which, as a {@code Future}, will yield the given value as
+   *    its result and provide for cancellation of the underlying task
+   *  @since 1.6
    */
   protected[concurrent] def newTaskFor[T](
-      callable: Callable[T]): RunnableFuture[T] =
+      runnable: Runnable,
+      value: T
+  ): RunnableFuture[T] =
+    new FutureTask[T](runnable, value)
+
+  /** Returns a {@code RunnableFuture} for the given callable task.
+   *
+   *  @param callable
+   *    the callable task being wrapped
+   *  @param <T>
+   *    the type of the callable's result
+   *  @return
+   *    a {@code RunnableFuture} which, when run, will call the underlying
+   *    callable and which, as a {@code Future}, will yield the callable's
+   *    result as its result and provide for cancellation of the underlying task
+   *  @since 1.6
+   */
+  protected[concurrent] def newTaskFor[T](
+      callable: Callable[T]
+  ): RunnableFuture[T] =
     new FutureTask[T](callable)
 
   @throws[NullPointerException]
@@ -104,9 +101,11 @@ abstract class AbstractExecutorService() extends ExecutorService {
   @throws[InterruptedException]
   @throws[TimeoutException]
   @throws[ExecutionException]
-  private def doInvokeAny[T](tasks: util.Collection[_ <: Callable[T]],
-                             timed: Boolean,
-                             n: Long): T = {
+  private def doInvokeAny[T](
+      tasks: util.Collection[_ <: Callable[T]],
+      timed: Boolean,
+      n: Long
+  ): T = {
     var nanos: Long = n
     if (tasks == null)
       throw new NullPointerException()
@@ -128,8 +127,8 @@ abstract class AbstractExecutorService() extends ExecutorService {
     try {
       // Record exceptions so that if we fail to obtain any
       // result, we can throw the last exception we got.
-      var ee: ExecutionException              = null
-      var lastTime: Long                      = if (timed) System.nanoTime() else 0
+      var ee: ExecutionException = null
+      var lastTime: Long = if (timed) System.nanoTime() else 0
       val it: util.Iterator[_ <: Callable[T]] = tasks.iterator()
 
       // Start one task for sure; the rest incrementally
@@ -190,15 +189,18 @@ abstract class AbstractExecutorService() extends ExecutorService {
   @throws[InterruptedException]
   @throws[ExecutionException]
   @throws[TimeoutException]
-  override def invokeAny[T](tasks: java.util.Collection[_ <: Callable[T]],
-                            timeout: Long,
-                            unit: TimeUnit): T = {
+  override def invokeAny[T](
+      tasks: java.util.Collection[_ <: Callable[T]],
+      timeout: Long,
+      unit: TimeUnit
+  ): T = {
     doInvokeAny(tasks, true, unit.toNanos(timeout))
   }
 
   @throws[InterruptedException]
-  override def invokeAll[T](tasks: java.util.Collection[_ <: Callable[T]])
-      : java.util.List[Future[T]] = {
+  override def invokeAll[T](
+      tasks: java.util.Collection[_ <: Callable[T]]
+  ): java.util.List[Future[T]] = {
     if (tasks == null) throw new NullPointerException()
     val futures: util.List[Future[T]] =
       new util.ArrayList[Future[T]](tasks.size())
@@ -234,9 +236,11 @@ abstract class AbstractExecutorService() extends ExecutorService {
   }
 
   @throws[InterruptedException]
-  override def invokeAll[T](tasks: util.Collection[_ <: Callable[T]],
-                            timeout: Long,
-                            unit: TimeUnit): util.List[Future[T]] = {
+  override def invokeAll[T](
+      tasks: util.Collection[_ <: Callable[T]],
+      timeout: Long,
+      unit: TimeUnit
+  ): util.List[Future[T]] = {
     if (tasks == null || unit == null) throw new NullPointerException()
     var nanos: Long = unit.toNanos(timeout)
     val futures: util.List[Future[T]] =

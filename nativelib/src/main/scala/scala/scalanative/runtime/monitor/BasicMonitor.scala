@@ -9,14 +9,15 @@ import scala.scalanative.runtime.Monitor
 import scala.annotation.switch
 import scala.scalanative.runtime.Intrinsics
 
-/**
- * Lightweight monitor used for single-threaded execution, upon detection
- * of access from multiple threads is inflated in ObjectMonitor
+/** Lightweight monitor used for single-threaded execution, upon detection of
+ *  access from multiple threads is inflated in ObjectMonitor
  *
- * Even though BasicMonitor and ObjectMonitor share the same interface, we don't define it explicityly.
- * This way we don't need to instantiate BasicMonitor
+ *  Even though BasicMonitor and ObjectMonitor share the same interface, we
+ *  don't define it explicityly. This way we don't need to instantiate
+ *  BasicMonitor
  *
- * @param lockWordRef Pointer to LockWord, internal field of every object header
+ *  @param lockWordRef
+ *    Pointer to LockWord, internal field of every object header
  */
 final case class BasicMonitor(lockWordRef: Ptr[Word]) extends AnyVal {
   import BasicMonitor._
@@ -24,9 +25,9 @@ final case class BasicMonitor(lockWordRef: Ptr[Word]) extends AnyVal {
   @alwaysinline
   private def atomic = new CAtomicLong(lockWordRef)
 
-  @inline def _notify(): Unit    = withInflatedLockIfPresent(_._notify())
+  @inline def _notify(): Unit = withInflatedLockIfPresent(_._notify())
   @inline def _notifyAll(): Unit = withInflatedLockIfPresent(_._notifyAll())
-  @inline def _wait(): Unit      = withInflatedLockIfPresent(_._wait())
+  @inline def _wait(): Unit = withInflatedLockIfPresent(_._wait())
   @inline def _wait(timeout: Long): Unit =
     withInflatedLockIfPresent(_._wait(timeout))
   @inline def _wait(timeout: Long, nanos: Int): Unit =
@@ -55,8 +56,8 @@ final case class BasicMonitor(lockWordRef: Ptr[Word]) extends AnyVal {
   }
 
   def exit(): Unit = {
-    val threadId   = Thread.currentThread().getId()
-    val current    = !lockWordRef
+    val threadId = Thread.currentThread().getId()
+    val current = !lockWordRef
     val lockedOnce = LockStatus.Locked.withThreadId(threadId)
 
     (current.lockStatus: @switch) match {

@@ -69,7 +69,8 @@ class ReentrantReadWriteLock extends ReadWriteLock with java.io.Serializable {
   }
 
   protected def getWaitingThreads(
-      condition: Condition): java.util.Collection[Thread] = {
+      condition: Condition
+  ): java.util.Collection[Thread] = {
     if (condition == null)
       throw new NullPointerException()
     if (!condition.isInstanceOf[Sync#ConditionObject])
@@ -115,7 +116,7 @@ object ReentrantReadWriteLock {
     override protected final def tryRelease(releases: Int): Boolean = {
       if (!isHeldExclusively())
         throw new IllegalMonitorStateException()
-      val nextc: Int    = getState() - releases
+      val nextc: Int = getState() - releases
       val free: Boolean = exclusiveCount(nextc) == 0
       if (free)
         setExclusiveOwnerThread(null)
@@ -125,8 +126,8 @@ object ReentrantReadWriteLock {
 
     override protected final def tryAcquire(acquires: Int): Boolean = {
       val current: Thread = Thread.currentThread()
-      val c: Int          = getState()
-      val w: Int          = exclusiveCount(c)
+      val c: Int = getState()
+      val w: Int = exclusiveCount(c)
       if (c != 0) {
         if (w == 0 || current != getExclusiveOwnerThread())
           return false
@@ -160,7 +161,7 @@ object ReentrantReadWriteLock {
         rh.count -= 1
       }
       while (true) {
-        val c: Int     = getState()
+        val c: Int = getState()
         val nextc: Int = c - SHARED_UNIT
         if (state.compareAndSet(c, nextc))
           return nextc == 0
@@ -171,17 +172,19 @@ object ReentrantReadWriteLock {
 
     private def unmatchedUnlockException(): IllegalMonitorStateException =
       new IllegalMonitorStateException(
-        "attempt to unlock read lock, not locked by current thread")
+        "attempt to unlock read lock, not locked by current thread"
+      )
 
     override protected final def tryAcquireShared(unused: Int): Int = {
       val current: Thread = Thread.currentThread()
-      val c: Int          = getState()
+      val c: Int = getState()
       if (exclusiveCount(c) != 0 && getExclusiveOwnerThread() != current)
         return -1
       val r: Int = sharedCount(c)
       if (!readerShouldBlock() && r < MAX_COUNT && state.compareAndSet(
             c,
-            c + SHARED_UNIT)) {
+            c + SHARED_UNIT
+          )) {
         if (r == 0) {
           firstReader = current
           firstReaderHoldCount = 1
@@ -247,7 +250,7 @@ object ReentrantReadWriteLock {
 
     final def tryWriteLock(): Boolean = {
       val current: Thread = Thread.currentThread()
-      val c: Int          = getState()
+      val c: Int = getState()
       if (c != 0) {
         val w = exclusiveCount(c)
         if (w == 0 || current != getExclusiveOwnerThread())
@@ -329,9 +332,9 @@ object ReentrantReadWriteLock {
 
     private final val serialVersionUID: Long = 6317671515068378041L
 
-    final val SHARED_SHIFT: Int   = 16
-    final val SHARED_UNIT: Int    = 1 << SHARED_SHIFT
-    final val MAX_COUNT: Int      = (1 << SHARED_SHIFT) - 1
+    final val SHARED_SHIFT: Int = 16
+    final val SHARED_UNIT: Int = 1 << SHARED_SHIFT
+    final val MAX_COUNT: Int = (1 << SHARED_SHIFT) - 1
     final val EXCLUSIVE_MASK: Int = (1 << SHARED_SHIFT) - 1
 
     def sharedCount(c: Int): Int = c >>> SHARED_SHIFT

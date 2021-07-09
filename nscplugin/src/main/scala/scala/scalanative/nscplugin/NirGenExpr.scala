@@ -2265,8 +2265,10 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
 
       val name = Val.Global(genName(sym), Type.Ptr)
 
-      fromExtern(ty,
-                 buf.load(externTy, name, unwind, isAtomic = sym.isVolatile))
+      fromExtern(
+        ty,
+        buf.load(externTy, name, unwind, isAtomic = sym.isVolatile)
+      )
     }
 
     def genStoreExtern(externTy: nir.Type, sym: Symbol, value: Val)(implicit

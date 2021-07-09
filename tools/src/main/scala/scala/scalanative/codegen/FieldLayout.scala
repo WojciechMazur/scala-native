@@ -32,6 +32,6 @@ class FieldLayout(meta: Metadata, cls: Class) {
 object FieldLayout {
   final val ObjectHeader = Seq(
     Type.Ptr, // RTTI
-    Type.Ptr  // LockWord
+    Type.Ptr // LockWord
   )
 }

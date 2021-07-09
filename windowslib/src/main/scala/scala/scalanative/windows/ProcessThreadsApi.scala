@@ -9,17 +9,21 @@ import scala.scalanative.windows.HandleApi.Handle
 @extern()
 object ProcessThreadsApi {
   def ExitThread(exitCode: DWord): Unit = extern
-  def GetCurrentProcess(): Handle       = extern
-  def GetCurrentProcessToken(): Handle  = extern
-  def GetCurrentThread(): Handle        = extern
-  def OpenThreadToken(thread: Handle,
-                      desiredAccess: DWord,
-                      openAsSelf: Boolean,
-                      tokenHandle: Ptr[Handle]): Boolean = extern
-  def OpenProcessToken(process: Handle,
-                       desiredAccess: DWord,
-                       tokenHandle: Ptr[Handle]): Boolean = extern
-  def ResumeThread(thread: Handle): DWord                 = extern
-  def SwitchToThread(): Boolean                           = extern
-  def SuspendThread(thread: Handle): DWord                = extern
+  def GetCurrentProcess(): Handle = extern
+  def GetCurrentProcessToken(): Handle = extern
+  def GetCurrentThread(): Handle = extern
+  def OpenThreadToken(
+      thread: Handle,
+      desiredAccess: DWord,
+      openAsSelf: Boolean,
+      tokenHandle: Ptr[Handle]
+  ): Boolean = extern
+  def OpenProcessToken(
+      process: Handle,
+      desiredAccess: DWord,
+      tokenHandle: Ptr[Handle]
+  ): Boolean = extern
+  def ResumeThread(thread: Handle): DWord = extern
+  def SwitchToThread(): Boolean = extern
+  def SuspendThread(thread: Handle): DWord = extern
 }

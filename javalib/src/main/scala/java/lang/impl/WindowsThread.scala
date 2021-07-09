@@ -46,7 +46,8 @@ private[java] case class WindowsThread(handle: Handle, id: UInt, thread: Thread)
     ResumeThread(handle).toInt match {
       case -1 =>
         throw new RuntimeException(
-          s"Failed to resume thread: errCode=${GetLastError()}")
+          s"Failed to resume thread: errCode=${GetLastError()}"
+        )
       case prev => ()
     }
   }
@@ -56,7 +57,8 @@ private[java] case class WindowsThread(handle: Handle, id: UInt, thread: Thread)
     SuspendThread(handle).toInt match {
       case -1 =>
         throw new RuntimeException(
-          s"Failed to suspend thread: errCode=${GetLastError()}")
+          s"Failed to suspend thread: errCode=${GetLastError()}"
+        )
       case prev => ()
     }
   }
@@ -82,7 +84,7 @@ private[java] case class WindowsThread(handle: Handle, id: UInt, thread: Thread)
   @alwaysinline
   def tryParkNanos(nanos: scala.Long): Unit = {
     val NanosecondsInMillisecond = 1000000
-    val deadline                 = (System.nanoTime + nanos) / NanosecondsInMillisecond
+    val deadline = (System.nanoTime + nanos) / NanosecondsInMillisecond
     tryParkTimed(deadline)
   }
 
@@ -94,9 +96,11 @@ private[java] case class WindowsThread(handle: Handle, id: UInt, thread: Thread)
   @inline @tailrec
   private def tryParkTimed(deadline: scala.Long): Unit = {
     val milliseconds = System.currentTimeMillis() - deadline
-    val successfull = SleepConditionVariableCS(isUnparked,
-                                               threadParkingSection,
-                                               milliseconds.toUInt)
+    val successfull = SleepConditionVariableCS(
+      isUnparked,
+      threadParkingSection,
+      milliseconds.toUInt
+    )
     if (successfull) {
       if (state == NativeThread.State.Parked) {
         // spourious wakeup, retry
@@ -128,13 +132,15 @@ object WindowsThread {
   @extern
   @link("gc") @link("user32")
   object GCExt {
-    def GC_CreateThread(threadAttributes: Ptr[SecurityAttributes],
-                        stackSize: UWord,
-                        startRoutine: ThreadStartRoutine,
-                        routineArg: PtrAny,
-                        creationFlags: DWord,
-                        threadId: Ptr[DWord]): Handle = extern
-    def GC_ExitThread(exitCode: DWord): Unit          = extern
+    def GC_CreateThread(
+        threadAttributes: Ptr[SecurityAttributes],
+        stackSize: UWord,
+        startRoutine: ThreadStartRoutine,
+        routineArg: PtrAny,
+        creationFlags: DWord,
+        threadId: Ptr[DWord]
+    ): Handle = extern
+    def GC_ExitThread(exitCode: DWord): Unit = extern
   }
 
   private val InnerBufferSize = {
@@ -142,7 +148,7 @@ object WindowsThread {
   }.toInt
 
   private final val ThreadParkingSectionOffset = 0
-  private final val IsUnparkedConditionOffset  = SizeOfCriticalSection.toInt
+  private final val IsUnparkedConditionOffset = SizeOfCriticalSection.toInt
 
   def apply(thread: Thread): WindowsThread = {
     import GCExt._
@@ -158,7 +164,8 @@ object WindowsThread {
 
     if (handle == null) {
       throw new RuntimeException(
-        s"Failed to create new thread, errCode=${GetLastError()}")
+        s"Failed to create new thread, errCode=${GetLastError()}"
+      )
     }
     new WindowsThread(handle, !id, thread)
   }

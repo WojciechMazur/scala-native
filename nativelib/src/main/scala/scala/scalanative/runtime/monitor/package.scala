@@ -14,18 +14,18 @@ package object monitor {
     type LockStatus = Int
     object LockStatus {
       final val Unlocked = 0
-      final val Locked   = 1
+      final val Locked = 1
       final val Inflated = 2
     }
 
     final val ThreadIdOffset = 10
-    final val ThreadIdBits   = 54
-    final val ThreadIdMask   = ((1 << ThreadIdBits) - 1) << ThreadIdOffset
+    final val ThreadIdBits = 54
+    final val ThreadIdMask = ((1 << ThreadIdBits) - 1) << ThreadIdOffset
 
-    final val RecursionOffset         = 2
-    final val RecursionBits           = 8
+    final val RecursionOffset = 2
+    final val RecursionBits = 8
     final val ThinMonitorMaxRecursion = (1 << RecursionBits) - 1
-    final val RecursionMask           = ThinMonitorMaxRecursion << RecursionOffset
+    final val RecursionMask = ThinMonitorMaxRecursion << RecursionOffset
   }
 
   /*
@@ -57,7 +57,7 @@ package object monitor {
     @alwaysinline
     def withLockStatus(v: LockStatus): LockWord = (value & ~LockStatusMask) | v
 
-    def isLocked: Boolean   = lockStatus == LockStatus.Locked
+    def isLocked: Boolean = lockStatus == LockStatus.Locked
     def lsUnlocked: Boolean = lockStatus == LockStatus.Unlocked
     def isInflated: Boolean = lockStatus == LockStatus.Inflated
 
@@ -69,9 +69,9 @@ package object monitor {
       (value & ~ThreadIdMask) | threadIdBitset
     }
 
-    def recursionCount: Int            = ((value & RecursionMask) >> RecursionOffset).toInt
+    def recursionCount: Int = ((value & RecursionMask) >> RecursionOffset).toInt
     def withIncreasedRecursion(): Word = value + (1 << RecursionOffset)
-    def withDecresedRecursion(): Word  = value - (1 << RecursionOffset)
+    def withDecresedRecursion(): Word = value - (1 << RecursionOffset)
 
     // Inflated monitor ops
     def getObjectMonitor: ObjectMonitor = {

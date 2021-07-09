@@ -645,7 +645,7 @@ private[codegen] abstract class AbstractCodeGen(
       // Special case of load needing additional converstion, since atomic operations do not support i1
       case Op.Load(Type.Bool, ptr, true) =>
         val pointee = fresh()
-        val loaded  = fresh()
+        val loaded = fresh()
 
         newline()
         str("%")
@@ -712,7 +712,7 @@ private[codegen] abstract class AbstractCodeGen(
 
       // Special case of store needing additional converstion, since atomic operations do not support i1
       case Op.Store(Type.Bool, ptr, value, true) =>
-        val pointee  = fresh()
+        val pointee = fresh()
         val extended = fresh()
 
         newline()

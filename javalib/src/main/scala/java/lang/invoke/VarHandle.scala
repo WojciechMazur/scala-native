@@ -13,23 +13,33 @@ object VarHandle {
   @alwaysinline
   private def storeFence(): Unit = atomic_thread_fence(memory_order_release)
 
-  /** Ensures that loads before the fence will not be reordered with loads and stores after the fence. */
+  /** Ensures that loads before the fence will not be reordered with loads and
+   *  stores after the fence.
+   */
   @alwaysinline
   def acquireFence(): Unit = loadFence()
 
-  /** Ensures that loads and stores before the fence will not be reordered with stores after the fence. */
+  /** Ensures that loads and stores before the fence will not be reordered with
+   *  stores after the fence.
+   */
   @alwaysinline
   def releaseFence(): Unit = storeFence()
 
-  /** Ensures that loads and stores before the fence will not be reordered with loads and stores after the fence. */
+  /** Ensures that loads and stores before the fence will not be reordered with
+   *  loads and stores after the fence.
+   */
   @alwaysinline
   def fullFence(): Unit = atomic_thread_fence(memory_order_seq_cst)
 
-  /** Ensures that loads before the fence will not be reordered with loads after the fence. */
+  /** Ensures that loads before the fence will not be reordered with loads after
+   *  the fence.
+   */
   @alwaysinline
   def loadLoadFence(): Unit = loadFence()
 
-  /** Ensures that stores before the fence will not be reordered with stores after the fence. */
+  /** Ensures that stores before the fence will not be reordered with stores
+   *  after the fence.
+   */
   @alwaysinline
   def storeStoreFence(): Unit = storeFence()
 }

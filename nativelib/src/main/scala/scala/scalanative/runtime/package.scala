@@ -15,8 +15,12 @@ package object runtime {
     new Monitor(
       BasicMonitor(
         fromRawPtr(
-          elemRawPtr(castObjectToRawPtr(obj),
-                     MemoryLayout.Object.LockWordOffset)))
+          elemRawPtr(
+            castObjectToRawPtr(obj),
+            MemoryLayout.Object.LockWordOffset
+          )
+        )
+      )
     )
   }
 
@@ -49,8 +53,7 @@ package object runtime {
   /** Run the runtime's event loop. The method is called from the generated
    *  C-style after the application's main method terminates.
    */
-  @noinline def loop(): Unit =
-    ExecutionContext.loop()
+  @noinline def loop(): Unit = ()
 
   /** Called by the generated code in case of division by zero. */
   @noinline def throwDivisionByZero(): Nothing =
@@ -59,7 +62,7 @@ package object runtime {
   /** Called by the generated code in case of incorrect class cast. */
   @noinline def throwClassCast(from: RawPtr, to: RawPtr): Nothing = {
     val fromName = loadObject(elemRawPtr(from, MemoryLayout.Rtti.NameOffset))
-    val toName   = loadObject(elemRawPtr(to, MemoryLayout.Rtti.NameOffset))
+    val toName = loadObject(elemRawPtr(to, MemoryLayout.Rtti.NameOffset))
     throw new java.lang.ClassCastException(
       s"$fromName cannot be cast to $toName"
     )

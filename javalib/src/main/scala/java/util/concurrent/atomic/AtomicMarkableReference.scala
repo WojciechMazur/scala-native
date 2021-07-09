@@ -14,13 +14,16 @@ import scala.scalanative.runtime.Intrinsics.{elemRawPtr, castObjectToRawPtr}
 import scala.scalanative.runtime.{fromRawPtr, MemoryLayout}
 
 object AtomicMarkableReference {
-  private[concurrent] case class MarkableReference[T <: AnyRef](reference: T,
-                                                                mark: Boolean)
+  private[concurrent] case class MarkableReference[T <: AnyRef](
+      reference: T,
+      mark: Boolean
+  )
 }
 
 import AtomicMarkableReference._
 class AtomicMarkableReference[V <: AnyRef](
-    private[this] var value: MarkableReference[V]) {
+    private[this] var value: MarkableReference[V]
+) {
 
   def this(initialRef: V, initialMark: Boolean) = {
     this(MarkableReference(initialRef, initialMark))
@@ -34,31 +37,33 @@ class AtomicMarkableReference[V <: AnyRef](
     new CAtomicRef(
       // Assumess object fields are stored in memory directly after Ptr[Rtti]
       fromRawPtr(
-        elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset))
+        elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset)
+      )
     )
   }
 
-  /**
-   * Returns the current value of the reference.
+  /** Returns the current value of the reference.
    *
-   * @return the current value of the reference
+   *  @return
+   *    the current value of the reference
    */
   def getReference(): V = valueRef.load().reference
 
-  /**
-   * Returns the current value of the mark.
+  /** Returns the current value of the mark.
    *
-   * @return the current value of the mark
+   *  @return
+   *    the current value of the mark
    */
   def isMarked(): Boolean = valueRef.load().mark
 
-  /**
-   * Returns the current values of both the reference and the mark.
-   * Typical usage is {@code boolean[1] holder; ref = v.get(holder); }.
+  /** Returns the current values of both the reference and the mark. Typical
+   *  usage is {@code boolean[1] holder; ref = v.get(holder); }.
    *
-   * @param markHolder an array of size of at least one. On return,
-   * {@code markHolder[0]} will hold the value of the mark.
-   * @return the current value of the reference
+   *  @param markHolder
+   *    an array of size of at least one. On return, {@code markHolder[0]} will
+   *    hold the value of the mark.
+   *  @return
+   *    the current value of the reference
    */
   def get(markHolder: Array[Boolean]): V = {
     val current = valueRef.load()
@@ -66,59 +71,72 @@ class AtomicMarkableReference[V <: AnyRef](
     current.reference
   }
 
-  /**
-   * Atomically sets the value of both the reference and mark to the
-   * given update values if the current reference is {@code ==} to
-   * the expected reference and the current mark is equal to the
-   * expected mark. This operation may fail spuriously and does not
-   * provide ordering guarantees, so is only rarely an
-   * appropriate alternative to {@code compareAndSet}.
+  /** Atomically sets the value of both the reference and mark to the given
+   *  update values if the current reference is {@code ==} to the expected
+   *  reference and the current mark is equal to the expected mark. This
+   *  operation may fail spuriously and does not provide ordering guarantees, so
+   *  is only rarely an appropriate alternative to {@code compareAndSet}.
    *
-   * @param expectedReference the expected value of the reference
-   * @param newReference the new value for the reference
-   * @param expectedMark the expected value of the mark
-   * @param newMark the new value for the mark
-   * @return {@code true} if successful
+   *  @param expectedReference
+   *    the expected value of the reference
+   *  @param newReference
+   *    the new value for the reference
+   *  @param expectedMark
+   *    the expected value of the mark
+   *  @param newMark
+   *    the new value for the mark
+   *  @return
+   *    {@code true} if successful
    */
-  def weakCompareAndSet(expectedReference: V,
-                        newReference: V,
-                        expectedMark: Boolean,
-                        newMark: Boolean): Boolean =
+  def weakCompareAndSet(
+      expectedReference: V,
+      newReference: V,
+      expectedMark: Boolean,
+      newMark: Boolean
+  ): Boolean =
     compareAndSet(expectedReference, newReference, expectedMark, newMark)
 
-  /**
-   * Atomically sets the value of both the reference and mark
-   * to the given update values if the
-   * current reference is {@code ==} to the expected reference
-   * and the current mark is equal to the expected mark.
+  /** Atomically sets the value of both the reference and mark to the given
+   *  update values if the current reference is {@code ==} to the expected
+   *  reference and the current mark is equal to the expected mark.
    *
-   * @param expectedReference the expected value of the reference
-   * @param newReference the new value for the reference
-   * @param expectedMark the expected value of the mark
-   * @param newMark the new value for the mark
-   * @return {@code true} if successful
+   *  @param expectedReference
+   *    the expected value of the reference
+   *  @param newReference
+   *    the new value for the reference
+   *  @param expectedMark
+   *    the expected value of the mark
+   *  @param newMark
+   *    the new value for the mark
+   *  @return
+   *    {@code true} if successful
    */
-  def compareAndSet(expectedReference: V,
-                    newReference: V,
-                    expectedMark: Boolean,
-                    newMark: Boolean): Boolean = {
+  def compareAndSet(
+      expectedReference: V,
+      newReference: V,
+      expectedMark: Boolean,
+      newMark: Boolean
+  ): Boolean = {
     val current = valueRef.load()
 
     (expectedReference eq current.reference) &&
     expectedMark == current.mark && {
       ((newReference eq current.reference) && newMark == current.mark) ||
       valueRef
-        .compareExchangeStrong(current,
-                               MarkableReference(newReference, newMark))
+        .compareExchangeStrong(
+          current,
+          MarkableReference(newReference, newMark)
+        )
         ._1
     }
   }
 
-  /**
-   * Unconditionally sets the value of both the reference and mark.
+  /** Unconditionally sets the value of both the reference and mark.
    *
-   * @param newReference the new value for the reference
-   * @param newMark the new value for the mark
+   *  @param newReference
+   *    the new value for the reference
+   *  @param newMark
+   *    the new value for the mark
    */
   def set(newReference: V, newMark: Boolean): Unit = {
     val current = valueRef.load()
@@ -127,26 +145,29 @@ class AtomicMarkableReference[V <: AnyRef](
     }
   }
 
-  /**
-   * Atomically sets the value of the mark to the given update value
-   * if the current reference is {@code ==} to the expected
-   * reference.  Any given invocation of this operation may fail
-   * (return {@code false}) spuriously, but repeated invocation
-   * when the current value holds the expected value and no other
-   * thread is also attempting to set the value will eventually
-   * succeed.
+  /** Atomically sets the value of the mark to the given update value if the
+   *  current reference is {@code ==} to the expected reference. Any given
+   *  invocation of this operation may fail (return {@code false}) spuriously,
+   *  but repeated invocation when the current value holds the expected value
+   *  and no other thread is also attempting to set the value will eventually
+   *  succeed.
    *
-   * @param expectedReference the expected value of the reference
-   * @param newMark the new value for the mark
-   * @return {@code true} if successful
+   *  @param expectedReference
+   *    the expected value of the reference
+   *  @param newMark
+   *    the new value for the mark
+   *  @return
+   *    {@code true} if successful
    */
   def attemptMark(expectedReference: V, newMark: Boolean): Boolean = {
     val current = valueRef.load()
     (expectedReference eq current.reference) && {
       newMark == current.mark ||
       valueRef
-        .compareExchangeStrong(current,
-                               MarkableReference(expectedReference, newMark))
+        .compareExchangeStrong(
+          current,
+          MarkableReference(expectedReference, newMark)
+        )
         ._1
     }
   }

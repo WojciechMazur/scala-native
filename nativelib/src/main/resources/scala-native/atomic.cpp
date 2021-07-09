@@ -1,7 +1,7 @@
 #include <atomic>
 
-// Due to some bug (in GCC?) it might not be possible to access atomic_thread_fence
-// using C (would fail with undefined reference to function)
+// Due to some bug (in GCC?) it might not be possible to access
+// atomic_thread_fence using C (would fail with undefined reference to function)
 // For some strange reason it works well well referenced in C++
 extern "C" {
 void scalanative_atomic_thread_fence(std::memory_order order) {

@@ -28,7 +28,7 @@ import scala.scalanative.meta.LinktimeInfo.isWindows
 
 trait NativeThread {
   @volatile var state: NativeThread.State = NativeThread.State.New
-  @volatile var skipNextUnparkEvent       = true
+  @volatile var skipNextUnparkEvent = true
 
   def thread: Thread
   def setPriority(priority: CInt): Unit
@@ -101,25 +101,25 @@ trait NativeThread {
 }
 
 object NativeThread {
-  type PtrAny             = Ptr[scala.Byte]
-  type ThreadRoutineArg   = PtrAny
+  type PtrAny = Ptr[scala.Byte]
+  type ThreadRoutineArg = PtrAny
   type ThreadStartRoutine = CFuncPtr1[PtrAny, PtrAny]
 
   import impl.{PosixThread, WindowsThread}
   final val DefaultStackSize: CSize = Config.defaultStackSize()
-  final val DefaultPriority: Int    = Config.defaultPriority()
-  final val MaxPriority: Int        = Config.maxPriority()
-  final val MinPriority: Int        = Config.minPriority()
+  final val DefaultPriority: Int = Config.defaultPriority()
+  final val MaxPriority: Int = Config.maxPriority()
+  final val MinPriority: Int = Config.minPriority()
 
   sealed trait State
   object State {
-    case object New                   extends State
-    case object Running               extends State
-    case object Waiting               extends State
-    case object WaitingWithTimeout    extends State
+    case object New extends State
+    case object Running extends State
+    case object Waiting extends State
+    case object WaitingWithTimeout extends State
     case object WaitingOnMonitorEnter extends State
-    case object Parked                extends State
-    case object Terminated            extends State
+    case object Parked extends State
+    case object Terminated extends State
   }
 
   private def threadEntryPoint(thread: Thread): Unit = {

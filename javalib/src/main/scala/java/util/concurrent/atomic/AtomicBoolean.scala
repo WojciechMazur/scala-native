@@ -24,7 +24,8 @@ class AtomicBoolean private (private var value: Byte) extends Serializable {
   private[concurrent] def valueRef: CAtomicByte = new CAtomicByte(
     // Assumess object fields are stored in memory directly after Ptr[Rtti]
     fromRawPtr(
-      elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset))
+      elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset)
+    )
   )
 
   def this() = {
@@ -35,273 +36,305 @@ class AtomicBoolean private (private var value: Byte) extends Serializable {
     this(if (initialValue) 1.toByte else 0.toByte)
   }
 
-  private implicit def byteToBoolean(v: Byte): Boolean       = v != 0
+  private implicit def byteToBoolean(v: Byte): Boolean = v != 0
   private implicit def booleanToByte(v: scala.Boolean): Byte = if (v) 1 else 0
 
-  /**
-   * Returns the current value,
-   * with memory effects as specified by {@link VarHandle#getVolatile}.
+  /** Returns the current value, with memory effects as specified by {@link
+   *  VarHandle#getVolatile}.
    *
-   * @return the current value
+   *  @return
+   *    the current value
    */
   final def get(): Boolean = value
 
-  /**
-   * Atomically sets the value to {@code newValue}
-   * if the current value {@code == expectedValue},
-   * with memory effects as specified by {@link VarHandle#compareAndSet}.
+  /** Atomically sets the value to {@code newValue} if the current value {@code
+   *  == expectedValue}, with memory effects as specified by {@link
+   *  VarHandle#compareAndSet}.
    *
-   * @param expectedValue the expected value
-   * @param newValue the new value
-   * @return {@code true} if successful. False return indicates that
-   * the actual value was not equal to the expected value.
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    {@code true} if successful. False return indicates that the actual value
+   *    was not equal to the expected value.
    */
-  final def compareAndSet(expectedValue: Boolean,
-                          newValue: Boolean): Boolean = {
+  final def compareAndSet(
+      expectedValue: Boolean,
+      newValue: Boolean
+  ): Boolean = {
     valueRef.compareExchangeStrong(expectedValue, newValue)._1
   }
 
-  /**
-   * Possibly atomically sets the value to {@code newValue}
-   * if the current value {@code == expectedValue},
-   * with memory effects as specified by {@link VarHandle#weakCompareAndSetPlain}.
+  /** Possibly atomically sets the value to {@code newValue} if the current
+   *  value {@code == expectedValue}, with memory effects as specified by {@link
+   *  VarHandle#weakCompareAndSetPlain}.
    *
-   * @deprecated This method has plain memory effects but the method
-   * name implies volatile memory effects (see methods such as
-   * {@link #compareAndExchange} and {@link #compareAndSet}).  To avoid
-   * confusion over plain or volatile memory effects it is recommended that
-   * the method {@link #weakCompareAndSetPlain} be used instead.
+   *  @deprecated
+   *    This method has plain memory effects but the method name implies
+   *    volatile memory effects (see methods such as {@link #compareAndExchange}
+   *    and {@link #compareAndSet}). To avoid confusion over plain or volatile
+   *    memory effects it is recommended that the method {@link
+   *    #weakCompareAndSetPlain} be used instead.
    *
-   * @param expectedValue the expected value
-   * @param newValue the new value
-   * @return {@code true} if successful
-   * @see #weakCompareAndSetPlain
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    {@code true} if successful
+   *  @see
+   *    #weakCompareAndSetPlain
    */
   @deprecated("", "9")
   def weakCompareAndSet(expectedValue: Boolean, newValue: Boolean): Boolean =
     valueRef.compareExchangeWeak(expectedValue, newValue)._1
 
-  /**
-   * Possibly atomically sets the value to {@code newValue}
-   * if the current value {@code == expectedValue},
-   * with memory effects as specified by {@link VarHandle#weakCompareAndSetPlain}.
+  /** Possibly atomically sets the value to {@code newValue} if the current
+   *  value {@code == expectedValue}, with memory effects as specified by {@link
+   *  VarHandle#weakCompareAndSetPlain}.
    *
-   * @param expectedValue the expected value
-   * @param newValue the new value
-   * @return {@code true} if successful
-   * @since 9
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    {@code true} if successful
+   *  @since 9
    */
-  def weakCompareAndSetPlain(expectedValue: Boolean,
-                             newValue: Boolean): Boolean = {
+  def weakCompareAndSetPlain(
+      expectedValue: Boolean,
+      newValue: Boolean
+  ): Boolean = {
     if (byteToBoolean(value) == expectedValue) {
       value = newValue
       true
     } else false
   }
 
-  /**
-   * Sets the value to {@code newValue},
-   * with memory effects as specified by {@link VarHandle#setVolatile}.
+  /** Sets the value to {@code newValue}, with memory effects as specified by
+   *  {@link VarHandle#setVolatile}.
    *
-   * @param newValue the new value
+   *  @param newValue
+   *    the new value
    */
   final def set(newValue: Boolean): Unit = {
     valueRef.store(newValue)
   }
 
-  /**
-   * Sets the value to {@code newValue},
-   * with memory effects as specified by {@link VarHandle#setRelease}.
+  /** Sets the value to {@code newValue}, with memory effects as specified by
+   *  {@link VarHandle#setRelease}.
    *
-   * @param newValue the new value
-   * @since 1.6
+   *  @param newValue
+   *    the new value
+   *  @since 1.6
    */
   final def lazySet(newValue: Boolean): Unit = {
     valueRef.store(newValue, memory_order_release)
   }
 
-  /**
-   * Atomically sets the value to {@code newValue} and returns the old value,
-   * with memory effects as specified by {@link VarHandle#getAndSet}.
+  /** Atomically sets the value to {@code newValue} and returns the old value,
+   *  with memory effects as specified by {@link VarHandle#getAndSet}.
    *
-   * @param newValue the new value
-   * @return the previous value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    the previous value
    */
   final def getAndSet(newValue: Boolean): Boolean = {
     valueRef.exchange(newValue)
   }
 
-  /**
-   * Returns the String representation of the current value.
-   * @return the String representation of the current value
+  /** Returns the String representation of the current value.
+   *  @return
+   *    the String representation of the current value
    */
   override def toString(): String = java.lang.Boolean.toString(get())
 
-  /**
-   * Returns the current value, with memory semantics of reading as
-   * if the variable was declared non-{@code volatile}.
+  /** Returns the current value, with memory semantics of reading as if the
+   *  variable was declared non-{@code volatile}.
    *
-   * @return the value
-   * @since 9
+   *  @return
+   *    the value
+   *  @since 9
    */
   final def getPlain(): Boolean = value
 
-  /**
-   * Sets the value to {@code newValue}, with memory semantics
-   * of setting as if the variable was declared non-{@code volatile}
-   * and non-{@code final}.
+  /** Sets the value to {@code newValue}, with memory semantics of setting as if
+   *  the variable was declared non-{@code volatile} and non-{@code final}.
    *
-   * @param newValue the new value
-   * @since 9
+   *  @param newValue
+   *    the new value
+   *  @since 9
    */
   final def setPlain(newValue: Boolean): Unit = {
     value = newValue
   }
 
-  /**
-   * Returns the current value,
-   * with memory effects as specified by {@link VarHandle#getOpaque}.
+  /** Returns the current value, with memory effects as specified by {@link
+   *  VarHandle#getOpaque}.
    *
-   * @return the value
-   * @since 9
+   *  @return
+   *    the value
+   *  @since 9
    */
   final def getOpaque: Boolean = {
     valueRef.load(memory_order_relaxed)
   }
 
-  /**
-   * Sets the value to {@code newValue},
-   * with memory effects as specified by {@link VarHandle#setOpaque}.
+  /** Sets the value to {@code newValue}, with memory effects as specified by
+   *  {@link VarHandle#setOpaque}.
    *
-   * @param newValue the new value
-   * @since 9
+   *  @param newValue
+   *    the new value
+   *  @since 9
    */
   final def setOpaque(newValue: Boolean): Unit = {
     valueRef.store(newValue, memory_order_relaxed)
   }
 
-  /**
-   * Returns the current value,
-   * with memory effects as specified by {@link VarHandle#getAcquire}.
+  /** Returns the current value, with memory effects as specified by {@link
+   *  VarHandle#getAcquire}.
    *
-   * @return the value
-   * @since 9
+   *  @return
+   *    the value
+   *  @since 9
    */
   final def getAcquire: Boolean = {
     valueRef.load(memory_order_acquire)
   }
 
-  /**
-   * Sets the value to {@code newValue},
-   * with memory effects as specified by {@link VarHandle#setRelease}.
+  /** Sets the value to {@code newValue}, with memory effects as specified by
+   *  {@link VarHandle#setRelease}.
    *
-   * @param newValue the new value
-   * @since 9
+   *  @param newValue
+   *    the new value
+   *  @since 9
    */
   final def setRelease(newValue: Boolean): Unit = {
     valueRef.store(newValue, memory_order_release)
   }
 
-  /**
-   * Atomically sets the value to {@code newValue} if the current value,
-   * referred to as the <em>witness value</em>, {@code == expectedValue},
-   * with memory effects as specified by
-   * {@link VarHandle#compareAndExchange}.
+  /** Atomically sets the value to {@code newValue} if the current value,
+   *  referred to as the <em>witness value</em>, {@code == expectedValue}, with
+   *  memory effects as specified by {@link VarHandle#compareAndExchange}.
    *
-   * @param expectedValue the expected value
-   * @param newValue the new value
-   * @return the witness value, which will be the same as the
-   * expected value if successful
-   * @since 9
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    the witness value, which will be the same as the expected value if
+   *    successful
+   *  @since 9
    */
-  final def compareAndExchange(expectedValue: Boolean,
-                               newValue: Boolean): Boolean = {
+  final def compareAndExchange(
+      expectedValue: Boolean,
+      newValue: Boolean
+  ): Boolean = {
     valueRef.compareExchangeStrong(expectedValue, newValue)._2
   }
 
-  /**
-   * Atomically sets the value to {@code newValue} if the current value,
-   * referred to as the <em>witness value</em>, {@code == expectedValue},
-   * with memory effects as specified by
-   * {@link VarHandle#compareAndExchangeAcquire}.
+  /** Atomically sets the value to {@code newValue} if the current value,
+   *  referred to as the <em>witness value</em>, {@code == expectedValue}, with
+   *  memory effects as specified by {@link
+   *  VarHandle#compareAndExchangeAcquire}.
    *
-   * @param expectedValue the expected value
-   * @param newValue the new value
-   * @return the witness value, which will be the same as the
-   * expected value if successful
-   * @since 9
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    the witness value, which will be the same as the expected value if
+   *    successful
+   *  @since 9
    */
-  final def compareAndExchangeAcquire(expectedValue: Boolean,
-                                      newValue: Boolean): Boolean = {
+  final def compareAndExchangeAcquire(
+      expectedValue: Boolean,
+      newValue: Boolean
+  ): Boolean = {
     valueRef
       .compareExchangeStrong(expectedValue, newValue, memory_order_acquire)
       ._2
   }
 
-  /**
-   * Atomically sets the value to {@code newValue} if the current value,
-   * referred to as the <em>witness value</em>, {@code == expectedValue},
-   * with memory effects as specified by
-   * {@link VarHandle#compareAndExchangeRelease}.
+  /** Atomically sets the value to {@code newValue} if the current value,
+   *  referred to as the <em>witness value</em>, {@code == expectedValue}, with
+   *  memory effects as specified by {@link
+   *  VarHandle#compareAndExchangeRelease}.
    *
-   * @param expectedValue the expected value
-   * @param newValue the new value
-   * @return the witness value, which will be the same as the
-   * expected value if successful
-   * @since 9
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    the witness value, which will be the same as the expected value if
+   *    successful
+   *  @since 9
    */
-  final def compareAndExchangeRelease(expectedValue: Boolean,
-                                      newValue: Boolean): Boolean = {
+  final def compareAndExchangeRelease(
+      expectedValue: Boolean,
+      newValue: Boolean
+  ): Boolean = {
     valueRef
       .compareExchangeStrong(expectedValue, newValue, memory_order_release)
       ._2
   }
 
-  /**
-   * Possibly atomically sets the value to {@code newValue} if the current
-   * value {@code == expectedValue},
-   * with memory effects as specified by
-   * {@link VarHandle#weakCompareAndSet}.
+  /** Possibly atomically sets the value to {@code newValue} if the current
+   *  value {@code == expectedValue}, with memory effects as specified by {@link
+   *  VarHandle#weakCompareAndSet}.
    *
-   * @param expectedValue the expected value
-   * @param newValue the new value
-   * @return {@code true} if successful
-   * @since 9
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    {@code true} if successful
+   *  @since 9
    */
-  final def weakCompareAndSetVolatile(expectedValue: Boolean,
-                                      newValue: Boolean): Boolean =
+  final def weakCompareAndSetVolatile(
+      expectedValue: Boolean,
+      newValue: Boolean
+  ): Boolean =
     valueRef.compareExchangeWeak(expectedValue, newValue)._1
 
-  /**
-   * Possibly atomically sets the value to {@code newValue} if the current
-   * value {@code == expectedValue},
-   * with memory effects as specified by
-   * {@link VarHandle#weakCompareAndSetAcquire}.
+  /** Possibly atomically sets the value to {@code newValue} if the current
+   *  value {@code == expectedValue}, with memory effects as specified by {@link
+   *  VarHandle#weakCompareAndSetAcquire}.
    *
-   * @param expectedValue the expected value
-   * @param newValue the new value
-   * @return {@code true} if successful
-   * @since 9
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    {@code true} if successful
+   *  @since 9
    */
-  final def weakCompareAndSetAcquire(expectedValue: Boolean,
-                                     newValue: Boolean): Boolean =
+  final def weakCompareAndSetAcquire(
+      expectedValue: Boolean,
+      newValue: Boolean
+  ): Boolean =
     valueRef
       .compareExchangeWeak(expectedValue, newValue, memory_order_acquire)
       ._1
 
-  /**
-   * Possibly atomically sets the value to {@code newValue} if the current
-   * value {@code == expectedValue},
-   * with memory effects as specified by
-   * {@link VarHandle#weakCompareAndSetRelease}.
+  /** Possibly atomically sets the value to {@code newValue} if the current
+   *  value {@code == expectedValue}, with memory effects as specified by {@link
+   *  VarHandle#weakCompareAndSetRelease}.
    *
-   * @param expectedValue the expected value
-   * @param newValue the new value
-   * @return {@code true} if successful
-   * @since 9
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    {@code true} if successful
+   *  @since 9
    */
-  final def weakCompareAndSetRelease(expectedValue: Boolean,
-                                     newValue: Boolean): Boolean =
+  final def weakCompareAndSetRelease(
+      expectedValue: Boolean,
+      newValue: Boolean
+  ): Boolean =
     valueRef
       .compareExchangeWeak(expectedValue, newValue, memory_order_release)
       ._1

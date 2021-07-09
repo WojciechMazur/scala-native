@@ -1,5 +1,7 @@
 #include "thread.h"
 
+#include <stdlib.h>
+
 typedef void *JavaThread;
 
 thread_local JavaThread currentThread = NULL;

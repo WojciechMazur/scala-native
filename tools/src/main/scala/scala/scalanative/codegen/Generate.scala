@@ -84,7 +84,11 @@ object Generate {
             ),
             Next.None
           ),
-          Inst.Let(result.name, Op.Load(Type.Bool, boolptr), Next.None),
+          Inst.Let(
+            result.name,
+            Op.Load(Type.Bool, boolptr, isAtomic = false),
+            Next.None
+          ),
           Inst.Ret(result)
         )
       )
@@ -119,7 +123,11 @@ object Generate {
             ),
             Next.None
           ),
-          Inst.Let(result.name, Op.Load(Type.Bool, boolptr), Next.None),
+          Inst.Let(
+            result.name,
+            Op.Load(Type.Bool, boolptr, isAtomic = false),
+            Next.None
+          ),
           Inst.Ret(result)
         )
       )
@@ -165,7 +173,8 @@ object Generate {
             Op.Store(
               Type.Ptr,
               Val.Global(stackBottomName, Type.Ptr),
-              stackBottom
+              stackBottom,
+              isAtomic = false
             ),
             unwind
           ),
@@ -191,7 +200,6 @@ object Generate {
             ),
             Inst.Let(module.name, Op.Module(entry.top), unwind),
             Inst.Let(Op.Call(entryMainTy, entryMain, Seq(module, arr)), unwind),
-            Inst.Let(Op.Call(RuntimeLoopSig, RuntimeLoop, Seq(module)), unwind),
             Inst.Ret(Val.Int(0)),
             Inst.Label(handler, Seq(exc)),
             Inst.Let(
@@ -262,7 +270,11 @@ object Generate {
                   ),
                   Next.None
                 ),
-                Inst.Let(self.name, Op.Load(clsTy, slot), Next.None),
+                Inst.Let(
+                  self.name,
+                  Op.Load(clsTy, slot, isAtomic = false),
+                  Next.None
+                ),
                 Inst.Let(
                   cond.name,
                   Op.Comp(Comp.Ine, nir.Rt.Object, self, Val.Null),
@@ -273,7 +285,10 @@ object Generate {
                 Inst.Ret(self),
                 Inst.Label(initialize, Seq()),
                 Inst.Let(alloc.name, Op.Classalloc(name), Next.None),
-                Inst.Let(Op.Store(clsTy, slot, alloc), Next.None),
+                Inst.Let(
+                  Op.Store(clsTy, slot, alloc, isAtomic = false),
+                  Next.None
+                ),
                 Inst.Let(Op.Call(initSig, init, Seq(alloc)), Next.None),
                 Inst.Ret(alloc)
               )
@@ -381,12 +396,6 @@ object Generate {
       )
     val RuntimeInit =
       Val.Global(RuntimeInitName, Type.Ptr)
-    val RuntimeLoopSig =
-      Type.Function(Seq(Runtime), Type.Unit)
-    val RuntimeLoopName =
-      Runtime.name.member(Sig.Method("loop", Seq(Type.Unit)))
-    val RuntimeLoop =
-      Val.Global(RuntimeLoopName, Type.Ptr)
 
     val MainName = extern("main")
     val MainSig = Type.Function(Seq(Type.Int, Type.Ptr), Type.Int)
@@ -417,11 +426,5 @@ object Generate {
   }
 
   val depends =
-    Seq(
-      ObjectArray.name,
-      Runtime.name,
-      RuntimeInit.name,
-      RuntimeLoop.name,
-      PrintStackTraceName
-    )
+    Seq(ObjectArray.name, Runtime.name, RuntimeInit.name, PrintStackTraceName)
 }

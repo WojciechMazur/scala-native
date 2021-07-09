@@ -1,12 +1,17 @@
-package java.util.concurrent.locks
+package java.util.concurrent
+package locks
 
-import java.io.Serializable
+import java.util.concurrent.atomic.AtomicReference
 
-abstract class AbstractOwnableSynchronizer protected () extends Serializable {
-  private var exclusiveOwner: Thread = _
+@SerialVersionUID(3737899427754241961L)
+abstract class AbstractOwnableSynchronizer extends java.io.Serializable {
 
-  protected final def setExclusiveOwnerThread(thread: Thread): Unit =
-    exclusiveOwner = thread
+  private val exclusiveOwnerThread = new AtomicReference[Thread]
+
+  protected final def setExclusiveOwnerThread(t: Thread): Unit =
+    exclusiveOwnerThread.set(t)
+
   protected final def getExclusiveOwnerThread(): Thread =
-    exclusiveOwner
+    exclusiveOwnerThread.get()
+
 }

@@ -19,9 +19,18 @@ class Metadata(val linked: linker.Result, proxies: Seq[Defn]) {
   val dispatchTable = new TraitDispatchTable(this)
   val hasTraitTables = new HasTraitTables(this)
 
-  val Rtti = Type.StructValue(Seq(Type.Ptr, Type.Int, Type.Int, Type.Ptr))
-  val RttiClassIdIndex = Seq(Val.Int(0), Val.Int(1))
-  val RttiTraitIdIndex = Seq(Val.Int(0), Val.Int(2))
+  val Rtti = Type.StructValue(
+    Seq(
+      Type.Ptr, // ClassRtti
+      Type.Ptr, // LockWord - ThinLock or reference to FatLock
+      Type.Int, // ClassId
+      Type.Int, // Traitid
+      Type.Ptr // ClassName
+    )
+  )
+
+  val RttiClassIdIndex = Seq(Val.Int(0), Val.Int(2))
+  val RttiTraitIdIndex = Seq(Val.Int(0), Val.Int(3))
   val RttiVtableIndex =
     Seq(Val.Int(0), Val.Int(if (linked.dynsigs.isEmpty) 4 else 5))
   val RttiDynmapIndex =

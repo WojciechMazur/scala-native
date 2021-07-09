@@ -650,9 +650,7 @@ lazy val scalalib =
         } {
           val normSrc = normPath(src)
           val path = normSrc.substring(normSrcDir.length)
-          val useless =
-            path.contains("/scala/collection/parallel/") ||
-              path.contains("/scala/util/parsing/")
+          val useless = path.contains("/scala/util/parsing/")
           if (!useless) {
             if (paths.add(path))
               sources += src

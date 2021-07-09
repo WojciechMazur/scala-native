@@ -17,6 +17,7 @@ extern int __array_ids_max;
 typedef struct {
     struct {
         word_t *cls;
+        word_t lockWord;
         int32_t id;
         int32_t tid;
         word_t *name;
@@ -30,11 +31,13 @@ typedef word_t *Field_t;
 
 typedef struct {
     Rtti *rtti;
+    word_t lockWord;
     Field_t fields[0];
 } Object;
 
 typedef struct {
     Rtti *rtti;
+    word_t lockWord;
     int32_t length;
     int32_t stride;
 } ArrayHeader;

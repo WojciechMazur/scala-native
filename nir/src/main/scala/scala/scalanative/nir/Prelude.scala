@@ -9,7 +9,9 @@ case class Prelude(
     compat: Int,
     revision: Int,
     hasEntryPoints: Boolean
-)
+) {
+  final val supportsAtomicOps = compat >= 5 && revision >= 9
+}
 
 object Prelude {
   val length = 13

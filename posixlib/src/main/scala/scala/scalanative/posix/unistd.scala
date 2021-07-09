@@ -33,8 +33,13 @@ object unistd {
   def truncate(path: CString, length: off_t): CInt = extern
   def unlink(path: CString): CInt = extern
   def usleep(usecs: CUnsignedInt): CInt = extern
+  def nanosleep(
+      requested: Ptr[time.timespec],
+      remaining: Ptr[time.timespec]
+  ): CInt = extern
   def vfork(): CInt = extern
   def write(fildes: CInt, buf: Ptr[_], nbyte: CSize): CInt = extern
+  def sysconf(name: Int): Long = extern
 
   @name("scalanative_chown")
   def chown(path: CString, owner: uid_t, group: gid_t): CInt = extern
@@ -87,6 +92,9 @@ object unistd {
 
   @name("scalanative_stdout_fileno")
   def STDOUT_FILENO: CInt = extern
+
+  @name("scalanative_sc_nprocessors_onln")
+  def SC_NPROCESSORS_ONLN: CInt = extern
 
   @name("scalanative_symlink")
   def symlink(path1: CString, path2: CString): CInt = extern

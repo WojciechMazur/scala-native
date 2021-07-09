@@ -6,10 +6,8 @@ import scalanative.annotation.stub
 class Constructor[T] extends Executable {
 
   @stub
-  def getParameterTypes(): scala.Array[Object] = ???
+  def getParameterTypes(): scala.Array[Class[_]] = ???
 
   @stub
-  def newInstance(
-      args: scala.scalanative.runtime.ObjectArray
-  ): java.lang.Object = ???
+  def newInstance(args: Object*): java.lang.Object = ???
 }

@@ -39,6 +39,9 @@ object WinBaseApi {
 
   @name("scalanative_win32_default_language")
   final def DefaultLanguageId: DWord = extern
+
+  @name("scalanative_win32_infinite")
+  final def Infinite: DWord = extern
 }
 
 object WinBaseApiExt {

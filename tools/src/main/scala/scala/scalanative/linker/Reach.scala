@@ -630,10 +630,10 @@ class Reach(
       reachType(ty)
       reachVal(ptrv)
       argvs.foreach(reachVal)
-    case Op.Load(ty, ptrv) =>
+    case Op.Load(ty, ptrv, _) =>
       reachType(ty)
       reachVal(ptrv)
-    case Op.Store(ty, ptrv, v) =>
+    case Op.Store(ty, ptrv, v, _) =>
       reachType(ty)
       reachVal(ptrv)
       reachVal(v)

@@ -13,46 +13,43 @@ import scala.scalanative.annotation._
 import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.tailrec
 
-/**
- * A cancellable asynchronous computation.  This class provides a base
- * implementation of {@link Future}, with methods to start and cancel
- * a computation, query to see if the computation is complete, and
- * retrieve the result of the computation.  The result can only be
- * retrieved when the computation has completed; the {@code get}
- * methods will block if the computation has not yet completed.  Once
- * the computation has completed, the computation cannot be restarted
- * or cancelled (unless the computation is invoked using
- * {@link #runAndReset}).
+/** A cancellable asynchronous computation. This class provides a base
+ *  implementation of {@link Future}, with methods to start and cancel a
+ *  computation, query to see if the computation is complete, and retrieve the
+ *  result of the computation. The result can only be retrieved when the
+ *  computation has completed; the {@code get} methods will block if the
+ *  computation has not yet completed. Once the computation has completed, the
+ *  computation cannot be restarted or cancelled (unless the computation is
+ *  invoked using {@link #runAndReset}).
  *
- * <p>A {@code FutureTask} can be used to wrap a {@link Callable} or
- * {@link Runnable} object.  Because {@code FutureTask} implements
- * {@code Runnable}, a {@code FutureTask} can be submitted to an
- * {@link Executor} for execution.
+ *  <p>A {@code FutureTask} can be used to wrap a {@link Callable} or {@link
+ *  Runnable} object. Because {@code FutureTask} implements {@code Runnable}, a
+ *  {@code FutureTask} can be submitted to an {@link Executor} for execution.
  *
- * <p>In addition to serving as a standalone class, this class provides
- * {@code protected} functionality that may be useful when creating
- * customized task classes.
+ *  <p>In addition to serving as a standalone class, this class provides {@code
+ *  protected} functionality that may be useful when creating customized task
+ *  classes.
  *
- * @since 1.5
- * @author Doug Lea
- * @param <V> The result type returned by this FutureTask's {@code get} methods
+ *  @since 1.5
+ *    @author Doug Lea
+ *  @param <V>
+ *    The result type returned by this FutureTask's {@code get} methods
  */
 object FutureTask {
-  private val NEW          = 0
-  private val COMPLETING   = 1
-  private val NORMAL       = 2
-  private val EXCEPTIONAL  = 3
-  private val CANCELLED    = 4
+  private val NEW = 0
+  private val COMPLETING = 1
+  private val NORMAL = 2
+  private val EXCEPTIONAL = 3
+  private val CANCELLED = 4
   private val INTERRUPTING = 5
-  private val INTERRUPTED  = 6
+  private val INTERRUPTED = 6
 
-  /**
-   * Simple linked list nodes to record waiting threads in a Treiber
-   * stack.  See other classes such as Phaser and SynchronousQueue
-   * for more detailed explanation.
+  /** Simple linked list nodes to record waiting threads in a Treiber stack. See
+   *  other classes such as Phaser and SynchronousQueue for more detailed
+   *  explanation.
    */
   final private[concurrent] class WaitNode private[concurrent] () {
-    private[concurrent] var thread         = Thread.currentThread()
+    private[concurrent] var thread = Thread.currentThread()
     private[concurrent] var next: WaitNode = null
   }
 }
@@ -60,24 +57,19 @@ object FutureTask {
 class FutureTask[V] private () extends RunnableFuture[V] {
   import FutureTask._
 
-  /**
-   * The run state of this task, initially NEW.  The run state
-   * transitions to a terminal state only in methods set,
-   * setException, and cancel.  During completion, state may take on
-   * transient values of COMPLETING (while outcome is being set) or
-   * INTERRUPTING (only while interrupting the runner to satisfy a
-   * cancel(true)). Transitions from these intermediate to final
-   * states use cheaper ordered/lazy writes because values are unique
-   * and cannot be further modified.
+  /** The run state of this task, initially NEW. The run state transitions to a
+   *  terminal state only in methods set, setException, and cancel. During
+   *  completion, state may take on transient values of COMPLETING (while
+   *  outcome is being set) or INTERRUPTING (only while interrupting the runner
+   *  to satisfy a cancel(true)). Transitions from these intermediate to final
+   *  states use cheaper ordered/lazy writes because values are unique and
+   *  cannot be further modified.
    *
-   * Possible state transitions:
-   * NEW -> COMPLETING -> NORMAL
-   * NEW -> COMPLETING -> EXCEPTIONAL
-   * NEW -> CANCELLED
-   * NEW -> INTERRUPTING -> INTERRUPTED
+   *  Possible state transitions: NEW -> COMPLETING -> NORMAL NEW -> COMPLETING
+   *  -> EXCEPTIONAL NEW -> CANCELLED NEW -> INTERRUPTING -> INTERRUPTED
    */
-  private val atomicState                 = new AtomicInteger(NEW)
-  @alwaysinline def state: Int            = atomicState.getPlain()
+  private val atomicState = new AtomicInteger(NEW)
+  @alwaysinline def state: Int = atomicState.getPlain()
   @alwaysinline def state_=(v: Int): Unit = atomicState.setPlain(v)
 
   /** The underlying callable; nulled out after running */
@@ -87,13 +79,13 @@ class FutureTask[V] private () extends RunnableFuture[V] {
   private var outcome: Any = null
 
   /** The thread running the callable; CASed during run() */
-  private val atomicRunner                    = new AtomicReference[Thread]()
-  @alwaysinline def runner: Thread            = atomicRunner.get()
+  private val atomicRunner = new AtomicReference[Thread]()
+  @alwaysinline def runner: Thread = atomicRunner.get()
   @alwaysinline def runner_=(v: Thread): Unit = atomicRunner.set(v)
 
   /** Treiber stack of waiting threads */
-  @volatile private var atomicWaiters            = new AtomicReference[WaitNode]()
-  @alwaysinline def waiters: WaitNode            = atomicWaiters.get()
+  @volatile private var atomicWaiters = new AtomicReference[WaitNode]()
+  @alwaysinline def waiters: WaitNode = atomicWaiters.get()
   @alwaysinline def waiters_=(v: WaitNode): Unit = atomicWaiters.set(v)
 
   def this(callable: Callable[V]) = {
@@ -106,10 +98,10 @@ class FutureTask[V] private () extends RunnableFuture[V] {
     this.callable = Executors.callable(runnable, result)
   }
 
-  /**
-   * Returns result or throws exception for completed task.
+  /** Returns result or throws exception for completed task.
    *
-   * @param s completed state value
+   *  @param s
+   *    completed state value
    */
   @SuppressWarnings(Array("unchecked")) @throws[ExecutionException]
   private def report(s: Int): V = {
@@ -120,11 +112,12 @@ class FutureTask[V] private () extends RunnableFuture[V] {
   }
 
   override def isCancelled(): Boolean = state >= CANCELLED
-  override def isDone(): Boolean      = state != NEW
+  override def isDone(): Boolean = state != NEW
   override def cancel(mayInterruptIfRunning: Boolean): Boolean = {
     if (!(state == NEW && atomicState.compareAndSet(
           NEW,
-          if (mayInterruptIfRunning) INTERRUPTING else CANCELLED))) {
+          if (mayInterruptIfRunning) INTERRUPTING else CANCELLED
+        ))) {
       return false
     }
     try { // in case call to interrupt throws exception
@@ -159,25 +152,23 @@ class FutureTask[V] private () extends RunnableFuture[V] {
     report(s)
   }
 
-  /**
-   * Protected method invoked when this task transitions to state
-   * {@code isDone} (whether normally or via cancellation). The
-   * default implementation does nothing.  Subclasses may override
-   * this method to invoke completion callbacks or perform
-   * bookkeeping. Note that you can query status inside the
-   * implementation of this method to determine whether this task
-   * has been cancelled.
+  /** Protected method invoked when this task transitions to state {@code
+   *  isDone} (whether normally or via cancellation). The default implementation
+   *  does nothing. Subclasses may override this method to invoke completion
+   *  callbacks or perform bookkeeping. Note that you can query status inside
+   *  the implementation of this method to determine whether this task has been
+   *  cancelled.
    */
   protected def done(): Unit = {}
 
-  /**
-   * Sets the result of this future to the given value unless
-   * this future has already been set or has been cancelled.
+  /** Sets the result of this future to the given value unless this future has
+   *  already been set or has been cancelled.
    *
-   * <p>This method is invoked internally by the {@link #run} method
-   * upon successful completion of the computation.
+   *  <p>This method is invoked internally by the {@link #run} method upon
+   *  successful completion of the computation.
    *
-   * @param v the value
+   *  @param v
+   *    the value
    */
   protected def set(v: V): Unit = {
     if (atomicState.compareAndSet(NEW, COMPLETING)) {
@@ -187,15 +178,15 @@ class FutureTask[V] private () extends RunnableFuture[V] {
     }
   }
 
-  /**
-   * Causes this future to report an {@link ExecutionException}
-   * with the given throwable as its cause, unless this future has
-   * already been set or has been cancelled.
+  /** Causes this future to report an {@link ExecutionException} with the given
+   *  throwable as its cause, unless this future has already been set or has
+   *  been cancelled.
    *
-   * <p>This method is invoked internally by the {@link #run} method
-   * upon failure of the computation.
+   *  <p>This method is invoked internally by the {@link #run} method upon
+   *  failure of the computation.
    *
-   * @param t the cause of failure
+   *  @param t
+   *    the cause of failure
    */
   protected def setException(t: Throwable): Unit = {
     if (atomicState.compareAndSet(NEW, COMPLETING)) {
@@ -205,8 +196,10 @@ class FutureTask[V] private () extends RunnableFuture[V] {
     }
   }
   override def run(): Unit = {
-    if (state != NEW || !atomicRunner.compareAndSet(null,
-                                                    Thread.currentThread()))
+    if (state != NEW || !atomicRunner.compareAndSet(
+          null,
+          Thread.currentThread()
+        ))
       return
     try {
       val c = callable
@@ -229,22 +222,23 @@ class FutureTask[V] private () extends RunnableFuture[V] {
     }
   }
 
-  /**
-   * Executes the computation without setting its result, and then
-   * resets this future to initial state, failing to do so if the
-   * computation encounters an exception or is cancelled.  This is
-   * designed for use with tasks that intrinsically execute more
-   * than once.
+  /** Executes the computation without setting its result, and then resets this
+   *  future to initial state, failing to do so if the computation encounters an
+   *  exception or is cancelled. This is designed for use with tasks that
+   *  intrinsically execute more than once.
    *
-   * @return {@code true} if successfully run and reset
+   *  @return
+   *    {@code true} if successfully run and reset
    */
   protected def runAndReset: Boolean = {
-    if (state != NEW || !atomicRunner.compareAndSet(null,
-                                                    Thread.currentThread()))
+    if (state != NEW || !atomicRunner.compareAndSet(
+          null,
+          Thread.currentThread()
+        ))
       return false
 
     var ran = false
-    var s   = state
+    var s = state
     try {
       val c = callable
       if (c != null && s == NEW) try {
@@ -262,9 +256,8 @@ class FutureTask[V] private () extends RunnableFuture[V] {
     ran && s == NEW
   }
 
-  /**
-   * Ensures that any interrupt from a possible cancel(true) is only
-   * delivered to a task while in run or runAndReset.
+  /** Ensures that any interrupt from a possible cancel(true) is only delivered
+   *  to a task while in run or runAndReset.
    */
   private def handlePossibleCancellationInterrupt(s: Int): Unit = {
     // It is possible for our interrupter to stall before getting a
@@ -284,9 +277,8 @@ class FutureTask[V] private () extends RunnableFuture[V] {
     // Thread.interrupted();
   }
 
-  /**
-   * Removes and signals all waiting threads, invokes done(), and
-   * nulls out callable.
+  /** Removes and signals all waiting threads, invokes done(), and nulls out
+   *  callable.
    */
   private def finishCompletion(): Unit = { // assert state > COMPLETING;
     @tailrec
@@ -317,12 +309,14 @@ class FutureTask[V] private () extends RunnableFuture[V] {
 
   }
 
-  /**
-   * Awaits completion or aborts on interrupt or timeout.
+  /** Awaits completion or aborts on interrupt or timeout.
    *
-   * @param timed true if use timed waits
-   * @param nanos time to wait, if timed
-   * @return state upon completion or at timeout
+   *  @param timed
+   *    true if use timed waits
+   *  @param nanos
+   *    time to wait, if timed
+   *  @return
+   *    state upon completion or at timeout
    */
   @throws[InterruptedException]
   private def awaitDone(timed: Boolean, nanos: Long): Int = {
@@ -334,8 +328,8 @@ class FutureTask[V] private () extends RunnableFuture[V] {
     //   and we suffer a spurious wakeup, we will do no worse than
     //   to park-spin for a while
     var startTime: Option[Long] = None
-    var q: WaitNode             = null
-    var queued                  = false
+    var q: WaitNode = null
+    var queued = false
 
     while (true) {
       val s = state
@@ -375,15 +369,12 @@ class FutureTask[V] private () extends RunnableFuture[V] {
     state
   }
 
-  /**
-   * Tries to unlink a timed-out or interrupted wait node to avoid
-   * accumulating garbage.  Internal nodes are simply unspliced
-   * without CAS since it is harmless if they are traversed anyway
-   * by releasers.  To avoid effects of unsplicing from already
-   * removed nodes, the list is retraversed in case of an apparent
-   * race.  This is slow when there are a lot of nodes, but we don't
-   * expect lists to be long enough to outweigh higher-overhead
-   * schemes.
+  /** Tries to unlink a timed-out or interrupted wait node to avoid accumulating
+   *  garbage. Internal nodes are simply unspliced without CAS since it is
+   *  harmless if they are traversed anyway by releasers. To avoid effects of
+   *  unsplicing from already removed nodes, the list is retraversed in case of
+   *  an apparent race. This is slow when there are a lot of nodes, but we don't
+   *  expect lists to be long enough to outweigh higher-overhead schemes.
    */
   @tailrec
   private def removeWaiter(node: WaitNode): Unit = {
@@ -396,7 +387,7 @@ class FutureTask[V] private () extends RunnableFuture[V] {
         else if (pred != null) {
           pred.next = s
           if (pred.thread == null) { // check for race
-            true                     //retry
+            true //retry
           } else tryRemove(q, pred)
         } else if (!atomicWaiters.compareAndSet(q, s)) true // retry
         else tryRemove(s, pred)
@@ -410,22 +401,21 @@ class FutureTask[V] private () extends RunnableFuture[V] {
     }
   }
 
-  /**
-   * Returns a string representation of this
+  /** Returns a string representation of this
    *
-   * @implSpec
-   * The default implementation returns a string identifying this
-   * FutureTask, as well as its completion state.  The state, in
-   * brackets, contains one of the strings {@code "Completed Normally"},
-   * {@code "Completed Exceptionally"}, {@code "Cancelled"}, or {@code
-   * "Not completed"}.
+   *  @implSpec
+   *    The default implementation returns a string identifying this FutureTask,
+   *    as well as its completion state. The state, in brackets, contains one of
+   *    the strings {@code "Completed Normally"}, {@code "Completed
+   *    Exceptionally"}, {@code "Cancelled"}, or {@code "Not completed"}.
    *
-   * @return a string representation of this FutureTask
+   *  @return
+   *    a string representation of this FutureTask
    */
   override def toString: String = {
     val status = state match {
-      case NORMAL                                 => "[Completed normally]"
-      case EXCEPTIONAL                            => "[Completed exceptionally: " + outcome + "]"
+      case NORMAL      => "[Completed normally]"
+      case EXCEPTIONAL => "[Completed exceptionally: " + outcome + "]"
       case CANCELLED | INTERRUPTING | INTERRUPTED => "[Cancelled]"
       case _ =>
         if (callable == null) "[Not completed]"

@@ -32,78 +32,88 @@ class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
     new CAtomicRef[V]({
       // Assumess object fields are stored in memory directly after Ptr[Rtti]
       fromRawPtr(
-        elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset))
+        elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset)
+      )
     })
 
-  /**
-   * Returns the current value,
-   * with memory effects as specified by {@link VarHandle#getVolatile}.
+  /** Returns the current value, with memory effects as specified by {@link
+   *  VarHandle#getVolatile}.
    *
-   * @return the current value
+   *  @return
+   *    the current value
    */
   final def get(): V = valueRef.load()
 
-  /**
-   * Sets the value to {@code newValue},
-   * with memory effects as specified by {@link VarHandle#setVolatile}.
+  /** Sets the value to {@code newValue}, with memory effects as specified by
+   *  {@link VarHandle#setVolatile}.
    *
-   * @param newValue the new value
+   *  @param newValue
+   *    the new value
    */
   final def set(newValue: V): Unit = valueRef.store(newValue)
 
-  /**
-   * Sets the value to {@code newValue},
-   * with memory effects as specified by {@link VarHandle#setRelease}.
+  /** Sets the value to {@code newValue}, with memory effects as specified by
+   *  {@link VarHandle#setRelease}.
    *
-   * @param newValue the new value
-   * @since 1.6
+   *  @param newValue
+   *    the new value
+   *  @since 1.6
    */
   final def lazySet(newValue: V): Unit = {
     valueRef.store(newValue, memory_order_release)
   }
 
-  /**
-   * Atomically sets the value to {@code newValue}
-   * if the current value {@code == expectedValue},
-   * with memory effects as specified by {@link VarHandle#compareAndSet}.
+  /** Atomically sets the value to {@code newValue} if the current value {@code
+   *  == expectedValue}, with memory effects as specified by {@link
+   *  VarHandle#compareAndSet}.
    *
-   * @param expectedValue the expected value
-   * @param newValue the new value
-   * @return {@code true} if successful. False return indicates that
-   * the actual value was not equal to the expected value.
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    {@code true} if successful. False return indicates that the actual value
+   *    was not equal to the expected value.
    */
   final def compareAndSet(expectedValue: V, newValue: V): Boolean =
     valueRef.compareExchangeStrong(expectedValue, newValue)._1
 
-  /**
-   * Possibly atomically sets the value to {@code newValue}
-   * if the current value {@code == expectedValue},
-   * with memory effects as specified by {@link VarHandle#weakCompareAndSetPlain}.
+  /** Possibly atomically sets the value to {@code newValue} if the current
+   *  value {@code == expectedValue}, with memory effects as specified by {@link
+   *  VarHandle#weakCompareAndSetPlain}.
    *
-   * @deprecated This method has plain memory effects but the method
-   * name implies volatile memory effects (see methods such as
-   * {@link #compareAndExchange} and {@link #compareAndSet}).  To avoid
-   * confusion over plain or volatile memory effects it is recommended that
-   * the method {@link #weakCompareAndSetPlain} be used instead.
+   *  @deprecated
+   *    This method has plain memory effects but the method name implies
+   *    volatile memory effects (see methods such as {@link #compareAndExchange}
+   *    and {@link #compareAndSet}). To avoid confusion over plain or volatile
+   *    memory effects it is recommended that the method {@link
+   *    #weakCompareAndSetPlain} be used instead.
    *
-   * @param expectedValue the expected value
-   * @param newValue the new value
-   * @return {@code true} if successful
-   * @see #weakCompareAndSetPlain
-   */ @deprecated("", "9")
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    {@code true} if successful
+   *  @see
+   *    #weakCompareAndSetPlain
+   */
+  @deprecated("", "9")
   final def weakCompareAndSet(expectedValue: V, newValue: V): Boolean = {
     weakCompareAndSetPlain(expectedValue, newValue)
   }
 
-  /**
-   * Possibly atomically sets the value to {@code newValue}
-   * if the current value {@code == expectedValue},
-   * with memory effects as specified by {@link VarHandle#weakCompareAndSetPlain}.
+  /** Possibly atomically sets the value to {@code newValue} if the current
+   *  value {@code == expectedValue}, with memory effects as specified by {@link
+   *  VarHandle#weakCompareAndSetPlain}.
    *
-   * @param expectedValue the expected value
-   * @param newValue the new value
-   * @return {@code true} if successful
-   * @since 9
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    {@code true} if successful
+   *  @since 9
    */
   final def weakCompareAndSetPlain(expectedValue: V, newValue: V): Boolean = {
     if (value eq expectedValue) {
@@ -112,27 +122,29 @@ class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
     } else false
   }
 
-  /**
-   * Atomically sets the value to {@code newValue} and returns the old value,
-   * with memory effects as specified by {@link VarHandle#getAndSet}.
+  /** Atomically sets the value to {@code newValue} and returns the old value,
+   *  with memory effects as specified by {@link VarHandle#getAndSet}.
    *
-   * @param newValue the new value
-   * @return the previous value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    the previous value
    */
   final def getAndSet(newValue: V): V = {
     valueRef.exchange(newValue)
   }
 
-  /**
-   * Atomically updates (with memory effects as specified by {@link
-   * VarHandle#compareAndSet}) the current value with the results of
-   * applying the given function, returning the previous value. The
-   * function should be side-effect-free, since it may be re-applied
-   * when attempted updates fail due to contention among threads.
+  /** Atomically updates (with memory effects as specified by {@link
+   *  VarHandle#compareAndSet}) the current value with the results of applying
+   *  the given function, returning the previous value. The function should be
+   *  side-effect-free, since it may be re-applied when attempted updates fail
+   *  due to contention among threads.
    *
-   * @param updateFunction a side-effect-free function
-   * @return the previous value
-   * @since 1.8
+   *  @param updateFunction
+   *    a side-effect-free function
+   *  @return
+   *    the previous value
+   *  @since 1.8
    */
   final def getAndUpdate(updateFunction: UnaryOperator[V]): V = {
     @tailrec
@@ -147,16 +159,17 @@ class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
     loop(get(), None)
   }
 
-  /**
-   * Atomically updates (with memory effects as specified by {@link
-   * VarHandle#compareAndSet}) the current value with the results of
-   * applying the given function, returning the updated value. The
-   * function should be side-effect-free, since it may be re-applied
-   * when attempted updates fail due to contention among threads.
+  /** Atomically updates (with memory effects as specified by {@link
+   *  VarHandle#compareAndSet}) the current value with the results of applying
+   *  the given function, returning the updated value. The function should be
+   *  side-effect-free, since it may be re-applied when attempted updates fail
+   *  due to contention among threads.
    *
-   * @param updateFunction a side-effect-free function
-   * @return the updated value
-   * @since 1.8
+   *  @param updateFunction
+   *    a side-effect-free function
+   *  @return
+   *    the updated value
+   *  @since 1.8
    */
   final def updateAndGet(updateFunction: UnaryOperator[V]): V = {
     @tailrec
@@ -171,23 +184,26 @@ class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
     loop(get(), None)
   }
 
-  /**
-   * Atomically updates (with memory effects as specified by {@link
-   * VarHandle#compareAndSet}) the current value with the results of
-   * applying the given function to the current and given values,
-   * returning the previous value. The function should be
-   * side-effect-free, since it may be re-applied when attempted
-   * updates fail due to contention among threads.  The function is
-   * applied with the current value as its first argument, and the
-   * given update as the second argument.
+  /** Atomically updates (with memory effects as specified by {@link
+   *  VarHandle#compareAndSet}) the current value with the results of applying
+   *  the given function to the current and given values, returning the previous
+   *  value. The function should be side-effect-free, since it may be re-applied
+   *  when attempted updates fail due to contention among threads. The function
+   *  is applied with the current value as its first argument, and the given
+   *  update as the second argument.
    *
-   * @param x the update value
-   * @param accumulatorFunction a side-effect-free function of two arguments
-   * @return the previous value
-   * @since 1.8
+   *  @param x
+   *    the update value
+   *  @param accumulatorFunction
+   *    a side-effect-free function of two arguments
+   *  @return
+   *    the previous value
+   *  @since 1.8
    */
-  final def getAndAccumulate(x: V,
-                             accumulatorFunction: BinaryOperator[V]): V = {
+  final def getAndAccumulate(
+      x: V,
+      accumulatorFunction: BinaryOperator[V]
+  ): V = {
     @tailrec
     def loop(prev: V, next: Option[V]): V = {
       val newNext = next.getOrElse(accumulatorFunction.apply(prev, x))
@@ -200,23 +216,26 @@ class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
     loop(get(), None)
   }
 
-  /**
-   * Atomically updates (with memory effects as specified by {@link
-   * VarHandle#compareAndSet}) the current value with the results of
-   * applying the given function to the current and given values,
-   * returning the updated value. The function should be
-   * side-effect-free, since it may be re-applied when attempted
-   * updates fail due to contention among threads.  The function is
-   * applied with the current value as its first argument, and the
-   * given update as the second argument.
+  /** Atomically updates (with memory effects as specified by {@link
+   *  VarHandle#compareAndSet}) the current value with the results of applying
+   *  the given function to the current and given values, returning the updated
+   *  value. The function should be side-effect-free, since it may be re-applied
+   *  when attempted updates fail due to contention among threads. The function
+   *  is applied with the current value as its first argument, and the given
+   *  update as the second argument.
    *
-   * @param x the update value
-   * @param accumulatorFunction a side-effect-free function of two arguments
-   * @return the updated value
-   * @since 1.8
+   *  @param x
+   *    the update value
+   *  @param accumulatorFunction
+   *    a side-effect-free function of two arguments
+   *  @return
+   *    the updated value
+   *  @since 1.8
    */
-  final def accumulateAndGet(x: V,
-                             accumulatorFunction: BinaryOperator[V]): V = {
+  final def accumulateAndGet(
+      x: V,
+      accumulatorFunction: BinaryOperator[V]
+  ): V = {
     @tailrec
     def loop(prev: V, next: Option[V]): V = {
       val newNext = next.getOrElse(accumulatorFunction.apply(prev, x))
@@ -229,101 +248,103 @@ class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
     loop(get(), None)
   }
 
-  /**
-   * Returns the String representation of the current value.
-   * @return the String representation of the current value
+  /** Returns the String representation of the current value.
+   *  @return
+   *    the String representation of the current value
    */
   override def toString(): String = get().toString()
 
-  /**
-   * Returns the current value, with memory semantics of reading as
-   * if the variable was declared non-{@code volatile}.
+  /** Returns the current value, with memory semantics of reading as if the
+   *  variable was declared non-{@code volatile}.
    *
-   * @return the value
-   * @since 9
+   *  @return
+   *    the value
+   *  @since 9
    */
   final def getPlain(): V = value
 
-  /**
-   * Sets the value to {@code newValue}, with memory semantics
-   * of setting as if the variable was declared non-{@code volatile}
-   * and non-{@code final}.
+  /** Sets the value to {@code newValue}, with memory semantics of setting as if
+   *  the variable was declared non-{@code volatile} and non-{@code final}.
    *
-   * @param newValue the new value
-   * @since 9
+   *  @param newValue
+   *    the new value
+   *  @since 9
    */
   final def setPlain(newValue: V): Unit = {
     value = newValue
   }
 
-  /**
-   * Returns the current value,
-   * with memory effects as specified by {@link VarHandle#getOpaque}.
+  /** Returns the current value, with memory effects as specified by {@link
+   *  VarHandle#getOpaque}.
    *
-   * @return the value
-   * @since 9
+   *  @return
+   *    the value
+   *  @since 9
    */
   final def getOpaque(): V = valueRef.load(memory_order_relaxed)
 
-  /**
-   * Sets the value to {@code newValue},
-   * with memory effects as specified by {@link VarHandle#setOpaque}.
+  /** Sets the value to {@code newValue}, with memory effects as specified by
+   *  {@link VarHandle#setOpaque}.
    *
-   * @param newValue the new value
-   * @since 9
+   *  @param newValue
+   *    the new value
+   *  @since 9
    */
   final def setOpaque(newValue: V): Unit =
     valueRef.store(newValue, memory_order_relaxed)
 
-  /**
-   * Returns the current value,
-   * with memory effects as specified by {@link VarHandle#getAcquire}.
+  /** Returns the current value, with memory effects as specified by {@link
+   *  VarHandle#getAcquire}.
    *
-   * @return the value
-   * @since 9
+   *  @return
+   *    the value
+   *  @since 9
    */
   final def getAcquire: V = {
     valueRef.load(memory_order_acquire)
   }
 
-  /**
-   * Sets the value to {@code newValue},
-   * with memory effects as specified by {@link VarHandle#setRelease}.
+  /** Sets the value to {@code newValue}, with memory effects as specified by
+   *  {@link VarHandle#setRelease}.
    *
-   * @param newValue the new value
-   * @since 9
+   *  @param newValue
+   *    the new value
+   *  @since 9
    */
   final def setRelease(newValue: V): Unit = {
     valueRef.store(newValue, memory_order_release)
   }
 
-  /**
-   * Atomically sets the value to {@code newValue} if the current value,
-   * referred to as the <em>witness value</em>, {@code == expectedValue},
-   * with memory effects as specified by
-   * {@link VarHandle#compareAndExchange}.
+  /** Atomically sets the value to {@code newValue} if the current value,
+   *  referred to as the <em>witness value</em>, {@code == expectedValue}, with
+   *  memory effects as specified by {@link VarHandle#compareAndExchange}.
    *
-   * @param expectedValue the expected value
-   * @param newValue the new value
-   * @return the witness value, which will be the same as the
-   * expected value if successful
-   * @since 9
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    the witness value, which will be the same as the expected value if
+   *    successful
+   *  @since 9
    */
   final def compareAndExchange(expectedValue: V, newValue: V): V = {
     valueRef.compareExchangeStrong(expectedValue, newValue)._2
   }
 
-  /**
-   * Atomically sets the value to {@code newValue} if the current value,
-   * referred to as the <em>witness value</em>, {@code == expectedValue},
-   * with memory effects as specified by
-   * {@link VarHandle#compareAndExchangeAcquire}.
+  /** Atomically sets the value to {@code newValue} if the current value,
+   *  referred to as the <em>witness value</em>, {@code == expectedValue}, with
+   *  memory effects as specified by {@link
+   *  VarHandle#compareAndExchangeAcquire}.
    *
-   * @param expectedValue the expected value
-   * @param newValue the new value
-   * @return the witness value, which will be the same as the
-   * expected value if successful
-   * @since 9
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    the witness value, which will be the same as the expected value if
+   *    successful
+   *  @since 9
    */
   final def compareAndExchangeAcquire(expectedValue: V, newValue: V): V = {
     valueRef
@@ -331,17 +352,19 @@ class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
       ._2
   }
 
-  /**
-   * Atomically sets the value to {@code newValue} if the current value,
-   * referred to as the <em>witness value</em>, {@code == expectedValue},
-   * with memory effects as specified by
-   * {@link VarHandle#compareAndExchangeRelease}.
+  /** Atomically sets the value to {@code newValue} if the current value,
+   *  referred to as the <em>witness value</em>, {@code == expectedValue}, with
+   *  memory effects as specified by {@link
+   *  VarHandle#compareAndExchangeRelease}.
    *
-   * @param expectedValue the expected value
-   * @param newValue the new value
-   * @return the witness value, which will be the same as the
-   * expected value if successful
-   * @since 9
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    the witness value, which will be the same as the expected value if
+   *    successful
+   *  @since 9
    */
   final def compareAndExchangeRelease(expectedValue: V, newValue: V): V = {
     valueRef
@@ -349,32 +372,36 @@ class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
       ._2
   }
 
-  /**
-   * Possibly atomically sets the value to {@code newValue}
-   * if the current value {@code == expectedValue},
-   * with memory effects as specified by
-   * {@link VarHandle#weakCompareAndSet}.
+  /** Possibly atomically sets the value to {@code newValue} if the current
+   *  value {@code == expectedValue}, with memory effects as specified by {@link
+   *  VarHandle#weakCompareAndSet}.
    *
-   * @param expectedValue the expected value
-   * @param newValue the new value
-   * @return {@code true} if successful
-   * @since 9
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    {@code true} if successful
+   *  @since 9
    */
-  final def weakCompareAndSetVolatile(expectedValue: V,
-                                      newValue: V): Boolean = {
+  final def weakCompareAndSetVolatile(
+      expectedValue: V,
+      newValue: V
+  ): Boolean = {
     valueRef.compareExchangeWeak(expectedValue, newValue)._1
   }
 
-  /**
-   * Possibly atomically sets the value to {@code newValue}
-   * if the current value {@code == expectedValue},
-   * with memory effects as specified by
-   * {@link VarHandle#weakCompareAndSetAcquire}.
+  /** Possibly atomically sets the value to {@code newValue} if the current
+   *  value {@code == expectedValue}, with memory effects as specified by {@link
+   *  VarHandle#weakCompareAndSetAcquire}.
    *
-   * @param expectedValue the expected value
-   * @param newValue the new value
-   * @return {@code true} if successful
-   * @since 9
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    {@code true} if successful
+   *  @since 9
    */
   final def weakCompareAndSetAcquire(expectedValue: V, newValue: V): Boolean = {
     valueRef
@@ -382,16 +409,17 @@ class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
       ._1
   }
 
-  /**
-   * Possibly atomically sets the value to {@code newValue}
-   * if the current value {@code == expectedValue},
-   * with memory effects as specified by
-   * {@link VarHandle#weakCompareAndSetRelease}.
+  /** Possibly atomically sets the value to {@code newValue} if the current
+   *  value {@code == expectedValue}, with memory effects as specified by {@link
+   *  VarHandle#weakCompareAndSetRelease}.
    *
-   * @param expectedValue the expected value
-   * @param newValue the new value
-   * @return {@code true} if successful
-   * @since 9
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    {@code true} if successful
+   *  @since 9
    */
   final def weakCompareAndSetRelease(expectedValue: V, newValue: V): Boolean = {
     valueRef

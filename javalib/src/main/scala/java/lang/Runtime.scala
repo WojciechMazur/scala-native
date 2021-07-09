@@ -12,18 +12,18 @@ import scala.scalanative.unsafe._
 class Runtime private () {
   import Runtime.ProcessBuilderOps
   def availableProcessors(): Int = {
-    if(isWindows) {
+    if (isWindows) {
       val sysInfo = stackalloc[SystemInfo]
       GetSystemInfo(sysInfo)
       sysInfo.numberOfProcessors.toInt
-    }  else {
-    val onlineCPUs = sysconf(SC_NPROCESSORS_ONLN).toInt
-    assert(onlineCPUs > 0, "no available processors")
-    onlineCPUs
+    } else {
+      val onlineCPUs = sysconf(SC_NPROCESSORS_ONLN).toInt
+      assert(onlineCPUs > 0, "no available processors")
+      onlineCPUs
     }
   }
   def exit(status: Int): Unit = stdlib.exit(status)
-  def gc(): Unit              = ()
+  def gc(): Unit = ()
 
   @stub
   def addShutdownHook(thread: java.lang.Thread): Unit = ???
@@ -34,7 +34,7 @@ class Runtime private () {
     new ProcessBuilder(cmdarray).setEnv(envp).start()
   def exec(cmdarray: Array[String], envp: Array[String], dir: File): Process =
     new ProcessBuilder(cmdarray).setEnv(envp).directory(dir).start()
-  def exec(cmd: String): Process                      = exec(Array(cmd))
+  def exec(cmd: String): Process = exec(Array(cmd))
   def exec(cmd: String, envp: Array[String]): Process = exec(Array(cmd), envp)
   def exec(cmd: String, envp: Array[String], dir: File): Process =
     exec(Array(cmd), envp, dir)

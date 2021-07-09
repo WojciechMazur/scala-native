@@ -22,16 +22,12 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
   /** Current number of elements */
   private final val count: AtomicInteger = new AtomicInteger(0)
 
-  /**
-   * Head of linked list.
-   * Invariant: head.item == null
+  /** Head of linked list. Invariant: head.item == null
    */
   //transient
   private var head: Node[E] = new Node[E](null.asInstanceOf[E])
 
-  /**
-   * Tail of linked list.
-   * Invariant: last.next == null
+  /** Tail of linked list. Invariant: last.next == null
    */
   //transient
   private var last: Node[E] = new Node[E](null.asInstanceOf[E])
@@ -57,7 +53,7 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
     putLock.lock() // Never contended, but necessary for visibility
     try {
       var n: Int = 0
-      val it     = c.iterator()
+      val it = c.iterator()
       while (it.hasNext()) {
         val e: E = it.next()
         if (e == null)
@@ -97,7 +93,7 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
   }
 
   private def dequeue: E = {
-    val h: Node[E]     = head
+    val h: Node[E] = head
     val first: Node[E] = h.next
     h.next = h // help GC
     head = first
@@ -125,9 +121,9 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
     if (e == null) throw new NullPointerException()
     // Note: convention in all put/take/etc is to preset local var
     // holding count negative to indicate failure unless set.
-    var c: Int                 = -1
+    var c: Int = -1
     val putLock: ReentrantLock = this.putLock
-    val count: AtomicInteger   = this.count
+    val count: AtomicInteger = this.count
     putLock.lockInterruptibly()
     try {
       /*
@@ -153,10 +149,10 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
   @throws[InterruptedException]
   override def offer(e: E, timeout: Long, unit: TimeUnit): Boolean = {
     if (e == null) throw new NullPointerException()
-    var nanos: Long            = unit.toNanos(timeout)
-    var c: Int                 = -1
+    var nanos: Long = unit.toNanos(timeout)
+    var c: Int = -1
     val putLock: ReentrantLock = this.putLock
-    val count: AtomicInteger   = this.count
+    val count: AtomicInteger = this.count
     putLock.lockInterruptibly()
     try {
       while (count.get() == capacity) {
@@ -181,7 +177,7 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
     val count: AtomicInteger = this.count
     if (count.get() == capacity)
       return false
-    var c: Int                 = -1
+    var c: Int = -1
     val putLock: ReentrantLock = this.putLock
     putLock.lock()
     try {
@@ -201,9 +197,9 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
 
   @throws[InterruptedException]
   override def take(): E = {
-    var x: E                    = null.asInstanceOf[E]
-    var c: Int                  = -1
-    val count: AtomicInteger    = this.count
+    var x: E = null.asInstanceOf[E]
+    var c: Int = -1
+    val count: AtomicInteger = this.count
     val takeLock: ReentrantLock = this.takeLock
     takeLock.lockInterruptibly()
     try {
@@ -222,10 +218,10 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
 
   @throws[InterruptedException]
   override def poll(timeout: Long, unit: TimeUnit): E = {
-    var x: E                    = null.asInstanceOf[E]
-    var c: Int                  = -1
-    var nanos: Long             = unit.toNanos(timeout)
-    val count: AtomicInteger    = this.count
+    var x: E = null.asInstanceOf[E]
+    var c: Int = -1
+    var nanos: Long = unit.toNanos(timeout)
+    val count: AtomicInteger = this.count
     val takeLock: ReentrantLock = this.takeLock
     takeLock.lockInterruptibly()
     try {
@@ -250,8 +246,8 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
     val count: AtomicInteger = this.count
     if (count.get() == 0)
       return null.asInstanceOf[E]
-    var x: E                    = null.asInstanceOf[E]
-    var c: Int                  = -1
+    var x: E = null.asInstanceOf[E]
+    var c: Int = -1
     val takeLock: ReentrantLock = this.takeLock
     takeLock.lock()
     try {
@@ -301,7 +297,7 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
     fullyLock()
     try {
       var trail: Node[E] = head
-      var p: Node[E]     = trail.next
+      var p: Node[E] = trail.next
       while (p != null) {
         if (o == p.item) {
           unlink(p, trail)
@@ -337,10 +333,10 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
   override def toArray(): Array[Object] = {
     fullyLock()
     try {
-      val size: Int        = count.get()
+      val size: Int = count.get()
       val a: Array[Object] = new Array[Object](size)
-      var k: Int           = 0
-      var p: Node[E]       = head.next
+      var k: Int = 0
+      var p: Node[E] = head.next
       while (p != null) {
         a(k) = p.item.asInstanceOf[Object]
 
@@ -367,7 +363,7 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
             .asInstanceOf[Array[T]]
         }
 
-      var k: Int     = 0
+      var k: Int = 0
       var p: Node[E] = head.next
       while (p != null) {
         arr(k) = p.item.asInstanceOf[T]
@@ -395,7 +391,7 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
   override def clear(): Unit = {
     fullyLock()
     try {
-      var h          = head
+      var h = head
       var p: Node[E] = h.next
       while (p != null) {
         h.next = h
@@ -420,14 +416,14 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
       throw new NullPointerException()
     if (c == this)
       throw new IllegalArgumentException()
-    var signalNotFull: Boolean  = false
+    var signalNotFull: Boolean = false
     val takeLock: ReentrantLock = this.takeLock
     takeLock.lock()
     try {
       val n: Int = Math.min(maxElements, count.get())
       // count.get provides visibility to first n Nodes
       var h: Node[E] = head
-      var i: Int     = 0
+      var i: Int = 0
       try {
         while (i < n) {
           var p: Node[E] = h.next
@@ -452,11 +448,10 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
     }
   }
 
-  /**
-   * Used for any element traversal that is not entirely under lock.
-   * Such traversals must handle both:
-   * - dequeued nodes (p.next == p)
-   * - (possibly multiple) interior removed nodes (p.item == null)
+  /** Used for any element traversal that is not entirely under lock. Such
+   *  traversals must handle both:
+   *    - dequeued nodes (p.next == p)
+   *    - (possibly multiple) interior removed nodes (p.item == null)
    */
   def succ(p: Node[E]): Node[E] = {
     p.next match {
@@ -467,44 +462,45 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
 
   override def iterator(): util.Iterator[E] = new Itr()
 
-  /**
-   * Returns a {@link Spliterator} over the elements in this queue.
+  /** Returns a {@link Spliterator} over the elements in this queue.
    *
-   * <p>The returned spliterator is
-   * <a href="package-summary.html#Weakly"><i>weakly consistent</i></a>.
+   *  <p>The returned spliterator is <a
+   *  href="package-summary.html#Weakly"><i>weakly consistent</i></a>.
    *
-   * <p>The {@code Spliterator} reports {@link Spliterator#CONCURRENT},
-   * {@link Spliterator#ORDERED}, and {@link Spliterator#NONNULL}.
+   *  <p>The {@code Spliterator} reports {@link Spliterator#CONCURRENT}, {@link
+   *  Spliterator#ORDERED}, and {@link Spliterator#NONNULL}.
    *
-   * @implNote
-   * The {@code Spliterator} implements {@code trySplit} to permit limited
-   * parallelism.
+   *  @implNote
+   *    The {@code Spliterator} implements {@code trySplit} to permit limited
+   *    parallelism.
    *
-   * @return a {@code Spliterator} over the elements in this queue
-   * @since 1.8
+   *  @return
+   *    a {@code Spliterator} over the elements in this queue
+   *  @since 1.8
    */
   def spliterator(): util.Spliterator[E] = new LBQSpliterator()
 
-  /**
-   * @throws NullPointerException {@inheritDoc}
+  /** @throws NullPointerException
+   *    {@inheritDoc}
    */
   override def forEach(action: Consumer[_ >: E]) = {
     if (action == null) throw new NullPointerException
     forEachFrom(action, null)
   }
 
-  /**
-   * Runs action on each element found during a traversal starting at p.
-   * If p is null, traversal starts at head.
+  /** Runs action on each element found during a traversal starting at p. If p
+   *  is null, traversal starts at head.
    */
-  private[concurrent] def forEachFrom(action: Consumer[_ >: E],
-                                      p: Node[E]): Unit = {
+  private[concurrent] def forEachFrom(
+      action: Consumer[_ >: E],
+      p: Node[E]
+  ): Unit = {
     // Extract batches of elements while holding the lock; then
     // run the action on the elements while not
-    val batchSize        = 64 // max number of elements per batch
-    var es: Array[Any]   = null // container for batch of elements
-    var n                = 0
-    var len              = 0
+    val batchSize = 64 // max number of elements per batch
+    var es: Array[Any] = null // container for batch of elements
+    var n = 0
+    var len = 0
     var current: Node[E] = p
 
     @tailrec
@@ -569,9 +565,8 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
     )
   }
 
-  /**
-   * Returns the predecessor of live node p, given a node that was
-   * once a live ancestor of p (or head); allows unlinking of p.
+  /** Returns the predecessor of live node p, given a node that was once a live
+   *  ancestor of p (or head); allows unlinking of p.
    */
   def findPred(p: Node[E], ancestor: Node[E]): Node[E] = {
     @tailrec
@@ -589,12 +584,12 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
 
   /** Implementation of bulk remove methods. */
   private def bulkRemove(filter: Predicate[_ >: E]) = {
-    var removed               = false
-    var p: Node[E]            = null
+    var removed = false
+    var p: Node[E] = null
     var nodes: Array[Node[E]] = null
-    def len                   = nodes.length
-    var ancestor              = head
-    var n                     = 0
+    def len = nodes.length
+    var ancestor = head
+    var n = 0
 
     do {
       // 1. Extract batch of up to 64 elements while holding the lock.
@@ -662,8 +657,8 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
      * item to hand out so that if hasNext() reports true, we will
      * still have it to return even if lost race with a take etc.
      */
-    private var current        = null.asInstanceOf[Node[E]]
-    private var lastRet        = null.asInstanceOf[Node[E]]
+    private var current = null.asInstanceOf[Node[E]]
+    private var lastRet = null.asInstanceOf[Node[E]]
     private var currentElement = null.asInstanceOf[E]
 
     fullyLock()
@@ -708,10 +703,10 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
         throw new IllegalStateException()
       fullyLock()
       try {
-        val node  = lastRet
+        val node = lastRet
         var trail = head
         var break = false
-        var p     = trail.next
+        var p = trail.next
         while (p != null) {
           if (p == node) {
             unlink(p, trail)
@@ -728,9 +723,8 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
 
   }
 
-  /**
-   * A customized variant of Spliterators.IteratorSpliterator.
-   * Keep this class in sync with (very similar) LBDSpliterator.
+  /** A customized variant of Spliterators.IteratorSpliterator. Keep this class
+   *  in sync with (very similar) LBDSpliterator.
    */
   private object LBQSpliterator {
     val MAX_BATCH: Int = 1 << 25 // max batch array size;
@@ -846,11 +840,10 @@ object LinkedBlockingQueue {
 
   class Node[E](var item: E) {
 
-    /**
-     * One of:
-     * - the real successor Node
-     * - this Node, meaning the successor is head.next
-     * - null, meaning there is no successor (this is the last node)
+    /** One of:
+     *    - the real successor Node
+     *    - this Node, meaning the successor is head.next
+     *    - null, meaning there is no successor (this is the last node)
      */
     var next: Node[E] = _
 

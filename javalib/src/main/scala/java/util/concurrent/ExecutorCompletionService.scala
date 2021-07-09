@@ -8,8 +8,8 @@ package java.util.concurrent
 
 class ExecutorCompletionService[V](
     val executor: Executor,
-    val completionQueue: BlockingQueue[Future[V]])
-    extends CompletionService[V] {
+    val completionQueue: BlockingQueue[Future[V]]
+) extends CompletionService[V] {
   import ExecutorCompletionService._
 
   if (executor == null || completionQueue == null)
@@ -58,9 +58,10 @@ class ExecutorCompletionService[V](
 }
 
 object ExecutorCompletionService {
-  private class QueueingFuture[V](task: RunnableFuture[V],
-                                  completionQueue: BlockingQueue[Future[V]])
-      extends FutureTask[Unit](task, null.asInstanceOf[V]) {
+  private class QueueingFuture[V](
+      task: RunnableFuture[V],
+      completionQueue: BlockingQueue[Future[V]]
+  ) extends FutureTask[Unit](task, null.asInstanceOf[V]) {
     override protected def done(): Unit = completionQueue.add(task)
   }
 }

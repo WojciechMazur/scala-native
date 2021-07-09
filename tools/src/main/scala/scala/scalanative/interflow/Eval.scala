@@ -171,7 +171,8 @@ trait Eval { self: Interflow =>
           op.copy(
             ptr = materialize(eval(ptr)),
             value = materialize(eval(value))
-          ))
+          )
+        )
       case Op.Elem(ty, ptr, indexes) =>
         delay(Op.Elem(ty, eval(ptr), indexes.map(eval)))
       case Op.Extract(aggr, indexes) =>

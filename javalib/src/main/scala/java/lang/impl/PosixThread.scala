@@ -53,7 +53,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
 
   def setPriority(priority: CInt): Unit = {
     val schedParam = stackalloc[sched_param]
-    val policy     = stackalloc[CInt]
+    val policy = stackalloc[CInt]
     pthread_getschedparam(handle, policy, schedParam)
     schedParam.priority = priority
     pthread_setschedparam(handle, !policy, schedParam)
@@ -87,12 +87,13 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
       case 0 => ()
       case errno =>
         throw new RuntimeException(
-          s"Failed to park thread - ${fromCString(strerror(errno))}")
+          s"Failed to park thread - ${fromCString(strerror(errno))}"
+        )
     }
   }
 
   @inline def tryParkUntil(deadline: scala.Long): Unit = {
-    val deadlineSpec         = stackalloc[timespec]
+    val deadlineSpec = stackalloc[timespec]
     val MillisecondsInSecond = 1000
     deadlineSpec.tv_sec = TimeUnit.MILLISECONDS.toSeconds(deadline)
     deadlineSpec.tv_nsec =
@@ -104,7 +105,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
   @inline def tryParkNanos(nanos: scala.Long): Unit = {
     val deadlineSpec = stackalloc[timespec]
 
-    val deadline            = System.nanoTime() + nanos
+    val deadline = System.nanoTime() + nanos
     val NanosecondsInSecond = 1000000000
     deadlineSpec.tv_sec = deadline / NanosecondsInSecond
     deadlineSpec.tv_nsec = deadline % NanosecondsInSecond
@@ -117,7 +118,8 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
       case errno =>
         val errorMsg = fromCString(strerror(errno))
         throw new RuntimeException(
-          s"Failed to signal thread unparking - $errorMsg")
+          s"Failed to signal thread unparking - $errorMsg"
+        )
     }
   }
 
@@ -131,7 +133,8 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
         case errno =>
           val errorMsg = fromCString(strerror(errno))
           throw new RuntimeException(
-            s"Failed to wait on thread unparking - $errorMsg")
+            s"Failed to wait on thread unparking - $errorMsg"
+          )
       }
     }
   }
@@ -145,7 +148,8 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
         case errCode =>
           val errorMsg = fromCString(strerror(errCode))
           throw new RuntimeException(
-            s"Failed to $op @ ${Thread.currentThread()} - $errorMsg")
+            s"Failed to $op @ ${Thread.currentThread()} - $errorMsg"
+          )
       }
     }
 
@@ -163,18 +167,20 @@ private[lang] object PosixThread {
   @extern
   @link("gc") @link("pthread")
   object GCExt {
-    def GC_pthread_create(thread: Ptr[pthread_t],
-                          attr: Ptr[pthread_attr_t],
-                          startroutine: ThreadStartRoutine,
-                          args: PtrAny): CInt = extern
+    def GC_pthread_create(
+        thread: Ptr[pthread_t],
+        attr: Ptr[pthread_attr_t],
+        startroutine: ThreadStartRoutine,
+        args: PtrAny
+    ): CInt = extern
     def GC_pthread_join(thread: pthread_t, value_ptr: Ptr[Ptr[Byte]]): CInt =
       extern
     def GC_pthread_detach(thread: pthread_t): CInt = extern
     def GC_pthread_cancel(thread: pthread_t): CInt = extern
-    def GC_pthread_exit(retVal: Ptr[Byte]): Unit   = extern
+    def GC_pthread_exit(retVal: Ptr[Byte]): Unit = extern
   }
 
-  private final val LockOffset      = 0
+  private final val LockOffset = 0
   private final val ConditionOffset = LockOffset + pthread_mutex_t_size.toInt
 
   private final val InnerBufferSize =
@@ -187,11 +193,13 @@ private[lang] object PosixThread {
       thread = id,
       attr = null: Ptr[pthread_attr_t],
       startroutine = NativeThread.threadRoutine,
-      args = NativeThread.threadRoutineArgs(thread)) match {
+      args = NativeThread.threadRoutineArgs(thread)
+    ) match {
       case 0 => ()
       case status =>
         throw new RuntimeException(
-          "Failed to create new thread, pthread error " + status)
+          "Failed to create new thread, pthread error " + status
+        )
     }
     new PosixThread(!id, thread)
   }

@@ -28,173 +28,188 @@ class AtomicLong(private[this] var value: Long)
   private[concurrent] def valueRef: CAtomicLong = new CAtomicLong(
     // Assumess object fields are stored in memory directly after Ptr[Rtti]
     fromRawPtr(
-      elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset))
+      elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset)
+    )
   )
 
   def this() = {
     this(0)
   }
 
-  /**
-   * Returns the current value,
-   * with memory effects as specified by {@link VarHandle# getVolatile}.
+  /** Returns the current value, with memory effects as specified by {@link
+   *  VarHandle# getVolatile}.
    *
-   * @return the current value
+   *  @return
+   *    the current value
    */
   final def get(): Long = valueRef.load()
 
-  /**
-   * Sets the value to {@code newValue},
-   * with memory effects as specified by {@link VarHandle# setVolatile}.
+  /** Sets the value to {@code newValue}, with memory effects as specified by
+   *  {@link VarHandle# setVolatile}.
    *
-   * @param newValue the new value
+   *  @param newValue
+   *    the new value
    */
   final def set(newValue: Long): Unit = valueRef.store(newValue)
 
-  /**
-   * Sets the value to {@code newValue},
-   * with memory effects as specified by {@link VarHandle# setRelease}.
+  /** Sets the value to {@code newValue}, with memory effects as specified by
+   *  {@link VarHandle# setRelease}.
    *
-   * @param newValue the new value
-   * @since 1.6
+   *  @param newValue
+   *    the new value
+   *  @since 1.6
    */
   final def lazySet(newValue: Long): Unit = {
     valueRef.store(newValue, memory_order_release)
   }
 
-  /**
-   * Atomically sets the value to {@code newValue} and returns the old value,
-   * with memory effects as specified by {@link VarHandle# getAndSet}.
+  /** Atomically sets the value to {@code newValue} and returns the old value,
+   *  with memory effects as specified by {@link VarHandle# getAndSet}.
    *
-   * @param newValue the new value
-   * @return the previous value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    the previous value
    */
   final def getAndSet(newValue: Long): Long = {
     valueRef.exchange(newValue)
   }
 
-  /**
-   * Atomically sets the value to {@code newValue}
-   * if the current value {@code == expectedValue},
-   * with memory effects as specified by {@link VarHandle# compareAndSet}.
+  /** Atomically sets the value to {@code newValue} if the current value {@code
+   *  == expectedValue}, with memory effects as specified by {@link VarHandle#
+   *  compareAndSet}.
    *
-   * @param expectedValue the expected value
-   * @param newValue      the new value
-   * @return {@code true} if successful. False return indicates that
-   *         the actual value was not equal to the expected value.
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    {@code true} if successful. False return indicates that the actual value
+   *    was not equal to the expected value.
    */
   final def compareAndSet(expectedValue: Long, newValue: Long): Boolean = {
     valueRef.compareExchangeStrong(expectedValue, newValue)._1
   }
 
-  /**
-   * Possibly atomically sets the value to {@code newValue}
-   * if the current value {@code == expectedValue},
-   * with memory effects as specified by {@link VarHandle# weakCompareAndSetPlain}.
+  /** Possibly atomically sets the value to {@code newValue} if the current
+   *  value {@code == expectedValue}, with memory effects as specified by {@link
+   *  VarHandle# weakCompareAndSetPlain}.
    *
-   * @deprecated This method has plain memory effects but the method
-   *             name implies volatile memory effects (see methods such as
-   *             {@link #compareAndExchange} and {@link #compareAndSet}).  To avoid
-   *             confusion over plain or volatile memory effects it is recommended that
-   *             the method {@link #weakCompareAndSetPlain} be used instead.
-   * @param expectedValue the expected value
-   * @param newValue      the new value
-   * @return {@code true} if successful
-   * @see #weakCompareAndSetPlain
+   *  @deprecated
+   *    This method has plain memory effects but the method name implies
+   *    volatile memory effects (see methods such as {@link #compareAndExchange}
+   *    and {@link #compareAndSet}). To avoid confusion over plain or volatile
+   *    memory effects it is recommended that the method {@link
+   *    #weakCompareAndSetPlain} be used instead.
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    {@code true} if successful
+   *  @see
+   *    #weakCompareAndSetPlain
    */
   @deprecated("", "9")
   final def weakCompareAndSet(expectedValue: Long, newValue: Long): Boolean = {
     valueRef.compareExchangeWeak(expectedValue, newValue)._1
   }
 
-  /**
-   * Possibly atomically sets the value to {@code newValue}
-   * if the current value {@code == expectedValue},
-   * with memory effects as specified by {@link VarHandle# weakCompareAndSetPlain}.
+  /** Possibly atomically sets the value to {@code newValue} if the current
+   *  value {@code == expectedValue}, with memory effects as specified by {@link
+   *  VarHandle# weakCompareAndSetPlain}.
    *
-   * @param expectedValue the expected value
-   * @param newValue      the new value
-   * @return {@code true} if successful
-   * @since 9
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    {@code true} if successful
+   *  @since 9
    */
-  final def weakCompareAndSetPlain(expectedValue: Long,
-                                   newValue: Long): Boolean = {
+  final def weakCompareAndSetPlain(
+      expectedValue: Long,
+      newValue: Long
+  ): Boolean = {
     if (value == expectedValue) {
       value = newValue
       true
     } else false
   }
 
-  /**
-   * Atomically increments the current value,
-   * with memory effects as specified by {@link VarHandle# getAndAdd}.
+  /** Atomically increments the current value, with memory effects as specified
+   *  by {@link VarHandle# getAndAdd}.
    *
-   * <p>Equivalent to {@code getAndAdd(1)}.
+   *  <p>Equivalent to {@code getAndAdd(1)}.
    *
-   * @return the previous value
+   *  @return
+   *    the previous value
    */
   final def getAndIncrement(): Long = getAndAdd(1)
 
-  /**
-   * Atomically decrements the current value,
-   * with memory effects as specified by {@link VarHandle# getAndAdd}.
+  /** Atomically decrements the current value, with memory effects as specified
+   *  by {@link VarHandle# getAndAdd}.
    *
-   * <p>Equivalent to {@code getAndAdd(-1)}.
+   *  <p>Equivalent to {@code getAndAdd(-1)}.
    *
-   * @return the previous value
+   *  @return
+   *    the previous value
    */
   final def getAndDecrement(): Long = getAndAdd(-1)
 
-  /**
-   * Atomically adds the given value to the current value,
-   * with memory effects as specified by {@link VarHandle# getAndAdd}.
+  /** Atomically adds the given value to the current value, with memory effects
+   *  as specified by {@link VarHandle# getAndAdd}.
    *
-   * @param delta the value to add
-   * @return the previous value
+   *  @param delta
+   *    the value to add
+   *  @return
+   *    the previous value
    */
   final def getAndAdd(delta: Long): Long = {
     valueRef.fetchAdd(delta)
   }
 
-  /**
-   * Atomically increments the current value,
-   * with memory effects as specified by {@link VarHandle# getAndAdd}.
+  /** Atomically increments the current value, with memory effects as specified
+   *  by {@link VarHandle# getAndAdd}.
    *
-   * <p>Equivalent to {@code addAndGet(1)}.
+   *  <p>Equivalent to {@code addAndGet(1)}.
    *
-   * @return the updated value
+   *  @return
+   *    the updated value
    */
   final def incrementAndGet(): Long = addAndGet(1)
 
-  /**
-   * Atomically decrements the current value,
-   * with memory effects as specified by {@link VarHandle# getAndAdd}.
+  /** Atomically decrements the current value, with memory effects as specified
+   *  by {@link VarHandle# getAndAdd}.
    *
-   * <p>Equivalent to {@code addAndGet(-1)}.
+   *  <p>Equivalent to {@code addAndGet(-1)}.
    *
-   * @return the updated value
+   *  @return
+   *    the updated value
    */
   final def decrementAndGet(): Long = addAndGet(-1)
 
-  /**
-   * Atomically adds the given value to the current value,
-   * with memory effects as specified by {@link VarHandle# getAndAdd}.
+  /** Atomically adds the given value to the current value, with memory effects
+   *  as specified by {@link VarHandle# getAndAdd}.
    *
-   * @param delta the value to add
-   * @return the updated value
+   *  @param delta
+   *    the value to add
+   *  @return
+   *    the updated value
    */
   final def addAndGet(delta: Long): Long = valueRef.fetchAdd(delta) + delta
 
-  /**
-   * Atomically updates (with memory effects as specified by {@link
-   * VarHandle#compareAndSet}) the current value with the results of
-   * applying the given function, returning the previous value. The
-   * function should be side-effect-free, since it may be re-applied
-   * when attempted updates fail due to contention among threads.
+  /** Atomically updates (with memory effects as specified by {@link
+   *  VarHandle#compareAndSet}) the current value with the results of applying
+   *  the given function, returning the previous value. The function should be
+   *  side-effect-free, since it may be re-applied when attempted updates fail
+   *  due to contention among threads.
    *
-   * @param updateFunction a side-effect-free function
-   * @return the previous value
-   * @since 1.8
+   *  @param updateFunction
+   *    a side-effect-free function
+   *  @return
+   *    the previous value
+   *  @since 1.8
    */
   final def getAndUpdate(updateFunction: LongUnaryOperator): Long = {
     @tailrec
@@ -212,16 +227,17 @@ class AtomicLong(private[this] var value: Long)
     loop(get(), 0, false)
   }
 
-  /**
-   * Atomically updates (with memory effects as specified by {@link
-   * VarHandle#compareAndSet}) the current value with the results of
-   * applying the given function, returning the updated value. The
-   * function should be side-effect-free, since it may be re-applied
-   * when attempted updates fail due to contention among threads.
+  /** Atomically updates (with memory effects as specified by {@link
+   *  VarHandle#compareAndSet}) the current value with the results of applying
+   *  the given function, returning the updated value. The function should be
+   *  side-effect-free, since it may be re-applied when attempted updates fail
+   *  due to contention among threads.
    *
-   * @param updateFunction a side-effect-free function
-   * @return the updated value
-   * @since 1.8
+   *  @param updateFunction
+   *    a side-effect-free function
+   *  @return
+   *    the updated value
+   *  @since 1.8
    */
   final def updateAndGet(updateFunction: LongUnaryOperator): Long = {
     @tailrec
@@ -239,23 +255,26 @@ class AtomicLong(private[this] var value: Long)
     loop(get(), 0, false)
   }
 
-  /**
-   * Atomically updates (with memory effects as specified by {@link
-   * VarHandle#compareAndSet}) the current value with the results of
-   * applying the given function to the current and given values,
-   * returning the previous value. The function should be
-   * side-effect-free, since it may be re-applied when attempted
-   * updates fail due to contention among threads.  The function is
-   * applied with the current value as its first argument, and the
-   * given update as the second argument.
+  /** Atomically updates (with memory effects as specified by {@link
+   *  VarHandle#compareAndSet}) the current value with the results of applying
+   *  the given function to the current and given values, returning the previous
+   *  value. The function should be side-effect-free, since it may be re-applied
+   *  when attempted updates fail due to contention among threads. The function
+   *  is applied with the current value as its first argument, and the given
+   *  update as the second argument.
    *
-   * @param x                   the update value
-   * @param accumulatorFunction a side-effect-free function of two arguments
-   * @return the previous value
-   * @since 1.8
+   *  @param x
+   *    the update value
+   *  @param accumulatorFunction
+   *    a side-effect-free function of two arguments
+   *  @return
+   *    the previous value
+   *  @since 1.8
    */
-  final def getAndAccumulate(x: Long,
-                             accumulatorFunction: LongBinaryOperator): Long = {
+  final def getAndAccumulate(
+      x: Long,
+      accumulatorFunction: LongBinaryOperator
+  ): Long = {
     @tailrec
     def loop(prev: Long, next: Long, haveNext: Boolean): Long = {
       val newNext =
@@ -271,23 +290,26 @@ class AtomicLong(private[this] var value: Long)
     loop(get(), 0, false)
   }
 
-  /**
-   * Atomically updates (with memory effects as specified by {@link
-   * VarHandle#compareAndSet}) the current value with the results of
-   * applying the given function to the current and given values,
-   * returning the updated value. The function should be
-   * side-effect-free, since it may be re-applied when attempted
-   * updates fail due to contention among threads.  The function is
-   * applied with the current value as its first argument, and the
-   * given update as the second argument.
+  /** Atomically updates (with memory effects as specified by {@link
+   *  VarHandle#compareAndSet}) the current value with the results of applying
+   *  the given function to the current and given values, returning the updated
+   *  value. The function should be side-effect-free, since it may be re-applied
+   *  when attempted updates fail due to contention among threads. The function
+   *  is applied with the current value as its first argument, and the given
+   *  update as the second argument.
    *
-   * @param x                   the update value
-   * @param accumulatorFunction a side-effect-free function of two arguments
-   * @return the updated value
-   * @since 1.8
+   *  @param x
+   *    the update value
+   *  @param accumulatorFunction
+   *    a side-effect-free function of two arguments
+   *  @return
+   *    the updated value
+   *  @since 1.8
    */
-  final def accumulateAndGet(x: Long,
-                             accumulatorFunction: LongBinaryOperator): Long = {
+  final def accumulateAndGet(
+      x: Long,
+      accumulatorFunction: LongBinaryOperator
+  ): Long = {
     @tailrec
     def loop(prev: Long, next: Long, haveNext: Boolean): Long = {
       val newNext =
@@ -303,209 +325,224 @@ class AtomicLong(private[this] var value: Long)
     loop(get(), 0, false)
   }
 
-  /**
-   * Returns the String representation of the current value.
+  /** Returns the String representation of the current value.
    *
-   * @return the String representation of the current value
+   *  @return
+   *    the String representation of the current value
    */
   override def toString(): String = get().toString()
 
-  /**
-   * Returns the current value of this {@code AtomicInteger} as an
-   * {@code int},
-   * with memory effects as specified by {@link VarHandle# getVolatile}.
+  /** Returns the current value of this {@code AtomicInteger} as an {@code int},
+   *  with memory effects as specified by {@link VarHandle# getVolatile}.
    *
-   * Equivalent to {@link #get ( )}.
+   *  Equivalent to {@link #get ( )}.
    */
   override def intValue(): Int = get().toInt
 
-  /**
-   * Returns the current value of this {@code AtomicInteger} as a
-   * {@code long} after a widening primitive conversion,
-   * with memory effects as specified by {@link VarHandle# getVolatile}.
+  /** Returns the current value of this {@code AtomicInteger} as a {@code long}
+   *  after a widening primitive conversion, with memory effects as specified by
+   *  {@link VarHandle# getVolatile}.
    *
-   * @jls 5.1.2 Widening Primitive Conversion
+   *  @jls
+   *    5.1.2 Widening Primitive Conversion
    */
   override def longValue(): Long = get().toLong
 
-  /**
-   * Returns the current value of this {@code AtomicInteger} as a
-   * {@code float} after a widening primitive conversion,
-   * with memory effects as specified by {@link VarHandle# getVolatile}.
+  /** Returns the current value of this {@code AtomicInteger} as a {@code float}
+   *  after a widening primitive conversion, with memory effects as specified by
+   *  {@link VarHandle# getVolatile}.
    *
-   * @jls 5.1.2 Widening Primitive Conversion
+   *  @jls
+   *    5.1.2 Widening Primitive Conversion
    */
   override def floatValue(): Float = get().toFloat
 
-  /**
-   * Returns the current value of this {@code AtomicInteger} as a
-   * {@code double} after a widening primitive conversion,
-   * with memory effects as specified by {@link VarHandle# getVolatile}.
+  /** Returns the current value of this {@code AtomicInteger} as a {@code
+   *  double} after a widening primitive conversion, with memory effects as
+   *  specified by {@link VarHandle# getVolatile}.
    *
-   * @jls 5.1.2 Widening Primitive Conversion
+   *  @jls
+   *    5.1.2 Widening Primitive Conversion
    */
   override def doubleValue(): Double = get().toDouble
 
-  /**
-   * Returns the current value, with memory semantics of reading as
-   * if the variable was declared non-{@code volatile}.
+  /** Returns the current value, with memory semantics of reading as if the
+   *  variable was declared non-{@code volatile}.
    *
-   * @return the value
-   * @since 9
+   *  @return
+   *    the value
+   *  @since 9
    */
   final def getPlain(): Long = value
 
-  /**
-   * Sets the value to {@code newValue}, with memory semantics
-   * of setting as if the variable was declared non-{@code volatile}
-   * and non-{@code final}.
+  /** Sets the value to {@code newValue}, with memory semantics of setting as if
+   *  the variable was declared non-{@code volatile} and non-{@code final}.
    *
-   * @param newValue the new value
-   * @since 9
+   *  @param newValue
+   *    the new value
+   *  @since 9
    */
   final def setPlain(newValue: Long): Unit = {
     value = newValue
   }
 
-  /**
-   * Returns the current value,
-   * with memory effects as specified by {@link VarHandle# getOpaque}.
+  /** Returns the current value, with memory effects as specified by {@link
+   *  VarHandle# getOpaque}.
    *
-   * @return the value
-   * @since 9
+   *  @return
+   *    the value
+   *  @since 9
    */
   final def getOpaque(): Long = valueRef.load(memory_order_relaxed)
 
-  /**
-   * Sets the value to {@code newValue},
-   * with memory effects as specified by {@link VarHandle# setOpaque}.
+  /** Sets the value to {@code newValue}, with memory effects as specified by
+   *  {@link VarHandle# setOpaque}.
    *
-   * @param newValue the new value
-   * @since 9
+   *  @param newValue
+   *    the new value
+   *  @since 9
    */
   final def setOpaque(newValue: Long): Unit =
     valueRef.store(newValue, memory_order_relaxed)
 
-  /**
-   * Returns the current value,
-   * with memory effects as specified by {@link VarHandle# getAcquire}.
+  /** Returns the current value, with memory effects as specified by {@link
+   *  VarHandle# getAcquire}.
    *
-   * @return the value
-   * @since 9
+   *  @return
+   *    the value
+   *  @since 9
    */
   final def getAcquire: Long = valueRef.load(memory_order_acquire)
 
-  /**
-   * Sets the value to {@code newValue},
-   * with memory effects as specified by {@link VarHandle# setRelease}.
+  /** Sets the value to {@code newValue}, with memory effects as specified by
+   *  {@link VarHandle# setRelease}.
    *
-   * @param newValue the new value
-   * @since 9
+   *  @param newValue
+   *    the new value
+   *  @since 9
    */
   final def setRelease(newValue: Long): Unit =
     valueRef.store(newValue, memory_order_release)
 
-  /**
-   * Atomically sets the value to {@code newValue} if the current value,
-   * referred to as the <em>witness value</em>, {@code == expectedValue},
-   * with memory effects as specified by
-   * {@link VarHandle# compareAndExchange}.
+  /** Atomically sets the value to {@code newValue} if the current value,
+   *  referred to as the <em>witness value</em>, {@code == expectedValue}, with
+   *  memory effects as specified by {@link VarHandle# compareAndExchange}.
    *
-   * @param expectedValue the expected value
-   * @param newValue      the new value
-   * @return the witness value, which will be the same as the
-   *         expected value if successful
-   * @since 9
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    the witness value, which will be the same as the expected value if
+   *    successful
+   *  @since 9
    */
   final def compareAndExchange(expectedValue: Long, newValue: Long): Long = {
     valueRef.compareExchangeStrong(expectedValue, newValue)._2
   }
 
-  /**
-   * Atomically sets the value to {@code newValue} if the current value,
-   * referred to as the <em>witness value</em>, {@code == expectedValue},
-   * with memory effects as specified by
-   * {@link VarHandle# compareAndExchangeAcquire}.
+  /** Atomically sets the value to {@code newValue} if the current value,
+   *  referred to as the <em>witness value</em>, {@code == expectedValue}, with
+   *  memory effects as specified by {@link VarHandle#
+   *  compareAndExchangeAcquire}.
    *
-   * @param expectedValue the expected value
-   * @param newValue      the new value
-   * @return the witness value, which will be the same as the
-   *         expected value if successful
-   * @since 9
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    the witness value, which will be the same as the expected value if
+   *    successful
+   *  @since 9
    */
-  final def compareAndExchangeAcquire(expectedValue: Long,
-                                      newValue: Long): Long = {
+  final def compareAndExchangeAcquire(
+      expectedValue: Long,
+      newValue: Long
+  ): Long = {
     valueRef
       .compareExchangeStrong(expectedValue, newValue, memory_order_acquire)
       ._2
   }
 
-  /**
-   * Atomically sets the value to {@code newValue} if the current value,
-   * referred to as the <em>witness value</em>, {@code == expectedValue},
-   * with memory effects as specified by
-   * {@link VarHandle# compareAndExchangeRelease}.
+  /** Atomically sets the value to {@code newValue} if the current value,
+   *  referred to as the <em>witness value</em>, {@code == expectedValue}, with
+   *  memory effects as specified by {@link VarHandle#
+   *  compareAndExchangeRelease}.
    *
-   * @param expectedValue the expected value
-   * @param newValue      the new value
-   * @return the witness value, which will be the same as the
-   *         expected value if successful
-   * @since 9
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    the witness value, which will be the same as the expected value if
+   *    successful
+   *  @since 9
    */
-  final def compareAndExchangeRelease(expectedValue: Long,
-                                      newValue: Long): Long = {
+  final def compareAndExchangeRelease(
+      expectedValue: Long,
+      newValue: Long
+  ): Long = {
     valueRef
       .compareExchangeStrong(expectedValue, newValue, memory_order_release)
       ._2
   }
 
-  /**
-   * Possibly atomically sets the value to {@code newValue} if
-   * the current value {@code == expectedValue},
-   * with memory effects as specified by
-   * {@link VarHandle# weakCompareAndSet}.
+  /** Possibly atomically sets the value to {@code newValue} if the current
+   *  value {@code == expectedValue}, with memory effects as specified by {@link
+   *  VarHandle# weakCompareAndSet}.
    *
-   * @param expectedValue the expected value
-   * @param newValue      the new value
-   * @return {@code true} if successful
-   * @since 9
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    {@code true} if successful
+   *  @since 9
    */
-  final def weakCompareAndSetVolatile(expectedValue: Long,
-                                      newValue: Long): Boolean = {
+  final def weakCompareAndSetVolatile(
+      expectedValue: Long,
+      newValue: Long
+  ): Boolean = {
     valueRef.compareExchangeWeak(expectedValue, newValue)._1
   }
 
-  /**
-   * Possibly atomically sets the value to {@code newValue} if
-   * the current value {@code == expectedValue},
-   * with memory effects as specified by
-   * {@link VarHandle# weakCompareAndSetAcquire}.
+  /** Possibly atomically sets the value to {@code newValue} if the current
+   *  value {@code == expectedValue}, with memory effects as specified by {@link
+   *  VarHandle# weakCompareAndSetAcquire}.
    *
-   * @param expectedValue the expected value
-   * @param newValue      the new value
-   * @return {@code true} if successful
-   * @since 9
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    {@code true} if successful
+   *  @since 9
    */
-  final def weakCompareAndSetAcquire(expectedValue: Long,
-                                     newValue: Long): Boolean = {
+  final def weakCompareAndSetAcquire(
+      expectedValue: Long,
+      newValue: Long
+  ): Boolean = {
     valueRef
       .compareExchangeWeak(expectedValue, newValue, memory_order_acquire)
       ._1
   }
 
-  /**
-   * Possibly atomically sets the value to {@code newValue} if
-   * the current value {@code == expectedValue},
-   * with memory effects as specified by
-   * {@link VarHandle# weakCompareAndSetRelease}.
+  /** Possibly atomically sets the value to {@code newValue} if the current
+   *  value {@code == expectedValue}, with memory effects as specified by {@link
+   *  VarHandle# weakCompareAndSetRelease}.
    *
-   * @param expectedValue the expected value
-   * @param newValue      the new value
-   * @return {@code true} if successful
-   * @since 9
+   *  @param expectedValue
+   *    the expected value
+   *  @param newValue
+   *    the new value
+   *  @return
+   *    {@code true} if successful
+   *  @since 9
    */
-  final def weakCompareAndSetRelease(expectedValue: Long,
-                                     newValue: Long): Boolean = {
+  final def weakCompareAndSetRelease(
+      expectedValue: Long,
+      newValue: Long
+  ): Boolean = {
     valueRef
       .compareExchangeWeak(expectedValue, newValue, memory_order_release)
       ._1

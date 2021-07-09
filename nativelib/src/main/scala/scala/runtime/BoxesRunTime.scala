@@ -44,9 +44,9 @@ object BoxesRunTime {
   // Intrinsified as primitives. They are never called.
   def hashFromObject(o: java.lang.Object): Int = ???
   def hashFromNumber(o: java.lang.Number): Int = ???
-  def hashFromFloat(o: java.lang.Float): Int   = ???
+  def hashFromFloat(o: java.lang.Float): Int = ???
   def hashFromDouble(o: java.lang.Double): Int = ???
-  def hashFromLong(o: java.lang.Long): Int     = ???
+  def hashFromLong(o: java.lang.Long): Int = ???
 
   def equals(x: Any, y: Any): Boolean = {
     (x, y) match {
@@ -55,8 +55,9 @@ object BoxesRunTime {
     }
   }
 
-  /** Since all applicable logic has to be present in the equals method of a ScalaNumber
-   * in any case, we dispatch to it as soon as we spot one on either side.
+  /** Since all applicable logic has to be present in the equals method of a
+   *  ScalaNumber in any case, we dispatch to it as soon as we spot one on
+   *  either side.
    */
   def equals2(x: Any, y: Any): Boolean = {
     x match {
@@ -80,14 +81,14 @@ object BoxesRunTime {
 
   private final val CHAR = 0
   /* BYTE = 1, SHORT = 2, */
-  private final val INT    = 3
-  private final val LONG   = 4
-  private final val FLOAT  = 5
+  private final val INT = 3
+  private final val LONG = 4
+  private final val FLOAT = 5
   private final val DOUBLE = 6
-  private final val OTHER  = 7
+  private final val OTHER = 7
 
-  /** We don't need to return BYTE and SHORT, as everything which might
-   * care widens to INT.
+  /** We don't need to return BYTE and SHORT, as everything which might care
+   *  widens to INT.
    */
   private def typeCode(a: Any): Int = {
     a match {

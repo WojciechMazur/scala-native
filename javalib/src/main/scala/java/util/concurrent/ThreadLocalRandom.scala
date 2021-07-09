@@ -20,37 +20,35 @@ import java.util.stream.IntStream
 import java.util.stream.LongStream
 import java.util.stream.StreamSupport
 
-/**
- * A random number generator isolated to the current thread.  Like the
- * global {@link java.util.Random} generator used by the {@link
- * java.lang.Math} class, a {@code ThreadLocalRandom} is initialized
- * with an internally generated seed that may not otherwise be
- * modified. When applicable, use of {@code ThreadLocalRandom} rather
- * than shared {@code Random} objects in concurrent programs will
- * typically encounter much less overhead and contention.  Use of
- * {@code ThreadLocalRandom} is particularly appropriate when multiple
- * tasks (for example, each a {@link ForkJoinTask}) use random numbers
- * in parallel in thread pools.
+/** A random number generator isolated to the current thread. Like the global
+ *  {@link java.util.Random} generator used by the {@link java.lang.Math} class,
+ *  a {@code ThreadLocalRandom} is initialized with an internally generated seed
+ *  that may not otherwise be modified. When applicable, use of {@code
+ *  ThreadLocalRandom} rather than shared {@code Random} objects in concurrent
+ *  programs will typically encounter much less overhead and contention. Use of
+ *  {@code ThreadLocalRandom} is particularly appropriate when multiple tasks
+ *  (for example, each a {@link ForkJoinTask}) use random numbers in parallel in
+ *  thread pools.
  *
- * <p>Usages of this class should typically be of the form:
- * {@code ThreadLocalRandom.current().nextX(...)} (where
- * {@code X} is {@code Int}, {@code Long}, etc).
- * When all usages are of this form, it is never possible to
- * accidentally share a {@code ThreadLocalRandom} across multiple threads.
+ *  <p>Usages of this class should typically be of the form: {@code
+ *  ThreadLocalRandom.current().nextX(...)} (where {@code X} is {@code Int},
+ *  {@code Long}, etc). When all usages are of this form, it is never possible
+ *  to accidentally share a {@code ThreadLocalRandom} across multiple threads.
  *
- * <p>This class also provides additional commonly used bounded random
- * generation methods.
+ *  <p>This class also provides additional commonly used bounded random
+ *  generation methods.
  *
- * <p>Instances of {@code ThreadLocalRandom} are not cryptographically
- * secure.  Consider instead using {@link java.security.SecureRandom}
- * in security-sensitive applications. Additionally,
- * default-constructed instances do not use a cryptographically random
- * seed unless the {@linkplain System#getProperty system property}
- * {@code java.util.secureRandomSeed} is set to {@code true}.
+ *  <p>Instances of {@code ThreadLocalRandom} are not cryptographically secure.
+ *  Consider instead using {@link java.security.SecureRandom} in
+ *  security-sensitive applications. Additionally, default-constructed instances
+ *  do not use a cryptographically random seed unless the {@linkplain
+ *  System#getProperty system property} {@code java.util.secureRandomSeed} is
+ *  set to {@code true}.
  *
- * @since 1.7
- * @author Doug Lea
- */ @SerialVersionUID(-5851777807851030925L)
+ *  @since 1.7
+ *    @author Doug Lea
+ */
+@SerialVersionUID(-5851777807851030925L)
 object ThreadLocalRandom {
   private def mix64(z0: Long) = {
     var z = z0
@@ -65,12 +63,11 @@ object ThreadLocalRandom {
     (((z ^ (z >>> 33)) * 0xc4ceb9fe1a85ec53L) >>> 32).toInt
   }
 
-  /**
-   * Initialize Thread fields for the current thread.  Called only
-   * when Thread.threadLocalRandomProbe is zero, indicating that a
-   * thread local seed value needs to be generated. Note that even
-   * though the initialization is purely thread-local, we need to
-   * rely on (static) atomic generators to initialize the values.
+  /** Initialize Thread fields for the current thread. Called only when
+   *  Thread.threadLocalRandomProbe is zero, indicating that a thread local seed
+   *  value needs to be generated. Note that even though the initialization is
+   *  purely thread-local, we need to rely on (static) atomic generators to
+   *  initialize the values.
    */
   private[concurrent] def localInit(): Unit = {
     val p = probeGenerator.addAndGet(PROBE_INCREMENT)
@@ -78,15 +75,15 @@ object ThreadLocalRandom {
       if (p == 0) 1
       else p // skip 0
     val seed = mix64(seeder.getAndAdd(SEEDER_INCREMENT))
-    val t    = Thread.currentThread()
+    val t = Thread.currentThread()
     t.threadLocalRandomSeed = seed
     t.threadLocalRandomProbe = probe
   }
 
-  /**
-   * Returns the current thread's {@code ThreadLocalRandom}.
+  /** Returns the current thread's {@code ThreadLocalRandom}.
    *
-   * @return the current thread's {@code ThreadLocalRandom}
+   *  @return
+   *    the current thread's {@code ThreadLocalRandom}
    */
   def current(): ThreadLocalRandom = {
     if (Thread.currentThread().threadLocalRandomProbe == 0)
@@ -94,20 +91,18 @@ object ThreadLocalRandom {
     instance
   }
 
-  /**
-   * Spliterator for int streams.  We multiplex the four int
-   * versions into one class by treating a bound less than origin as
-   * unbounded, and also by treating "infinite" as equivalent to
-   * Long.MAX_VALUE. For splits, it uses the standard divide-by-two
-   * approach. The long and double versions of this class are
-   * identical except for types.
+  /** Spliterator for int streams. We multiplex the four int versions into one
+   *  class by treating a bound less than origin as unbounded, and also by
+   *  treating "infinite" as equivalent to Long.MAX_VALUE. For splits, it uses
+   *  the standard divide-by-two approach. The long and double versions of this
+   *  class are identical except for types.
    */
   final private class RandomIntsSpliterator private[concurrent] (
       var index: Long,
       fence: Long,
       origin: Int,
-      bound: Int)
-      extends Spliterator.OfInt {
+      bound: Int
+  ) extends Spliterator.OfInt {
     override def trySplit(): ThreadLocalRandom.RandomIntsSpliterator = {
       val i = index
       val m = (i + fence) >>> 1
@@ -133,7 +128,8 @@ object ThreadLocalRandom {
 
       if (index < fence) {
         consumer.accept(
-          ThreadLocalRandom.current().internalNextInt(origin, bound))
+          ThreadLocalRandom.current().internalNextInt(origin, bound)
+        )
         index += 1
         return true
       }
@@ -159,15 +155,14 @@ object ThreadLocalRandom {
     }
   }
 
-  /**
-   * Spliterator for long streams.
+  /** Spliterator for long streams.
    */
   final private class RandomLongsSpliterator private[concurrent] (
       var index: Long,
       fence: Long,
       origin: Long,
-      bound: Long)
-      extends Spliterator.OfLong {
+      bound: Long
+  ) extends Spliterator.OfLong {
 
     override def trySplit(): ThreadLocalRandom.RandomLongsSpliterator = {
       val i = index
@@ -193,7 +188,8 @@ object ThreadLocalRandom {
 
       if (index < fence) {
         consumer.accept(
-          ThreadLocalRandom.current().internalNextLong(origin, bound))
+          ThreadLocalRandom.current().internalNextLong(origin, bound)
+        )
         index += 1
         return true
       }
@@ -218,15 +214,14 @@ object ThreadLocalRandom {
     }
   }
 
-  /**
-   * Spliterator for double streams.
+  /** Spliterator for double streams.
    */
   final private class RandomDoublesSpliterator private[concurrent] (
       var index: Long,
       fence: Long,
       origin: Double,
-      bound: Double)
-      extends Spliterator.OfDouble {
+      bound: Double
+  ) extends Spliterator.OfDouble {
 
     override def trySplit(): ThreadLocalRandom.RandomDoublesSpliterator = {
       val m = (index + fence) >>> 1
@@ -250,7 +245,8 @@ object ThreadLocalRandom {
 
       if (index < fence) {
         consumer.accept(
-          ThreadLocalRandom.current().internalNextDouble()(origin, bound))
+          ThreadLocalRandom.current().internalNextDouble()(origin, bound)
+        )
         index += 1
         return true
       }
@@ -263,7 +259,7 @@ object ThreadLocalRandom {
       var i = index
       if (index < fence) {
         val rng = ThreadLocalRandom.current()
-        var i   = index
+        var i = index
         index = fence
         while ({
           rng.internalNextDouble()(origin, bound)
@@ -274,17 +270,15 @@ object ThreadLocalRandom {
     }
   }
 
-  /**
-   * Returns the probe value for the current thread without forcing
-   * initialization. Note that invoking ThreadLocalRandom.current()
-   * can be used to force initialization on zero return.
+  /** Returns the probe value for the current thread without forcing
+   *  initialization. Note that invoking ThreadLocalRandom.current() can be used
+   *  to force initialization on zero return.
    */
   private[concurrent] def getProbe(): Int =
     Thread.currentThread().threadLocalRandomProbe
 
-  /**
-   * Pseudo-randomly advances and records the given probe value for the
-   * given thread.
+  /** Pseudo-randomly advances and records the given probe value for the given
+   *  thread.
    */
   private[concurrent] def advanceProbe(probe0: Int) = {
     var probe = probe0
@@ -295,11 +289,10 @@ object ThreadLocalRandom {
     probe
   }
 
-  /**
-   * Returns the pseudo-randomly initialized or updated secondary seed.
+  /** Returns the pseudo-randomly initialized or updated secondary seed.
    */
   private[concurrent] def nextSecondarySeed = {
-    val t      = Thread.currentThread()
+    val t = Thread.currentThread()
     var r: Int = t.threadLocalRandomSecondarySeed
     if (r != 0) {
       r ^= r << 13
@@ -314,8 +307,7 @@ object ThreadLocalRandom {
     r
   }
 
-  /**
-   * Erases ThreadLocals by nulling out Thread maps.
+  /** Erases ThreadLocals by nulling out Thread maps.
    */
   private[concurrent] def eraseThreadLocals(thread: Thread): Unit = {
     ???
@@ -325,36 +317,33 @@ object ThreadLocalRandom {
 
   private[concurrent] def setInheritedAccessControlContext(
       thread: Thread,
-      acc: AccessControlContext): Unit = {
+      acc: AccessControlContext
+  ): Unit = {
 //    U.putObjectRelease(thread, INHERITEDACCESSCONTROLCONTEXT, acc)
   }
 
-  /**
-   * The seed increment.
+  /** The seed increment.
    */
   private val GAMMA = 0x9e3779b97f4a7c15L
 
-  /**
-   * The increment for generating probe values.
+  /** The increment for generating probe values.
    */
   private val PROBE_INCREMENT = 0x9e3779b9
 
-  /**
-   * The increment of seeder per new instance.
+  /** The increment of seeder per new instance.
    */
   private val SEEDER_INCREMENT = 0xbb67ae8584caa73bL
 
-  /**
-   * The least non-zero value returned by nextDouble(). This value
-   * is scaled by a random value of 53 bits to produce a result.
+  /** The least non-zero value returned by nextDouble(). This value is scaled by
+   *  a random value of 53 bits to produce a result.
    */
   private val DOUBLE_UNIT = 1.0 / (1L << 53)
-  private val FLOAT_UNIT  = 1.0f / (1 << 24)
+  private val FLOAT_UNIT = 1.0f / (1 << 24)
 
   // IllegalArgumentException messages
   private[concurrent] val BAD_BOUND = "bound must be positive"
   private[concurrent] val BAD_RANGE = "bound must be greater than origin"
-  private[concurrent] val BAD_SIZE  = "size must be non-negative"
+  private[concurrent] val BAD_SIZE = "size must be non-negative"
 
   /** Rarely-used holder for the second of a pair of Gaussians */
   private val nextLocalGaussian = new ThreadLocal[Double]
@@ -365,11 +354,11 @@ object ThreadLocalRandom {
   /** The common ThreadLocalRandom */
   private[concurrent] val instance = new ThreadLocalRandom
 
-  /**
-   * The next seed for default constructors.
+  /** The next seed for default constructors.
    */
   private val seeder = new AtomicLong(
-    mix64(System.currentTimeMillis()) ^ mix64(System.nanoTime()))
+    mix64(System.currentTimeMillis()) ^ mix64(System.nanoTime())
+  )
 
 //  try {
 //    val sec: String = VM.getSavedProperty("java.util.secureRandomSeed")
@@ -383,20 +372,20 @@ object ThreadLocalRandom {
 }
 
 @SerialVersionUID(-5851777807851030925L)
-class ThreadLocalRandom private () /** Constructor used only for static singleton */
-    extends Random {
+class ThreadLocalRandom private ()
+/** Constructor used only for static singleton
+ */ extends Random {
 
-  /**
-   * Field used only during singleton initialization.
-   * True when constructor completes.
+  /** Field used only during singleton initialization. True when constructor
+   *  completes.
    */
   private[concurrent] var initialized = true
 
-  /**
-   * Throws {@code UnsupportedOperationException}.  Setting seeds in
-   * this generator is not supported.
+  /** Throws {@code UnsupportedOperationException}. Setting seeds in this
+   *  generator is not supported.
    *
-   * @throws UnsupportedOperationException always
+   *  @throws UnsupportedOperationException
+   *    always
    */
   override def setSeed(seed: Long): Unit = { // only allow call from super() constructor
     if (initialized)
@@ -408,25 +397,26 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
     t.threadLocalRandomSeed
   }
 
-  /**
-   * Generates a pseudorandom number with the indicated number of
-   * low-order bits.  Because this class has no subclasses, this
-   * method cannot be invoked or overridden.
+  /** Generates a pseudorandom number with the indicated number of low-order
+   *  bits. Because this class has no subclasses, this method cannot be invoked
+   *  or overridden.
    *
-   * @param  bits random bits
-   * @return the next pseudorandom value from this random number
-   *         generator's sequence
+   *  @param bits
+   *    random bits
+   *  @return
+   *    the next pseudorandom value from this random number generator's sequence
    */
   override protected def next(bits: Int): Int = nextInt() >>> (32 - bits)
 
-  /**
-   * The form of nextLong used by LongStream Spliterators.  If
-   * origin is greater than bound, acts as unbounded form of
-   * nextLong, else as bounded form.
+  /** The form of nextLong used by LongStream Spliterators. If origin is greater
+   *  than bound, acts as unbounded form of nextLong, else as bounded form.
    *
-   * @param origin the least value, unless greater than bound
-   * @param bound the upper bound (exclusive), must not equal origin
-   * @return a pseudorandom value
+   *  @param origin
+   *    the least value, unless greater than bound
+   *  @param bound
+   *    the upper bound (exclusive), must not equal origin
+   *  @return
+   *    a pseudorandom value
    */
   final private[concurrent] def internalNextLong(origin: Long, bound: Long) = {
     var r = ThreadLocalRandom.mix64(nextSeed())
@@ -452,13 +442,15 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
     r
   }
 
-  /**
-   * The form of nextInt used by IntStream Spliterators.
-   * Exactly the same as long version, except for types.
+  /** The form of nextInt used by IntStream Spliterators. Exactly the same as
+   *  long version, except for types.
    *
-   * @param origin the least value, unless greater than bound
-   * @param bound the upper bound (exclusive), must not equal origin
-   * @return a pseudorandom value
+   *  @param origin
+   *    the least value, unless greater than bound
+   *  @param bound
+   *    the upper bound (exclusive), must not equal origin
+   *  @return
+   *    a pseudorandom value
    */
   final private[concurrent] def internalNextInt(origin: Int, bound: Int) = {
     var r = ThreadLocalRandom.mix32(nextSeed())
@@ -480,15 +472,19 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
     r
   }
 
-  /**
-   * The form of nextDouble() used by DoubleStream Spliterators.
+  /** The form of nextDouble() used by DoubleStream Spliterators.
    *
-   * @param origin the least value, unless greater than bound
-   * @param bound the upper bound (exclusive), must not equal origin
-   * @return a pseudorandom value
+   *  @param origin
+   *    the least value, unless greater than bound
+   *  @param bound
+   *    the upper bound (exclusive), must not equal origin
+   *  @return
+   *    a pseudorandom value
    */
-  final private[concurrent] def internalNextDouble()(origin: Double,
-                                                     bound: Double) = {
+  final private[concurrent] def internalNextDouble()(
+      origin: Double,
+      bound: Double
+  ) = {
     var r = (nextLong() >>> 11) * ThreadLocalRandom.DOUBLE_UNIT
     if (origin < bound) {
       r = r * (bound - origin) + origin
@@ -501,21 +497,23 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
     r
   }
 
-  /**
-   * Returns a pseudorandom {@code int} value.
+  /** Returns a pseudorandom {@code int} value.
    *
-   * @return a pseudorandom {@code int} value
+   *  @return
+   *    a pseudorandom {@code int} value
    */
   override def nextInt(): Int = ThreadLocalRandom.mix32(nextSeed())
 
-  /**
-   * Returns a pseudorandom {@code int} value between zero (inclusive)
-   * and the specified bound (exclusive).
+  /** Returns a pseudorandom {@code int} value between zero (inclusive) and the
+   *  specified bound (exclusive).
    *
-   * @param bound the upper bound (exclusive).  Must be positive.
-   * @return a pseudorandom {@code int} value between zero
-   *         (inclusive) and the bound (exclusive)
-   * @throws IllegalArgumentException if {@code bound} is not positive
+   *  @param bound
+   *    the upper bound (exclusive). Must be positive.
+   *  @return
+   *    a pseudorandom {@code int} value between zero (inclusive) and the bound
+   *    (exclusive)
+   *  @throws IllegalArgumentException
+   *    if {@code bound} is not positive
    */
   override def nextInt(bound: Int): Int = {
     if (bound <= 0)
@@ -533,16 +531,18 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
     r
   }
 
-  /**
-   * Returns a pseudorandom {@code int} value between the specified
-   * origin (inclusive) and the specified bound (exclusive).
+  /** Returns a pseudorandom {@code int} value between the specified origin
+   *  (inclusive) and the specified bound (exclusive).
    *
-   * @param origin the least value returned
-   * @param bound the upper bound (exclusive)
-   * @return a pseudorandom {@code int} value between the origin
-   *         (inclusive) and the bound (exclusive)
-   * @throws IllegalArgumentException if {@code origin} is greater than
-   *         or equal to {@code bound}
+   *  @param origin
+   *    the least value returned
+   *  @param bound
+   *    the upper bound (exclusive)
+   *  @return
+   *    a pseudorandom {@code int} value between the origin (inclusive) and the
+   *    bound (exclusive)
+   *  @throws IllegalArgumentException
+   *    if {@code origin} is greater than or equal to {@code bound}
    */
   def nextInt(origin: Int, bound: Int): Int = {
     if (origin >= bound)
@@ -550,21 +550,23 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
     internalNextInt(origin, bound)
   }
 
-  /**
-   * Returns a pseudorandom {@code long} value.
+  /** Returns a pseudorandom {@code long} value.
    *
-   * @return a pseudorandom {@code long} value
+   *  @return
+   *    a pseudorandom {@code long} value
    */
   override def nextLong(): Long = ThreadLocalRandom.mix64(nextSeed())
 
-  /**
-   * Returns a pseudorandom {@code long} value between zero (inclusive)
-   * and the specified bound (exclusive).
+  /** Returns a pseudorandom {@code long} value between zero (inclusive) and the
+   *  specified bound (exclusive).
    *
-   * @param bound the upper bound (exclusive).  Must be positive.
-   * @return a pseudorandom {@code long} value between zero
-   *         (inclusive) and the bound (exclusive)
-   * @throws IllegalArgumentException if {@code bound} is not positive
+   *  @param bound
+   *    the upper bound (exclusive). Must be positive.
+   *  @return
+   *    a pseudorandom {@code long} value between zero (inclusive) and the bound
+   *    (exclusive)
+   *  @throws IllegalArgumentException
+   *    if {@code bound} is not positive
    */
   def nextLong(bound: Long): Long = {
     if (bound <= 0)
@@ -581,16 +583,18 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
     r
   }
 
-  /**
-   * Returns a pseudorandom {@code long} value between the specified
-   * origin (inclusive) and the specified bound (exclusive).
+  /** Returns a pseudorandom {@code long} value between the specified origin
+   *  (inclusive) and the specified bound (exclusive).
    *
-   * @param origin the least value returned
-   * @param bound the upper bound (exclusive)
-   * @return a pseudorandom {@code long} value between the origin
-   *         (inclusive) and the bound (exclusive)
-   * @throws IllegalArgumentException if {@code origin} is greater than
-   *         or equal to {@code bound}
+   *  @param origin
+   *    the least value returned
+   *  @param bound
+   *    the upper bound (exclusive)
+   *  @return
+   *    a pseudorandom {@code long} value between the origin (inclusive) and the
+   *    bound (exclusive)
+   *  @throws IllegalArgumentException
+   *    if {@code origin} is greater than or equal to {@code bound}
    */
   def nextLong(origin: Long, bound: Long): Long = {
     if (origin >= bound)
@@ -598,46 +602,52 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
     internalNextLong(origin, bound)
   }
 
-  /**
-   * Returns a pseudorandom {@code double} value between zero
-   * (inclusive) and one (exclusive).
+  /** Returns a pseudorandom {@code double} value between zero (inclusive) and
+   *  one (exclusive).
    *
-   * @return a pseudorandom {@code double} value between zero
-   *         (inclusive) and one (exclusive)
+   *  @return
+   *    a pseudorandom {@code double} value between zero (inclusive) and one
+   *    (exclusive)
    */
   override def nextDouble(): Double =
     (ThreadLocalRandom.mix64(nextSeed()) >>> 11) * ThreadLocalRandom.DOUBLE_UNIT
 
-  /**
-   * Returns a pseudorandom {@code double} value between 0.0
-   * (inclusive) and the specified bound (exclusive).
+  /** Returns a pseudorandom {@code double} value between 0.0 (inclusive) and
+   *  the specified bound (exclusive).
    *
-   * @param bound the upper bound (exclusive).  Must be positive.
-   * @return a pseudorandom {@code double} value between zero
-   *         (inclusive) and the bound (exclusive)
-   * @throws IllegalArgumentException if {@code bound} is not positive
+   *  @param bound
+   *    the upper bound (exclusive). Must be positive.
+   *  @return
+   *    a pseudorandom {@code double} value between zero (inclusive) and the
+   *    bound (exclusive)
+   *  @throws IllegalArgumentException
+   *    if {@code bound} is not positive
    */
   def nextDouble(bound: Double): Double = {
     if (!(bound > 0.0))
       throw new IllegalArgumentException(ThreadLocalRandom.BAD_BOUND)
     val result =
-      (ThreadLocalRandom.mix64(nextSeed()) >>> 11) * ThreadLocalRandom.DOUBLE_UNIT * bound
+      (ThreadLocalRandom.mix64(
+        nextSeed()
+      ) >>> 11) * ThreadLocalRandom.DOUBLE_UNIT * bound
     if (result < bound) result
     else
       java.lang.Double
         .longBitsToDouble(java.lang.Double.doubleToLongBits(bound) - 1)
   }
 
-  /**
-   * Returns a pseudorandom {@code double} value between the specified
-   * origin (inclusive) and bound (exclusive).
+  /** Returns a pseudorandom {@code double} value between the specified origin
+   *  (inclusive) and bound (exclusive).
    *
-   * @param origin the least value returned
-   * @param bound the upper bound (exclusive)
-   * @return a pseudorandom {@code double} value between the origin
-   *         (inclusive) and the bound (exclusive)
-   * @throws IllegalArgumentException if {@code origin} is greater than
-   *         or equal to {@code bound}
+   *  @param origin
+   *    the least value returned
+   *  @param bound
+   *    the upper bound (exclusive)
+   *  @return
+   *    a pseudorandom {@code double} value between the origin (inclusive) and
+   *    the bound (exclusive)
+   *  @throws IllegalArgumentException
+   *    if {@code origin} is greater than or equal to {@code bound}
    */
   def nextDouble(origin: Double, bound: Double): Double = {
     if (!(origin < bound))
@@ -645,19 +655,19 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
     internalNextDouble()(origin, bound)
   }
 
-  /**
-   * Returns a pseudorandom {@code boolean} value.
+  /** Returns a pseudorandom {@code boolean} value.
    *
-   * @return a pseudorandom {@code boolean} value
+   *  @return
+   *    a pseudorandom {@code boolean} value
    */
   override def nextBoolean(): Boolean = ThreadLocalRandom.mix32(nextSeed()) < 0
 
-  /**
-   * Returns a pseudorandom {@code float} value between zero
-   * (inclusive) and one (exclusive).
+  /** Returns a pseudorandom {@code float} value between zero (inclusive) and
+   *  one (exclusive).
    *
-   * @return a pseudorandom {@code float} value between zero
-   *         (inclusive) and one (exclusive)
+   *  @return
+   *    a pseudorandom {@code float} value between zero (inclusive) and one
+   *    (exclusive)
    */
   override def nextFloat(): Float =
     (ThreadLocalRandom.mix32(nextSeed()) >>> 8) * ThreadLocalRandom.FLOAT_UNIT
@@ -671,7 +681,7 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
     }
     var v1 = .0
     var v2 = .0
-    var s  = .0
+    var s = .0
     do {
       v1 = 2 * nextDouble() - 1 // between -1 and 1
 
@@ -686,257 +696,315 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
     v1 * multiplier
   }
 
-  /**
-   * Returns a stream producing the given {@code streamSize} number of
-   * pseudorandom {@code int} values.
+  /** Returns a stream producing the given {@code streamSize} number of
+   *  pseudorandom {@code int} values.
    *
-   * @param streamSize the number of values to generate
-   * @return a stream of pseudorandom {@code int} values
-   * @throws IllegalArgumentException if {@code streamSize} is
-   *         less than zero
-   * @since 1.8
+   *  @param streamSize
+   *    the number of values to generate
+   *  @return
+   *    a stream of pseudorandom {@code int} values
+   *  @throws IllegalArgumentException
+   *    if {@code streamSize} is less than zero
+   *  @since 1.8
    */
   def ints(streamSize: Long): IntStream = {
     if (streamSize < 0L)
       throw new IllegalArgumentException(ThreadLocalRandom.BAD_SIZE)
     StreamSupport.intStream(
-      new ThreadLocalRandom.RandomIntsSpliterator(0L,
-                                                  streamSize,
-                                                  Integer.MAX_VALUE,
-                                                  0),
-      false)
+      new ThreadLocalRandom.RandomIntsSpliterator(
+        0L,
+        streamSize,
+        Integer.MAX_VALUE,
+        0
+      ),
+      false
+    )
   }
 
-  /**
-   * Returns an effectively unlimited stream of pseudorandom {@code int}
-   * values.
+  /** Returns an effectively unlimited stream of pseudorandom {@code int}
+   *  values.
    *
-   * @implNote This method is implemented to be equivalent to {@code
-   * ints(Long.MAX_VALUE)}.
+   *  @implNote
+   *    This method is implemented to be equivalent to {@code
+   *    ints(Long.MAX_VALUE)}.
    *
-   * @return a stream of pseudorandom {@code int} values
-   * @since 1.8
+   *  @return
+   *    a stream of pseudorandom {@code int} values
+   *  @since 1.8
    */
   def ints(): IntStream =
     StreamSupport.intStream(
-      new ThreadLocalRandom.RandomIntsSpliterator(0L,
-                                                  java.lang.Long.MAX_VALUE,
-                                                  Integer.MAX_VALUE,
-                                                  0),
-      false)
+      new ThreadLocalRandom.RandomIntsSpliterator(
+        0L,
+        java.lang.Long.MAX_VALUE,
+        Integer.MAX_VALUE,
+        0
+      ),
+      false
+    )
 
-  /**
-   * Returns a stream producing the given {@code streamSize} number
-   * of pseudorandom {@code int} values, each conforming to the given
-   * origin (inclusive) and bound (exclusive).
+  /** Returns a stream producing the given {@code streamSize} number of
+   *  pseudorandom {@code int} values, each conforming to the given origin
+   *  (inclusive) and bound (exclusive).
    *
-   * @param streamSize the number of values to generate
-   * @param randomNumberOrigin the origin (inclusive) of each random value
-   * @param randomNumberBound the bound (exclusive) of each random value
-   * @return a stream of pseudorandom {@code int} values,
-   *         each with the given origin (inclusive) and bound (exclusive)
-   * @throws IllegalArgumentException if {@code streamSize} is
-   *         less than zero, or {@code randomNumberOrigin}
-   *         is greater than or equal to {@code randomNumberBound}
-   * @since 1.8
+   *  @param streamSize
+   *    the number of values to generate
+   *  @param randomNumberOrigin
+   *    the origin (inclusive) of each random value
+   *  @param randomNumberBound
+   *    the bound (exclusive) of each random value
+   *  @return
+   *    a stream of pseudorandom {@code int} values, each with the given origin
+   *    (inclusive) and bound (exclusive)
+   *  @throws IllegalArgumentException
+   *    if {@code streamSize} is less than zero, or {@code randomNumberOrigin}
+   *    is greater than or equal to {@code randomNumberBound}
+   *  @since 1.8
    */
-  def ints(streamSize: Long,
-           randomNumberOrigin: Int,
-           randomNumberBound: Int): IntStream = {
+  def ints(
+      streamSize: Long,
+      randomNumberOrigin: Int,
+      randomNumberBound: Int
+  ): IntStream = {
     if (streamSize < 0L)
       throw new IllegalArgumentException(ThreadLocalRandom.BAD_SIZE)
     if (randomNumberOrigin >= randomNumberBound)
       throw new IllegalArgumentException(ThreadLocalRandom.BAD_RANGE)
     StreamSupport.intStream(
-      new ThreadLocalRandom.RandomIntsSpliterator(0L,
-                                                  streamSize,
-                                                  randomNumberOrigin,
-                                                  randomNumberBound),
-      false)
+      new ThreadLocalRandom.RandomIntsSpliterator(
+        0L,
+        streamSize,
+        randomNumberOrigin,
+        randomNumberBound
+      ),
+      false
+    )
   }
 
-  /**
-   * Returns an effectively unlimited stream of pseudorandom {@code
-   * int} values, each conforming to the given origin (inclusive) and bound
-   * (exclusive).
+  /** Returns an effectively unlimited stream of pseudorandom {@code int}
+   *  values, each conforming to the given origin (inclusive) and bound
+   *  (exclusive).
    *
-   * @implNote This method is implemented to be equivalent to {@code
-   * ints(Long.MAX_VALUE, randomNumberOrigin, randomNumberBound)}.
+   *  @implNote
+   *    This method is implemented to be equivalent to {@code
+   *    ints(Long.MAX_VALUE, randomNumberOrigin, randomNumberBound)}.
    *
-   * @param randomNumberOrigin the origin (inclusive) of each random value
-   * @param randomNumberBound the bound (exclusive) of each random value
-   * @return a stream of pseudorandom {@code int} values,
-   *         each with the given origin (inclusive) and bound (exclusive)
-   * @throws IllegalArgumentException if {@code randomNumberOrigin}
-   *         is greater than or equal to {@code randomNumberBound}
-   * @since 1.8
+   *  @param randomNumberOrigin
+   *    the origin (inclusive) of each random value
+   *  @param randomNumberBound
+   *    the bound (exclusive) of each random value
+   *  @return
+   *    a stream of pseudorandom {@code int} values, each with the given origin
+   *    (inclusive) and bound (exclusive)
+   *  @throws IllegalArgumentException
+   *    if {@code randomNumberOrigin} is greater than or equal to {@code
+   *    randomNumberBound}
+   *  @since 1.8
    */
   def ints(randomNumberOrigin: Int, randomNumberBound: Int): IntStream = {
     if (randomNumberOrigin >= randomNumberBound)
       throw new IllegalArgumentException(ThreadLocalRandom.BAD_RANGE)
     StreamSupport.intStream(
-      new ThreadLocalRandom.RandomIntsSpliterator(0L,
-                                                  java.lang.Long.MAX_VALUE,
-                                                  randomNumberOrigin,
-                                                  randomNumberBound),
-      false)
+      new ThreadLocalRandom.RandomIntsSpliterator(
+        0L,
+        java.lang.Long.MAX_VALUE,
+        randomNumberOrigin,
+        randomNumberBound
+      ),
+      false
+    )
   }
 
-  /**
-   * Returns a stream producing the given {@code streamSize} number of
-   * pseudorandom {@code long} values.
+  /** Returns a stream producing the given {@code streamSize} number of
+   *  pseudorandom {@code long} values.
    *
-   * @param streamSize the number of values to generate
-   * @return a stream of pseudorandom {@code long} values
-   * @throws IllegalArgumentException if {@code streamSize} is
-   *         less than zero
-   * @since 1.8
+   *  @param streamSize
+   *    the number of values to generate
+   *  @return
+   *    a stream of pseudorandom {@code long} values
+   *  @throws IllegalArgumentException
+   *    if {@code streamSize} is less than zero
+   *  @since 1.8
    */
   def longs(streamSize: Long): LongStream = {
     if (streamSize < 0L)
       throw new IllegalArgumentException(ThreadLocalRandom.BAD_SIZE)
     StreamSupport.longStream(
-      new ThreadLocalRandom.RandomLongsSpliterator(0L,
-                                                   streamSize,
-                                                   java.lang.Long.MAX_VALUE,
-                                                   0L),
-      false)
+      new ThreadLocalRandom.RandomLongsSpliterator(
+        0L,
+        streamSize,
+        java.lang.Long.MAX_VALUE,
+        0L
+      ),
+      false
+    )
   }
 
-  /**
-   * Returns an effectively unlimited stream of pseudorandom {@code long}
-   * values.
+  /** Returns an effectively unlimited stream of pseudorandom {@code long}
+   *  values.
    *
-   * @implNote This method is implemented to be equivalent to {@code
-   * longs(Long.MAX_VALUE)}.
+   *  @implNote
+   *    This method is implemented to be equivalent to {@code
+   *    longs(Long.MAX_VALUE)}.
    *
-   * @return a stream of pseudorandom {@code long} values
-   * @since 1.8
+   *  @return
+   *    a stream of pseudorandom {@code long} values
+   *  @since 1.8
    */
   def longs(): LongStream =
     StreamSupport.longStream(
-      new ThreadLocalRandom.RandomLongsSpliterator(0L,
-                                                   java.lang.Long.MAX_VALUE,
-                                                   java.lang.Long.MAX_VALUE,
-                                                   0L),
-      false)
+      new ThreadLocalRandom.RandomLongsSpliterator(
+        0L,
+        java.lang.Long.MAX_VALUE,
+        java.lang.Long.MAX_VALUE,
+        0L
+      ),
+      false
+    )
 
-  /**
-   * Returns a stream producing the given {@code streamSize} number of
-   * pseudorandom {@code long}, each conforming to the given origin
-   * (inclusive) and bound (exclusive).
+  /** Returns a stream producing the given {@code streamSize} number of
+   *  pseudorandom {@code long}, each conforming to the given origin (inclusive)
+   *  and bound (exclusive).
    *
-   * @param streamSize the number of values to generate
-   * @param randomNumberOrigin the origin (inclusive) of each random value
-   * @param randomNumberBound the bound (exclusive) of each random value
-   * @return a stream of pseudorandom {@code long} values,
-   *         each with the given origin (inclusive) and bound (exclusive)
-   * @throws IllegalArgumentException if {@code streamSize} is
-   *         less than zero, or {@code randomNumberOrigin}
-   *         is greater than or equal to {@code randomNumberBound}
-   * @since 1.8
+   *  @param streamSize
+   *    the number of values to generate
+   *  @param randomNumberOrigin
+   *    the origin (inclusive) of each random value
+   *  @param randomNumberBound
+   *    the bound (exclusive) of each random value
+   *  @return
+   *    a stream of pseudorandom {@code long} values, each with the given origin
+   *    (inclusive) and bound (exclusive)
+   *  @throws IllegalArgumentException
+   *    if {@code streamSize} is less than zero, or {@code randomNumberOrigin}
+   *    is greater than or equal to {@code randomNumberBound}
+   *  @since 1.8
    */
-  def longs(streamSize: Long,
-            randomNumberOrigin: Long,
-            randomNumberBound: Long): LongStream = {
+  def longs(
+      streamSize: Long,
+      randomNumberOrigin: Long,
+      randomNumberBound: Long
+  ): LongStream = {
     if (streamSize < 0L)
       throw new IllegalArgumentException(ThreadLocalRandom.BAD_SIZE)
     if (randomNumberOrigin >= randomNumberBound)
       throw new IllegalArgumentException(ThreadLocalRandom.BAD_RANGE)
     StreamSupport.longStream(
-      new ThreadLocalRandom.RandomLongsSpliterator(0L,
-                                                   streamSize,
-                                                   randomNumberOrigin,
-                                                   randomNumberBound),
-      false)
+      new ThreadLocalRandom.RandomLongsSpliterator(
+        0L,
+        streamSize,
+        randomNumberOrigin,
+        randomNumberBound
+      ),
+      false
+    )
   }
 
-  /**
-   * Returns an effectively unlimited stream of pseudorandom {@code
-   * long} values, each conforming to the given origin (inclusive) and bound
-   * (exclusive).
+  /** Returns an effectively unlimited stream of pseudorandom {@code long}
+   *  values, each conforming to the given origin (inclusive) and bound
+   *  (exclusive).
    *
-   * @implNote This method is implemented to be equivalent to {@code
-   * longs(Long.MAX_VALUE, randomNumberOrigin, randomNumberBound)}.
+   *  @implNote
+   *    This method is implemented to be equivalent to {@code
+   *    longs(Long.MAX_VALUE, randomNumberOrigin, randomNumberBound)}.
    *
-   * @param randomNumberOrigin the origin (inclusive) of each random value
-   * @param randomNumberBound the bound (exclusive) of each random value
-   * @return a stream of pseudorandom {@code long} values,
-   *         each with the given origin (inclusive) and bound (exclusive)
-   * @throws IllegalArgumentException if {@code randomNumberOrigin}
-   *         is greater than or equal to {@code randomNumberBound}
-   * @since 1.8
+   *  @param randomNumberOrigin
+   *    the origin (inclusive) of each random value
+   *  @param randomNumberBound
+   *    the bound (exclusive) of each random value
+   *  @return
+   *    a stream of pseudorandom {@code long} values, each with the given origin
+   *    (inclusive) and bound (exclusive)
+   *  @throws IllegalArgumentException
+   *    if {@code randomNumberOrigin} is greater than or equal to {@code
+   *    randomNumberBound}
+   *  @since 1.8
    */
   def longs(randomNumberOrigin: Long, randomNumberBound: Long): LongStream = {
     if (randomNumberOrigin >= randomNumberBound)
       throw new IllegalArgumentException(ThreadLocalRandom.BAD_RANGE)
     StreamSupport.longStream(
-      new ThreadLocalRandom.RandomLongsSpliterator(0L,
-                                                   java.lang.Long.MAX_VALUE,
-                                                   randomNumberOrigin,
-                                                   randomNumberBound),
-      false)
+      new ThreadLocalRandom.RandomLongsSpliterator(
+        0L,
+        java.lang.Long.MAX_VALUE,
+        randomNumberOrigin,
+        randomNumberBound
+      ),
+      false
+    )
   }
 
-  /**
-   * Returns a stream producing the given {@code streamSize} number of
-   * pseudorandom {@code double} values, each between zero
-   * (inclusive) and one (exclusive).
+  /** Returns a stream producing the given {@code streamSize} number of
+   *  pseudorandom {@code double} values, each between zero (inclusive) and one
+   *  (exclusive).
    *
-   * @param streamSize the number of values to generate
-   * @return a stream of {@code double} values
-   * @throws IllegalArgumentException if {@code streamSize} is
-   *         less than zero
-   * @since 1.8
+   *  @param streamSize
+   *    the number of values to generate
+   *  @return
+   *    a stream of {@code double} values
+   *  @throws IllegalArgumentException
+   *    if {@code streamSize} is less than zero
+   *  @since 1.8
    */
   def doubles(streamSize: Long): DoubleStream = {
     if (streamSize < 0L)
       throw new IllegalArgumentException(ThreadLocalRandom.BAD_SIZE)
     StreamSupport.doubleStream(
-      new ThreadLocalRandom.RandomDoublesSpliterator(0L,
-                                                     streamSize,
-                                                     java.lang.Double.MAX_VALUE,
-                                                     0.0),
-      false)
+      new ThreadLocalRandom.RandomDoublesSpliterator(
+        0L,
+        streamSize,
+        java.lang.Double.MAX_VALUE,
+        0.0
+      ),
+      false
+    )
   }
 
-  /**
-   * Returns an effectively unlimited stream of pseudorandom {@code
-   * double} values, each between zero (inclusive) and one
-   * (exclusive).
+  /** Returns an effectively unlimited stream of pseudorandom {@code double}
+   *  values, each between zero (inclusive) and one (exclusive).
    *
-   * @implNote This method is implemented to be equivalent to {@code
-   * doubles(Long.MAX_VALUE)}.
+   *  @implNote
+   *    This method is implemented to be equivalent to {@code
+   *    doubles(Long.MAX_VALUE)}.
    *
-   * @return a stream of pseudorandom {@code double} values
-   * @since 1.8
+   *  @return
+   *    a stream of pseudorandom {@code double} values
+   *  @since 1.8
    */
   def doubles(): DoubleStream =
     StreamSupport.doubleStream(
-      new ThreadLocalRandom.RandomDoublesSpliterator(0L,
-                                                     java.lang.Long.MAX_VALUE,
-                                                     java.lang.Double.MAX_VALUE,
-                                                     0.0),
-      false)
+      new ThreadLocalRandom.RandomDoublesSpliterator(
+        0L,
+        java.lang.Long.MAX_VALUE,
+        java.lang.Double.MAX_VALUE,
+        0.0
+      ),
+      false
+    )
 
-  /**
-   * Returns a stream producing the given {@code streamSize} number of
-   * pseudorandom {@code double} values, each conforming to the given origin
-   * (inclusive) and bound (exclusive).
+  /** Returns a stream producing the given {@code streamSize} number of
+   *  pseudorandom {@code double} values, each conforming to the given origin
+   *  (inclusive) and bound (exclusive).
    *
-   * @param streamSize the number of values to generate
-   * @param randomNumberOrigin the origin (inclusive) of each random value
-   * @param randomNumberBound the bound (exclusive) of each random value
-   * @return a stream of pseudorandom {@code double} values,
-   *         each with the given origin (inclusive) and bound (exclusive)
-   * @throws IllegalArgumentException if {@code streamSize} is
-   *         less than zero, or {@code randomNumberOrigin}
-   *         is greater than or equal to {@code randomNumberBound}
-   * @since 1.8
+   *  @param streamSize
+   *    the number of values to generate
+   *  @param randomNumberOrigin
+   *    the origin (inclusive) of each random value
+   *  @param randomNumberBound
+   *    the bound (exclusive) of each random value
+   *  @return
+   *    a stream of pseudorandom {@code double} values, each with the given
+   *    origin (inclusive) and bound (exclusive)
+   *  @throws IllegalArgumentException
+   *    if {@code streamSize} is less than zero, or {@code randomNumberOrigin}
+   *    is greater than or equal to {@code randomNumberBound}
+   *  @since 1.8
    */
-  def doubles(streamSize: Long,
-              randomNumberOrigin: Double,
-              randomNumberBound: Double): DoubleStream = {
+  def doubles(
+      streamSize: Long,
+      randomNumberOrigin: Double,
+      randomNumberBound: Double
+  ): DoubleStream = {
     if (streamSize < 0L)
       throw new IllegalArgumentException(ThreadLocalRandom.BAD_SIZE)
 
@@ -944,39 +1012,51 @@ class ThreadLocalRandom private () /** Constructor used only for static singleto
       throw new IllegalArgumentException(ThreadLocalRandom.BAD_RANGE)
 
     StreamSupport.doubleStream(
-      new ThreadLocalRandom.RandomDoublesSpliterator(0L,
-                                                     streamSize,
-                                                     randomNumberOrigin,
-                                                     randomNumberBound),
-      false)
+      new ThreadLocalRandom.RandomDoublesSpliterator(
+        0L,
+        streamSize,
+        randomNumberOrigin,
+        randomNumberBound
+      ),
+      false
+    )
   }
 
-  /**
-   * Returns an effectively unlimited stream of pseudorandom {@code
-   * double} values, each conforming to the given origin (inclusive) and bound
-   * (exclusive).
+  /** Returns an effectively unlimited stream of pseudorandom {@code double}
+   *  values, each conforming to the given origin (inclusive) and bound
+   *  (exclusive).
    *
-   * @implNote This method is implemented to be equivalent to {@code
-   * doubles(Long.MAX_VALUE, randomNumberOrigin, randomNumberBound)}.
+   *  @implNote
+   *    This method is implemented to be equivalent to {@code
+   *    doubles(Long.MAX_VALUE, randomNumberOrigin, randomNumberBound)}.
    *
-   * @param randomNumberOrigin the origin (inclusive) of each random value
-   * @param randomNumberBound the bound (exclusive) of each random value
-   * @return a stream of pseudorandom {@code double} values,
-   *         each with the given origin (inclusive) and bound (exclusive)
-   * @throws IllegalArgumentException if {@code randomNumberOrigin}
-   *         is greater than or equal to {@code randomNumberBound}
-   * @since 1.8
+   *  @param randomNumberOrigin
+   *    the origin (inclusive) of each random value
+   *  @param randomNumberBound
+   *    the bound (exclusive) of each random value
+   *  @return
+   *    a stream of pseudorandom {@code double} values, each with the given
+   *    origin (inclusive) and bound (exclusive)
+   *  @throws IllegalArgumentException
+   *    if {@code randomNumberOrigin} is greater than or equal to {@code
+   *    randomNumberBound}
+   *  @since 1.8
    */
-  def doubles(randomNumberOrigin: Double,
-              randomNumberBound: Double): DoubleStream = {
+  def doubles(
+      randomNumberOrigin: Double,
+      randomNumberBound: Double
+  ): DoubleStream = {
     if (!(randomNumberOrigin < randomNumberBound))
       throw new IllegalArgumentException(ThreadLocalRandom.BAD_RANGE)
     StreamSupport.doubleStream(
-      new ThreadLocalRandom.RandomDoublesSpliterator(0L,
-                                                     java.lang.Long.MAX_VALUE,
-                                                     randomNumberOrigin,
-                                                     randomNumberBound),
-      false)
+      new ThreadLocalRandom.RandomDoublesSpliterator(
+        0L,
+        java.lang.Long.MAX_VALUE,
+        randomNumberOrigin,
+        randomNumberBound
+      ),
+      false
+    )
   }
 
 }

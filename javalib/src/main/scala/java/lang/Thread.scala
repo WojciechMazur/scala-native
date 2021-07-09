@@ -13,16 +13,16 @@ class Thread private[lang] (
     group: ThreadGroup,
     target: Runnable,
     stackSize: Long,
-    private[java] val inheritableValues: ThreadLocal.Values)
-    extends Runnable {
+    private[java] val inheritableValues: ThreadLocal.Values
+) extends Runnable {
   private val threadId = getNextThreadId()
 
-  private[lang] var alive      = false
-  private[lang] var started    = false
-  private var daemon           = false
+  private[lang] var alive = false
+  private[lang] var started = false
+  private var daemon = false
   private var interruptedState = false
 
-  private var name: String  = s"Thread-$threadId"
+  private var name: String = s"Thread-$threadId"
   private var priority: Int = Thread.NORM_PRIORITY
 
   private[lang] var contextClassLoader: ClassLoader = _
@@ -33,8 +33,8 @@ class Thread private[lang] (
   // ThreadLocal values : local and inheritable
   private[java] lazy val localValues: ThreadLocal.Values =
     new ThreadLocal.Values()
-  private[java] var threadLocalRandomSeed: Long         = 0
-  private[java] var threadLocalRandomProbe: Int         = 0
+  private[java] var threadLocalRandomSeed: Long = 0
+  private[java] var threadLocalRandomProbe: Int = 0
   private[java] var threadLocalRandomSecondarySeed: Int = 0
 
   private[java] val parkBlocker: AtomicReference[Object] =
@@ -43,11 +43,13 @@ class Thread private[lang] (
   private[java] var nativeThread: NativeThread = _
 
   // constructors
-  def this(group: ThreadGroup,
-           target: Runnable,
-           name: String,
-           stacksize: scala.Long,
-           inheritThreadLocals: Boolean) = {
+  def this(
+      group: ThreadGroup,
+      target: Runnable,
+      name: String,
+      stacksize: scala.Long,
+      inheritThreadLocals: Boolean
+  ) = {
     this(
       group = Option(group).getOrElse(Thread.currentThread().getThreadGroup()),
       target = target,
@@ -76,10 +78,12 @@ class Thread private[lang] (
     checkGCWatermark()
   }
 
-  def this(group: ThreadGroup,
-           target: Runnable,
-           name: String,
-           stacksize: scala.Long) = this(group, target, name, stacksize, true)
+  def this(
+      group: ThreadGroup,
+      target: Runnable,
+      name: String,
+      stacksize: scala.Long
+  ) = this(group, target, name, stacksize, true)
 
   def this() = this(null, null, null, 0)
 
@@ -185,7 +189,7 @@ class Thread private[lang] (
     if (millis == 0)
       join()
     else {
-      val end: scala.Long         = System.currentTimeMillis() + millis
+      val end: scala.Long = System.currentTimeMillis() + millis
       var continue: scala.Boolean = true
       while (isAlive() && continue) {
         wait(millis)
@@ -197,15 +201,15 @@ class Thread private[lang] (
   }
 
   final def join(ml: scala.Long, n: Int): Unit = lock.synchronized {
-    var nanos: Int         = n
+    var nanos: Int = n
     var millis: scala.Long = ml
     if (millis < 0 || nanos < 0 || nanos > 999999)
       throw new IllegalArgumentException()
     else if (millis == 0 && nanos == 0)
       join()
     else {
-      val end: scala.Long         = System.nanoTime() + 1000000 * millis + nanos.toLong
-      var rest: scala.Long        = 0L
+      val end: scala.Long = System.nanoTime() + 1000000 * millis + nanos.toLong
+      var rest: scala.Long = 0L
       var continue: scala.Boolean = true
       while (isAlive() && continue) {
         wait(millis, nanos)
@@ -235,7 +239,8 @@ class Thread private[lang] (
     lock.synchronized {
       if (started) {
         throw new IllegalThreadStateException(
-          "This thread was already started!")
+          "This thread was already started!"
+        )
       }
       group.add(this)
 
@@ -317,47 +322,50 @@ object Thread {
   }
 
   object MainThread
-      extends Thread(group = new ThreadGroup(ThreadGroup.System, "main"),
-                     target = null: Runnable,
-                     stackSize = NativeThread.DefaultStackSize.toLong,
-                     inheritableValues = new ThreadLocal.Values()) {
+      extends Thread(
+        group = new ThreadGroup(ThreadGroup.System, "main"),
+        target = null: Runnable,
+        stackSize = NativeThread.DefaultStackSize.toLong,
+        inheritableValues = new ThreadLocal.Values()
+      ) {
     import scala.scalanative.meta.LinktimeInfo.isWindows
     import scala.scalanative.unsigned._
     setName("main")
     TLS.currentThread = this
     trait MainThreadOverrides {
-       self: NativeThread => 
+      self: NativeThread =>
       override def setPriority(priority: CInt): Unit = ()
-      override def stop(): Unit                      = sys.exit()
-      override def suspend(): Unit                   = LockSupport.park()
-      override def resume(): Unit                    = LockSupport.unpark(this.thread)
+      override def stop(): Unit = sys.exit()
+      override def suspend(): Unit = LockSupport.park()
+      override def resume(): Unit = LockSupport.unpark(this.thread)
       state = NativeThread.State.Running
     }
     nativeThread = {
-      if(isWindows) new impl.WindowsThread(null, -1.toUInt, this) with MainThreadOverrides
-     else new impl.PosixThread(null, this) with MainThreadOverrides
+      if (isWindows)
+        new impl.WindowsThread(null, -1.toUInt, this) with MainThreadOverrides
+      else new impl.PosixThread(null, this) with MainThreadOverrides
+    }
   }
-}
 
   import scala.collection.mutable
   private var defaultExceptionHandler: UncaughtExceptionHandler = _
 
-  private val lock: Object     = new Object()
+  private val lock: Object = new Object()
   private var threadOrdinalNum = 0L
 
-  final val MAX_PRIORITY: Int  = 10
-  final val MIN_PRIORITY: Int  = 1
+  final val MAX_PRIORITY: Int = 10
+  final val MIN_PRIORITY: Int = 1
   final val NORM_PRIORITY: Int = 5
 
   sealed class State(name: String, ordinal: Int)
       extends Enum[State](name, ordinal)
   object State {
-    final val NEW: State           = new State("NEW", 0)
-    final val RUNNABLE: State      = new State("RUNNABLE", 1)
-    final val BLOCKED: State       = new State("BLOCKED", 2)
-    final val WAITING: State       = new State("WAITING", 3)
+    final val NEW: State = new State("NEW", 0)
+    final val RUNNABLE: State = new State("RUNNABLE", 1)
+    final val BLOCKED: State = new State("BLOCKED", 2)
+    final val WAITING: State = new State("WAITING", 3)
     final val TIMED_WAITING: State = new State("TIMED_WAITING", 4)
-    final val TERMINATED: State    = new State("TERMINATED", 5)
+    final val TERMINATED: State = new State("TERMINATED", 5)
 
     private[this] val cachedValues =
       Array(NEW, RUNNABLE, BLOCKED, WAITING, TIMED_WAITING, TERMINATED)
@@ -422,10 +430,10 @@ object Thread {
       parent = newParent
       newParent = parent.getParent()
     }
-    var threadsCount: Int          = parent.activeCount() + 1
-    var count: Int                 = 0
+    var threadsCount: Int = parent.activeCount() + 1
+    var count: Int = 0
     var liveThreads: Array[Thread] = Array.empty
-    var break: scala.Boolean       = false
+    var break: scala.Boolean = false
     while (!break) {
       liveThreads = new Array[Thread](threadsCount)
       count = parent.enumerate(liveThreads)

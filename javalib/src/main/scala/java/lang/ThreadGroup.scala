@@ -24,7 +24,7 @@ class ThreadGroup(name: String, parent: ThreadGroup, isTop: Boolean)
   // Indicates if this thread group was already destroyed
   private var destroyed: scala.Boolean = false
 
-  private val childrenGroups  = ListBuffer.empty[ThreadGroup]
+  private val childrenGroups = ListBuffer.empty[ThreadGroup]
   private val childrenThreads = ListBuffer.empty[Thread]
 
   def this(parent: ThreadGroup, name: String) = {
@@ -83,13 +83,15 @@ class ThreadGroup(name: String, parent: ThreadGroup, isTop: Boolean)
 
   @deprecated(
     "The definition of this call depends on suspend(), which is deprecated",
-    "1.7")
+    "1.7"
+  )
   def allowThreadSuspension(b: scala.Boolean): scala.Boolean = true
 
   def destroy(): Unit = {
     if (destroyed) {
       throw new IllegalThreadStateException(
-        "The thread group " + name + " is already destroyed!")
+        "The thread group " + name + " is already destroyed!"
+      )
     }
 
     childrenThreads.synchronized {
@@ -108,10 +110,12 @@ class ThreadGroup(name: String, parent: ThreadGroup, isTop: Boolean)
   }
 
   def enumerate(threads: Array[Thread], recurse: scala.Boolean): Int = {
-    enumerateImpl(threads.asInstanceOf[Array[Any]],
-                  recurse,
-                  0,
-                  enumeratingThreads = true)
+    enumerateImpl(
+      threads.asInstanceOf[Array[Any]],
+      recurse,
+      0,
+      enumeratingThreads = true
+    )
   }
 
   def enumerate(groups: Array[ThreadGroup]): Int = {
@@ -119,16 +123,20 @@ class ThreadGroup(name: String, parent: ThreadGroup, isTop: Boolean)
   }
 
   def enumerate(groups: Array[ThreadGroup], recurse: scala.Boolean): Int = {
-    enumerateImpl(groups.asInstanceOf[Array[Any]],
-                  recurse,
-                  0,
-                  enumeratingThreads = false)
+    enumerateImpl(
+      groups.asInstanceOf[Array[Any]],
+      recurse,
+      0,
+      enumeratingThreads = false
+    )
   }
 
-  private def enumerateImpl(enumeration: Array[Any],
-                            recurse: scala.Boolean,
-                            enumerationIndex: Int,
-                            enumeratingThreads: scala.Boolean): Int = {
+  private def enumerateImpl(
+      enumeration: Array[Any],
+      recurse: scala.Boolean,
+      enumerationIndex: Int,
+      enumeratingThreads: scala.Boolean
+  ): Int = {
     val collection =
       if (enumeratingThreads) childrenThreads
       else childrenGroups
@@ -251,7 +259,8 @@ class ThreadGroup(name: String, parent: ThreadGroup, isTop: Boolean)
           case _: ThreadDeath => ()
           case _ =>
             System.err.println(
-              "Uncaught exception in " + thread.getName() + ":")
+              "Uncaught exception in " + thread.getName() + ":"
+            )
             throwable.printStackTrace()
         }
       }
@@ -263,7 +272,8 @@ class ThreadGroup(name: String, parent: ThreadGroup, isTop: Boolean)
     childrenThreads.synchronized {
       if (destroyed) {
         throw new IllegalThreadStateException(
-          "The thread group is already destroyed!")
+          "The thread group is already destroyed!"
+        )
       }
       childrenThreads += thread
     }
@@ -274,7 +284,8 @@ class ThreadGroup(name: String, parent: ThreadGroup, isTop: Boolean)
     childrenGroups.synchronized {
       if (destroyed) {
         throw new IllegalThreadStateException(
-          "The thread group is already destroyed!")
+          "The thread group is already destroyed!"
+        )
       }
       childrenGroups += group
     }

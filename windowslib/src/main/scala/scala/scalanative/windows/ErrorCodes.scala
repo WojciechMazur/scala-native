@@ -817,5 +817,5 @@ object ErrorCodes {
   /** Attempt to access invalid address. */
   final val ERROR_INVALID_ADDRESS = 0x1e7.toUInt
 
-  final val ERROR_TIMEOUT = 0x5B4.toUInt
+  final val ERROR_TIMEOUT = 0x5b4.toUInt
 }

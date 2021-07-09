@@ -9,7 +9,8 @@ object Generate {
   import Impl._
 
   def apply(entry: Global.Top, defns: Seq[Defn])(implicit
-                                                 meta: Metadata): Seq[Defn] =
+      meta: Metadata
+  ): Seq[Defn] =
     (new Impl(entry, defns)).generate()
 
   implicit def linked(implicit meta: Metadata): linker.Result =
@@ -17,7 +18,8 @@ object Generate {
   private implicit val pos: Position = Position.NoPosition
 
   private class Impl(entry: Global.Top, defns: Seq[Defn])(implicit
-                                                          meta: Metadata) {
+      meta: Metadata
+  ) {
     val buf = mutable.UnrolledBuffer.empty[Defn]
 
     def generate(): Seq[Defn] = {
@@ -56,16 +58,16 @@ object Generate {
     def genClassMetadata(): Unit = {
       meta.classes.foreach { cls =>
         val rtti = meta.rtti(cls)
-        val pos  = cls.position
+        val pos = cls.position
         buf += Defn.Var(Attrs.None, rtti.name, rtti.struct, rtti.value)(pos)
       }
     }
 
     def genClassHasTrait(): Unit = {
-      implicit val fresh   = Fresh()
+      implicit val fresh = Fresh()
       val classid, traitid = Val.Local(fresh(), Type.Int)
-      val boolptr          = Val.Local(fresh(), Type.Ptr)
-      val result           = Val.Local(fresh(), Type.Bool)
+      val boolptr = Val.Local(fresh(), Type.Ptr)
+      val result = Val.Local(fresh(), Type.Bool)
 
       buf += Defn.Define(
         Attrs(inlineHint = Attr.AlwaysInline),
@@ -82,9 +84,11 @@ object Generate {
             ),
             Next.None
           ),
-          Inst.Let(result.name,
-                   Op.Load(Type.Bool, boolptr, isAtomic = false),
-                   Next.None),
+          Inst.Let(
+            result.name,
+            Op.Load(Type.Bool, boolptr, isAtomic = false),
+            Next.None
+          ),
           Inst.Ret(result)
         )
       )
@@ -93,16 +97,16 @@ object Generate {
     def genTraitMetadata(): Unit = {
       meta.traits.foreach { trt =>
         val rtti = meta.rtti(trt)
-        val pos  = trt.position
+        val pos = trt.position
         buf += Defn.Var(Attrs.None, rtti.name, rtti.struct, rtti.value)(pos)
       }
     }
 
     def genTraitHasTrait(): Unit = {
-      implicit val fresh  = Fresh()
+      implicit val fresh = Fresh()
       val leftid, rightid = Val.Local(fresh(), Type.Int)
-      val boolptr         = Val.Local(fresh(), Type.Ptr)
-      val result          = Val.Local(fresh(), Type.Bool)
+      val boolptr = Val.Local(fresh(), Type.Ptr)
+      val result = Val.Local(fresh(), Type.Bool)
 
       buf += Defn.Define(
         Attrs(inlineHint = Attr.AlwaysInline),
@@ -119,9 +123,11 @@ object Generate {
             ),
             Next.None
           ),
-          Inst.Let(result.name,
-                   Op.Load(Type.Bool, boolptr, isAtomic = false),
-                   Next.None),
+          Inst.Let(
+            result.name,
+            Op.Load(Type.Bool, boolptr, isAtomic = false),
+            Next.None
+          ),
           Inst.Ret(result)
         )
       )
@@ -140,12 +146,12 @@ object Generate {
 
       val stackBottom = Val.Local(fresh(), Type.Ptr)
 
-      val argc    = Val.Local(fresh(), Type.Int)
-      val argv    = Val.Local(fresh(), Type.Ptr)
-      val module  = Val.Local(fresh(), Type.Ref(entry.top))
-      val rt      = Val.Local(fresh(), Runtime)
-      val arr     = Val.Local(fresh(), ObjectArray)
-      val exc     = Val.Local(fresh(), nir.Rt.Object)
+      val argc = Val.Local(fresh(), Type.Int)
+      val argv = Val.Local(fresh(), Type.Ptr)
+      val module = Val.Local(fresh(), Type.Ref(entry.top))
+      val rt = Val.Local(fresh(), Runtime)
+      val arr = Val.Local(fresh(), ObjectArray)
+      val exc = Val.Local(fresh(), nir.Rt.Object)
       val handler = fresh()
       def unwind = {
         val exc = Val.Local(fresh(), nir.Rt.Object)
@@ -158,14 +164,6 @@ object Generate {
         MainSig,
         Seq(
           Inst.Label(fresh(), Seq(argc, argv)),
-          Inst.Let(stackBottom.name,
-                   Op.Stackalloc(Type.Ptr, Val.Long(0)),
-                   unwind),
-          Inst.Let(Op.Store(Type.Ptr,
-                            Val.Global(stackBottomName, Type.Ptr),
-                            stackBottom,
-                            isAtomic = false),
-                   unwind),
           Inst.Let(
             stackBottom.name,
             Op.Stackalloc(Type.Ptr, Val.Long(0)),
@@ -175,7 +173,8 @@ object Generate {
             Op.Store(
               Type.Ptr,
               Val.Global(stackBottomName, Type.Ptr),
-              stackBottom
+              stackBottom,
+              isAtomic = false
             ),
             unwind
           ),
@@ -193,22 +192,22 @@ object Generate {
                 unwind
               )
           } ++ Seq(
-          Inst.Let(rt.name, Op.Module(Runtime.name), unwind),
-          Inst.Let(
-            arr.name,
-            Op.Call(RuntimeInitSig, RuntimeInit, Seq(rt, argc, argv)),
-            unwind
-          ),
-          Inst.Let(module.name, Op.Module(entry.top), unwind),
-          Inst.Let(Op.Call(entryMainTy, entryMain, Seq(module, arr)), unwind),
-          Inst.Ret(Val.Int(0)),
-          Inst.Label(handler, Seq(exc)),
-          Inst.Let(
-            Op.Call(PrintStackTraceSig, PrintStackTrace, Seq(exc)),
-            Next.None
-          ),
-          Inst.Ret(Val.Int(1))
-        )
+            Inst.Let(rt.name, Op.Module(Runtime.name), unwind),
+            Inst.Let(
+              arr.name,
+              Op.Call(RuntimeInitSig, RuntimeInit, Seq(rt, argc, argv)),
+              unwind
+            ),
+            Inst.Let(module.name, Op.Module(entry.top), unwind),
+            Inst.Let(Op.Call(entryMainTy, entryMain, Seq(module, arr)), unwind),
+            Inst.Ret(Val.Int(0)),
+            Inst.Label(handler, Seq(exc)),
+            Inst.Let(
+              Op.Call(PrintStackTraceSig, PrintStackTrace, Seq(exc)),
+              Next.None
+            ),
+            Inst.Ret(Val.Int(1))
+          )
       )
     }
 
@@ -218,19 +217,19 @@ object Generate {
     def genModuleAccessors(): Unit = {
       meta.classes.foreach { cls =>
         if (cls.isModule && cls.allocated) {
-          val name  = cls.name
+          val name = cls.name
           val clsTy = cls.ty
 
           implicit val fresh = Fresh()
-          implicit val pos   = cls.position
+          implicit val pos = cls.position
 
-          val entry      = fresh()
-          val existing   = fresh()
+          val entry = fresh()
+          val existing = fresh()
           val initialize = fresh()
 
-          val slot  = Val.Local(fresh(), Type.Ptr)
-          val self  = Val.Local(fresh(), clsTy)
-          val cond  = Val.Local(fresh(), Type.Bool)
+          val slot = Val.Local(fresh(), Type.Ptr)
+          val self = Val.Local(fresh(), clsTy)
+          val cond = Val.Local(fresh(), Type.Bool)
           val alloc = Val.Local(fresh(), clsTy)
 
           if (cls.isConstantModule) {
@@ -252,10 +251,10 @@ object Generate {
             buf += instanceDefn
           } else {
             val initSig = Type.Function(Seq(clsTy), Type.Unit)
-            val init    = Val.Global(name.member(Sig.Ctor(Seq())), Type.Ptr)
+            val init = Val.Global(name.member(Sig.Ctor(Seq())), Type.Ptr)
 
             val loadName = name.member(Sig.Generated("load"))
-            val loadSig  = Type.Function(Seq(), clsTy)
+            val loadSig = Type.Function(Seq(), clsTy)
             val loadDefn = Defn.Define(
               Attrs(inlineHint = Attr.NoInline),
               loadName,
@@ -271,9 +270,11 @@ object Generate {
                   ),
                   Next.None
                 ),
-                Inst.Let(self.name,
-                         Op.Load(clsTy, slot, isAtomic = false),
-                         Next.None),
+                Inst.Let(
+                  self.name,
+                  Op.Load(clsTy, slot, isAtomic = false),
+                  Next.None
+                ),
                 Inst.Let(
                   cond.name,
                   Op.Comp(Comp.Ine, nir.Rt.Object, self, Val.Null),
@@ -284,8 +285,10 @@ object Generate {
                 Inst.Ret(self),
                 Inst.Label(initialize, Seq()),
                 Inst.Let(alloc.name, Op.Classalloc(name), Next.None),
-                Inst.Let(Op.Store(clsTy, slot, alloc, isAtomic = false),
-                         Next.None),
+                Inst.Let(
+                  Op.Store(clsTy, slot, alloc, isAtomic = false),
+                  Next.None
+                ),
                 Inst.Let(Op.Call(initSig, init, Seq(alloc)), Next.None),
                 Inst.Ret(alloc)
               )
@@ -395,10 +398,10 @@ object Generate {
       Val.Global(RuntimeInitName, Type.Ptr)
 
     val MainName = extern("main")
-    val MainSig  = Type.Function(Seq(Type.Int, Type.Ptr), Type.Int)
+    val MainSig = Type.Function(Seq(Type.Int, Type.Ptr), Type.Int)
 
     val ThrowableName = Global.Top("java.lang.Throwable")
-    val Throwable     = Type.Ref(ThrowableName)
+    val Throwable = Type.Ref(ThrowableName)
 
     val PrintStackTraceSig =
       Type.Function(Seq(Throwable), Type.Unit)
@@ -407,16 +410,16 @@ object Generate {
     val PrintStackTrace =
       Val.Global(PrintStackTraceName, Type.Ptr)
 
-    val InitSig  = Type.Function(Seq(), Type.Unit)
-    val Init     = Val.Global(extern("scalanative_init"), Type.Ptr)
+    val InitSig = Type.Function(Seq(), Type.Unit)
+    val Init = Val.Global(extern("scalanative_init"), Type.Ptr)
     val InitDecl = Defn.Declare(Attrs.None, Init.name, InitSig)
 
-    val stackBottomName     = extern("__stack_bottom")
-    val moduleArrayName     = extern("__modules")
+    val stackBottomName = extern("__stack_bottom")
+    val moduleArrayName = extern("__modules")
     val moduleArraySizeName = extern("__modules_size")
-    val objectArrayIdName   = extern("__object_array_id")
-    val arrayIdsMinName     = extern("__array_ids_min")
-    val arrayIdsMaxName     = extern("__array_ids_max")
+    val objectArrayIdName = extern("__object_array_id")
+    val arrayIdsMinName = extern("__array_ids_min")
+    val arrayIdsMaxName = extern("__array_ids_max")
 
     private def extern(id: String): Global =
       Global.Member(Global.Top("__"), Sig.Extern(id))

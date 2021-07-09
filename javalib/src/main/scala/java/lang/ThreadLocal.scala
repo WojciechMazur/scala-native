@@ -18,9 +18,9 @@ class ThreadLocal[T] {
 
   @SuppressWarnings(Array("unchecked"))
   def get(): T = {
-    val vals: Values         = values(Thread.currentThread())
+    val vals: Values = values(Thread.currentThread())
     val table: Array[Object] = vals.getTable()
-    val index: Int           = hash & vals.getMask()
+    val index: Int = hash & vals.getMask()
 
     if (this.reference == table(index)) {
       table(index + 1).asInstanceOf[T]
@@ -34,7 +34,7 @@ class ThreadLocal[T] {
 
   def remove(): Unit = {
     val currentThread: Thread = Thread.currentThread()
-    val vals: Values          = values(currentThread)
+    val vals: Values = values(currentThread)
     if (vals != null) {
       vals.remove(this)
     }
@@ -50,11 +50,11 @@ object ThreadLocal {
   private[java] class Values private (private var table: Array[Object]) {
     import Values._
 
-    private var size: Int       = 0
+    private var size: Int = 0
     private var tombstones: Int = 0
-    private var clean: Int      = 0
+    private var clean: Int = 0
 
-    private def mask: Int        = table.length - 1
+    private def mask: Int = table.length - 1
     private def maximumLoad: Int = table.length / 3
 
     def this(fromParent: Values) = {
@@ -76,9 +76,9 @@ object ThreadLocal {
       if (rehash()) return
       if (size == 0) return
 
-      var index: Int           = clean
+      var index: Int = clean
       val table: Array[Object] = this.table
-      var counter              = table.length
+      var counter = table.length
 
       var continue: scala.Boolean = false
 
@@ -121,7 +121,7 @@ object ThreadLocal {
 
       if (size == 0) return true
 
-      var i: Int                  = oldTable.length - 2
+      var i: Int = oldTable.length - 2
       var continue: scala.Boolean = false
       while (i >= 0) {
         continue = false
@@ -193,7 +193,7 @@ object ThreadLocal {
 
     def getAfterMiss(key: ThreadLocal[_]): Object = {
       val table: Array[Object] = this.table
-      var index: Int           = key.hash & mask
+      var index: Int = key.hash & mask
 
       // If the first slot is empty, the search is over
       if (table(index) == null) {
@@ -296,7 +296,7 @@ object ThreadLocal {
   object Values {
 
     private final val InitialCapacity = 16
-    private final val InitialSize     = InitialCapacity << 1
+    private final val InitialSize = InitialCapacity << 1
 
     private case object Tombstone
 
@@ -304,7 +304,7 @@ object ThreadLocal {
       val table = fromParent.getTable().clone()
       for {
         i <- (table.length - 2) to 0 by -2
-        next    = i + 1
+        next = i + 1
         current = table(i) if current != null && current != Tombstone
         // Array can contain only null, Tombstone or Reference
         reference = current

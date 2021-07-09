@@ -69,7 +69,8 @@ class ReentrantLock extends Lock with java.io.Serializable {
   }
 
   protected def getWaitingThreads(
-      condition: Condition): java.util.Collection[Thread] = {
+      condition: Condition
+  ): java.util.Collection[Thread] = {
     if (condition == null)
       throw new NullPointerException()
     if (!condition.isInstanceOf[Sync#ConditionObject])
@@ -97,7 +98,7 @@ object ReentrantLock {
 
     final def nonfairTryAcquire(acquires: Int): Boolean = {
       val current: Thread = Thread.currentThread()
-      val c: Int          = getState()
+      val c: Int = getState()
       if (c == 0) {
         if (compareAndSetState(0, acquires)) {
           setExclusiveOwnerThread(current)
@@ -166,7 +167,7 @@ object ReentrantLock {
 
     override protected def tryAcquire(acquires: Int): Boolean = {
       val current: Thread = Thread.currentThread()
-      val c: Int          = getState()
+      val c: Int = getState()
       if (c == 0) {
         if (!hasQueuedPredecessors() &&
             compareAndSetState(0, acquires)) {

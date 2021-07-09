@@ -4,22 +4,22 @@ import org.junit.Test
 import org.junit.Assert._
 
 class VolatileAnnotationTest {
-  private val initialBool        = true
-  private val initialByte        = 42.toByte
-  private val initialShort       = 43.toShort
-  private val initialInt         = 44
-  private val initialLong        = 45L
-  private val initialFloat       = 1.0f
-  private val initialDouble      = 2.0f
+  private val initialBool = true
+  private val initialByte = 42.toByte
+  private val initialShort = 43.toShort
+  private val initialInt = 44
+  private val initialLong = 45L
+  private val initialFloat = 1.0f
+  private val initialDouble = 2.0f
   private val initialRef: Object = new Object()
 
-  @volatile private var bool        = initialBool
-  @volatile private var byte        = initialByte
-  @volatile private var short       = initialShort
-  @volatile private var int         = initialInt
-  @volatile private var long        = initialLong
-  @volatile private var float       = initialLong
-  @volatile private var double      = initialDouble
+  @volatile private var bool = initialBool
+  @volatile private var byte = initialByte
+  @volatile private var short = initialShort
+  @volatile private var int = initialInt
+  @volatile private var long = initialLong
+  @volatile private var float = initialLong
+  @volatile private var double = initialDouble
   @volatile private var ref: Object = initialRef
 
   @Test def canLoadVolatileFields(): Unit = {
@@ -34,13 +34,13 @@ class VolatileAnnotationTest {
   }
 
   @Test def canMutateVolatileFields(): Unit = {
-    val newBool        = true
-    val newByte        = (initialByte * 2).toByte
-    val newShort       = (initialShort * 2).toShort
-    val newInt         = initialInt * 2
-    val newLong        = initialLong * 2
-    val newFloat       = initialFloat * 2
-    val newDouble      = initialDouble * 2
+    val newBool = true
+    val newByte = (initialByte * 2).toByte
+    val newShort = (initialShort * 2).toShort
+    val newInt = initialInt * 2
+    val newLong = initialLong * 2
+    val newFloat = initialFloat * 2
+    val newDouble = initialDouble * 2
     val newRef: Object = new Object()
 
     bool = newBool

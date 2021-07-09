@@ -79,7 +79,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
 
   def stop(): Unit = GCExt.GC_pthread_cancel(handle) match {
     case 0   => state = NativeThread.State.Terminated
-    case err => throw new RuntimeException("Faield to stop thread")
+    case err => throw new RuntimeException("Failed to stop thread")
   }
 
   @inline def tryPark(): Unit = {
@@ -128,8 +128,8 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
   @inline private def waitForThreadUnparking(deadline: Ptr[timespec]): Unit = {
     while (state == NativeThread.State.Parked) {
       pthread_cond_timedwait(condition, lock, deadline) match {
-        case 0           => ()
-        case TimeoutCode => state = NativeThread.State.Running
+        case 0 | TimeoutCode =>
+          state = NativeThread.State.Running
         case errno =>
           val errorMsg = fromCString(strerror(errno))
           throw new RuntimeException(
@@ -187,9 +187,10 @@ private[lang] object PosixThread {
     (pthread_mutex_t_size + pthread_cond_t_size).toInt
 
   def apply(thread: Thread): PosixThread = {
+    import GCExt._
     val id = stackalloc[pthread_t]
 
-    GCExt.GC_pthread_create(
+    GC_pthread_create(
       thread = id,
       attr = null: Ptr[pthread_attr_t],
       startroutine = NativeThread.threadRoutine,

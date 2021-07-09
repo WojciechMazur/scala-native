@@ -3645,7 +3645,7 @@ object ForkJoinPool {
    *  {@code class ManagedLocker implements ManagedBlocker { final ReentrantLock
    *  lock boolean hasLock = false ManagedLocker(ReentrantLock lock) { this.lock
    *  =lock } public boolean block() { if (!hasLock) lock.lock() return true }
-  public boolean isReleasable() { return hasLock || (hasLock=
+public boolean isReleasable() { return hasLock || (hasLock=
    *  lock.tryLock()) } }}</pre>
    *
    *  <p>Here is a class that possibly blocks waiting for an item on a given

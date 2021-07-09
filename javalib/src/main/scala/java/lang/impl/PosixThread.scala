@@ -99,7 +99,6 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
     deadlineSpec.tv_nsec =
       TimeUnit.MILLISECONDS.toNanos(deadline % MillisecondsInSecond)
     waitForThreadUnparking(deadlineSpec)
-
   }
 
   @inline def tryParkNanos(nanos: scala.Long): Unit = {

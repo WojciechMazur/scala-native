@@ -90,17 +90,24 @@ private[java] case class WindowsThread(handle: Handle, id: UInt, thread: Thread)
 
   @alwaysinline
   def tryUnpark(): Unit = {
-    WakeConditionVariable(threadParkingSection)
+    WakeConditionVariable(isUnparked)
   }
 
   @inline @tailrec
   private def tryParkTimed(deadline: scala.Long): Unit = {
     val milliseconds = System.currentTimeMillis() - deadline
-    val successfull = SleepConditionVariableCS(
-      isUnparked,
-      threadParkingSection,
-      milliseconds.toUInt
-    )
+    val successfull =
+      if (milliseconds > 0L) {
+        SleepConditionVariableCS(
+          isUnparked,
+          threadParkingSection,
+          milliseconds.toUInt
+        )
+      } else {
+        state = NativeThread.State.Running
+        true
+      }
+
     if (successfull) {
       if (state == NativeThread.State.Parked) {
         // spurious wakeup, retry

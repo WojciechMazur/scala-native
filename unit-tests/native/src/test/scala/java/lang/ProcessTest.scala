@@ -141,6 +141,7 @@ class ProcessTest {
       val os = new FileOutputStream(file)
       os.write("hello\n".getBytes)
       os.write("quit\n".getBytes)
+      os.flush()
 
       assertProcessExitOrTimeout(proc)
 

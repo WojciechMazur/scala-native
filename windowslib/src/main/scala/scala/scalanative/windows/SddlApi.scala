@@ -6,7 +6,7 @@ import scala.scalanative.windows.HandleApi.Handle
 
 @link("Advapi32")
 @extern()
-object Sddl {
+object SddlApi {
   import MinWinBaseApi._
   import SecurityBaseApi._
   def ConvertSidToStringSidW(sid: SIDPtr, stringSid: Ptr[CWString]): Boolean =

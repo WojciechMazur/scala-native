@@ -176,10 +176,10 @@ class RandomAccessFile private (
           ) &&
           FileApi.SetEndOfFile(fd.handle)
         } else {
-          unistd.ftruncate(fd.fd, newLength) != 0
+          unistd.ftruncate(fd.fd, newLength) == 0
         }
       if (!hasSucceded) {
-        throw new IOException()
+        throw new IOException("Failed to truncate file")
       }
       if (currentPosition > newLength) seek(newLength)
     }

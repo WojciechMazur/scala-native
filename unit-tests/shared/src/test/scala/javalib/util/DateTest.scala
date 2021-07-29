@@ -56,7 +56,7 @@ class DateTest {
 
   @Test def testToString(): Unit = {
     // Due to problems with timezone abbreviation on Windows
-    assumeFalse("Not yet implemented on Windows", isWindows)
+    assumeFalse("Windows implementation does not contain timezone", isWindows)
 
     val result = new Date().toString // actual time this test is run.
     // regex should match, but not be: "Fri Mar 31 14:47:44 EDT 2020"

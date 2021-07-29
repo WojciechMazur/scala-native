@@ -9,8 +9,8 @@ object ErrorHandlingApi {
   def GetLastError(): UInt = extern
 }
 
-object ErrorHandlingApiOps{
-   def errorMessage(errCode: DWord): String = Zone { implicit z =>
+object ErrorHandlingApiOps {
+  def errorMessage(errCode: DWord): String = Zone { implicit z =>
     import WinBaseApi._
     import WinBaseApiExt._
 

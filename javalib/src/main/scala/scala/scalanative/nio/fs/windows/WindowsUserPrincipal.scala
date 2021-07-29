@@ -29,7 +29,7 @@ object WindowsUserPrincipal {
     import SidNameUse._
     val sidString = {
       val sidCString = stackalloc[CWString]
-      if (!Sddl.ConvertSidToStringSidW(sidRef, sidCString)) {
+      if (!SddlApi.ConvertSidToStringSidW(sidRef, sidCString)) {
         throw WindowsException("Unable to convert SID to string")
       }
       fromCWideString(!sidCString, StandardCharsets.UTF_16LE)

@@ -11,7 +11,7 @@ import scalanative.posix.unistd.close
 import scalanative.unsafe._
 import scalanative.unsigned._
 import scalanative.meta.LinktimeInfo.isWindows
-import scalanative.windows.WinSocketApi._
+import scala.scalanative.windows.WinSocketApi._
 import scala.scalanative.windows.WinSocketApiOps
 
 import org.junit.Test
@@ -23,11 +23,13 @@ class UdpSocketTest {
 
   @Test def sendtoRecvfrom(): Unit = Zone { implicit z =>
     assumeFalse("Fails with seg fault on Windows", isWindows)
+    if (isWindows) {
+      WinSocketApiOps.init()
+    }
     val localhost = c"127.0.0.1"
     val localhostInetAddr = inet_addr(localhost)
 
-    val inSocket = if (isWindows) {
-      WinSocketApiOps.init()
+    val inSocket: CInt = if (isWindows) {
       WSASocketW(
         addressFamily = AF_INET,
         socketType = SOCK_DGRAM,
@@ -44,18 +46,29 @@ class UdpSocketTest {
     try {
       val inAddr = alloc[sockaddr]
       val inAddrInPtr = inAddr.asInstanceOf[Ptr[sockaddr_in]]
+
       inAddrInPtr.sin_family = AF_INET.toUShort
       inAddrInPtr.sin_addr.s_addr = localhostInetAddr
       // inAddrInPtr.sin_port is already the desired 0; "find a free port".
 
-      val fcntlStatus = if (isWindows) {
-        val mode = stackalloc[CInt]
-        !mode = 1
-        ioctlSocket(inSocket.toPtr[Byte], FIONBIO, mode)
+      if (scalanative.runtime.Platform.isWindows()) {
+        // For some reason usage of linktime condition results
+        // in failures of unix fctnl function which always yield EBADF error
+        //  val mode = stackalloc[CInt]
+        //  !mode = 1
+        //  assertNotEquals(
+        //    "iotctl",
+        //    -1,
+        //    ioctlSocket(inSocket.toPtr[Byte], FIONBIO, mode)
+        //  )
       } else {
-        fcntl.fcntl(inSocket, F_SETFL, O_NONBLOCK)
+        val fcntlStatus: CInt = fcntl.fcntl(inSocket, F_SETFL, O_NONBLOCK)
+        assertNotEquals(
+          s"fcntl ${fromCString(scalanative.libc.string.strerror(scalanative.libc.errno.errno))}",
+          -1,
+          fcntlStatus
+        )
       }
-      assertNotEquals("fcntl", -1, fcntlStatus)
 
       // Get port for sendto() to use.
       val bindStatus = bind(inSocket, inAddr, sizeof[sockaddr].toUInt)
@@ -69,17 +82,20 @@ class UdpSocketTest {
       assertNotEquals("getsockname", -1, gsnStatus)
 
       // Now use port.
-      val outSocket = if (isWindows) {
-        WSASocketW(
-          addressFamily = AF_INET,
-          socketType = SOCK_DGRAM,
-          protocol = IPPROTO_UDP,
-          protocolInfo = null,
-          group = 0.toUInt,
-          flags = 0.toUInt
-        ).toInt
-
-      } else socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+      val outSocket = if (scalanative.runtime.Platform.isWindows()) {
+        -1
+        // For some reason usage of linktime condition results in deadlock
+        //  WSASocketW(
+        //    addressFamily = AF_INET,
+        //    socketType = SOCK_DGRAM,
+        //    protocol = IPPROTO_UDP,
+        //    protocolInfo = null,
+        //    group = 0.toUInt,
+        //    flags = 0.toUInt
+        // ).toInt
+      } else {
+        socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+      }
       assertNotEquals("socket_2", -1, outSocket)
 
       try {

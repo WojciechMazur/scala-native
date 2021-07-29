@@ -21,10 +21,9 @@ class FilesTest {
   import FilesTest._
 
   def checkShouldTestSymlinks(): Unit = {
-    val TestSymlinks = false
-    assumeTrue(
+    assumeFalse(
       "Do not test symlinks on windows, admin privilege needed",
-      !isWindows || TestSymlinks
+      isWindows
     )
   }
 

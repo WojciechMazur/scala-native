@@ -56,7 +56,7 @@ class WindowsAclFileAttributeView(path: Path, options: Array[LinkOption])
     }
     val newOwnerSid = stackalloc[SIDPtr]
 
-    if (!Sddl.ConvertStringSidToSidW(sidCString, newOwnerSid)) {
+    if (!SddlApi.ConvertStringSidToSidW(sidCString, newOwnerSid)) {
       throw WindowsException("Cannot convert user principal to sid")
     }
 

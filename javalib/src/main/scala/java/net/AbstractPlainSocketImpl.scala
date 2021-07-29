@@ -214,9 +214,12 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
     val connectRet = socket.connect(fd.fd, (!ret).ai_addr, (!ret).ai_addrlen)
 
     freeaddrinfo(!ret) // Must be after last use of ai_addr.
+
     if (connectRet < 0) {
-      def inProgress = if (isWindows) WSAGetLastError() == WSAEINPROGRESS
-      else errno.errno == EINPROGRESS
+      def inProgress = {
+        if (isWindows) WSAGetLastError() == WSAEINPROGRESS
+        else errno.errno == EINPROGRESS
+      }
       if (timeout > 0 && inProgress) {
         tryPollOnConnect(timeout)
       } else {
@@ -484,7 +487,8 @@ private[net] object AbstractPlainSocketImpl {
   final val InvalidSocketDescriptor = new FileDescriptor()
 
   def apply(): AbstractPlainSocketImpl = {
-    if (isWindows) new WindowsPlainSocketImpl()
+    if (isWindows)
+      new WindowsPlainSocketImpl()
     else
       new UnixPlainSocketImpl()
   }

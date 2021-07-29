@@ -186,7 +186,7 @@ object Files {
   def createLink(link: Path, existing: Path): Path = {
     def tryCreateHardLink() = Zone { implicit z =>
       if (isWindows)
-        WinBaseApi.CreateHardLinkW(
+        CreateHardLinkW(
           toCWideStringUTF16LE(link.toString),
           toCWideStringUTF16LE(existing.toString),
           securityAttributes = null
@@ -202,7 +202,7 @@ object Files {
     } else if (tryCreateHardLink()) {
       link
     } else {
-      throw WindowsException("Cannot create link")
+      throw new IOException("Cannot create link")
     }
   }
 
@@ -236,7 +236,7 @@ object Files {
             targetFileName = targetFilename,
             flags = flags | SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE
           ) || {
-            throw new FileSystemException(
+            throw new SecurityException(
               "Creating symbolic link requires admin privileges"
             )
           }
@@ -254,7 +254,7 @@ object Files {
       setAttributes(link, attrs)
       link
     } else {
-      throw WindowsException("Cannot create link")
+      throw new IOException("Cannot create symbolic link")
     }
   }
 

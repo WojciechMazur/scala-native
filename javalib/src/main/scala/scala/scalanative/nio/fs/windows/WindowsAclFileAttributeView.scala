@@ -8,6 +8,7 @@ import java.nio.file.attribute._
 import scalanative.unsigned._
 import scalanative.unsafe._
 import scalanative.libc._
+import scalanative.annotation.stub
 import scala.scalanative.windows._
 import java.nio.file.WindowsException
 import java.util.WindowsHelperMethods._
@@ -74,6 +75,6 @@ class WindowsAclFileAttributeView(path: Path, options: Array[LinkOption])
       }
     }
   }
-  def getAcl(): ju.List[AclEntry] = ???
-  def setAcl(x: ju.List[AclEntry]): Unit = ???
+  @stub def getAcl(): ju.List[AclEntry] = ???
+  @stub def setAcl(x: ju.List[AclEntry]): Unit = ???
 }

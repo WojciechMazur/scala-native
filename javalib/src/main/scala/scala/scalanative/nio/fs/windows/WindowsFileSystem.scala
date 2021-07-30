@@ -1,10 +1,12 @@
 package scala.scalanative.nio.fs.windows
 
 import java.lang.Iterable
+import java.nio.charset.StandardCharsets
 import java.nio.file.{
   FileStore,
   FileSystem,
   Path,
+  Paths,
   PathMatcher,
   PathMatcherImpl,
   WatchService
@@ -13,8 +15,11 @@ import java.nio.file.spi.FileSystemProvider
 import java.nio.file.attribute.UserPrincipalLookupService
 import java.util.{LinkedList, Set}
 
-import scala.scalanative.unsafe._
+import scalanative.unsafe._
+import scalanative.unsigned._
 import scalanative.annotation.stub
+import scalanative.windows.FileApi._
+import scala.annotation.tailrec
 
 class WindowsFileSystem(override val provider: WindowsFileSystemProvider)
     extends FileSystem {
@@ -32,7 +37,24 @@ class WindowsFileSystem(override val provider: WindowsFileSystemProvider)
 
   override def getRootDirectories(): Iterable[Path] = {
     val list = new LinkedList[Path]()
-    ???
+    val bufferSize = GetLogicalDriveStringsW(0.toUInt, null)
+    val buffer = stackalloc[CChar16](bufferSize)
+
+    @tailrec
+    def readStringsBlock(ptr: Ptr[CChar16]): Unit = {
+      val path = fromCWideString(ptr, StandardCharsets.UTF_16LE)
+      // GetLogicalDriveStrings returns block of null-terminated strings with
+      // additional null-termination character after last string.
+      // Empty string means we reached the end.
+      if (path.nonEmpty) {
+        list.add(Paths.get(path, Array.empty))
+        readStringsBlock(ptr + path.length + 1)
+      }
+    }
+
+    if (GetLogicalDriveStringsW(bufferSize, buffer) > 0.toUInt) {
+      readStringsBlock(buffer)
+    }
     list
   }
   def getUserPrincipalLookupService(): UserPrincipalLookupService =

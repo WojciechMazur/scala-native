@@ -4,6 +4,7 @@ import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.nio.file.{FileSystems, Path}
 import java.nio.file.WindowsException
+import java.util.ScalaOps._
 import java.util.WindowsHelperMethods._
 import scala.annotation.tailrec
 import scala.scalanative.annotation.{alwaysinline, stub}
@@ -36,6 +37,7 @@ import windows.winnt.{HelperMethods => WinNtHelperMethods, _}
 import windows.winnt.AccessRights._
 import windows.winnt.AccessToken._
 import windows.winnt.TokenInformationClass
+
 
 import windows.accctrl._
 
@@ -883,13 +885,14 @@ object File {
   private var counterBase: Int = 0
   private val caseSensitive: Boolean = !Platform.isWindows()
 
-  def listRoots(): Array[File] =
-    if (Platform.isWindows()) ???
-    else {
-      var array = new Array[File](1)
-      array(0) = new File("/")
-      return array
-    }
+  def listRoots(): Array[File] = {
+    FileSystems.getDefault()
+      .getRootDirectories()
+      .scalaOps
+      .toSeq
+      .map(_.toFile)
+      .toArray
+  }
 
   @throws(classOf[IOException])
   def createTempFile(prefix: String, suffix: String): File =

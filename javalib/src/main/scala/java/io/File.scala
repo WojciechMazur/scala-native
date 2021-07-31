@@ -37,8 +37,6 @@ import windows.winnt.{HelperMethods => WinNtHelperMethods, _}
 import windows.winnt.AccessRights._
 import windows.winnt.AccessToken._
 import windows.winnt.TokenInformationClass
-
-
 import windows.accctrl._
 
 class File(_path: String) extends Serializable with Comparable[File] {
@@ -142,7 +140,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
       ownerOnly: Boolean
   ): Boolean =
     Zone { implicit z =>
-      val filename = toCWideStringUTF16LE(path)
+      val filename = toCWideStringUTF16LE(properPath)
       val securityDescriptorPtr = stackalloc[Ptr[SecurityDescriptor]]
       val previousDacl, newDacl = stackalloc[ACLPtr]
       val usersGroupSid = stackalloc[SIDPtr]
@@ -212,7 +210,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
   def exists(): Boolean =
     Zone { implicit z =>
       if (isWindows) {
-        val filename = toCWideStringUTF16LE(path)
+        val filename = toCWideStringUTF16LE(properPath)
         val attrs = GetFileAttributesW(filename)
         val pathExists = attrs != INVALID_FILE_ATTRIBUTES
         val notSymLink = (attrs & FILE_ATTRIBUTE_REPARSE_POINT) == 0.toUInt
@@ -244,7 +242,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
 
   private def deleteDirImpl(): Boolean = Zone { implicit z =>
     if (isWindows) {
-      RemoveDirectoryW(toCWideStringUTF16LE(path))
+      RemoveDirectoryW(toCWideStringUTF16LE(properPath))
     } else
       remove(toCString(path)) == 0
   }
@@ -252,7 +250,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
   private def deleteFileImpl(): Boolean = Zone { implicit z =>
     if (isWindows) {
       setReadOnlyWindows(enabled = false)
-      DeleteFileW(toCWideStringUTF16LE(path))
+      DeleteFileW(toCWideStringUTF16LE(properPath))
     } else {
       unlink(toCString(path)) == 0
     }
@@ -289,7 +287,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
     if (isWindows) {
       val resolvedName = alloc[WChar](FileApiExt.MAX_PATH)
       GetFullPathNameW(
-        toCWideStringUTF16LE(path),
+        toCWideStringUTF16LE(properPath),
         FileApiExt.MAX_PATH,
         resolvedName,
         null
@@ -304,18 +302,24 @@ class File(_path: String) extends Serializable with Comparable[File] {
 
   /** Finds the canonical path for `path`.
    */
-  private def simplifyNonExistingPath(path: String): String =
+  private def simplifyNonExistingPath(path: String): String = {
+    val rootDirectory =
+      if (isWindows) path.take(path.indexOf(s":$separator") + 2)
+      else separator
+
     path
+      .stripPrefix(rootDirectory)
       .split(separatorChar)
       .foldLeft(List.empty[String]) {
-        case (acc, "..") => if (acc.isEmpty) List("..") else acc.tail
+        case (acc, "..") => if (acc.isEmpty) Nil else acc.tail
         case (acc, ".")  => acc
         case (acc, "")   => acc
         case (acc, seg)  => seg :: acc
       }
       .reverse
       .filterNot(_.isEmpty())
-      .mkString(separator, separator, "")
+      .mkString(rootDirectory, separator, "")
+  }
 
   @throws(classOf[IOException])
   def getCanonicalFile(): File = new File(getCanonicalPath())
@@ -326,14 +330,22 @@ class File(_path: String) extends Serializable with Comparable[File] {
     else path.substring(separatorIndex + 1, path.length())
   }
 
-  def getParent(): String =
-    path.split(separatorChar).filterNot(_.isEmpty()) match {
-      case Array() if !isAbsolute()  => null
-      case Array(_) if !isAbsolute() => null
-      case parts if !isAbsolute()    => parts.init.mkString(separator)
-      case parts if isAbsolute() =>
-        parts.init.mkString(separator, separator, "")
+  def getParent(): String = {
+    val isAbsolute = this.isAbsolute()
+    val rootDirectory =
+      if (!isAbsolute) ""
+      else if (isWindows) path.substring(0, path.indexOf(s":$separator") + 2)
+      else separator
+
+    path
+      .stripPrefix(rootDirectory)
+      .split(separatorChar)
+      .filterNot(_.isEmpty()) match {
+      case Array()                 => null
+      case Array(_) if !isAbsolute => null
+      case parts => parts.init.mkString(rootDirectory, separator, "")
     }
+  }
 
   def getParentFile(): File = {
     val parent = getParent()
@@ -405,7 +417,9 @@ class File(_path: String) extends Serializable with Comparable[File] {
   @alwaysinline
   private def fileAttributeIsSet(attribute: windows.DWord): Boolean = Zone {
     implicit z =>
-      (GetFileAttributesW(toCWideStringUTF16LE(path)) & attribute) == attribute
+      (GetFileAttributesW(
+        toCWideStringUTF16LE(properPath)
+      ) & attribute) == attribute
   }
 
   def setLastModified(time: Long): Boolean =
@@ -450,7 +464,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
     }
 
   private def setReadOnlyWindows(enabled: Boolean)(implicit z: Zone) = {
-    val filename = toCWideStringUTF16LE(path)
+    val filename = toCWideStringUTF16LE(properPath)
     val currentAttributes = GetFileAttributesW(filename)
 
     def newAttributes =
@@ -514,7 +528,10 @@ class File(_path: String) extends Serializable with Comparable[File] {
   def mkdir(): Boolean =
     Zone { implicit z =>
       if (isWindows)
-        CreateDirectoryW(toCWideStringUTF16LE(path), securityAttributes = null)
+        CreateDirectoryW(
+          toCWideStringUTF16LE(properPath),
+          securityAttributes = null
+        )
       else {
         val mode = octal("0777")
         stat.mkdir(toCString(path), mode) == 0
@@ -580,7 +597,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
         fn: Ptr[SecurityDescriptor] => Unit
     ): Unit = {
       val securityDescriptorPtr = stackalloc[Ptr[SecurityDescriptor]]
-      val filename = toCWideStringUTF16LE(path)
+      val filename = toCWideStringUTF16LE(properPath)
       val securityInfo =
         OWNER_SECURITY_INFORMATION |
           GROUP_SECURITY_INFORMATION |
@@ -596,50 +613,55 @@ class File(_path: String) extends Serializable with Comparable[File] {
         sacl = null,
         securityDescriptor = securityDescriptorPtr
       )
-      if (result != 0.toUInt)
-        throw WindowsException("Cannot retrive file security descriptor")
+      if (result != ErrorCodes.ERROR_SUCCESS)
+        throw WindowsException(
+          s"Cannot retrive file security descriptor",
+          errorCode = result
+        )
       try {
         fn(!securityDescriptorPtr)
       } finally {
         WinBaseApi.LocalFree(!securityDescriptorPtr)
       }
     }
+    if (path.isEmpty() || !exists()) false // JVM complience
+    else {
+      withFileSecurityDescriptor { securityDescriptor =>
+        withImpersonatedToken { impersonatedToken =>
+          val genericMapping = stackalloc[GenericMapping]
+          genericMapping.genericRead = FILE_GENERIC_READ
+          genericMapping.genericWrite = FILE_GENERIC_WRITE
+          genericMapping.genericExecute = FILE_GENERIC_EXECUTE
+          genericMapping.genericAll = FILE_GENERIC_ALL
 
-    withFileSecurityDescriptor { securityDescriptor =>
-      withImpersonatedToken { impersonatedToken =>
-        val genericMapping = stackalloc[GenericMapping]
-        genericMapping.genericRead = FILE_GENERIC_READ
-        genericMapping.genericWrite = FILE_GENERIC_WRITE
-        genericMapping.genericExecute = FILE_GENERIC_EXECUTE
-        genericMapping.genericAll = FILE_GENERIC_ALL
+          val accessMask = stackalloc[windows.DWord]
+          !accessMask = access
 
-        val accessMask = stackalloc[windows.DWord]
-        !accessMask = access
+          val privilegeSetLength = stackalloc[windows.DWord]
+          !privilegeSetLength = emptyPriviligesSize.toUInt
 
-        val privilegeSetLength = stackalloc[windows.DWord]
-        !privilegeSetLength = emptyPriviligesSize.toUInt
+          val privilegeSet = stackalloc[Byte](!privilegeSetLength)
+          memset(privilegeSet, 0, !privilegeSetLength)
 
-        val privilegeSet = stackalloc[Byte](!privilegeSetLength)
-        memset(privilegeSet, 0, !privilegeSetLength)
+          val grantedAcccess = stackalloc[windows.DWord]
+          !grantedAcccess = 0.toUInt
 
-        val grantedAcccess = stackalloc[windows.DWord]
-        !grantedAcccess = 0.toUInt
-
-        MapGenericMask(accessMask, genericMapping)
-        AccessCheck(
-          securityDescriptor = securityDescriptor,
-          clientToken = impersonatedToken,
-          desiredAccess = access,
-          genericMapping = genericMapping,
-          privilegeSet = privilegeSet,
-          privilegeSetLength = privilegeSetLength,
-          grantedAccess = grantedAcccess,
-          accessStatus = accessStatus
-        )
+          MapGenericMask(accessMask, genericMapping)
+          AccessCheck(
+            securityDescriptor = securityDescriptor,
+            clientToken = impersonatedToken,
+            desiredAccess = access,
+            genericMapping = genericMapping,
+            privilegeSet = privilegeSet,
+            privilegeSetLength = privilegeSetLength,
+            grantedAccess = grantedAcccess,
+            accessStatus = accessStatus
+          )
+        }
       }
+      !accessStatus
     }
 
-    !accessStatus
   }
 }
 
@@ -728,33 +750,16 @@ object File {
   // Ported from Apache Harmony
   private def properPath(path: String): String = {
     if (isAbsolute(path)) path
-    else if (isWindows) Zone { implicit z =>
-      val pathCString = toCWideStringUTF16LE(path)
-      val bufSize = GetFullPathNameW(pathCString, 0.toUInt, null, null)
-      val buf = stackalloc[windows.WChar](bufSize)
-      if (GetFullPathNameW(
-            pathCString,
-            bufferLength = bufSize,
-            buffer = buf,
-            filePart = null
-          ) == 0.toUInt) {
-        throw new IOException("Failed to resolve correct path")
-      }
-      fromCWideString(buf, StandardCharsets.UTF_16LE)
-    }
-    else {
-      val userdir =
-        Option(getUserDir())
-          .getOrElse(
-            throw new IOException(
-              "getcwd() error in trying to get user directory."
-            )
+    else
+      getUserDir() match {
+        case null =>
+          throw new IOException(
+            "Failed to resolve proper path, no current directory defined"
           )
-
-      if (path.isEmpty()) userdir
-      else if (userdir.endsWith(separator)) userdir + path
-      else userdir + separator + path
-    }
+        case userdir =>
+          if (userdir.endsWith(separator)) userdir + path
+          else userdir + separator + path
+      }
   }
 
   def isAbsolute(path: String): Boolean =
@@ -785,7 +790,13 @@ object File {
 
         // found an absolute path. continue from there.
         case link if link(0) == separatorChar =>
-          resolveLink(link, resolveAbsolute, restart = resolveAbsolute)
+          if (Platform.isWindows &&
+              strncmp(link, c"\\\\?\\", 4.toUInt) == 0 &&
+              strlen(link) <= 7.toUInt) {
+            // It's root directory
+            path
+          } else
+            resolveLink(link, resolveAbsolute, restart = resolveAbsolute)
 
         // found a relative path. append to the current path, and continue.
         case link =>
@@ -851,19 +862,26 @@ object File {
       if (isWindows) FileApiExt.MAX_PATH
       else limits.PATH_MAX.toUInt
     val buffer: CString = alloc[Byte](bufferSize)
-
     if (isWindows) {
-      withFileOpen(fromCString(link), access = FILE_GENERIC_READ) {
-        fileHandle =>
-          val finalPathFlags = FileApiExt.FILE_NAME_NORMALIZED
-          val pathLength = GetFinalPathNameByHandleA(
-            fileHandle,
-            buffer = buffer,
-            bufferSize = bufferSize,
-            flags = finalPathFlags
-          )
-          if (pathLength == 0) null
-          else buffer
+      val filename = fromCString(link)
+
+      withFileOpen(
+        fromCString(link),
+        access = FILE_GENERIC_READ,
+        attributes = FILE_FLAG_BACKUP_SEMANTICS | FILE_ATTRIBUTE_DIRECTORY,
+        allowInvalidHandle = true
+      ) { fileHandle =>
+        val finalPathFlags = FileApiExt.FILE_NAME_NORMALIZED
+        def pathLength = GetFinalPathNameByHandleA(
+          fileHandle,
+          buffer = buffer,
+          bufferSize = bufferSize,
+          flags = finalPathFlags
+        )
+
+        if (fileHandle == HandleApiExt.INVALID_HANDLE_VALUE || pathLength == 0)
+          null
+        else buffer
       }
     } else {
       readlink(link, buffer, bufferSize - 1.toUInt) match {
@@ -886,7 +904,8 @@ object File {
   private val caseSensitive: Boolean = !Platform.isWindows()
 
   def listRoots(): Array[File] = {
-    FileSystems.getDefault()
+    FileSystems
+      .getDefault()
       .getRootDirectories()
       .scalaOps
       .toSeq

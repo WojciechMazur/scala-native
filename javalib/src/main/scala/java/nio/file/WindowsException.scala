@@ -15,8 +15,12 @@ import scalanative.libc.{string, errno => stdErrno}
 trait WindowsException extends Exception
 object WindowsException {
   def apply(msg: String): WindowsException = {
-    val err = GetLastError()
-    new IOException(s"$msg - ${errorMessage(err)} ($err)") with WindowsException
+    WindowsException(msg, GetLastError())
+  }
+
+  def apply(msg: String, errorCode: DWord): WindowsException = {
+    new IOException(s"$msg - ${errorMessage(errorCode)} ($errorCode)")
+      with WindowsException
   }
 
   def onPath(file: String): IOException = {

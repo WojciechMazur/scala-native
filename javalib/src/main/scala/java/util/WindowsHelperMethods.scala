@@ -11,6 +11,7 @@ import scala.scalanative.windows._
 import scala.scalanative.windows.winnt._
 import winnt.AccessToken._
 import scala.scalanative.windows.SecurityBaseApi._
+import java.nio.file.WindowsException
 
 /** Windows implementation specific helper methods, not available in public API
  *  (javalib does not contain them in published jar) Not made `java` package
@@ -131,9 +132,7 @@ object WindowsHelperMethods {
       try { fn(handle) }
       finally CloseHandle(handle)
     } else {
-      throw new IOException(
-        s"Cannot open file ${path}: ${ErrorHandlingApi.GetLastError()}"
-      )
+      throw WindowsException(s"Cannot open file ${path}")
     }
   }
 }

@@ -135,14 +135,21 @@ object FileHelpers {
             desiredAccess = FILE_GENERIC_WRITE,
             shareMode = FILE_SHARE_ALL,
             securityAttributes = null,
-            creationDisposition = CREATE_NEW,
+            creationDisposition = CREATE_ALWAYS,
             flagsAndAttributes = FILE_ATTRIBUTE_NORMAL,
             templateFile = null
           )
           HandleApi.CloseHandle(handle)
           GetLastError() match {
             case ErrorCodes.ERROR_FILE_EXISTS => false
-            case _                            => handle != INVALID_HANDLE_VALUE
+            case errCode =>
+              if (handle != INVALID_HANDLE_VALUE) true
+              else if (throwOnError)
+                throw WindowsException(
+                  s"Cannot create new file $path",
+                  errorCode = errCode
+                )
+              else false
           }
         } else {
           fopen(toCString(path), c"w") match {

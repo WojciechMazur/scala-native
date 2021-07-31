@@ -402,7 +402,7 @@ lazy val sbtScalaNative =
     .settings(sbtPluginSettings)
     .settings(
       crossScalaVersions := Seq(sbt10ScalaVersion),
-      addSbtPlugin("org.portable-scala" % "sbt-platform-deps" % "1.0.0"),
+      addSbtPlugin("org.portable-scala" % "sbt-platform-deps" % "1.0.1"),
       sbtTestDirectory := (ThisBuild / baseDirectory).value / "scripted-tests",
       // publish the other projects before running scripted tests.
       scriptedDependencies := {

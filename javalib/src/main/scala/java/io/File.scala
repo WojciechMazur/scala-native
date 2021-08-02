@@ -315,10 +315,13 @@ class File(_path: String) extends Serializable with Comparable[File] {
       .stripPrefix(rootDirectory)
       .split(separatorChar)
       .foldLeft(List.empty[String]) {
-        case (acc, "..") => if (acc.isEmpty) Nil else acc.tail
-        case (acc, ".")  => acc
-        case (acc, "")   => acc
-        case (acc, seg)  => seg :: acc
+        case (acc, "..") =>
+          if (acc.nonEmpty) acc.tail
+          else if (isWindows) Nil
+          else List("..")
+        case (acc, ".") => acc
+        case (acc, "")  => acc
+        case (acc, seg) => seg :: acc
       }
       .reverse
       .filterNot(_.isEmpty())

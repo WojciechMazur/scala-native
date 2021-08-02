@@ -33,15 +33,16 @@ class FileTest {
     assertEquals("file", u1.getScheme)
     assertTrue(u1.getPath.endsWith("path"))
 
-    val u2 = new File("/path/to/file.txt").toURI
+    val absPathString =
+      if (isWindows) raw"C:\path\to\file.txt"
+      else "/path/to/file.txt"
+    val expectedPath =
+      if (isWindows) "/C:/path/to/file.txt"
+      else absPathString
+    val u2 = new File(absPathString).toURI
     assertNotNull(u2)
     assertEquals("file", u2.getScheme)
-    assertTrue(u2.getPath.endsWith("file.txt"))
-    val expectedPath =
-      if (isWindows) {
-        val currentDrive = (new File(".").getAbsolutePath()).head
-        s"file:/$currentDrive:/path/to/file.txt"
-      } else "file:/path/to/file.txt"
-    assertEquals(expectedPath, u2.toString)
+    assertEquals(expectedPath, u2.getPath())
+    assertEquals(s"file:$expectedPath", u2.toString)
   }
 }

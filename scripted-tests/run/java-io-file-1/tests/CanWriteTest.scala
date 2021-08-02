@@ -1,18 +1,22 @@
 object CanWriteTest {
   import Files._
+  import Utils._
 
   def main(args: Array[String]): Unit = {
-    // setWritable cannot be used on Windows
-    def osSpecific(pred: Boolean) = if (isWindows) !pred else pred
-
     assert(!emptyNameFile.canWrite())
 
     assert(writableFile.canWrite())
-    assert(osSpecific(!unwritableFile.canWrite()))
+    assert(
+      !unwritableFile.canWrite(),
+      "!unwritableFile.canWrite()"
+    )
     assert(!nonexistentFile.canWrite())
 
     assert(writableDirectory.canWrite())
-    assert(osSpecific(!unwritableDirectory.canWrite()))
+    assertOsSpecific(
+      unwritableDirectory.canWrite(),
+      "unwritableDirectory.canWrite()"
+    )(onUnix = false, onWindows = true)
     assert(!nonexistentDirectory.canWrite())
   }
 

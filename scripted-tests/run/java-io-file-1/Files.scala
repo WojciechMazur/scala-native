@@ -1,12 +1,7 @@
 import java.io.File
+import Utils._
 
 object Files {
-  import java.util.Locale
-  val isWindows = System
-    .getProperty("os.name", "unknown")
-    .toLowerCase()
-    .startsWith("windows")
-
   val emptyNameFile = new File("")
 
   val executableFile = new File("executableFile.txt")

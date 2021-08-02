@@ -61,20 +61,19 @@ class WindowsAclFileAttributeView(path: Path, options: Array[LinkOption])
       throw WindowsException("Cannot convert user principal to sid")
     }
 
-    withLocalHandleCleanup(newOwnerSid) {
-      if (AclApi.SetNamedSecurityInfoW(
-            filename,
-            SE_FILE_OBJECT,
-            OWNER_SECURITY_INFORMATION,
-            sidOwner = !newOwnerSid,
-            sidGroup = null,
-            dacl = null,
-            sacl = null
-          ) != 0.toUInt) {
-        throw WindowsException("Failed to set new owner")
-      }
+    if (AclApi.SetNamedSecurityInfoW(
+          filename,
+          SE_FILE_OBJECT,
+          OWNER_SECURITY_INFORMATION,
+          sidOwner = !newOwnerSid,
+          sidGroup = null,
+          dacl = null,
+          sacl = null
+        ) != 0.toUInt) {
+      throw WindowsException("Failed to set new owner")
     }
   }
+
   @stub def getAcl(): ju.List[AclEntry] = ???
   @stub def setAcl(x: ju.List[AclEntry]): Unit = ???
 }

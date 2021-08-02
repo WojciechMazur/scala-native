@@ -64,7 +64,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
 
   def canExecute(): Boolean =
     Zone { implicit z =>
-      if (isWindows) checkWindowsAccess(FILE_GENERIC_EXECUTE)
+      if (isWindows) path.nonEmpty && exists()
       else access(toCString(path), unistd.X_OK) == 0
     }
 
@@ -76,7 +76,9 @@ class File(_path: String) extends Serializable with Comparable[File] {
 
   def canWrite(): Boolean =
     Zone { implicit z =>
-      if (isWindows) checkWindowsAccess(FILE_GENERIC_WRITE)
+      if (isWindows)
+        checkWindowsAccess(FILE_GENERIC_WRITE) &&
+        fileAttributeIsSet(FILE_ATTRIBUTE_READONLY, checkIsNotSet = true)
       else access(toCString(path), unistd.W_OK) == 0
     }
 
@@ -85,8 +87,12 @@ class File(_path: String) extends Serializable with Comparable[File] {
 
   def setExecutable(executable: Boolean, ownerOnly: Boolean): Boolean = {
     if (isWindows) {
-      val accessRights = FILE_GENERIC_EXECUTE
-      updatePermissionsWindows(accessRights, executable, ownerOnly)
+      // Windows (JVM) does not allow for setting setting as not executable
+      if (!executable) false
+      else {
+        val accessRights = FILE_GENERIC_EXECUTE
+        updatePermissionsWindows(accessRights, executable, ownerOnly)
+      }
     } else {
       import stat._
       val mask = if (!ownerOnly) S_IXUSR | S_IXGRP | S_IXOTH else S_IXUSR
@@ -141,9 +147,9 @@ class File(_path: String) extends Serializable with Comparable[File] {
   ): Boolean =
     Zone { implicit z =>
       val filename = toCWideStringUTF16LE(properPath)
-      val securityDescriptorPtr = stackalloc[Ptr[SecurityDescriptor]]
-      val previousDacl, newDacl = stackalloc[ACLPtr]
-      val usersGroupSid = stackalloc[SIDPtr]
+      val securityDescriptorPtr = alloc[Ptr[SecurityDescriptor]]
+      val previousDacl, newDacl = alloc[ACLPtr]
+      val usersGroupSid = alloc[SIDPtr]
 
       val accessMode: AccessMode =
         if (grant) AccessMode.GRANT_ACCESS
@@ -182,7 +188,6 @@ class File(_path: String) extends Serializable with Comparable[File] {
           ea.trustee.trusteeType = TrusteeType.TRUSTEE_IS_WELL_KNOWN_GROUP
           ea.trustee.sid = !usersGroupSid
         }
-
         SetEntriesInAclW(1.toUInt, ea, !previousDacl, newDacl) == 0.toUInt
       }
 
@@ -196,12 +201,11 @@ class File(_path: String) extends Serializable with Comparable[File] {
           dacl = !newDacl,
           sacl = null
         ) == 0.toUInt
+
       try {
-        withLocalHandleCleanup(securityDescriptorPtr, previousDacl, newDacl) {
-          getSecurityDescriptor() &&
-          setupNewAclEntry() &&
-          assignNewSecurityInfo()
-        }
+        getSecurityDescriptor() &&
+        setupNewAclEntry() &&
+        assignNewSecurityInfo()
       } finally {
         FreeSid(!usersGroupSid)
       }
@@ -371,7 +375,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
   def isFile(): Boolean =
     Zone { implicit z =>
       if (isWindows)
-        fileAttributeIsSet(FILE_ATTRIBUTE_NORMAL) || !isDirectory()
+        fileAttributeIsSet(FILE_ATTRIBUTE_DIRECTORY, checkIsNotSet = true)
       else
         stat.S_ISREG(accessMode()) != 0
     }
@@ -385,15 +389,21 @@ class File(_path: String) extends Serializable with Comparable[File] {
   def lastModified(): Long =
     Zone { implicit z =>
       if (isWindows) {
-        withFileOpen(path, access = FILE_GENERIC_READ) { handle =>
-          val lastModified = stackalloc[WinFileTime]
-          GetFileTime(
-            handle,
-            creationTime = null,
-            lastAccessTime = null,
-            lastWriteTime = lastModified
-          )
-          MinWinBaseApiOps.FileTimeOps.toUnixEpochMillis(!lastModified)
+        withFileOpen(
+          path,
+          access = FILE_GENERIC_READ,
+          allowInvalidHandle = true
+        ) {
+          case INVALID_HANDLE_VALUE => 0L
+          case handle =>
+            val lastModified = stackalloc[WinFileTime]
+            GetFileTime(
+              handle,
+              creationTime = null,
+              lastAccessTime = null,
+              lastWriteTime = lastModified
+            )
+            MinWinBaseApiOps.FileTimeOps.toUnixEpochMillis(!lastModified)
         }
       } else {
         val buf = alloc[stat.stat]
@@ -415,11 +425,18 @@ class File(_path: String) extends Serializable with Comparable[File] {
   }
 
   @alwaysinline
-  private def fileAttributeIsSet(attribute: windows.DWord): Boolean = Zone {
-    implicit z =>
-      (GetFileAttributesW(
-        toCWideStringUTF16LE(properPath)
-      ) & attribute) == attribute
+  private def fileAttributeIsSet(
+      flags: windows.DWord,
+      checkIsNotSet: Boolean = false
+  ): Boolean = Zone { implicit z =>
+    GetFileAttributesW(toCWideStringUTF16LE(properPath)) match {
+      case INVALID_FILE_ATTRIBUTES => false // File does not exist
+      case attrsSet =>
+        if (checkIsNotSet)
+          (attrsSet & flags) != flags
+        else
+          (attrsSet & flags) == flags
+    }
   }
 
   def setLastModified(time: Long): Boolean =
@@ -428,15 +445,22 @@ class File(_path: String) extends Serializable with Comparable[File] {
     } else
       Zone { implicit z =>
         if (isWindows) {
-          withFileOpen(path, access = FILE_GENERIC_WRITE) { handle =>
-            val lastModified = stackalloc[WinFileTime]
-            !lastModified = MinWinBaseApiOps.FileTimeOps.fromUnixEpoch(time)
-            SetFileTime(
-              handle,
-              creationTime = null,
-              lastAccessTime = null,
-              lastWriteTime = lastModified
-            )
+          withFileOpen(
+            path,
+            access = FILE_GENERIC_WRITE,
+            allowInvalidHandle = true
+          ) {
+            case INVALID_HANDLE_VALUE => false
+            case handle =>
+              val lastModified = stackalloc[WinFileTime]
+              !lastModified =
+                MinWinBaseApiOps.FileTimeOps.fromUnixEpochMillis(time)
+              SetFileTime(
+                handle,
+                creationTime = null,
+                lastAccessTime = null,
+                lastWriteTime = lastModified
+              )
           }
         } else {
           val statbuf = alloc[stat.stat]
@@ -478,10 +502,16 @@ class File(_path: String) extends Serializable with Comparable[File] {
 
   def length(): Long = Zone { implicit z =>
     if (isWindows) {
-      withFileOpen(path, access = FILE_READ_ATTRIBUTES) { handle =>
-        val size = stackalloc[windows.LargeInteger]
-        if (GetFileSizeEx(handle, size)) (!size).toLong
-        else 0L
+      withFileOpen(
+        path,
+        access = FILE_READ_ATTRIBUTES,
+        allowInvalidHandle = true
+      ) {
+        case INVALID_HANDLE_VALUE => 0L
+        case handle =>
+          val size = stackalloc[windows.LargeInteger]
+          if (GetFileSizeEx(handle, size)) (!size).toLong
+          else 0L
       }
     } else {
       val buf = alloc[stat.stat]

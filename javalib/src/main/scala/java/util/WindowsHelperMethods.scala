@@ -7,6 +7,7 @@ import scala.scalanative.windows.ProcessThreadsApi._
 import scala.scalanative.windows.HandleApi._
 import scala.scalanative.windows.HandleApiExt._
 import scala.scalanative.windows.FileApiExt._
+import scala.scalanative.windows.ErrorHandlingApi._
 import scala.scalanative.windows._
 import scala.scalanative.windows.winnt._
 import winnt.AccessToken._
@@ -63,18 +64,24 @@ object WindowsHelperMethods {
       token: Handle,
       informationClass: TokenInformationClass
   )(fn: Ptr[T] => R)(implicit z: Zone): R = {
-    val dataSize = stackalloc[DWord]
-
+    val dataSize = alloc[DWord]
+    !dataSize = 0.toUInt
+    
     if (!GetTokenInformation(
           token,
           informationClass,
           information = null,
-          informationLength = 0.toUInt,
+          informationLength = !dataSize,
           returnLength = dataSize
         )) {
-      throw new RuntimeException(
-        s"Cannot determinate size for token informaiton $informationClass"
-      )
+      GetLastError() match {
+        case ErrorCodes.ERROR_INSUFFICIENT_BUFFER => ()
+        case errCode =>
+          throw WindowsException(
+            s"Cannot determinate size for token informaiton $informationClass",
+            errCode
+          )
+      }
     }
 
     val data = alloc[Byte](!dataSize)
@@ -83,32 +90,14 @@ object WindowsHelperMethods {
           informationClass,
           information = data,
           informationLength = !dataSize,
-          returnLength = null
+          returnLength = dataSize
         )) {
-      throw new RuntimeException(
-        s"Failed to get for token informaiton $informationClass"
+      throw WindowsException(
+        s"Failed to get data for token informaiton $informationClass"
       )
     }
 
     fn(data.asInstanceOf[Ptr[T]])
-  }
-
-  /** Execute given function and free Windows internal allocations
-   *
-   *  @param handles
-   *    List of ScalaNative pointers containing pointer to Windows local
-   *    allocated memory
-   */
-  def withLocalHandleCleanup[T](handles: Ptr[_ <: Ptr[_]]*)(fn: => T): T = {
-    try {
-      fn
-    } finally {
-      handles.foreach { ref =>
-        if (ref != null) {
-          WinBaseApi.LocalFree(!ref)
-        }
-      }
-    }
   }
 
   def withFileOpen[T](

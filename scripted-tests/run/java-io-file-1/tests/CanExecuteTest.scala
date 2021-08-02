@@ -1,19 +1,26 @@
 object CanExecuteTest {
   import Files._
+  import Utils._
 
   def main(args: Array[String]): Unit = {
-    // setExecutable cannot be used on Windows
-    def osSpecific(pred: Boolean) = if (isWindows) !pred else pred
+    assert(!emptyNameFile.canExecute(), "!emptyNameFile.canExecute()")
 
-    assert(!emptyNameFile.canExecute())
+    assert(executableFile.canExecute(), "executableFile.canExecute()")
+    assertOsSpecific(
+      unexecutableFile.canExecute(),
+      "unexecutableFile.canExecute"
+    )(onUnix = false, onWindows = true)
+    assert(!nonexistentFile.canExecute(), "!nonexistentFile.canExecute()")
 
-    assert(executableFile.canExecute())
-    assert(osSpecific(!unexecutableFile.canExecute()))
-    assert(!nonexistentFile.canExecute())
-
-    assert(executableDirectory.canExecute())
-    assert(osSpecific(!unexecutableDirectory.canExecute()))
-    assert(!nonexistentDirectory.canExecute())
+    assert(executableDirectory.canExecute(), "executableDirectory.canExecute()")
+    assertOsSpecific(
+      unexecutableDirectory.canExecute(),
+      "!unexecutableDirectory.canExecute"
+    )(onUnix = false, onWindows = true)
+    assert(
+      !nonexistentDirectory.canExecute(),
+      "!nonexistentDirectory.canExecute()"
+    )
   }
 
 }

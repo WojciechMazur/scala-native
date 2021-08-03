@@ -1,6 +1,7 @@
 package scala.scalanative.windows
 
 import scala.scalanative.unsafe._
+import scala.scalanative.unsigned._
 import scalanative.windows.{Word => WinWord}
 
 @link("ws2_32")
@@ -56,6 +57,15 @@ object WinSocketApi {
 object WinSocketApiExt {
   final val WinSocketVersion: (Byte, Byte) = (2, 2)
 
+  // WSASocket flags
+  final val WSA_FLAG_OVERLAPPED = 0x01.toUInt
+  final val WSA_FLAG_MULTIPOINT_C_ROOT = 0x02.toUInt
+  final val WSA_FLAG_MULTIPOINT_C_LEAF = 0x04.toUInt
+  final val WSA_FLAG_MULTIPOINT_D_ROOT = 0x08.toUInt
+  final val WSA_FLAG_MULTIPOINT_D_LEAF = 0x10.toUInt
+  final val WSA_FLAG_ACCESS_SYSTEM_SECURITY = 0x40.toUInt
+  final val WSA_FLAG_NO_HANDLE_INHERIT = 0x80.toUInt
+
   /* Event flag definitions for WSAPoll(). Their values might differ from Posix constants */
   final val POLLRDNORM = 0x0100
   final val POLLRDBAND = 0x0200
@@ -70,6 +80,7 @@ object WinSocketApiExt {
   final val POLLHUP = 0x0002
   final val POLLNVAL = 0x0004
 
+  // Error codes
   final val WSA_INVALID_HANDLE = 6
   final val WSA_NOT_ENOUGH_MEMORY = 8
   final val WSA_INVALID_PARAMETER = 87
@@ -172,23 +183,28 @@ object WinSocketApiOps {
   import WinSocketApiExt._
   import util.Conversion._
 
-  final def init(): Unit = {
-    val requiredVersion = (wordFromBytes _).tupled(WinSocketVersion)
-    val winSocketData = stackalloc[Byte](WinSocketApi.WSADataSize)
-      .asInstanceOf[Ptr[WSAData]]
+  private var winSocketsInitialized = false
 
-    val initError = WinSocketApi.WSAStartup(requiredVersion, winSocketData)
-    if (initError != 0) {
-      throw new RuntimeException(
-        s"Failed to initialize socket support, error code $initError "
-      )
-    }
-    val receivedVersion = wordToBytes(winSocketData.version)
-    if (WinSocketVersion != receivedVersion) {
-      WinSocketApi.WSACleanup()
-      throw new RuntimeException(
-        s"Could not find a usable version of WinSock.dll, expected $WinSocketVersion, got $receivedVersion"
-      )
+  final def init(): Unit = {
+    if (!winSocketsInitialized) {
+      val requiredVersion = (wordFromBytes _).tupled(WinSocketVersion)
+      val winSocketData = stackalloc[Byte](WinSocketApi.WSADataSize)
+        .asInstanceOf[Ptr[WSAData]]
+
+      val initError = WinSocketApi.WSAStartup(requiredVersion, winSocketData)
+      if (initError != 0) {
+        throw new RuntimeException(
+          s"Failed to initialize socket support, error code $initError "
+        )
+      }
+      val receivedVersion = wordToBytes(winSocketData.version)
+      if (WinSocketVersion != receivedVersion) {
+        WinSocketApi.WSACleanup()
+        throw new RuntimeException(
+          s"Could not find a usable version of WinSock.dll, expected $WinSocketVersion, got $receivedVersion"
+        )
+      }
+      winSocketsInitialized = true
     }
   }
 

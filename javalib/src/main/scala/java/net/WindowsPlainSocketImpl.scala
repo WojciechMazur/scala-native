@@ -20,7 +20,7 @@ private[net] class WindowsPlainSocketImpl extends AbstractPlainSocketImpl {
       protocol = 0, // choosed by provider
       protocolInfo = null,
       group = 0.toUInt,
-      flags = 0.toUInt
+      flags = WSA_FLAG_OVERLAPPED
     )
     if (socket == InvalidSocket) {
       throw new IOException(s"Couldn't create a socket: ${WSAGetLastError()}")

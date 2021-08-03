@@ -1,3 +1,4 @@
+import java.nio.charset.StandardCharsets
 import java.net.ServerSocket
 import java.io.{PrintWriter, BufferedReader, InputStreamReader, File}
 import java.nio.file.{Files, Paths}
@@ -29,9 +30,17 @@ launchServer := {
   Files.write(portFile, echoServer.getLocalPort.toString.getBytes)
   val f = Future {
     val clientSocket = echoServer.accept
-    val out = new PrintWriter(clientSocket.getOutputStream, true)
-    val in =
-      new BufferedReader(new InputStreamReader(clientSocket.getInputStream))
+    val out = new PrintWriter(
+      clientSocket.getOutputStream,
+      true,
+      StandardCharsets.UTF_8
+    )
+    val in = new BufferedReader(
+      new InputStreamReader(
+        clientSocket.getInputStream,
+        StandardCharsets.UTF_8
+      )
+    )
 
     var line = in.readLine
     while (line != null) {
@@ -81,7 +90,12 @@ launchSilentServer := {
   val f = Future {
     val clientSocket = echoServer.accept
     val in =
-      new BufferedReader(new InputStreamReader(clientSocket.getInputStream))
+      new BufferedReader(
+        new InputStreamReader(
+          clientSocket.getInputStream,
+          StandardCharsets.UTF_8
+        )
+      )
 
     var line = in.readLine
     while (line != null) {

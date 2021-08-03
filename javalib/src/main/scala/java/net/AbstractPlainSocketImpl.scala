@@ -5,6 +5,7 @@ import scala.scalanative.unsafe._
 import scala.scalanative.libc._
 import scala.scalanative.runtime.ByteArray
 import scala.scalanative.posix.errno._
+import scala.scalanative.posix.unistd
 import scala.scalanative.posix.sys.socket
 import scala.scalanative.posix.sys.socketOps._
 import scala.scalanative.posix.sys.ioctl._
@@ -18,6 +19,7 @@ import scala.scalanative.posix.sys.time._
 import scala.scalanative.posix.sys.timeOps._
 import scala.scalanative.meta.LinktimeInfo.isWindows
 import java.io.{FileDescriptor, IOException, OutputStream, InputStream}
+import scala.scalanative.windows._
 import scala.scalanative.windows.WinSocketApi._
 import scala.scalanative.windows.WinSocketApiExt._
 
@@ -207,7 +209,6 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
     }
 
     val family = (!ret).ai_family
-
     if (timeout != 0)
       setSocketFdBlocking(fd, blocking = false)
 
@@ -217,16 +218,20 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
 
     if (connectRet < 0) {
       def inProgress = {
-        if (isWindows) WSAGetLastError() == WSAEINPROGRESS
+        if (isWindows) WSAGetLastError() match {
+          case WSAEINPROGRESS | WSAEWOULDBLOCK => true
+          case _                               => false
+        }
         else errno.errno == EINPROGRESS
       }
       if (timeout > 0 && inProgress) {
         tryPollOnConnect(timeout)
       } else {
+        val errCode = if (isWindows) WSAGetLastError else errno.errno
         throw new ConnectException(
           s"Could not connect to address: ${remoteAddress}"
             + s" on port: ${inetAddr.getPort}"
-            + s", errno: ${errno.errno}"
+            + s", errno: ${errCode}"
         )
       }
     }
@@ -242,7 +247,8 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
 
   override def close(): Unit = {
     if (!isClosed) {
-      fd.close()
+      if (isWindows) WinSocketApi.closeSocket(fd.handle)
+      else unistd.close(fd.fd)
       fd = InvalidSocketDescriptor
       isClosed = true
     }
@@ -312,16 +318,27 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
         .recv(fd.fd, buffer.asInstanceOf[ByteArray].at(offset), count.toUInt, 0)
         .toInt
 
+      def timeoutDetected = {
+        if (isWindows) {
+          val errCode = WSAGetLastError()
+          errCode == WSAEWOULDBLOCK || errCode == WSAETIMEDOUT
+        } else {
+          errno.errno == EAGAIN ||
+          errno.errno == EWOULDBLOCK
+        }
+      }
+
       bytesNum match {
         case _ if (bytesNum > 0) => bytesNum
 
         case 0 => if (count == 0) 0 else -1
 
-        case _ if ((errno.errno == EAGAIN) || (errno.errno == EWOULDBLOCK)) =>
+        case _ if timeoutDetected =>
           throw new SocketTimeoutException("Socket timeout while reading data")
 
         case _ =>
-          throw new SocketException(s"read failed, errno: ${errno.errno}")
+          val errCode = if (isWindows) WSAGetLastError() else errno.errno
+          throw new SocketException(s"read failed, errno: ${errCode}")
       }
     }
   }
@@ -431,13 +448,15 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
     val optValue = nativeValueFromOption(optID)
 
     var opt: Ptr[Byte] = stackalloc[Byte]
-    var len = if (optID == SocketOptions.SO_LINGER) {
-      sizeof[socket.linger].toUInt
-    } else if (optID == SocketOptions.SO_TIMEOUT) {
-      sizeof[timeval].toUInt
-    } else {
-      sizeof[CInt].toUInt
-    }
+    var len = {
+      optID match {
+        case SocketOptions.SO_LINGER => sizeof[socket.linger]
+        case SocketOptions.SO_TIMEOUT =>
+          if (isWindows) sizeof[DWord]
+          else sizeof[timeval]
+        case _ => sizeof[CInt]
+      }
+    }.toUInt
 
     opt = optID match {
       case SocketOptions.TCP_NODELAY | SocketOptions.SO_KEEPALIVE |
@@ -459,15 +478,21 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
 
         ptr.asInstanceOf[Ptr[Byte]]
       case SocketOptions.SO_TIMEOUT =>
-        val ptr = stackalloc[timeval]
         val mseconds = value.asInstanceOf[Int]
-
         this.timeout = mseconds
 
-        ptr.tv_sec = mseconds / 1000
-        ptr.tv_usec = (mseconds % 1000) * 1000
+        if (isWindows) {
+          val ptr = stackalloc[DWord]
+          !ptr = mseconds.toUInt
+          ptr.asInstanceOf[Ptr[Byte]]
+        } else {
+          val ptr = stackalloc[timeval]
 
-        ptr.asInstanceOf[Ptr[Byte]]
+          ptr.tv_sec = mseconds / 1000
+          ptr.tv_usec = (mseconds % 1000) * 1000
+
+          ptr.asInstanceOf[Ptr[Byte]]
+        }
       case _ =>
         val ptr = stackalloc[CInt]
         !ptr = value.asInstanceOf[Int]

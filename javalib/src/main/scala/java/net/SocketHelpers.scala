@@ -13,16 +13,32 @@ import scala.scalanative.posix.sys.time.timeval
 import scala.scalanative.posix.sys.timeOps._
 import scala.scalanative.meta.LinktimeInfo.isWindows
 import scala.scalanative.windows.WinSocketApi._
+import scala.scalanative.windows.WinSocketApiOps
 
 import scala.scalanative.posix.netinet.{in, inOps}, in._, inOps._
 
-private[net] object SocketHelpers {
+object SocketHelpers {
+  if (isWindows) {
+    // WinSockets needs to be initialized before usage
+    WinSocketApiOps.init()
+  }
+
   /*
    * The following should be long enough and constant exists on macOS.
    * https://www.gnu.org/software/libc/manual/html_node/Host-Identification.html
    * https://man7.org/linux/man-pages/man2/gethostname.2.html
    */
   val MAXHOSTNAMELEN = 256.toUInt
+
+  private def setSocketNonBlocking(socket: CInt)(implicit z: Zone): CInt = {
+    if (isWindows) {
+      val mode = alloc[CInt]
+      !mode = 0
+      ioctlSocket(socket.toPtr[Byte], FIONBIO, mode)
+    } else {
+      fcntl(socket, F_SETFL, O_NONBLOCK)
+    }
+  }
 
   def isReachableByEcho(ip: String, timeout: Int, port: Int): Boolean =
     Zone { implicit z =>
@@ -37,8 +53,10 @@ private[net] object SocketHelpers {
       hints.ai_socktype = SOCK_STREAM
       hints.ai_next = null
 
-      if (getaddrinfo(cIP, toCString(port.toString), hints, ret) != 0) {
-        return false
+      getaddrinfo(cIP, toCString(port.toString), hints, ret) match {
+        case 0 => ()
+        case errCode =>
+          return false
       }
 
       val ai = !ret
@@ -46,17 +64,10 @@ private[net] object SocketHelpers {
       val sock = socket(ai.ai_family, SOCK_STREAM, ai.ai_protocol)
 
       try {
-
         if (sock < 0) {
           return false
         }
-        if (isWindows) {
-          val mode = stackalloc[CInt]
-          !mode = 0
-          ioctlSocket(sock.toPtr[Byte], FIONBIO, mode)
-        } else {
-          fcntl(sock, F_SETFL, O_NONBLOCK)
-        }
+        setSocketNonBlocking(sock)
         // stackalloc is documented as returning zeroed memory
         val fdsetPtr = stackalloc[fd_set] //  No need to FD_ZERO
         FD_SET(sock, fdsetPtr)
@@ -69,20 +80,23 @@ private[net] object SocketHelpers {
         time.tv_sec = tv_sec
         time.tv_usec = tv_usec
 
-        if (connect(sock, ai.ai_addr, ai.ai_addrlen) != 0) {
-          return false
+        connect(sock, ai.ai_addr, ai.ai_addrlen) match {
+          case 0 => ()
+          case error =>
+            return false
         }
 
-        if (select(sock + 1, null, fdsetPtr, null, time) == 1) {
-          val so_error = stackalloc[CInt].asInstanceOf[Ptr[Byte]]
-          val len = stackalloc[socklen_t]
-          !len = sizeof[CInt].toUInt
-          getsockopt(sock, SOL_SOCKET, SO_ERROR, so_error, len)
-          if (!(so_error.asInstanceOf[Ptr[CInt]]) != 0) {
+        select(sock + 1, null, fdsetPtr, null, time) match {
+          case 1 =>
+            val so_error = stackalloc[CInt].asInstanceOf[Ptr[Byte]]
+            val len = stackalloc[socklen_t]
+            !len = sizeof[CInt].toUInt
+            getsockopt(sock, SOL_SOCKET, SO_ERROR, so_error, len)
+            if (!(so_error.asInstanceOf[Ptr[CInt]]) != 0) {
+              return false
+            }
+          case error =>
             return false
-          }
-        } else {
-          return false
         }
 
         val sentBytes = send(sock, toCString("echo"), 4.toUInt, 0)
@@ -95,20 +109,19 @@ private[net] object SocketHelpers {
         // be considered as undefined for OS interoperability.
         time.tv_sec = tv_sec
         time.tv_usec = tv_usec
-
-        if (select(sock + 1, fdsetPtr, null, null, time) != 1) {
-          return false
-        } else {
-          val buf = stackalloc[CChar](5.toUInt)
-          val recBytes = recv(sock, buf, 5.toUInt, 0)
-          if (recBytes < 4) {
+        select(sock + 1, fdsetPtr, null, null, time) match {
+          case 1 =>
+            val buf = stackalloc[CChar](5.toUInt)
+            val recBytes = recv(sock, buf, 5.toUInt, 0)
+            if (recBytes < 4) {
+              return false
+            }
+          case error =>
             return false
-          }
         }
-      } catch {
-        case e: Throwable => e
       } finally {
-        close(sock)
+        if (isWindows) closeSocket(sock.toPtr[Byte])
+        else close(sock)
         freeaddrinfo(ai)
       }
       true

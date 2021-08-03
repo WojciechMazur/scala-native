@@ -652,6 +652,7 @@ object Files {
     while (lines.hasNext()) {
       list.add(lines.next())
     }
+    reader.close()
     list
   }
 

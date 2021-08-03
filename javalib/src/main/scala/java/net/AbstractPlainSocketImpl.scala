@@ -405,10 +405,13 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
       sizeof[CInt].toUInt
     }
 
-    if (socket.getsockopt(fd.fd, level, optValue, opt, len) == -1) {
+    if (socket.getsockopt(fd.fd, level, optValue, opt, len) != 0) {
+      val errCode =
+        if (isWindows) WSAGetLastError()
+        else errno.errno
       throw new SocketException(
         "Exception while getting socket option with id: "
-          + optValue + ", errno: " + errno.errno
+          + optValue + ", errno: " + errCode
       )
     }
 
@@ -447,8 +450,7 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
     }
     val optValue = nativeValueFromOption(optID)
 
-    var opt: Ptr[Byte] = stackalloc[Byte]
-    var len = {
+    val len = {
       optID match {
         case SocketOptions.SO_LINGER => sizeof[socket.linger]
         case SocketOptions.SO_TIMEOUT =>
@@ -458,7 +460,7 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
       }
     }.toUInt
 
-    opt = optID match {
+    val opt = optID match {
       case SocketOptions.TCP_NODELAY | SocketOptions.SO_KEEPALIVE |
           SocketOptions.SO_REUSEADDR | SocketOptions.SO_OOBINLINE =>
         val ptr = stackalloc[CInt]
@@ -467,7 +469,6 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
       case SocketOptions.SO_LINGER =>
         val ptr = stackalloc[socket.linger]
         val linger = value.asInstanceOf[Int]
-
         if (linger == -1) {
           ptr.l_onoff = 0
           ptr.l_linger = 0
@@ -499,10 +500,13 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
         ptr.asInstanceOf[Ptr[Byte]]
     }
 
-    if (socket.setsockopt(fd.fd, level, optValue, opt, len) == -1) {
+    if (socket.setsockopt(fd.fd, level, optValue, opt, len) != 0) {
+      val errCode =
+        if (isWindows) WSAGetLastError()
+        else errno.errno
       throw new SocketException(
         "Exception while setting socket option with id: "
-          + optID + ", errno: " + errno.errno
+          + optID + ", errno: " + errCode
       )
     }
   }

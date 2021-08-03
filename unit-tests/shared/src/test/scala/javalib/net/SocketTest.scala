@@ -56,15 +56,14 @@ class SocketTest {
   }
 
   @Test def soLinger(): Unit = {
-    assumeFalse("Temporally disabled, Not working in Windows", isWindows)
     val s = new Socket()
     try {
       s.setSoLinger(true, 100)
-      assertEquals(s.getSoLinger, 100)
+      assertEquals(100, s.getSoLinger)
       s.setSoLinger(false, 50000000)
-      assertEquals(s.getSoLinger, -1)
+      assertEquals(-1, s.getSoLinger)
       s.setSoLinger(true, 0)
-      assertEquals(s.getSoLinger, 0)
+      assertEquals(0, s.getSoLinger)
     } finally {
       s.close()
     }
@@ -144,8 +143,6 @@ class SocketTest {
   }
 
   @Test def connectWithTimeout(): Unit = {
-    assumeFalse("Temporally disabled, Not working in Windows", isWindows)
-
     val s = new Socket()
     try {
       assertThrows(

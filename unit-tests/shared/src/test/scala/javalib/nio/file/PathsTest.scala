@@ -8,7 +8,7 @@ import org.junit.Test
 import org.junit.Assert._
 
 import scalanative.junit.utils.AssertThrows.assertThrows
-import scalanative.meta.LinktimeInfo.isWindows
+import org.scalanative.testsuite.utils.Platform.isWindows
 
 class PathsTest {
   @Test def pathsGetRelativePathReturnsPathRelativeToCwd(): Unit = {
@@ -50,15 +50,17 @@ class PathsTest {
   }
 
   @Test def pathsGetUriReturnsPathIfSchemeIsFile(): Unit = {
-    val pathString1 = if (isWindows) raw"C:\foo\bar" else "/foo/bar"
-    val pathString2 = if (isWindows) raw"C:\hello\world" else "/hello/world"
+    val pathString1 = if (isWindows) "/C:/foo/bar" else "/foo/bar"
+    val expected1 = if (isWindows) raw"C:\foo\bar" else pathString1
+    val pathString2 = if (isWindows) "/C:/hello/world" else "/hello/world"
+    val expected2 = if (isWindows) raw"C:\hello\world" else pathString2
 
     val path =
       Paths.get(new URI("file", null, null, 0, pathString1, null, null))
-    assertEquals(pathString1, path.toString)
+    assertEquals(expected1, path.toString)
 
     val path2 =
       Paths.get(new URI("fIlE", null, null, 0, pathString2, null, null))
-    assertEquals(pathString2, path2.toString)
+    assertEquals(expected2, path2.toString)
   }
 }

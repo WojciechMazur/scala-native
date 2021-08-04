@@ -8,7 +8,7 @@ import org.junit.Test
 import org.junit.Assert._
 
 import scalanative.junit.utils.AssertThrows.assertThrows
-import scalanative.meta.LinktimeInfo.isWindows
+import org.scalanative.testsuite.utils.Platform.isWindows
 
 class FileTest {
 

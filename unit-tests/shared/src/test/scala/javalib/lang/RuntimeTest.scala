@@ -8,7 +8,7 @@ import java.io.File
 import org.junit.Test
 import org.junit.Assert._
 import org.junit.Assume._
-import scala.scalanative.runtime.Platform.isWindows
+import org.scalanative.testsuite.utils.Platform.isWindows
 
 class RuntimeTest {
   import ProcessUtils._

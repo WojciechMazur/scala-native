@@ -1,17 +1,18 @@
 package javalib.lang
 
 import java.lang._
-
 import java.io.InputStream
-
+import java.nio.file.Paths
 import java.util.concurrent.TimeUnit
-
 import scala.io.Source
 
 import org.junit.Assert._
+import org.scalanative.testsuite.utils.Platform.isWindows
 
 object ProcessUtils {
   def readInputStream(s: InputStream) = Source.fromInputStream(s).mkString
+
+  final val EOL = System.lineSeparator()
 
   val resourceDir = {
     val platform = if (isWindows) "windows" else "unix"
@@ -39,7 +40,7 @@ object ProcessUtils {
       new ProcessBuilder(args: _*)
   }
 
-def processForCommand(script: Scripts.Entry, args: String*): ProcessBuilder =
+  def processForCommand(script: Scripts.Entry, args: String*): ProcessBuilder =
     processForCommand((script.cmd +: args): _*)
 
   def assertProcessExitOrTimeout(process: Process): Unit = {
@@ -79,7 +80,7 @@ def processForCommand(script: Scripts.Entry, args: String*): ProcessBuilder =
       pb
     }
   }
-   object Scripts {
+  object Scripts {
     final class Entry(name: String, noExt: Boolean = false) {
       def filename =
         if (noExt) name

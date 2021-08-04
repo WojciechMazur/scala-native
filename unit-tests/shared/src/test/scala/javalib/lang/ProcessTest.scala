@@ -9,6 +9,7 @@ import scala.io.Source
 import org.junit.Test
 import org.junit.Assert._
 import org.junit.Assume._
+import org.scalanative.testsuite.utils.Platform.isWindows
 
 class ProcessTest {
   import javalib.lang.ProcessUtils._

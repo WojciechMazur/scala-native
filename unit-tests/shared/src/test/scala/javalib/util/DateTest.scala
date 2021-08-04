@@ -5,7 +5,7 @@ import java.util._
 import org.junit.Test
 import org.junit.Assert._
 import org.junit.Assume._
-import scalanative.meta.LinktimeInfo.isWindows
+import org.scalanative.testsuite.utils.Platform.isWindows
 
 class DateTest {
   // now : java.util.Date = Fri Mar 31 14:47:44 EDT 2017

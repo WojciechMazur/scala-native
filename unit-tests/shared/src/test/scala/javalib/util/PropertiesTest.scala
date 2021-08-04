@@ -471,7 +471,8 @@ class PropertiesTest {
     val prop = new java.util.Properties()
     prop.load(
       new InputStreamReader(
-        new ByteArrayInputStream(in.getBytes(StandardCharsets.UTF_8))
+        new ByteArrayInputStream(in.getBytes(StandardCharsets.UTF_8)),
+        StandardCharsets.UTF_8
       )
     )
     prop

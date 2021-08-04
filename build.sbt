@@ -408,7 +408,6 @@ lazy val sbtScalaNative =
       sbtTestDirectory := (ThisBuild / baseDirectory).value / "scripted-tests",
       // publish the other projects before running scripted tests.
       scriptedDependencies := {
-          (sbtTestDirectory.value / "run/java-net-socket/SocketHelpers.scala").toPath,
         // Synchronize SocketHelpers used in java-net-socket test
         Files.copy(
           ((javalib / Compile / scalaSource).value / "java/net/SocketHelpers.scala").toPath,

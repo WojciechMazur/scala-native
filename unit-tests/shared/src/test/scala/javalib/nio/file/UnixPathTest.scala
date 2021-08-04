@@ -7,6 +7,7 @@ import org.junit.Assert._
 import org.junit.Assume._
 
 import scalanative.junit.utils.AssertThrows.assertThrows
+import org.scalanative.testsuite.utils.Platform.isWindows
 
 class UnixPathTest {
 
@@ -14,7 +15,7 @@ class UnixPathTest {
   def checkIsUnix() {
     assumeFalse(
       "Not checking Unix paths on Windows",
-      scalanative.runtime.Platform.isWindows
+      isWindows
     )
   }
 

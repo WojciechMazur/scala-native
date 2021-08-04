@@ -5,7 +5,7 @@ import java.io._
 import org.junit.Test
 
 import scalanative.junit.utils.AssertThrows.assertThrows
-import scala.scalanative.meta.LinktimeInfo.isWindows
+import org.scalanative.testsuite.utils.Platform.isWindows
 
 class PrintStreamTest {
 

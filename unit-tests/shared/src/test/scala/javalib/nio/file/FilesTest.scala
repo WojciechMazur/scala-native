@@ -15,7 +15,7 @@ import org.junit.Assume._
 
 import scalanative.junit.utils.AssertThrows.assertThrows
 import scala.scalanative.junit.utils.CollectionConverters._
-import scalanative.meta.LinktimeInfo.isWindows
+import org.scalanative.testsuite.utils.Platform.isWindows
 
 class FilesTest {
   import FilesTest._

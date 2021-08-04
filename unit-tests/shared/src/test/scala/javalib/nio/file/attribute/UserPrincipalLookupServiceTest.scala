@@ -8,7 +8,7 @@ import org.junit.Assert._
 import org.junit.Assume._
 
 import scalanative.junit.utils.AssertThrows.assertThrows
-import scalanative.meta.LinktimeInfo.isWindows
+import org.scalanative.testsuite.utils.Platform.isWindows
 import org.scalanative.testsuite
 
 class UserPrincipalLookupServiceTest {

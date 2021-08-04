@@ -11,7 +11,7 @@ jobs:
     runs-on: windows-2019
     steps:
       - uses: actions/checkout@v2
-      
+
       #Prepare environment, clang needs to be installed
       #Compilation on MSVC needs c++14 or higher and expects llvm 11.0.0 or newer
       - name: Cache LLVM
@@ -87,9 +87,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ windows-2019 ]
-        scala: [ 2.13.6, 2.12.14, 2.11.12 ]
-        gc: [none, immix, commix]
+        os: [windows-2019]
+        scala: [2.13.6, 2.12.14, 2.11.12]
+        gc: [none, boehm, commix, immix]
+        mode: [debug, release-fast]
     steps:
       - uses: actions/checkout@v2
 
@@ -111,6 +112,7 @@ jobs:
             ${{steps.resolve-env.outputs.LocalAppData}}\Coursier\Cache\v1\
             ${{steps.resolve-env.outputs.UserProfile}}\.ivy2\cache
           key: ${{ runner.os }}-${{ matrix.scala }}-deps
+
       # Install LLVM in case if cache is missing
       - name: Install LLVM
         if: steps.cache-deps.outputs.cache-hit != 'true'
@@ -121,8 +123,66 @@ jobs:
       - name: Assert clang installed and on path
         run: clang --version
 
+      - name: Install libs
+        run: vcpkg install bdwgc zlib --triplet=x64-windows-static
+      - name: Set Scala Native env variables
+        run: |
+          echo "SCALANATIVE_MODE=${{matrix.mode}}" >> $GITHUB_ENV
+          echo "SCALANATIVE_GC=${{matrix.gc}}" >> $GITHUB_ENV
+          echo "SCALANATIVE_INCLUDE_DIRS=${env:VCPKG_INSTALLATION_ROOT}/installed/x64-windows-static/include"
+          echo "SCALANATIVE_LIB_DIRS=${env:VCPKG_INSTALLATION_ROOT}/installed/x64-windows-static/lib"
+        shell: cmd
+
       - name: Test runtime
         run: |
-          set SCALANATIVE_GC=${{matrix.gc}}
-          sbt ++${{matrix.scala}};sandbox/run;testsExt/test
+          sbt ++${{matrix.scala}};test-runtime
+        shell: cmd
+
+  run-scripted-tests:
+    name: Run scripted tests
+    runs-on: ${{matrix.os}}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2019]
+        scala: [2.13.6, 2.12.14, 2.11.12]
+    steps:
+      - uses: actions/checkout@v2
+
+      #Prepare environment, clang needs to be installed
+      #Compilation on MSVC needs c++14 or higher and expects llvm 11.0.0 or newer
+      #Cache commonly used files: Coursier, ivy cache
+      - name: Resolve env variables
+        id: resolve-env
+        run: |
+          echo "::set-output name=ProgramFiles::${env:ProgramFiles}"
+          echo "::set-output name=LocalAppData::${env:LocalAppData}"
+          echo "::set-output name=UserProfile::${env:UserProfile}"
+
+      - name: Cache dependencies
+        id: cache-deps
+        uses: actions/cache@v2
+        with:
+          path: |
+            ${{steps.resolve-env.outputs.ProgramFiles}}\LLVM\
+            ${{steps.resolve-env.outputs.LocalAppData}}\Coursier\Cache\v1\
+            ${{steps.resolve-env.outputs.UserProfile}}\.ivy2\cache
+          key: ${{ runner.os }}-${{ matrix.scala }}-deps
+
+      # Install LLVM in case if cache is missing
+      - name: Install LLVM
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: choco install llvm --version=11.0.0
+
+      - name: Set Scala Native env variables
+        run: |
+          echo "SCALANATIVE_MODE=${{matrix.mode}}" >> $GITHUB_ENV
+          echo "SCALANATIVE_GC=${{matrix.gc}}" >> $GITHUB_ENV
+          echo "SCALANATIVE_INCLUDE_DIRS=${env:VCPKG_INSTALLATION_ROOT}/installed/x64-windows-static/include"
+          echo "SCALANATIVE_LIB_DIRS=${env:VCPKG_INSTALLATION_ROOT}/installed/x64-windows-static/lib"
+        shell: cmd
+
+      - name: Test scripted
+        run: |
+          sbt ++${{matrix.scala}};test-scripted
         shell: cmd

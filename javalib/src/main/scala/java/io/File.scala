@@ -823,7 +823,7 @@ object File {
 
         // found an absolute path. continue from there.
         case link if link(0) == separatorChar =>
-          if (Platform.isWindows &&
+          if (Platform.isWindows() &&
               strncmp(link, c"\\\\?\\", 4.toUInt) == 0 &&
               strlen(link) <= 7.toUInt) {
             // It's root directory
@@ -942,7 +942,7 @@ object File {
       .getRootDirectories()
       .scalaOps
       .toSeq
-      .map(_.toFile)
+      .map(_.toFile())
       .toArray
   }
 

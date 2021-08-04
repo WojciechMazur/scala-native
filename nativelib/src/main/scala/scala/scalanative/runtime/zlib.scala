@@ -2,7 +2,7 @@ package scala.scalanative.runtime
 
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
-import scala.scalanative.runtime.Platform.isWindows
+import scala.scalanative.meta.LinktimeInfo.isWindows
 
 @link("z")
 @extern

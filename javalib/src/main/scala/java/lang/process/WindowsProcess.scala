@@ -103,7 +103,7 @@ object WindowsProcess {
   private final val readEnd = 0
   private final val writeEnd = 1
 
-  def zeroMemory[T: Tag](ptr: Ptr[T]) {
+  private def zeroMemory[T: Tag](ptr: Ptr[T]) = {
     import scalanative.libc.string.memset
     memset(ptr.asInstanceOf[Ptr[Byte]], 0, sizeof[T])
   }
@@ -237,7 +237,7 @@ object WindowsProcess {
         sharing: DWord = FILE_SHARE_ALL
     ) = Zone { implicit z =>
       val handle = FileApi.CreateFileW(
-        filename = toCWideStringUTF16LE(redirect.file.getAbsolutePath()),
+        filename = toCWideStringUTF16LE(redirect.file().getAbsolutePath()),
         desiredAccess = access,
         shareMode = sharing,
         securityAttributes = null,

@@ -290,7 +290,7 @@ private object RandomAccessFile {
         case _                    => invalidFlags()
       }
       val mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH
-      val fd = open(toCString(file.getPath), flags, mode)
+      val fd = open(toCString(file.getPath()), flags, mode)
       new FileDescriptor(FileDescriptor.FileHandle(fd), readOnly = false)
     }
 
@@ -304,7 +304,7 @@ private object RandomAccessFile {
       }
 
       val handle = FileApi.CreateFileW(
-        toCWideStringUTF16LE(file.getPath),
+        toCWideStringUTF16LE(file.getPath()),
         desiredAccess = access,
         shareMode = FILE_SHARE_READ | FILE_SHARE_WRITE,
         securityAttributes = null,

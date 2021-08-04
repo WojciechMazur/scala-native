@@ -78,7 +78,7 @@ object WindowsPathParser {
     // We also accept `:` after drive letter
     val share = substringAndCheck(rawPath, shareStartIdx, shareEndIdx, ":")
 
-    Some(raw"\\$host\$share\")
+    Some(raw"""\\$host\$share\""")
   }
 
   private def pathSegments(path: String): List[String] = {

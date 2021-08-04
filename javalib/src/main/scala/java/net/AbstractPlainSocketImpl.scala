@@ -227,7 +227,7 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
       if (timeout > 0 && inProgress) {
         tryPollOnConnect(timeout)
       } else {
-        val errCode = if (isWindows) WSAGetLastError else errno.errno
+        val errCode = if (isWindows) WSAGetLastError() else errno.errno
         throw new ConnectException(
           s"Could not connect to address: ${remoteAddress}"
             + s" on port: ${inetAddr.getPort}"

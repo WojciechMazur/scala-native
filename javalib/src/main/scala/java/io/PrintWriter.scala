@@ -114,7 +114,7 @@ class PrintWriter(protected[io] var out: Writer, autoFlush: Boolean)
   def print(obj: AnyRef): Unit = write(String.valueOf(obj))
 
   def println(): Unit = {
-    write(System.lineSeparator)
+    write(System.lineSeparator())
     if (autoFlush)
       flush()
   }

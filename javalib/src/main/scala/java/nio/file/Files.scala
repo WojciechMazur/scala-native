@@ -492,13 +492,13 @@ object Files {
       replaceExisting: => Boolean
   ) =
     Zone { implicit z =>
-      val sourceAbs = source.toAbsolutePath.toString
-      val targetAbs = target.toAbsolutePath.toString
+      val sourceAbs = source.toAbsolutePath().toString
+      val targetAbs = target.toAbsolutePath().toString
       if (isWindows) {
         val sourceCString = toCWideStringUTF16LE(sourceAbs)
         val targetCString = toCWideStringUTF16LE(targetAbs)
         // We cannot replace directory, it needs to be removed first
-        if (replaceExisting && target.toFile.isDirectory) {
+        if (replaceExisting && target.toFile().isDirectory()) {
           //todo delete children
           Files.delete(target)
         }

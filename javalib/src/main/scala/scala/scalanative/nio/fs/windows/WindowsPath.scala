@@ -25,11 +25,11 @@ class WindowsPath private[windows] (
     extends Path {
   import WindowsPath._
 
-  private def this(segments: List[String])(implicit fs: WindowsFileSystem) {
+  private def this(segments: List[String])(implicit fs: WindowsFileSystem) = {
     this(WindowsPath.PathType.Relative, None, segments)
   }
 
-  private def this(path: String)(implicit fs: WindowsFileSystem) {
+  private def this(path: String)(implicit fs: WindowsFileSystem) = {
     this(path :: Nil)
   }
 

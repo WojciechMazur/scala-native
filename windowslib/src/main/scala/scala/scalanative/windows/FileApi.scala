@@ -311,7 +311,7 @@ object FileApiOps {
   }
 
   implicit final class Win32FileDataWOps(ref: Ptr[Win32FindDataW])
-      extends Win32FileDataOps(ref) {
+      extends Win32FileDataOps[CChar16](ref) {
     override def fileName_=(v: CWString): Unit =
       wcscpy(
         ref.at9.at(0).asInstanceOf[CWideString],

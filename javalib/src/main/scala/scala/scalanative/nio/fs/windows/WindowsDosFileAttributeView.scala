@@ -51,14 +51,14 @@ final class WindowsDosFileAttributeView(path: Path, options: Array[LinkOption])
     map.put("creationTime", attributes.creationTime())
     map.put("fileKey", attributes.fileKey())
     map.put("size", Long.box(attributes.size()))
-    map.put("isRegularFile", Boolean.box(attributes.isRegularFile))
-    map.put("isDirectory", Boolean.box(attributes.isDirectory))
-    map.put("isSymbolicLink", Boolean.box(attributes.isSymbolicLink))
-    map.put("isOther", Boolean.box(attributes.isOther))
-    map.put("readonly", Boolean.box(attributes.isReadOnly))
-    map.put("hidden", Boolean.box(attributes.isHidden))
-    map.put("system", Boolean.box(attributes.isSystem))
-    map.put("archive", Boolean.box(attributes.isArchive))
+    map.put("isRegularFile", Boolean.box(attributes.isRegularFile()))
+    map.put("isDirectory", Boolean.box(attributes.isDirectory()))
+    map.put("isSymbolicLink", Boolean.box(attributes.isSymbolicLink()))
+    map.put("isOther", Boolean.box(attributes.isOther()))
+    map.put("readonly", Boolean.box(attributes.isReadOnly()))
+    map.put("hidden", Boolean.box(attributes.isHidden()))
+    map.put("system", Boolean.box(attributes.isSystem()))
+    map.put("archive", Boolean.box(attributes.isArchive()))
     map
   }
 
@@ -106,8 +106,9 @@ final class WindowsDosFileAttributeView(path: Path, options: Array[LinkOption])
 
   def readAttributes(): DosFileAttributes = attributes
 
-  private lazy val attributes = Zone { implicit z =>
+  private lazy val attributes: DosFileAttributes = Zone { implicit z: Zone =>
     val fileInfo = alloc[ByHandleFileInformation]
+
     withFileOpen(
       pathAbs,
       access = FILE_READ_ATTRIBUTES,
@@ -174,7 +175,7 @@ final class WindowsDosFileAttributeView(path: Path, options: Array[LinkOption])
   }
 
   @alwaysinline
-  private lazy val pathAbs = path.toAbsolutePath.toString
+  private lazy val pathAbs = path.toAbsolutePath().toString
 
   private def toFileTime(winFileTime: WinFileTime): FileTime = {
     try {

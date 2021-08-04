@@ -29,6 +29,9 @@ object WindowsPathParser {
     val (tpe, root) = if (charAtIdx(0, isSlash)) {
       if (charAtIdx(1, isSlash))
         UNC -> getUNCRoot(rawPath)
+      else if (charAtIdx(1, isAnsiLetter) && charAtIdx(2, _ == ':'))
+        // URI specific, absolute path starts with / followed by absolute path
+        Absolute -> Some(rawPath.substring(1, 4))
       else
         DriveRelative -> None
     } else if (charAtIdx(0, isAnsiLetter) && charAtIdx(1, _ == ':')) {

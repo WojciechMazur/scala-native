@@ -23,33 +23,45 @@ class SystemTest {
   }
 
   @Test def systemGetenvShouldContainKnownEnvVariables(): Unit = {
-    assert(System.getenv().containsKey("HOME"))
-    assert(System.getenv().get("USER") == "scala-native")
-    assert(System.getenv().get("SCALA_NATIVE_ENV_WITH_EQUALS") == "1+1=2")
-    assert(System.getenv().get("SCALA_NATIVE_ENV_WITHOUT_VALUE") == "")
-    assert(System.getenv().get("SCALA_NATIVE_ENV_THAT_DOESNT_EXIST") == null)
-    assert(
+    assertTrue("home", System.getenv().containsKey("HOME"))
+    assertTrue("user", System.getenv().containsKey("USER"))
+    assertTrue(System.getenv().containsKey("SCALA_NATIVE_ENV_WITH_EQUALS"))
+    assertTrue(System.getenv().containsKey("SCALA_NATIVE_ENV_WITHOUT_VALUE"))
+    assertFalse(
+      System.getenv().containsKey("SCALA_NATIVE_ENV_THAT_DOESNT_EXIST")
+    )
+    assertTrue(
       System
         .getenv()
-        .get("SCALA_NATIVE_ENV_WITH_UNICODE") == 0x2192.toChar.toString
+        .containsKey("SCALA_NATIVE_ENV_WITH_UNICODE")
     )
   }
 
   @Test def systemGetenvKeyShouldReadKnownEnvVariables(): Unit = {
-    assert(System.getenv("USER") == "scala-native")
-    assert(System.getenv("SCALA_NATIVE_ENV_WITH_EQUALS") == "1+1=2")
-    assert(System.getenv("SCALA_NATIVE_ENV_WITHOUT_VALUE") == "")
-    assert(System.getenv("SCALA_NATIVE_ENV_THAT_DOESNT_EXIST") == null)
+    assertEquals("scala-native", System.getenv().get("USER"))
+    assertEquals("1+1=2", System.getenv("SCALA_NATIVE_ENV_WITH_EQUALS"))
+    assertEquals("", System.getenv("SCALA_NATIVE_ENV_WITHOUT_VALUE"))
+    assertEquals(null, System.getenv("SCALA_NATIVE_ENV_THAT_DOESNT_EXIST"))
+    assertEquals(
+      0x2192.toChar.toString,
+      System
+        .getenv()
+        .get("SCALA_NATIVE_ENV_WITH_UNICODE")
+    )
+
   }
 
   @Test def propertyUserHomeShouldBeSet(): Unit = {
-    assertEquals(System.getProperty("user.home"), System.getenv("HOME"))
+    assertEquals(
+      System.getProperty("user.home").toLowerCase(),
+      System.getenv("HOME").toLowerCase()
+    )
   }
 
   @Test def propertyUserDirShouldBeSet(): Unit = {
     assertEquals(
-      System.getProperty("user.dir"),
-      System.getenv("SCALA_NATIVE_USER_DIR")
+      System.getProperty("user.dir").toLowerCase(),
+      System.getenv("SCALA_NATIVE_USER_DIR").toLowerCase()
     )
   }
 

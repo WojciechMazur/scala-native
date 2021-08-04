@@ -1,5 +1,4 @@
-package scala.scalanative
-package runtime
+package java.net
 
 import scala.scalanative.unsigned._
 import scala.scalanative.unsafe._
@@ -12,10 +11,12 @@ import scala.scalanative.posix.unistd.close
 import scala.scalanative.posix.fcntl._
 import scala.scalanative.posix.sys.time.timeval
 import scala.scalanative.posix.sys.timeOps._
+import scala.scalanative.meta.LinktimeInfo.isWindows
+import scala.scalanative.windows.WinSocketApi._
 
 import scala.scalanative.posix.netinet.{in, inOps}, in._, inOps._
 
-object SocketHelpers {
+private[net] object SocketHelpers {
   /*
    * The following should be long enough and constant exists on macOS.
    * https://www.gnu.org/software/libc/manual/html_node/Host-Identification.html
@@ -49,9 +50,13 @@ object SocketHelpers {
         if (sock < 0) {
           return false
         }
-
-        fcntl(sock, F_SETFL, O_NONBLOCK)
-
+        if (isWindows) {
+          val mode = stackalloc[CInt]
+          !mode = 0
+          ioctlSocket(sock.toPtr[Byte], FIONBIO, mode)
+        } else {
+          fcntl(sock, F_SETFL, O_NONBLOCK)
+        }
         // stackalloc is documented as returning zeroed memory
         val fdsetPtr = stackalloc[fd_set] //  No need to FD_ZERO
         FD_SET(sock, fdsetPtr)

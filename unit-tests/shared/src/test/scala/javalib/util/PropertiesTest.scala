@@ -196,10 +196,16 @@ class PropertiesTest {
       val ps = new PrintStream(out)
       props.list(ps)
       ps.close()
-      assertEquals(out.toString.trim, result.trim)
+      assertEquals(
+        out.toString.replaceAll(System.lineSeparator(), "\n").trim,
+        result.replaceAll(System.lineSeparator(), "\n").trim
+      )
     }
 
-    assertResult(new Properties(), "-- listing properties --\n")
+    assertResult(
+      new Properties(),
+      s"-- listing properties --${System.lineSeparator()}"
+    )
 
     val prop1 = new Properties()
     prop1.put("name", "alice")
@@ -370,7 +376,8 @@ class PropertiesTest {
          |!AfterExclaim
          |#AfterPound
          |#Wow!""".stripMargin
-    assertTrue(out1.toString().startsWith(commentsWithoutDate))
+    val out = out1.toString().replaceAll(System.lineSeparator(), "\n")
+    assertTrue(out.startsWith(commentsWithoutDate))
   }
 
   @Test def checkPropertiesFormattedCorrectly(): Unit = {

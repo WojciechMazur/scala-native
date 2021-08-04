@@ -7,6 +7,7 @@ import org.junit.Assume._
 import java.io.IOException
 
 import org.scalanative.testsuite.utils.Platform
+import scala.scalanative.meta.LinktimeInfo.isWindows
 
 import scalanative.libc.{errno => libcErrno, string}
 import scala.scalanative.unsafe._
@@ -34,7 +35,9 @@ class TimeTest {
   // results. This is a best effort to make the tests more portable
   //
   // See discussion in https://github.com/scala-native/scala-native/issues/2237
-  val timeIsStandard: Boolean = {
+  val timeIsStandard: Boolean =
+    if (isWindows) false
+    else {
     Zone { implicit z =>
       val time_ptr = stackalloc[time_t]
       !time_ptr = now_time_t
@@ -44,7 +47,8 @@ class TimeTest {
     }
   }
 
-  @Test def asctimeWithGivenKnownStateShouldMatchItsRepresentation(): Unit = {
+  @Test def asctimeWithGivenKnownStateShouldMatchItsRepresentation(): Unit =
+    if (!isWindows) {
     Zone { implicit z =>
       val anno_zero_ptr = alloc[tm]
       anno_zero_ptr.tm_mday = 1
@@ -55,7 +59,8 @@ class TimeTest {
     }
   }
 
-  @Test def asctime_rWithGivenKnownStateShouldMatchItsRepresentation(): Unit = {
+  @Test def asctime_rWithGivenKnownStateShouldMatchItsRepresentation(): Unit =
+    if (!isWindows) {
     Zone { implicit z =>
       val anno_zero_ptr = alloc[tm]
       anno_zero_ptr.tm_mday = 1
@@ -65,7 +70,8 @@ class TimeTest {
       assertEquals("Mon Jan  1 00:00:00 1900\n", str)
     }
   }
-  @Test def localtimeShouldTransformTheEpochToLocaltime(): Unit = {
+  @Test def localtimeShouldTransformTheEpochToLocaltime(): Unit =
+    if (!isWindows) {
     assumeTrue("time is not standard, test will not execute", timeIsStandard)
     assumeFalse(
       "Skipping localtime test since FreeBSD hasn't the 'timezone' variable",
@@ -80,7 +86,8 @@ class TimeTest {
     assertEquals("Thu Jan  1 00:00:00 1970\n", str)
   }
 
-  @Test def localtime_rShouldTransformTheEpochToLocaltime(): Unit = {
+  @Test def localtime_rShouldTransformTheEpochToLocaltime(): Unit =
+    if (!isWindows) {
     Zone { implicit z =>
       assumeTrue("time is not standard, test will not execute", timeIsStandard)
       assumeFalse(
@@ -102,12 +109,13 @@ class TimeTest {
     assertTrue(difftime(now_time_t, epoch) > 1502752688)
   }
 
-  @Test def timeNowGreaterThanTimestampWhenCodeWasWritten(): Unit = {
+  @Test def timeNowGreaterThanTimestampWhenCodeWasWritten(): Unit =
+    if (!isWindows) {
     // arbitrary date set at the time when I was writing this.
     assertTrue(now_time_t > 1502752688)
   }
 
-  @Test def strftimeDoesNotReadMemoryOutsideStructTm(): Unit = {
+  @Test def strftimeDoesNotReadMemoryOutsideStructTm(): Unit = if (!isWindows) {
     Zone { implicit z =>
       // The purpose of this test is to check two closely related conditions.
       // These conditions not a concern when the size of the C structure
@@ -183,7 +191,7 @@ class TimeTest {
     }
   }
 
-  @Test def strftimeForJanOne1900ZeroZulu(): Unit = {
+  @Test def strftimeForJanOne1900ZeroZulu(): Unit = if (!isWindows) {
     Zone { implicit z =>
       val isoDatePtr: Ptr[CChar] = alloc[CChar](70)
       val timePtr = alloc[tm]
@@ -198,7 +206,7 @@ class TimeTest {
     }
   }
 
-  @Test def strftimeForMondayJanOne1990ZeroTime(): Unit = {
+  @Test def strftimeForMondayJanOne1990ZeroTime(): Unit = if (!isWindows) {
     Zone { implicit z =>
       val timePtr = alloc[tm]
       val datePtr: Ptr[CChar] = alloc[CChar](70)
@@ -213,7 +221,7 @@ class TimeTest {
     }
   }
 
-  @Test def strptimeDetectsGrosslyInvalidFormat(): Unit = {
+  @Test def strptimeDetectsGrosslyInvalidFormat(): Unit = if (!isWindows) {
     Zone { implicit z =>
       val tmPtr = alloc[tm]
 
@@ -233,7 +241,7 @@ class TimeTest {
     }
   }
 
-  @Test def strptimeDetectsInvalidString(): Unit = {
+  @Test def strptimeDetectsInvalidString(): Unit = if (!isWindows) {
     Zone { implicit z =>
       val tmPtr = alloc[tm]
 
@@ -245,7 +253,7 @@ class TimeTest {
     }
   }
 
-  @Test def strptimeDetectsStringShorterThanFormat(): Unit = {
+  @Test def strptimeDetectsStringShorterThanFormat(): Unit = if (!isWindows) {
     Zone { implicit z =>
       val tmPtr = alloc[tm]
 
@@ -256,7 +264,8 @@ class TimeTest {
     }
   }
 
-  @Test def strptimeDoesNotWriteMemoryOutsideStructTm(): Unit = {
+  @Test def strptimeDoesNotWriteMemoryOutsideStructTm(): Unit =
+    if (!isWindows) {
     Zone { implicit z =>
       assumeTrue("time is not standard, test will not execute", timeIsStandard)
       // The purpose of this test is to check that time.scala method
@@ -365,7 +374,7 @@ class TimeTest {
     }
   }
 
-  @Test def strptimeFor31December2016Time235960(): Unit = {
+  @Test def strptimeFor31December2016Time235960(): Unit = if (!isWindows) {
     Zone { implicit z =>
       val tmPtr = alloc[tm]
 
@@ -415,7 +424,7 @@ class TimeTest {
     }
   }
 
-  @Test def strptimeExtraTextAfterDateStringIsOK(): Unit = {
+  @Test def strptimeExtraTextAfterDateStringIsOK(): Unit = if (!isWindows) {
     Zone { implicit z =>
       val tmPtr = alloc[tm]
 

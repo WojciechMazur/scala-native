@@ -1,25 +1,25 @@
 package java.nio.file
 
-import java.io.IOException
-import java.nio.charset.StandardCharsets
-import scala.scalanative.libc.{errno => stdErrno}
-import scala.scalanative.posix.errno._
 import scala.scalanative.unsafe._
 import scala.scalanative.unsigned._
+import scala.scalanative.posix.errno._
 import scala.scalanative.windows._
+import java.io.IOException
+import java.nio.charset.StandardCharsets
 import scala.scalanative.windows.ErrorHandlingApi._
-import scala.scalanative.windows.ErrorCodes._
 import scala.scalanative.windows.WinBaseApi._
-import scala.scalanative.windows.WinBaseApiExt._
+import java.nio.file._
+import scalanative.libc.{string, errno => stdErrno}
 
-private[java] trait WindowsException extends Exception
-private[java] object WindowsException {
+trait WindowsException extends Exception
+object WindowsException {
   def apply(msg: String): WindowsException = {
     val err = GetLastError()
     new IOException(s"$msg - ${errorMessage(err)} ($err)") with WindowsException
   }
 
   def onPath(file: String): IOException = {
+    import ErrorCodes._
     lazy val e = stdErrno.errno
     val winError = GetLastError()
     winError match {
@@ -34,6 +34,9 @@ private[java] object WindowsException {
   }
 
   private def errorMessage(errCode: DWord): String = Zone { implicit z =>
+    import WinBaseApi._
+    import WinBaseApiExt._
+
     val msgBuffer = stackalloc[CWString]
     FormatMessageW(
       flags = FORMAT_MESSAGE_ALLOCATE_BUFFER |

@@ -109,10 +109,13 @@ private[net] class WindowsPlainSocketImpl extends AbstractPlainSocketImpl {
   ): Unit = {
     val mode = stackalloc[Int]
     if (blocking)
-      !mode = 1
-    else
       !mode = 0
-    ioctlSocket(fd.handle, FIONBIO, mode)
+    else
+      !mode = 1
+    if (ioctlSocket(fd.handle, FIONBIO, mode) != 0)
+      throw new SocketException(
+        s"Failed to set socket ${if (!blocking) "non-" else ""}blocking"
+      )
   }
 
 }

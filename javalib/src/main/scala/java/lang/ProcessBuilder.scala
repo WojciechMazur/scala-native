@@ -8,6 +8,7 @@ import java.util.Arrays
 import scala.scalanative.unsafe._
 import scala.scalanative.posix.unistd
 import scala.scalanative.runtime.Platform
+import scala.scalanative.meta.LinktimeInfo.isWindows
 import ProcessBuilder.Redirect
 
 final class ProcessBuilder(private var _command: List[String]) {
@@ -106,12 +107,8 @@ final class ProcessBuilder(private var _command: List[String]) {
   def start(): Process = {
     if (_command.isEmpty()) throw new IndexOutOfBoundsException()
     if (_command.contains(null)) throw new NullPointerException()
-    if (Platform.isWindows()) {
-      val msg = "No windows implementation of java.lang.Process"
-      throw new UnsupportedOperationException(msg)
-    } else {
-      UnixProcess(this)
-    }
+    if (isWindows) process.WindowsProcess(this)
+    else process.UnixProcess(this)
   }
 
   @inline private[this] def set(f: => Unit): ProcessBuilder = {

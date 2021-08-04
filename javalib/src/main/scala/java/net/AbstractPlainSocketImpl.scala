@@ -18,6 +18,8 @@ import scala.scalanative.posix.sys.time._
 import scala.scalanative.posix.sys.timeOps._
 import scala.scalanative.meta.LinktimeInfo.isWindows
 import java.io.{FileDescriptor, IOException, OutputStream, InputStream}
+import scala.scalanative.windows.WinSocketApi._
+import scala.scalanative.windows.WinSocketApiExt._
 
 private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
   import AbstractPlainSocketImpl._
@@ -212,9 +214,10 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
     val connectRet = socket.connect(fd.fd, (!ret).ai_addr, (!ret).ai_addrlen)
 
     freeaddrinfo(!ret) // Must be after last use of ai_addr.
-
     if (connectRet < 0) {
-      if ((timeout > 0) && (errno.errno == EINPROGRESS)) {
+      def inProgress = if (isWindows) WSAGetLastError() == WSAEINPROGRESS
+      else errno.errno == EINPROGRESS
+      if (timeout > 0 && inProgress) {
         tryPollOnConnect(timeout)
       } else {
         throw new ConnectException(
@@ -478,7 +481,7 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
 }
 
 private[net] object AbstractPlainSocketImpl {
-  final val InvalidSocketDescriptor = new FileDescriptor
+  final val InvalidSocketDescriptor = new FileDescriptor()
 
   def apply(): AbstractPlainSocketImpl = {
     if (isWindows) new WindowsPlainSocketImpl()

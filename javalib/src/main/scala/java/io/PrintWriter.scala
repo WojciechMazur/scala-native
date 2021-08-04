@@ -105,7 +105,7 @@ class PrintWriter(protected[io] var out: Writer, autoFlush: Boolean)
   def print(obj: AnyRef): Unit = write(String.valueOf(obj))
 
   def println(): Unit = {
-    write('\n') // In Scala.js the line separator is always LF
+    write(System.lineSeparator)
     if (autoFlush)
       flush()
   }

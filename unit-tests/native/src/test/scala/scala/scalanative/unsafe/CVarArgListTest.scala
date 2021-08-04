@@ -3,18 +3,21 @@ package unsafe
 
 import org.junit.Test
 import org.junit.Assert._
+import org.junit.Assume._
 
 import scalanative.unsigned._
 import scalanative.unsafe._
 import scalanative.libc.{stdio, stdlib, string}
+import scalanative.windows
+import scalanative.meta.LinktimeInfo.isWindows
 
 class CVarArgListTest {
   def vatest(cstr: CString, varargs: Seq[CVarArg], output: String): Unit =
     Zone { implicit z =>
+      assumeFalse("Current CVarArgList not complient with Windows", isWindows)
       val buff = alloc[CChar](1024)
       stdio.vsprintf(buff, cstr, toCVarArgList(varargs))
-      val got = fromCString(buff)
-      assertTrue(s"$got != $output", got == output)
+      assertEquals(output, fromCString(buff))
     }
 
   @Test def byteValue0(): Unit =

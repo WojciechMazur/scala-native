@@ -41,22 +41,18 @@ class CComplexTest {
 
   def toFloat(i: Int): Float = jl.Float.intBitsToFloat(i)
 
-  def isAlmostEqual(act: Float, exp: Float): Boolean = {
-    val diff = Math.abs(act - exp)
-    val epsilon = 2 * Math.max(Math.ulp(act), Math.ulp(exp))
-    if (debug) {
-      println(
-        s"diff: ${jl.Float.toHexString(diff)} eps: ${jl.Float.toHexString(epsilon)}"
-      )
-    }
-    diff <= epsilon
-  }
-
   def assertEqualsComplexF(
       act: Ptr[CFloatComplex],
       exp: Ptr[CFloatComplex]
-  ): Unit =
-    assertTrue(isAlmostEqual(act.re, exp.re) && isAlmostEqual(act.im, exp.im))
+  ): Unit = {
+    def epsilon(act: Float, exp: Float) =
+      2 * Math.max(Math.ulp(act), Math.ulp(exp))
+    def epsilonRe = epsilon(act.re, exp.re)
+    def epsilonIm = epsilon(act.im, exp.im)
+
+    assertEquals("re", act.re, exp.re, epsilonRe)
+    assertEquals("imt", act.im, exp.im, epsilonIm)
+  }
 
   def tf(implicit z: Zone) = res(real.toFloat, imag.toFloat)
 
@@ -198,11 +194,9 @@ class CComplexTest {
 
   @Test def testCpowf(): Unit = {
     Zone { implicit z =>
-      // macOS values:   0x3e8c441e, 0x3f156d6a
-      // FreeBSD values: 0x3e8c4421, 0x3f156d69
       assertEqualsComplexF(
         cpowf(tf, tf, buff),
-        res(toFloat(0x3e8c4420), toFloat(0x3f156d6a))
+        res(toFloat(0x3e8c441e), toFloat(0x3f156d6a))
       )
     }
   }
@@ -248,22 +242,18 @@ class CComplexTest {
     jl.Double.longBitsToDouble(l)
   }
 
-  def isAlmostEqual(act: Double, exp: Double): Boolean = {
-    val diff = Math.abs(act - exp)
-    val epsilon = Math.max(Math.ulp(act), Math.ulp(exp))
-    if (debug) {
-      println(
-        s"diff: ${jl.Double.toHexString(diff)} eps: ${jl.Double.toHexString(epsilon)}"
-      )
-    }
-    diff <= epsilon
-  }
-
   def assertEqualsComplexD(
       act: Ptr[CDoubleComplex],
       exp: Ptr[CDoubleComplex]
-  ): Unit =
-    assertTrue(isAlmostEqual(act.re, exp.re) && isAlmostEqual(act.im, exp.im))
+  ): Unit = {
+    def epsilon(act: Double, exp: Double) =
+      2 * Math.max(Math.ulp(act), Math.ulp(exp))
+    def epsilonRe = epsilon(act.re, exp.re)
+    def epsilonIm = epsilon(act.im, exp.im)
+
+    assertEquals("re", act.re, exp.re, epsilonRe)
+    assertEquals("im", act.im, exp.im, epsilonIm)
+  }
 
   def td(implicit z: Zone) = res(real, imag)
 

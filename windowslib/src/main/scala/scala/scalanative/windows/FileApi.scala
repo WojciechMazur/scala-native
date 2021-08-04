@@ -139,7 +139,8 @@ object FileApi {
       lastWriteTime: Ptr[FileTime]
   ): Boolean = extern
 
-  def GetLogicalDriveStringsW(bufferLength: DWord, buffer: CWString): DWord = extern
+  def GetLogicalDriveStringsW(bufferLength: DWord, buffer: CWString): DWord =
+    extern
 
   def GetTempFileNameW(
       pathName: CWString,

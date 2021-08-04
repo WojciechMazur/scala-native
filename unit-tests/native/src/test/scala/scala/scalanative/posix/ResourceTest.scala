@@ -36,7 +36,7 @@ class ResourceTest {
 
   case class TestInfo(name: String, value: CInt)
 
-  @Test def getpriorityInvalidArgWhich() = if(!isWindows) {
+  @Test def getpriorityInvalidArgWhich() = if (!isWindows) {
     errno.errno = 0
     val invalidWhich = -1
 
@@ -45,7 +45,7 @@ class ResourceTest {
     assertEquals("unexpected errno", EINVAL, errno.errno)
   }
 
-  @Test def getpriorityInvalidArgWho() = if(!isWindows) {
+  @Test def getpriorityInvalidArgWho() = if (!isWindows) {
     errno.errno = 0
 
     getpriority(PRIO_PROCESS, UInt.MaxValue)
@@ -63,7 +63,7 @@ class ResourceTest {
     }
   }
 
-  @Test def testGetpriority() = if(!isWindows) {
+  @Test def testGetpriority() = if (!isWindows) {
     // format: off
     val cases = Array(TestInfo("PRIO_PROCESS", PRIO_PROCESS),
       TestInfo("PRIO_PGRP",    PRIO_PGRP),
@@ -87,7 +87,7 @@ class ResourceTest {
     }
   }
 
-  @Test def getrlimitInvalidArgResource() = if(!isWindows) {
+  @Test def getrlimitInvalidArgResource() = if (!isWindows) {
     Zone { implicit z =>
       errno.errno = 0
       val rlimPtr = alloc[rlimit]
@@ -98,7 +98,7 @@ class ResourceTest {
     }
   }
 
-  @Test def testGetrlimit() = if(!isWindows) {
+  @Test def testGetrlimit() = if (!isWindows) {
     Zone { implicit z =>
       // format: off
       val cases = Array(TestInfo("RLIMIT_AS",     RLIMIT_AS),
@@ -142,7 +142,7 @@ class ResourceTest {
     }
   }
 
-  @Test def getrusageInvalidArgWho() = if(!isWindows) {
+  @Test def getrusageInvalidArgWho() = if (!isWindows) {
     Zone { implicit z =>
       errno.errno = 0
       val rusagePtr = alloc[rusage]
@@ -153,7 +153,7 @@ class ResourceTest {
     }
   }
 
-  @Test def getrusageSelf() = if(!isWindows) {
+  @Test def getrusageSelf() = if (!isWindows) {
     Zone { implicit z =>
       errno.errno = 0
       val rusagePtr = alloc[rusage]
@@ -185,7 +185,7 @@ class ResourceTest {
     }
   }
 
-  @Test def getrusageChildren() = if(!isWindows) {
+  @Test def getrusageChildren() = if (!isWindows) {
     Zone { implicit z =>
       errno.errno = 0
       val rusagePtr = alloc[rusage]

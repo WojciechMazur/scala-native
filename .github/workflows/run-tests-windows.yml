@@ -103,6 +103,8 @@ jobs:
           echo "::set-output name=ProgramFiles::${env:ProgramFiles}"
           echo "::set-output name=LocalAppData::${env:LocalAppData}"
           echo "::set-output name=UserProfile::${env:UserProfile}"
+          echo "::set-output name=VcpkgLibs::${env:VCPKG_INSTALLATION_ROOT}\installed\x64-windows-static"
+
       - name: Cache dependencies
         id: cache-deps
         uses: actions/cache@v2
@@ -125,16 +127,14 @@ jobs:
 
       - name: Install libs
         run: vcpkg install bdwgc zlib --triplet=x64-windows-static
-      - name: Set Scala Native env variables
-        run: |
-          echo "SCALANATIVE_MODE=${{matrix.mode}}" >> $GITHUB_ENV
-          echo "SCALANATIVE_GC=${{matrix.gc}}" >> $GITHUB_ENV
-          echo "SCALANATIVE_INCLUDE_DIRS=${env:VCPKG_INSTALLATION_ROOT}/installed/x64-windows-static/include"
-          echo "SCALANATIVE_LIB_DIRS=${env:VCPKG_INSTALLATION_ROOT}/installed/x64-windows-static/lib"
-        shell: cmd
 
       - name: Test runtime
         run: |
+          set SCALANATIVE_MODE=${{matrix.mode}}
+          set SCALANATIVE_GC=${{matrix.gc}}
+          set SCALANATIVE_INCLUDE_DIRS=${{steps.resolve-env.outputs.VcpkgLibs}}\include
+          set SCALANATIVE_LIB_DIRS=${{steps.resolve-env.outputs.VcpkgLibs}}\lib
+          set SCALANATIVE
           sbt ++${{matrix.scala}};test-runtime
         shell: cmd
 
@@ -145,7 +145,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-2019]
-        scala: [2.13.6, 2.12.14, 2.11.12]
+        scala: [2.12.14]
     steps:
       - uses: actions/checkout@v2
 
@@ -158,6 +158,7 @@ jobs:
           echo "::set-output name=ProgramFiles::${env:ProgramFiles}"
           echo "::set-output name=LocalAppData::${env:LocalAppData}"
           echo "::set-output name=UserProfile::${env:UserProfile}"
+          echo "::set-output name=VcpkgLibs::${env:VCPKG_INSTALLATION_ROOT}\installed\x64-windows-static"
 
       - name: Cache dependencies
         id: cache-deps
@@ -173,16 +174,21 @@ jobs:
       - name: Install LLVM
         if: steps.cache-deps.outputs.cache-hit != 'true'
         run: choco install llvm --version=11.0.0
-
-      - name: Set Scala Native env variables
-        run: |
-          echo "SCALANATIVE_MODE=${{matrix.mode}}" >> $GITHUB_ENV
-          echo "SCALANATIVE_GC=${{matrix.gc}}" >> $GITHUB_ENV
-          echo "SCALANATIVE_INCLUDE_DIRS=${env:VCPKG_INSTALLATION_ROOT}/installed/x64-windows-static/include"
-          echo "SCALANATIVE_LIB_DIRS=${env:VCPKG_INSTALLATION_ROOT}/installed/x64-windows-static/lib"
-        shell: cmd
+        
+      - name: Add LLVM on Path
+        run: echo "${env:ProgramFiles}\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Assert clang installed and on path
+        run: clang --version
+      
+      - name: Install libs
+        run: vcpkg install bdwgc zlib --triplet=x64-windows-static
 
       - name: Test scripted
         run: |
+          set SCALANATIVE_MODE=${{matrix.mode}}
+          set SCALANATIVE_GC=${{matrix.gc}}
+          set SCALANATIVE_INCLUDE_DIRS=${{steps.resolve-env.outputs.VcpkgLibs}}\include
+          set SCALANATIVE_LIB_DIRS=${{steps.resolve-env.outputs.VcpkgLibs}}\lib
+          set SCALANATIVE
           sbt ++${{matrix.scala}};test-scripted
         shell: cmd

@@ -48,42 +48,63 @@ class File(_path: String) extends Serializable with Comparable[File] {
   }
 
   def canExecute(): Boolean =
-    Zone { implicit z => access(toCString(path), unistd.X_OK) == 0 }
+    Zone { implicit z =>
+      if (isWindows) ???
+      else access(toCString(path), unistd.X_OK) == 0
+    }
 
   def canRead(): Boolean =
-    Zone { implicit z => access(toCString(path), unistd.R_OK) == 0 }
+    Zone { implicit z =>
+      if (isWindows) ???
+      else access(toCString(path), unistd.R_OK) == 0
+    }
 
   def canWrite(): Boolean =
-    Zone { implicit z => access(toCString(path), unistd.W_OK) == 0 }
+    Zone { implicit z =>
+      if (isWindows) ???
+      else access(toCString(path), unistd.W_OK) == 0
+    }
 
   def setExecutable(executable: Boolean): Boolean =
     setExecutable(executable, ownerOnly = true)
 
   def setExecutable(executable: Boolean, ownerOnly: Boolean): Boolean = {
-    import stat._
-    val mask = if (!ownerOnly) S_IXUSR | S_IXGRP | S_IXOTH else S_IXUSR
-    updatePermissions(mask, executable)
+    if (isWindows) ???
+    else {
+      import stat._
+      val mask = if (!ownerOnly) S_IXUSR | S_IXGRP | S_IXOTH else S_IXUSR
+      updatePermissionsUnix(mask, executable)
+    }
   }
 
   def setReadable(readable: Boolean): Boolean =
     setReadable(readable, ownerOnly = true)
 
   def setReadable(readable: Boolean, ownerOnly: Boolean): Boolean = {
-    import stat._
-    val mask = if (!ownerOnly) S_IRUSR | S_IRGRP | S_IROTH else S_IRUSR
-    updatePermissions(mask, readable)
+    if (isWindows) ???
+    else {
+      import stat._
+      val mask = if (!ownerOnly) S_IRUSR | S_IRGRP | S_IROTH else S_IRUSR
+      updatePermissionsUnix(mask, readable)
+    }
   }
 
   def setWritable(writable: Boolean): Boolean =
     setWritable(writable, ownerOnly = true)
 
   def setWritable(writable: Boolean, ownerOnly: Boolean = true): Boolean = {
-    import stat._
-    val mask = if (!ownerOnly) S_IWUSR | S_IWGRP | S_IWOTH else S_IWUSR
-    updatePermissions(mask, writable)
+    if (isWindows) ???
+    else {
+      import stat._
+      val mask = if (!ownerOnly) S_IWUSR | S_IWGRP | S_IWOTH else S_IWUSR
+      updatePermissionsUnix(mask, writable)
+    }
   }
 
-  private def updatePermissions(mask: stat.mode_t, grant: Boolean): Boolean =
+  private def updatePermissionsUnix(
+      mask: stat.mode_t,
+      grant: Boolean
+  ): Boolean =
     Zone { implicit z =>
       if (grant) {
         stat.chmod(toCString(path), accessMode() | mask) == 0
@@ -107,8 +128,10 @@ class File(_path: String) extends Serializable with Comparable[File] {
       deleteFileImpl()
     }
 
-  private def deleteDirImpl(): Boolean =
-    Zone { implicit z => remove(toCString(path)) == 0 }
+  private def deleteDirImpl(): Boolean = Zone { implicit z =>
+    if (isWindows) ???
+    else remove(toCString(path)) == 0
+  }
 
   private def deleteFileImpl(): Boolean = Zone { implicit z =>
     if (isWindows) {
@@ -147,9 +170,12 @@ class File(_path: String) extends Serializable with Comparable[File] {
    *  non-existing file.
    */
   private def simplifyExistingPath(path: CString)(implicit z: Zone): CString = {
-    val resolvedName = alloc[Byte](limits.PATH_MAX.toUInt)
-    realpath(path, resolvedName)
-    resolvedName
+    if (isWindows) ???
+    else {
+      val resolvedName = alloc[Byte](limits.PATH_MAX.toUInt)
+      realpath(path, resolvedName)
+      resolvedName
+    }
   }
 
   /** Finds the canonical path for `path`.
@@ -222,11 +248,14 @@ class File(_path: String) extends Serializable with Comparable[File] {
 
   def lastModified(): Long =
     Zone { implicit z =>
-      val buf = alloc[stat.stat]
-      if (stat.stat(toCString(path), buf) == 0) {
-        buf._8 * 1000L
-      } else {
-        0L
+      if (isWindows) ???
+      else {
+        val buf = alloc[stat.stat]
+        if (stat.stat(toCString(path), buf) == 0) {
+          buf._8 * 1000L
+        } else {
+          0L
+        }
       }
     }
 
@@ -250,14 +279,17 @@ class File(_path: String) extends Serializable with Comparable[File] {
       throw new IllegalArgumentException("Negative time")
     } else
       Zone { implicit z =>
-        val statbuf = alloc[stat.stat]
-        if (stat.stat(toCString(path), statbuf) == 0) {
-          val timebuf = alloc[utime.utimbuf]
-          timebuf._1 = statbuf._8
-          timebuf._2 = time / 1000L
-          utime.utime(toCString(path), timebuf) == 0
-        } else {
-          false
+        if (isWindows) ???
+        else {
+          val statbuf = alloc[stat.stat]
+          if (stat.stat(toCString(path), statbuf) == 0) {
+            val timebuf = alloc[utime.utimbuf]
+            timebuf._1 = statbuf._8
+            timebuf._2 = time / 1000L
+            utime.utime(toCString(path), timebuf) == 0
+          } else {
+            false
+          }
         }
       }
 
@@ -336,8 +368,11 @@ class File(_path: String) extends Serializable with Comparable[File] {
 
   def mkdir(): Boolean =
     Zone { implicit z =>
-      val mode = octal("0777")
-      stat.mkdir(toCString(path), mode) == 0
+      if (isWindows) ???
+      else {
+        val mode = octal("0777")
+        stat.mkdir(toCString(path), mode) == 0
+      }
     }
 
   def mkdirs(): Boolean =
@@ -594,14 +629,20 @@ object File {
    *  Otherwise, returns `None`.
    */
   private def readLink(link: CString)(implicit z: Zone): CString = {
-    val buffer: CString = alloc[Byte](limits.PATH_MAX.toUInt)
-    readlink(link, buffer, (limits.PATH_MAX - 1).toUInt) match {
-      case -1 =>
-        null
-      case read =>
-        // readlink doesn't null-terminate the result.
-        buffer(read) = 0.toByte
-        buffer
+    val bufferSize =
+      if (isWindows) ???
+      else limits.PATH_MAX.toUInt
+    val buffer: CString = alloc[Byte](bufferSize)
+    if (isWindows) ???
+    else {
+      readlink(link, buffer, bufferSize - 1.toUInt) match {
+        case -1 =>
+          null
+        case read =>
+          // readlink doesn't null-terminate the result.
+          buffer(read) = 0.toByte
+          buffer
+      }
     }
   }
 

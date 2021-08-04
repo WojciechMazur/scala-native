@@ -1,3 +1,7 @@
+#ifdef _WIN32
+// sscanf and getEnv is deprecated in WinCRT, disable warnings
+#define _CRT_SECURE_NO_WARNINGS
+#endif
 #include <stdlib.h>
 #include <stdio.h>
 #include "MemoryMap.h"

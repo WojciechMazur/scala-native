@@ -10,6 +10,7 @@ import org.junit.Test
 import org.junit.Assert._
 
 import scalanative.junit.utils.AssertThrows.assertThrows
+import org.scalanative.testsuite.utils.Platform.isWindows
 
 class RandomAccessFileTest {
 
@@ -50,10 +51,12 @@ class RandomAccessFileTest {
   @Test def validFileDescriptorAndSyncSuccess(): Unit = {
     val file = File.createTempFile("raffdtest", "")
     // assign to var for @After to close
-    raf = new RandomAccessFile(file, "r")
+    // Write mode needed for sync in Windows
+    val mode = if (isWindows) "rw" else "r"
+    raf = new RandomAccessFile(file, mode)
     val fd = raf.getFD
-    assertTrue(fd.valid())
-    assertTrue(Try(fd.sync()).isSuccess)
+    assertTrue("Invalid FD", fd.valid())
+    assertTrue("Failed to sync", Try(fd.sync()).isSuccess)
   }
 
   @Test def canWriteAndReadBoolean(): Unit = {

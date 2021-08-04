@@ -1,6 +1,7 @@
 import java.net.{Socket, InetSocketAddress}
-import java.io.{PrintWriter, BufferedReader, InputStreamReader}
+import java.io._
 import java.nio.file.{Paths, Files}
+import java.nio.charset.StandardCharsets
 
 object EchoClientTest {
 
@@ -10,14 +11,21 @@ object EchoClientTest {
     val port = lines.get(0).toInt
 
     val socket = new Socket("127.0.0.1", port)
-    val out = new PrintWriter(socket.getOutputStream, true)
-    val in = new BufferedReader(new InputStreamReader(socket.getInputStream))
+    val out =
+      new PrintWriter(
+        new OutputStreamWriter(socket.getOutputStream, StandardCharsets.UTF_8),
+        true
+      )
+    val in = new BufferedReader(
+      new InputStreamReader(socket.getInputStream, StandardCharsets.UTF_8)
+    )
 
     out.println("echo")
     assert(in.readLine == "echo")
     val unicodeLine = "♞ € ✓ a 1 %$ ∞ ☎  ௸   ኌ ᳄   🛋  "
     out.println(unicodeLine)
-    assert(in.readLine == unicodeLine)
+    val line2 = in.readLine
+    assert(line2 == unicodeLine, s"got `$line2`, expected `$unicodeLine`")
 
     in.close
     out.close

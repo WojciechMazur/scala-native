@@ -1,3 +1,5 @@
+import java.nio.file.StandardCopyOption
+import java.nio.file.Files
 import java.io.File.pathSeparator
 import scala.collection.mutable
 import scala.util.Try
@@ -122,10 +124,10 @@ addCommandAlias(
   "test-runtime",
   Seq(
     "sandbox/run",
-    "tests/test",
     "testsJVM/test",
-    "testsExt/test",
+    "tests/test",
     "testsExtJVM/test",
+    "testsExt/test",
     "junitTestOutputsJVM/test",
     "junitTestOutputsNative/test",
     "scalaPartestJunitTests/test"
@@ -402,10 +404,16 @@ lazy val sbtScalaNative =
     .settings(sbtPluginSettings)
     .settings(
       crossScalaVersions := Seq(sbt10ScalaVersion),
-      addSbtPlugin("org.portable-scala" % "sbt-platform-deps" % "1.0.0"),
+      addSbtPlugin("org.portable-scala" % "sbt-platform-deps" % "1.0.1"),
       sbtTestDirectory := (ThisBuild / baseDirectory).value / "scripted-tests",
       // publish the other projects before running scripted tests.
       scriptedDependencies := {
+        // Synchronize SocketHelpers used in java-net-socket test
+        Files.copy(
+          ((javalib / Compile / scalaSource).value / "java/net/SocketHelpers.scala").toPath,
+          (sbtTestDirectory.value / "run/java-net-socket/SocketHelpers.scala").toPath,
+          StandardCopyOption.REPLACE_EXISTING
+        )
         scriptedDependencies
           .dependsOn(
             // Compiler plugins

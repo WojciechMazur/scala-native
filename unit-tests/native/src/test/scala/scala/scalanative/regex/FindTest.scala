@@ -47,9 +47,7 @@ class FindTest {
   @Test def find(): Unit = {
     for (test <- FIND_TESTS) {
       val result: String = RE2.compile(test.pat).find(test.text)
-      if (test.matches.length == 0 && result.isEmpty) {
-        // no op
-      } else if (test.matches.length == 0 && !(result.isEmpty)) {
+      if (test.matches.length == 0 && result.isEmpty) {} else if (test.matches.length == 0 && !(result.isEmpty)) {
         fail("find: expected no match; got one: %s".format(test))
       } else if (test.matches.length > 0 && result.isEmpty) {
         // Tricky because an empty result has two meanings:
@@ -74,9 +72,8 @@ class FindTest {
       resultIndicesAreUTF8: Boolean
   ): Unit = {
     var result = _result
-    if (test.matches.length == 0 && GoTestUtils.len(result) == 0) {
-      // no op
-    } else if (test.matches.length == 0 && result != null) {
+    if (test.matches.length == 0 && GoTestUtils
+          .len(result) == 0) {} else if (test.matches.length == 0 && result != null) {
       fail("%s: expected no match; got one: %s".format(testName, test))
     } else if (test.matches.length > 0 && result == null) {
       fail("%s: expected match; got none: %s".format(testName, test))
@@ -121,9 +118,7 @@ class FindTest {
   @Test def findAllUTF8(): Unit = {
     for (test <- FIND_TESTS) {
       val result = RE2.compile(test.pat).findAllUTF8(test.textUTF8, -1)
-      if (test.matches.length == 0 && result == null) {
-        // no op
-      } else if (test.matches.length == 0 && result != null) {
+      if (test.matches.length == 0 && result == null) {} else if (test.matches.length == 0 && result != null) {
         fail("findAllUTF8: expected no match; got one: %s".format(test))
       } else if (test.matches.length > 0 && result == null) {
         throw new AssertionError(
@@ -156,9 +151,7 @@ class FindTest {
   @Test def findAll(): Unit = {
     for (test <- FIND_TESTS) {
       val result = RE2.compile(test.pat).findAll(test.text, -1)
-      if (test.matches.length == 0 && result == null) {
-        // no op
-      } else if (test.matches.length == 0 && result != null) {
+      if (test.matches.length == 0 && result == null) {} else if (test.matches.length == 0 && result != null) {
         fail("findAll: expected no match; got one: %s".format(test))
       } else if (test.matches.length > 0 && result == null) {
         fail("findAll: expected match; got none: %s".format(test))
@@ -185,9 +178,7 @@ class FindTest {
       result: util.List[Array[Int]],
       resultIndicesAreUTF8: Boolean
   ): Unit = {
-    if (test.matches.length == 0 && result == null) {
-      // no op
-    } else if (test.matches.length == 0 && result != null) {
+    if (test.matches.length == 0 && result == null) {} else if (test.matches.length == 0 && result != null) {
       fail("%s: expected no match; got one: %s".format(testName, test))
     } else if (test.matches.length > 0 && result == null) {
       fail("%s: expected match; got none: %s".format(testName, test))
@@ -294,9 +285,7 @@ class FindTest {
     for (test <- FIND_TESTS) {
       val result: Array[Array[Byte]] =
         RE2.compile(test.pat).findUTF8Submatch(test.textUTF8)
-      if (test.matches.length == 0 && result == null) {
-        // no op
-      } else if (test.matches.length == 0 && result != null) {
+      if (test.matches.length == 0 && result == null) {} else if (test.matches.length == 0 && result != null) {
         fail("expected no match; got one: %s".format(test))
       } else if (test.matches.length > 0 && result == null) {
         fail("expected match; got none: %s".format(test))
@@ -355,9 +344,7 @@ class FindTest {
   @Test def findSubmatch(): Unit = {
     for (test <- FIND_TESTS) {
       val result: Array[String] = RE2.compile(test.pat).findSubmatch(test.text)
-      if (test.matches.length == 0 && result == null) {
-        // no op
-      } else if (test.matches.length == 0 && result != null) {
+      if (test.matches.length == 0 && result == null) {} else if (test.matches.length == 0 && result != null) {
         fail("expected no match; got one: %s".format(test))
       } else if (test.matches.length > 0 && result == null) {
         fail("expected match; got none: %s".format(test))
@@ -414,9 +401,7 @@ class FindTest {
       result: Array[Int],
       resultIndicesAreUTF8: Boolean
   ): Unit = {
-    if (test.matches.length == 0 && result == null) {
-      // no op
-    } else if (test.matches.length == 0 && result != null) {
+    if (test.matches.length == 0 && result == null) {} else if (test.matches.length == 0 && result != null) {
       fail("%s: expected no match; got one: %s".format(testName, test))
     } else if (test.matches.length > 0 && result == null) {
       fail("%s: expected match; got none: %s".format(testName, test))
@@ -508,9 +493,7 @@ class FindTest {
       result: util.List[Array[Int]],
       resultIndicesAreUTF8: Boolean
   ): Unit = {
-    if (test.matches.length == 0 && result == null) {
-      // no op
-    } else {
+    if (test.matches.length == 0 && result == null) {} else {
       if (test.matches.length == 0 && result != null) {
         fail("%s: expected no match; got one: %s".format(testName, test))
       } else if (test.matches.length > 0 && result == null) {

@@ -7,7 +7,6 @@ scala/javalib/io/FileInputStreamTest.scala
 scala/javalib/io/BufferedInputStreamTest.scala
 scala/javalib/io/BufferedOutputStreamTest.scala
 
-scala/javalib/lang/RuntimeTest.scala
 scala/javalib/lang/CharacterTest.scala
 scala/javalib/lang/IntegerTest.scala
 scala/javalib/lang/ShortTest.scala
@@ -15,7 +14,6 @@ scala/javalib/lang/LongTest.scala
 scala/javalib/lang/StringTest.scala
 scala/javalib/lang/ThrowablesTest.scala
 scala/javalib/lang/ExceptionTest.scala
-scala/javalib/lang/ProcessTest.scala
 scala/javalib/lang/SystemTest.scala
 
 scala/javalib/net/ServerSocketTest.scala
@@ -49,7 +47,7 @@ scala/scala/PrimitiveTest.scala
 scala/scala/bugcompat/LongFloatPrimitiveTest.scala
 
 # Tests that work on java 8, but fail on java 16
-scala/javalib/nio/file/PathTest.scala
+scala/javalib/nio/file/UnixPathTest.scala
 scala/javalib/net/URLEncoderTest.scala
 scala/javalib/util/jar/JarFileTest.scala
 scala/javalib/util/zip/ZipFileTest.scala

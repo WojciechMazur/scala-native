@@ -13,7 +13,7 @@ import scala.scalanative.windows.FileApi._
 import scala.scalanative.windows.FileApiExt.MAX_PATH
 import scala.scalanative.windows.UserEnvApi._
 import scala.scalanative.windows.WinBaseApi._
-import scala.scalanative.windows.ProcessEnv._
+import scala.scalanative.windows.ProcessEnvApi._
 import scala.scalanative.windows.winnt.AccessToken
 
 final class System private ()
@@ -126,7 +126,7 @@ object System {
   def currentTimeMillis(): scala.Long = time.scalanative_current_time_millis
 
   def getenv(): Map[String, String] = envVars
-  def getenv(key: String): String = envVars.get(key)
+  def getenv(key: String): String = envVars.get(key.toUpperCase())
 
   def setIn(in: InputStream): Unit =
     this.in = in

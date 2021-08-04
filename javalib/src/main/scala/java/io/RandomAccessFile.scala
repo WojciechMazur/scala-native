@@ -1,11 +1,15 @@
 package java.io
 
 import java.{lang => jl}
-
-import scalanative.unsafe.{toCString, Zone}
+import scalanative.unsafe.{Zone, stackalloc, toCString, toCWideStringUTF16LE}
 import scalanative.libc.stdio
 import scalanative.posix.{fcntl, unistd}
 import scalanative.posix.sys.stat
+import scalanative.meta.LinktimeInfo.isWindows
+import scala.scalanative.windows
+import windows._
+import windows.FileApiExt._
+// import windows.winnt.FileAccess._
 
 class RandomAccessFile private (
     file: File,
@@ -29,17 +33,32 @@ class RandomAccessFile private (
   private lazy val out = new DataOutputStream(new FileOutputStream(fd))
 
   override def close(): Unit = {
-    closed = true
-    unistd.close(fd.fd)
+    closed = {
+      if (isWindows)
+        HandleApi.CloseHandle(fd.handle)
+      else
+        unistd.close(fd.fd) == 0
+    }
   }
-
   // final def getChannel(): FileChannel
 
   def getFD(): FileDescriptor =
     fd
 
-  def getFilePointer(): Long =
-    unistd.lseek(fd.fd, 0, stdio.SEEK_CUR).toLong
+  def getFilePointer(): Long = {
+    if (isWindows) {
+      val filePointer = stackalloc[LargeInteger]
+      FileApi.SetFilePointerEx(
+        fd.handle,
+        0,
+        filePointer,
+        FILE_CURRENT
+      )
+      !filePointer
+    } else {
+      unistd.lseek(fd.fd, 0, stdio.SEEK_CUR).toLong
+    }
+  }
 
   def length(): Long =
     file.length()
@@ -133,15 +152,34 @@ class RandomAccessFile private (
     in.readUTF()
 
   def seek(pos: Long): Unit =
-    unistd.lseek(fd.fd, pos, stdio.SEEK_SET)
+    if (isWindows)
+      FileApi.SetFilePointerEx(
+        fd.handle,
+        pos,
+        null,
+        FILE_BEGIN
+      )
+    else unistd.lseek(fd.fd, pos, stdio.SEEK_SET)
 
   def setLength(newLength: Long): Unit =
     if (!mode.contains("w")) {
       throw new IOException("Invalid argument")
     } else {
       val currentPosition = getFilePointer()
-      if (unistd.ftruncate(fd.fd, newLength) != 0) {
-        throw new IOException()
+      val hasSucceded =
+        if (isWindows) {
+          FileApi.SetFilePointerEx(
+            fd.handle,
+            newLength,
+            null,
+            FILE_BEGIN
+          ) &&
+          FileApi.SetEndOfFile(fd.handle)
+        } else {
+          unistd.ftruncate(fd.fd, newLength) == 0
+        }
+      if (!hasSucceded) {
+        throw new IOException("Failed to truncate file")
       }
       if (currentPosition > newLength) seek(newLength)
     }
@@ -233,24 +271,53 @@ class RandomAccessFile private (
 }
 
 private object RandomAccessFile {
-  private def fileDescriptor(file: File, _flags: String) =
-    Zone { implicit z =>
+  private def fileDescriptor(file: File, _flags: String) = {
+    if (_flags == "r" && !file.exists())
+      throw new FileNotFoundException(file.getName())
+
+    def invalidFlags() =
+      throw new IllegalArgumentException(
+        s"""Illegal mode "${_flags}" must be one of "r", "rw", "rws" or "rwd""""
+      )
+
+    def unixFileDescriptor() = Zone { implicit z =>
       import fcntl._
       import stat._
-      if (_flags == "r" && !file.exists())
-        throw new FileNotFoundException(file.getName())
+
       val flags = _flags match {
         case "r"                  => O_RDONLY
         case "rw" | "rws" | "rwd" => O_RDWR | O_CREAT
-        case _ =>
-          throw new IllegalArgumentException(
-            s"""Illegal mode "${_flags}" must be one of "r", "rw", "rws" or "rwd""""
-          )
+        case _                    => invalidFlags()
       }
       val mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH
       val fd = open(toCString(file.getPath()), flags, mode)
-      new FileDescriptor(fd)
+      new FileDescriptor(FileDescriptor.FileHandle(fd), readOnly = false)
     }
+
+    def windowsFileDescriptor() = Zone { implicit z =>
+      import windows.winnt.AccessRights._
+      val (access, dispostion) = _flags match {
+        case "r" => FILE_GENERIC_READ -> OPEN_EXISTING
+        case "rw" | "rws" | "rwd" =>
+          (FILE_GENERIC_READ | FILE_GENERIC_WRITE).toUInt -> OPEN_ALWAYS
+        case _ => invalidFlags()
+      }
+
+      val handle = FileApi.CreateFileW(
+        toCWideStringUTF16LE(file.getPath()),
+        desiredAccess = access,
+        shareMode = FILE_SHARE_READ | FILE_SHARE_WRITE,
+        securityAttributes = null,
+        creationDisposition = dispostion,
+        flagsAndAttributes = FILE_ATTRIBUTE_NORMAL,
+        templateFile = null
+      )
+      new FileDescriptor(FileDescriptor.FileHandle(handle), readOnly = false)
+    }
+
+    if (isWindows) windowsFileDescriptor()
+    else unixFileDescriptor()
+  }
 
   private def flush(mode: String): Boolean =
     mode match {

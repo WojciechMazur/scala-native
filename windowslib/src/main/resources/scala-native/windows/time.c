@@ -1,6 +1,6 @@
 // Windows specific copy of posixlib/time.h
 // Uses *_s variants of methods instead of *_r
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(WIN32)
 #define _CRT_SECURE_NO_WARNINGS
 #define daylight _daylight
 #define timezone _timezone

@@ -29,7 +29,7 @@ object Attr {
   case object Stub extends Attr
   case object Extern extends Attr
   final case class Link(name: String) extends Attr
-  case object Abstract          extends Attr
+  case object Abstract extends Attr
   final case object Volatile extends Attr
 }
 

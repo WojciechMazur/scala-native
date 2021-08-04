@@ -1,6 +1,7 @@
 import java.net.{Socket, InetSocketAddress, InetAddress}
 import java.io.{PrintWriter, BufferedReader, InputStreamReader}
 import java.nio.file.{Paths, Files}
+import java.nio.charset.StandardCharsets
 
 // In this test we manually do the connecting (and binding when implemented)
 object EchoManualClientTest {
@@ -12,8 +13,11 @@ object EchoManualClientTest {
 
     val socket = new Socket()
     socket.connect(new InetSocketAddress("127.0.0.1", port), 500)
-    val out = new PrintWriter(socket.getOutputStream, true)
-    val in = new BufferedReader(new InputStreamReader(socket.getInputStream))
+    val out =
+      new PrintWriter(socket.getOutputStream, true)
+    val in = new BufferedReader(
+      new InputStreamReader(socket.getInputStream, StandardCharsets.UTF_8)
+    )
 
     out.println("echo")
     assert(in.readLine == "echo")

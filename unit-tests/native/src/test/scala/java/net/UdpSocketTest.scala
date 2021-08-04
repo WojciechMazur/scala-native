@@ -7,22 +7,74 @@ import scalanative.posix.netinet.in._
 import scalanative.posix.netinet.inOps._
 import scalanative.posix.sys.socket._
 import scalanative.posix.sys.socketOps._
-import scalanative.posix.unistd.close
+import scalanative.posix.unistd
 import scalanative.unsafe._
 import scalanative.unsigned._
+import scalanative.meta.LinktimeInfo.isWindows
+import scala.scalanative.windows._
+import scala.scalanative.windows.WinSocketApi._
+import scala.scalanative.windows.WinSocketApiExt._
+import scala.scalanative.windows.WinSocketApiOps
 
 import org.junit.Test
 import org.junit.Assert._
+import org.junit.Assume._
 
 class UdpSocketTest {
   // All tests in this class assume that an IPv4 network is up & running.
 
+  // For some unknown reason inlining content of this method leads to failures
+  // on Unix, probably due to bug in linktime conditions.
+  private def setSocketBlocking(socket: CInt): Unit = {
+    if (isWindows) {
+      val mode = stackalloc[CInt]
+      !mode = 1
+      assertNotEquals(
+        "iotctl setBLocking",
+        -1,
+        ioctlSocket(socket.toPtr[Byte], FIONBIO, mode)
+      )
+    } else {
+      assertNotEquals(
+        s"fcntl set blocking",
+        -1,
+        fcntl.fcntl(socket, F_SETFL, O_NONBLOCK)
+      )
+    }
+  }
+
+  private def createAndCheckUdpSocket(): CInt = {
+    if (isWindows) {
+      val socket = WSASocketW(
+        addressFamily = AF_INET,
+        socketType = SOCK_DGRAM,
+        protocol = IPPROTO_UDP,
+        protocolInfo = null,
+        group = 0.toUInt,
+        flags = WSA_FLAG_OVERLAPPED
+      )
+      assertNotEquals("socket create", InvalidSocket, socket)
+      socket.toInt
+    } else {
+      val sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+      assertNotEquals("socket create", -1, sock)
+      sock
+    }
+  }
+
+  private def closeSocket(socket: CInt): Unit = {
+    if (isWindows) WinSocketApi.closeSocket(socket.toPtr[Byte])
+    else unistd.close(socket)
+  }
+
   @Test def sendtoRecvfrom(): Unit = Zone { implicit z =>
+    if (isWindows) {
+      WinSocketApiOps.init()
+    }
     val localhost = c"127.0.0.1"
     val localhostInetAddr = inet_addr(localhost)
 
-    val inSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
-    assertNotEquals("socket_1", -1, inSocket)
+    val inSocket: CInt = createAndCheckUdpSocket()
 
     try {
       val inAddr = alloc[sockaddr]
@@ -32,8 +84,7 @@ class UdpSocketTest {
       inAddrInPtr.sin_addr.s_addr = localhostInetAddr
       // inAddrInPtr.sin_port is already the desired 0; "find a free port".
 
-      val fcntlStatus = fcntl.fcntl(inSocket, F_SETFL, O_NONBLOCK)
-      assertNotEquals("fcntl", -1, fcntlStatus)
+      setSocketBlocking(inSocket)
 
       // Get port for sendto() to use.
       val bindStatus = bind(inSocket, inAddr, sizeof[sockaddr].toUInt)
@@ -47,8 +98,7 @@ class UdpSocketTest {
       assertNotEquals("getsockname", -1, gsnStatus)
 
       // Now use port.
-      val outSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
-      assertNotEquals("socket_2", -1, outSocket)
+      val outSocket = createAndCheckUdpSocket()
 
       try {
         val outAddr = alloc[sockaddr]
@@ -133,13 +183,12 @@ class UdpSocketTest {
 
         // Contents are good.
         assertEquals("recvfrom content", outData, fromCString(inData))
-
       } finally {
-        close(outSocket)
+        closeSocket(outSocket)
       }
 
     } finally {
-      close(inSocket)
+      closeSocket(inSocket)
     }
   }
 }

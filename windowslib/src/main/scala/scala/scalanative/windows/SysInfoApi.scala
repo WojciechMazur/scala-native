@@ -4,6 +4,8 @@ import scala.scalanative.unsafe._
 
 @extern
 object SysInfoApi {
+  import MinWinBaseApi._
+
   type SystemInfo = CStruct10[
     DWord, //oemId
     DWord, // pagesSize
@@ -14,8 +16,14 @@ object SysInfoApi {
     DWord, // processor type
     DWord, //allocation granularity
     Word, //processor level
-    Word
-  ] // processor revision
+    Word // processor revision
+  ]
+
+  def GetLocalTime(timeStruct: Ptr[SystemTime]): Unit = extern
+  def GetSystemTime(timeStruct: Ptr[SystemTime]): Unit = extern
+
+  def SetLocalTime(timeStruct: Ptr[SystemTime]): Boolean = extern
+  def SetSystemTime(timeStruct: Ptr[SystemTime]): Boolean = extern
 
   def GetSystemInfo(info: Ptr[SystemInfo]): Unit = extern
 }

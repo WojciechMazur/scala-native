@@ -11,7 +11,7 @@ jobs:
     runs-on: windows-2019
     steps:
       - uses: actions/checkout@v2
-      
+
       #Prepare environment, clang needs to be installed
       #Compilation on MSVC needs c++14 or higher and expects llvm 11.0.0 or newer
       - name: Cache LLVM
@@ -87,11 +87,32 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ windows-2019 ]
-        scala: [ 2.13.6, 2.12.14, 2.11.12 ]
-        gc: [none, immix, commix]
+        os: [windows-2019]
+        scala: [2.13.6, 2.12.14, 2.11.12]
+        gc: [none, boehm, immix, commix]
+        mode: [debug, release-fast]
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/setup-java@v2
+        with:
+          distribution: "adopt"
+          java-version: "8"
+      
+      # None GC runtime tests can use a lot of memory, especially 
+      # in case of unit-tests and partest JUnit tests. 
+      # We need to set proper Pagefile limits in the advance. 
+      # For other GC we limits can be more strict.
+      - name: Configure Pagefile
+        uses: al-cheb/configure-pagefile-action@v1.2
+        if: matrix.gc == 'none'
+        with:
+          minimum-size: 4GB
+          maximum-size: 40GB
+      - uses: al-cheb/configure-pagefile-action@v1.2
+        if: matrix.gc != 'none'
+        with:
+          minimum-size: 4GB
+          maximum-size: 16GB
 
       #Prepare environment, clang needs to be installed
       #Compilation on MSVC needs c++14 or higher and expects llvm 11.0.0 or newer
@@ -102,6 +123,8 @@ jobs:
           echo "::set-output name=ProgramFiles::${env:ProgramFiles}"
           echo "::set-output name=LocalAppData::${env:LocalAppData}"
           echo "::set-output name=UserProfile::${env:UserProfile}"
+          echo "::set-output name=VcpkgLibs::${env:VCPKG_INSTALLATION_ROOT}\installed\x64-windows-static"
+
       - name: Cache dependencies
         id: cache-deps
         uses: actions/cache@v2
@@ -111,6 +134,7 @@ jobs:
             ${{steps.resolve-env.outputs.LocalAppData}}\Coursier\Cache\v1\
             ${{steps.resolve-env.outputs.UserProfile}}\.ivy2\cache
           key: ${{ runner.os }}-${{ matrix.scala }}-deps
+
       # Install LLVM in case if cache is missing
       - name: Install LLVM
         if: steps.cache-deps.outputs.cache-hit != 'true'
@@ -121,8 +145,74 @@ jobs:
       - name: Assert clang installed and on path
         run: clang --version
 
+      - name: Install libs
+        run: vcpkg install bdwgc zlib --triplet=x64-windows-static
+
       - name: Test runtime
         run: |
+          set SCALANATIVE_MODE=${{matrix.mode}}
           set SCALANATIVE_GC=${{matrix.gc}}
-          sbt ++${{matrix.scala}};sandbox/run;testsExt/test
+          set SCALANATIVE_INCLUDE_DIRS=${{steps.resolve-env.outputs.VcpkgLibs}}\include
+          set SCALANATIVE_LIB_DIRS=${{steps.resolve-env.outputs.VcpkgLibs}}\lib
+          set SCALANATIVE
+          sbt ++${{matrix.scala}};test-runtime
+        shell: cmd
+
+  run-scripted-tests:
+    name: Run scripted tests
+    runs-on: ${{matrix.os}}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2019]
+        scala: [2.12.14]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-java@v2
+        with:
+          distribution: "adopt"
+          java-version: "8"
+
+      #Prepare environment, clang needs to be installed
+      #Compilation on MSVC needs c++14 or higher and expects llvm 11.0.0 or newer
+      #Cache commonly used files: Coursier, ivy cache
+      - name: Resolve env variables
+        id: resolve-env
+        run: |
+          echo "::set-output name=ProgramFiles::${env:ProgramFiles}"
+          echo "::set-output name=LocalAppData::${env:LocalAppData}"
+          echo "::set-output name=UserProfile::${env:UserProfile}"
+          echo "::set-output name=VcpkgLibs::${env:VCPKG_INSTALLATION_ROOT}\installed\x64-windows-static"
+
+      - name: Cache dependencies
+        id: cache-deps
+        uses: actions/cache@v2
+        with:
+          path: |
+            ${{steps.resolve-env.outputs.ProgramFiles}}\LLVM\
+            ${{steps.resolve-env.outputs.LocalAppData}}\Coursier\Cache\v1\
+            ${{steps.resolve-env.outputs.UserProfile}}\.ivy2\cache
+          key: ${{ runner.os }}-${{ matrix.scala }}-deps
+
+      # Install LLVM in case if cache is missing
+      - name: Install LLVM
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: choco install llvm --version=11.0.0
+
+      - name: Add LLVM on Path
+        run: echo "${env:ProgramFiles}\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Assert clang installed and on path
+        run: clang --version
+
+      - name: Install libs
+        run: vcpkg install bdwgc zlib --triplet=x64-windows-static
+
+      - name: Test scripted
+        run: |
+          set SCALANATIVE_MODE=${{matrix.mode}}
+          set SCALANATIVE_GC=${{matrix.gc}}
+          set SCALANATIVE_INCLUDE_DIRS=${{steps.resolve-env.outputs.VcpkgLibs}}\include
+          set SCALANATIVE_LIB_DIRS=${{steps.resolve-env.outputs.VcpkgLibs}}\lib
+          set SCALANATIVE
+          sbt ++${{matrix.scala}};test-scripted
         shell: cmd

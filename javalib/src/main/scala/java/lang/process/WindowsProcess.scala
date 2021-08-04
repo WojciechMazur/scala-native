@@ -93,7 +93,8 @@ private[lang] class WindowsProcess private (
   private[this] val _inputStream =
     PipeIO[PipeIO.Stream](this, outHandle, builder.redirectOutput())
   private[this] val _errorStream =
-    PipeIO[PipeIO.Stream](this, errHandle, builder.redirectError())
+    if (builder.redirectErrorStream()) PipeIO.InputPipeIO.nullStream
+    else PipeIO[PipeIO.Stream](this, errHandle, builder.redirectError())
   private[this] val _outputStream =
     PipeIO[OutputStream](this, inHandle, builder.redirectInput())
 }

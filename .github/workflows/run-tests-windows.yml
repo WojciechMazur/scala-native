@@ -89,7 +89,8 @@ jobs:
       matrix:
         os: [windows-2019]
         scala: [2.13.6, 2.12.14, 2.11.12]
-        gc: [none, boehm, commix, immix]
+        # Commix GC fix not yet merged, would deadlock
+        gc: [none, boehm, immix]
         mode: [debug, release-fast]
     steps:
       - uses: actions/checkout@v2

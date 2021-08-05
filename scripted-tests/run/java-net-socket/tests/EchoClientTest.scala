@@ -12,7 +12,7 @@ object EchoClientTest {
 
     val socket = new Socket("127.0.0.1", port)
     val out =
-      new PrintWriter(socket.getOutputStream, true, StandardCharsets.UTF_8)
+      new PrintWriter(socket.getOutputStream, true)
     val in = new BufferedReader(
       new InputStreamReader(socket.getInputStream, StandardCharsets.UTF_8)
     )

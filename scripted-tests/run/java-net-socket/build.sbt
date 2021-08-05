@@ -30,11 +30,7 @@ launchServer := {
   Files.write(portFile, echoServer.getLocalPort.toString.getBytes)
   val f = Future {
     val clientSocket = echoServer.accept
-    val out = new PrintWriter(
-      clientSocket.getOutputStream,
-      true,
-      StandardCharsets.UTF_8
-    )
+    val out = new PrintWriter(clientSocket.getOutputStream, true)
     val in = new BufferedReader(
       new InputStreamReader(
         clientSocket.getInputStream,

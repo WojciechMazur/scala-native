@@ -42,7 +42,7 @@ class ProcessTest {
       isWindows
     )
     val pb = processForCommand(Scripts.ls, resourceDir)
-    pb.withPath(resourceDir, overwrite = true)
+      .withPath(resourceDir, overwrite = true)
     checkPathOverride(pb)
   }
 
@@ -52,14 +52,14 @@ class ProcessTest {
       isWindows
     )
     val pb = processForCommand(Scripts.ls, resourceDir)
-    pb.withPath(resourceDir, overwrite = false)
+      .withPath(resourceDir, overwrite = false)
     checkPathOverride(pb)
   }
 
   @Test def inputAndErrorStream(): Unit = {
     val pb = processForCommand(Scripts.err)
-    pb.withPath(resourceDir, overwrite = true)
-    pb.directory(new File(resourceDir))
+      .withPath(resourceDir, overwrite = true)
+      .directory(new File(resourceDir))
     val proc = pb.start()
 
     assertProcessExitOrTimeout(proc)
@@ -76,7 +76,7 @@ class ProcessTest {
     )
 
     val pb = processForCommand(Scripts.echo.filename)
-    pb.withPath(resourceDir, overwrite = false)
+      .withPath(resourceDir, overwrite = false)
       .redirectOutput(file)
 
     if (isWindows) {
@@ -110,7 +110,7 @@ class ProcessTest {
       new File(System.getProperty("java.io.tmpdir"))
     )
     val pb = processForCommand(Scripts.echo.filename)
-    pb.withPath(resourceDir, overwrite = false)
+      .withPath(resourceDir, overwrite = false)
       .redirectInput(file)
 
     if (isWindows) {
@@ -134,11 +134,10 @@ class ProcessTest {
   }
 
   @Test def redirectErrorStream(): Unit = {
-    val pb = processForCommand(Scripts.err)
+    val proc = processForCommand(Scripts.err)
       .withPath(resourceDir, overwrite = true)
       .redirectErrorStream(true)
-
-    val proc = pb.start()
+      .start()
 
     assertProcessExitOrTimeout(proc)
 
@@ -147,14 +146,11 @@ class ProcessTest {
   }
 
   @Test def waitForWithTimeoutCompletes(): Unit = {
-    val proc = {
-      if (isWindows) processForCommand("timeout", "1", "/NOBREAK").inheritIO
-      else processForCommand("sleep", "0.1")
-    }.start()
+    val proc = processSleep(0.1).start()
 
     assertTrue(
       "process should have exited but timed out",
-      proc.waitFor(3, TimeUnit.SECONDS)
+      proc.waitFor(1, TimeUnit.SECONDS)
     )
     assertEquals(0, proc.exitValue)
   }
@@ -181,10 +177,7 @@ class ProcessTest {
   //      strand zombie processes and are candidates for a similar fix.
 
   @Test def waitForWithTimeoutTimesOut(): Unit = {
-    val proc = {
-      if (isWindows) processForCommand("timeout", "2", "/NOBREAK").inheritIO
-      else processForCommand("sleep", "2.0")
-    }.start()
+    val proc = processSleep(2.0).start()
 
     assertTrue(
       "process should have timed out but exited",
@@ -199,10 +192,7 @@ class ProcessTest {
   }
 
   @Test def destroy(): Unit = {
-    val proc = {
-      if (isWindows) processForCommand("timeout", "2", "/NOBREAK").inheritIO
-      else processForCommand("sleep", "2.0")
-    }.start()
+    val proc = processSleep(2.0).start()
 
     assertTrue("process should be alive", proc.isAlive)
     proc.destroy()
@@ -214,10 +204,7 @@ class ProcessTest {
   }
 
   @Test def destroyForcibly(): Unit = {
-    val proc = {
-      if (isWindows) processForCommand("timeout", "2", "/NOBREAK").inheritIO
-      else processForCommand("sleep", "2.0")
-    }.start()
+    val proc = processSleep(2.0).start()
 
     assertTrue("process should be alive", proc.isAlive)
     val p = proc.destroyForcibly()
@@ -229,9 +216,9 @@ class ProcessTest {
   }
 
   @Test def shellFallback(): Unit = {
-    val pb = processForCommand(Scripts.hello)
+    val proc = processForCommand(Scripts.hello)
       .withPath(resourceDir, overwrite = true)
-    val proc = pb.start()
+      .start()
 
     assertProcessExitOrTimeout(proc)
 

@@ -40,6 +40,16 @@ object ProcessUtils {
       new ProcessBuilder(args: _*)
   }
 
+  def processSleep(seconds: Double): ProcessBuilder = {
+    if (isWindows)
+      // Use Powershell Start-Sleep, cmd timeout can cause problems and
+      // does support only integer seconds arguments
+      new ProcessBuilder(
+        Seq("powershell", "Start-Sleep", "-Seconds", seconds.toString()): _*
+      )
+    else processForCommand("sleep", seconds.toString())
+  }
+
   def processForCommand(script: Scripts.Entry, args: String*): ProcessBuilder =
     processForCommand((script.cmd +: args): _*)
 

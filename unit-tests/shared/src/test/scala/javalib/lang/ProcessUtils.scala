@@ -7,7 +7,7 @@ import java.util.concurrent.TimeUnit
 import scala.io.Source
 
 import org.junit.Assert._
-import org.scalanative.testsuite.utils.Platform.isWindows
+import org.scalanative.testsuite.utils.Platform._
 
 object ProcessUtils {
   def readInputStream(s: InputStream) = Source.fromInputStream(s).mkString
@@ -16,10 +16,11 @@ object ProcessUtils {
 
   val resourceDir = {
     val platform = if (isWindows) "windows" else "unix"
+
     Paths
       .get(
         System.getProperty("user.dir"),
-        "unit-tests",
+        if (executingInJVM) ".." else "unit-tests",
         "shared",
         "src",
         "test",
@@ -49,6 +50,9 @@ object ProcessUtils {
       )
     else processForCommand("sleep", seconds.toString())
   }
+
+  def processForScript(script: Scripts.Entry, args: String*): ProcessBuilder =
+    processForCommand((script.filename +: args): _*)
 
   def processForCommand(script: Scripts.Entry, args: String*): ProcessBuilder =
     processForCommand((script.cmd +: args): _*)

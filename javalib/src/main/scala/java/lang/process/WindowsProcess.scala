@@ -35,7 +35,7 @@ private[lang] class WindowsProcess private (
 
   private lazy val pid = GetProcessId(handle)
 
-  override def destroy(): Unit = TerminateProcess(handle, 137.toUInt)
+  override def destroy(): Unit = TerminateProcess(handle, 1.toUInt)
 
   override def destroyForcibly(): Process = {
     destroy()
@@ -164,7 +164,7 @@ object WindowsProcess {
       processAttributres = null,
       threadAttributes = null,
       inheritHandle = true,
-      creationFlags = CREATE_UNICODE_ENVIRONMENT,
+      creationFlags = CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW,
       environment = envp,
       currentDirectory = dir,
       startupInfo = startupInfo,

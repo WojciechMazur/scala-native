@@ -57,10 +57,10 @@ class ProcessTest {
   }
 
   @Test def inputAndErrorStream(): Unit = {
-    val pb = processForCommand(Scripts.err)
+    val proc = processForScript(Scripts.err)
       .withPath(resourceDir, overwrite = true)
       .directory(new File(resourceDir))
-    val proc = pb.start()
+      .start()
 
     assertProcessExitOrTimeout(proc)
 
@@ -75,27 +75,22 @@ class ProcessTest {
       new File(System.getProperty("java.io.tmpdir"))
     )
 
-    val pb = processForCommand(Scripts.echo.filename)
-      .withPath(resourceDir, overwrite = false)
+    val proc = processForScript(Scripts.echo)
       .redirectOutput(file)
-
-    if (isWindows) {
-      // Directory needed or else calling `echo.bat` would be equal to calling `echo bat`
-      // Windows resolves PATH env variable as last one, so it prefers keyword in that case,
-      // but it resolve current directory as the first one
-      // If we would to try `echo` it would use keyword instead of `echo.bat` script
-      pb.directory(new File(resourceDir))
-    }
+      .directory(new File(resourceDir))
+      .start()
 
     try {
-      val proc = pb.start()
       proc.getOutputStream.write(s"hello$EOL".getBytes)
       proc.getOutputStream.write(s"quit$EOL".getBytes)
       proc.getOutputStream.flush()
-      proc.getOutputStream.close() // TODO Windows close should not be needed
-
+      if (isWindows) {
+        // Currently used batch script needs output stream to be closed
+        //
+        proc.getOutputStream.close()
+      }
       assertProcessExitOrTimeout(proc)
-
+      assertEquals("", readInputStream(proc.getErrorStream()))
       val out = Source.fromFile(file).getLines.mkString(System.lineSeparator())
       assertEquals("hello", out)
     } finally {
@@ -109,14 +104,9 @@ class ProcessTest {
       ".tmp",
       new File(System.getProperty("java.io.tmpdir"))
     )
-    val pb = processForCommand(Scripts.echo.filename)
-      .withPath(resourceDir, overwrite = false)
+    val pb = processForScript(Scripts.echo)
+      .directory(new File(resourceDir))
       .redirectInput(file)
-
-    if (isWindows) {
-      // Workaround described in inputStreamWritesToFile
-      pb.directory(new File(resourceDir))
-    }
 
     try {
       val os = new FileOutputStream(file)
@@ -200,7 +190,11 @@ class ProcessTest {
       "process should have exited but timed out",
       proc.waitFor(500, TimeUnit.MILLISECONDS)
     )
-    assertEquals(0x80 + 9, proc.exitValue) // SIGKILL, excess 128
+    assertEquals(
+      // SIGKILL, excess 128
+      if (isWindows) 1 else 0x80 + 9,
+      proc.exitValue
+    )
   }
 
   @Test def destroyForcibly(): Unit = {
@@ -212,7 +206,11 @@ class ProcessTest {
       "process should have exited but timed out",
       p.waitFor(500, TimeUnit.MILLISECONDS)
     )
-    assertEquals(0x80 + 9, p.exitValue) // SIGKILL, excess 128
+    assertEquals(
+      // SIGKILL, excess 128
+      if (isWindows) 1 else 0x80 + 9,
+      proc.exitValue
+    )
   }
 
   @Test def shellFallback(): Unit = {

@@ -132,7 +132,7 @@ object ProcessThreadsApiOps {
     def yCountChars: DWord = ref._10
     def fillAtribute: DWord = ref._11
     def flags: DWord = ref._12
-    def showWindows: Word = ref._13
+    def showWindow: Word = ref._13
     def cbReserved2: Word = ref._14
     def lpReserved2: Ptr[Byte] = ref._15
     def stdInput: Handle = ref._16
@@ -151,7 +151,7 @@ object ProcessThreadsApiOps {
     def yCountChars_=(v: DWord): Unit = ref._10 = v
     def fillAtribute_=(v: DWord): Unit = ref._11 = v
     def flags_=(v: DWord): Unit = ref._12 = v
-    def showWindows_=(v: Word): Unit = ref._13 = v
+    def showWindow_=(v: Word): Unit = ref._13 = v
     def cbReserved2_=(v: Word): Unit = ref._14 = v
     def lpReserved2_=(v: Ptr[Byte]): Unit = ref._15 = v
     def stdInput_=(v: Handle): Unit = ref._16 = v

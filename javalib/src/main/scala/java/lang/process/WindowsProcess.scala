@@ -18,8 +18,10 @@ import FileApiExt._
 import NamedPipeApi._
 import SynchApi._
 import WinBaseApi._
+import WinBaseApiExt._
 import WinBaseApiOps._
 import winnt.AccessRights._
+import WindowsProcess._
 
 private[lang] class WindowsProcess private (
     val handle: Handle,
@@ -28,14 +30,12 @@ private[lang] class WindowsProcess private (
     outHandle: FileDescriptor,
     errHandle: FileDescriptor
 ) extends GenericProcess {
+  private val pid = GetProcessId(handle)
+  private var cachedExitValue: Option[scala.Int] = None
 
-  private[lang] def checkResult(): CInt =
-    if (isAlive()) -1
-    else exitValue()
-
-  private lazy val pid = GetProcessId(handle)
-
-  override def destroy(): Unit = TerminateProcess(handle, 1.toUInt)
+  override def destroy(): Unit = if (isAlive) {
+    TerminateProcess(handle, 1.toUInt)
+  }
 
   override def destroyForcibly(): Process = {
     destroy()
@@ -43,20 +43,13 @@ private[lang] class WindowsProcess private (
   }
 
   override def exitValue(): scala.Int = {
-    val exitCode: Ptr[DWord] = stackalloc[DWord]
-    if (ProcessThreadsApi.GetExitCodeProcess(handle, exitCode)) {
-      (!exitCode) match {
-        case STILL_ACTIVE =>
-          throw new IllegalThreadStateException(
-            s"Process $pid has not exited yet"
-          )
-        case v => v.toInt
-      }
-    } else {
-      throw new IllegalThreadStateException(
-        s"Cannot get exit code of process $pid"
+    checkResult()
+    cachedExitValue
+      .getOrElse(
+        throw new IllegalThreadStateException(
+          s"Process $pid has not exited yet"
+        )
       )
-    }
   }
 
   override def getErrorStream(): InputStream = _errorStream
@@ -65,13 +58,12 @@ private[lang] class WindowsProcess private (
 
   override def getOutputStream(): OutputStream = _outputStream
 
-  override def isAlive(): scala.Boolean = {
-    val exitCode: Ptr[DWord] = stackalloc[DWord]
-    GetExitCodeProcess(handle, exitCode)
-    !exitCode == STILL_ACTIVE
-  }
+  override def isAlive(): scala.Boolean = cachedExitValue.isEmpty
 
-  override def toString = s"WindowsProcess($pid)"
+  override def toString = {
+    checkResult()
+    s"Process[pid=$pid, exitValue=${cachedExitValue.getOrElse("\"not exited\"")}"
+  }
 
   override def waitFor(): scala.Int = {
     WaitForSingleObject(handle, Constants.Infinite)
@@ -97,6 +89,26 @@ private[lang] class WindowsProcess private (
     else PipeIO[PipeIO.Stream](this, errHandle, builder.redirectError())
   private[this] val _outputStream =
     PipeIO[OutputStream](this, inHandle, builder.redirectInput())
+
+  private[lang] def checkResult(): CInt = {
+    cachedExitValue
+      .getOrElse {
+        val exitCode: Ptr[DWord] = stackalloc[DWord]
+        if (!GetExitCodeProcess(handle, exitCode)) -1
+        else {
+          (!exitCode) match {
+            case STILL_ACTIVE => -1
+            case code =>
+              _inputStream.drain()
+              _errorStream.drain()
+              _outputStream.close()
+              CloseHandle(handle)
+              cachedExitValue = Some(code.toInt)
+              code.toInt
+          }
+        }
+      }
+  }
 }
 
 object WindowsProcess {
@@ -172,22 +184,23 @@ object WindowsProcess {
     )
 
     if (created) {
+      def toFileDescriptor(handle: Handle, readOnly: Boolean) =
+        new FileDescriptor(
+          FileDescriptor.FileHandle(handle),
+          readOnly = readOnly
+        )
+
       CloseHandle(inRead)
       CloseHandle(outWrite)
       CloseHandle(errWrite)
       CloseHandle(processInfo.thread)
 
-      def toFileDescriptor(handle: Handle) =
-        new FileDescriptor(
-          FileDescriptor.FileHandle(handle),
-          readOnly = false
-        )
       new WindowsProcess(
         processInfo.process,
         builder,
-        toFileDescriptor(inWrite),
-        toFileDescriptor(outRead),
-        toFileDescriptor(errRead)
+        toFileDescriptor(inWrite, readOnly = false),
+        toFileDescriptor(outRead, readOnly = true),
+        toFileDescriptor(errRead, readOnly = true)
       )
     } else {
       throw WindowsException(s"Failed to create process for command: $cmd")

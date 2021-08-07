@@ -43,8 +43,7 @@ private[lang] class WindowsProcess private (
   }
 
   override def exitValue(): scala.Int = {
-    checkResult()
-    cachedExitValue
+    checkExitValue
       .getOrElse(
         throw new IllegalThreadStateException(
           s"Process $pid has not exited yet"
@@ -58,11 +57,10 @@ private[lang] class WindowsProcess private (
 
   override def getOutputStream(): OutputStream = _outputStream
 
-  override def isAlive(): scala.Boolean = cachedExitValue.isEmpty
+  override def isAlive(): scala.Boolean = checkExitValue.isEmpty
 
   override def toString = {
-    checkResult()
-    s"Process[pid=$pid, exitValue=${cachedExitValue.getOrElse("\"not exited\"")}"
+    s"Process[pid=$pid, exitValue=${checkExitValue.getOrElse("\"not exited\"")}"
   }
 
   override def waitFor(): scala.Int = {
@@ -89,6 +87,11 @@ private[lang] class WindowsProcess private (
     else PipeIO[PipeIO.Stream](this, errHandle, builder.redirectError())
   private[this] val _outputStream =
     PipeIO[OutputStream](this, inHandle, builder.redirectInput())
+    
+  private def checkExitValue: Option[scala.Int] = {
+    checkResult()
+    cachedExitValue
+  }
 
   private[lang] def checkResult(): CInt = {
     cachedExitValue

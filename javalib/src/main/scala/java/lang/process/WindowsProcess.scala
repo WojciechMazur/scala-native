@@ -33,7 +33,7 @@ private[lang] class WindowsProcess private (
   private val pid = GetProcessId(handle)
   private var cachedExitValue: Option[scala.Int] = None
 
-  override def destroy(): Unit = if (isAlive) {
+  override def destroy(): Unit = if (isAlive()) {
     TerminateProcess(handle, 1.toUInt)
   }
 

@@ -375,7 +375,7 @@ class PropertiesTest {
          |#Line4
          |!AfterExclaim
          |#AfterPound
-         |#Wow!""".stripMargin
+         |#Wow!""".stripMargin.replaceAll(System.lineSeparator(), "\n")
     val out = out1.toString().replaceAll(System.lineSeparator(), "\n")
     assertTrue(s"starts with, got: '$out'", out.startsWith(commentsWithoutDate))
   }

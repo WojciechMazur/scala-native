@@ -14,10 +14,7 @@ object ProcessUtils {
 
   final val EOL = System.lineSeparator()
 
-  val resourceDir = {
-    val platform = if (isWindows) "windows" else "unix"
-
-    val r = Paths
+  val resourceDir = Paths
       .get(
         System.getProperty("user.dir"),
         if (executingInJVM) ".." else "unit-tests",
@@ -26,13 +23,10 @@ object ProcessUtils {
         "test",
         "resources",
         "process",
-        platform,
+        if (isWindows) "windows" else "unix",
         ""
-      )
-      .toString()
-    println(s"resourceDir=${r}")
-    r
-  }
+      ).toFile()
+      .getCanonicalPath 
 
   val scripts = Scripts.values.map(_.filename)
 
@@ -54,7 +48,7 @@ object ProcessUtils {
   }
 
   def processForScript(script: Scripts.Entry, args: String*): ProcessBuilder =
-    processForCommand((script.filename +: args): _*)
+    processForCommand((Paths.get(resourceDir, script.filename).toString +: args): _*)
 
   def processForCommand(script: Scripts.Entry, args: String*): ProcessBuilder =
     processForCommand((script.cmd +: args): _*)
@@ -81,20 +75,6 @@ object ProcessUtils {
       s"Process took more than $tmo ${tmUnit.name} to exit.",
       process.waitFor(tmo, tmUnit)
     )
-  }
-  implicit class ProcessBuilderOp(pb: ProcessBuilder) {
-    def withPath(
-        newEntry: String,
-        overwrite: Boolean = false
-    ): ProcessBuilder = {
-      val previousPath = pb.environment().get("PATH")
-      val pathDelimiter = if (isWindows) ";" else ":"
-      val newPath =
-        if (overwrite) newEntry
-        else s"$newEntry$pathDelimiter$previousPath"
-      pb.environment().put("PATH", newPath)
-      pb
-    }
   }
   object Scripts {
     final class Entry(name: String, noExt: Boolean = false) {

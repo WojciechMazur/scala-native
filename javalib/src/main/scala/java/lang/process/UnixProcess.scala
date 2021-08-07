@@ -8,7 +8,7 @@ import scala.scalanative.unsafe._
 import scala.scalanative.libc.{errno => err, signal => sig, _}
 import sig._
 import err.errno
-import scala.scalanative.posix.{fcntl, pthread, sys, time, unistd, errno => e}
+import scala.scalanative.posix.{fcntl, signal, pthread, sys, time, unistd, errno => e}
 import time._
 import sys.time._
 import e.ETIMEDOUT
@@ -27,10 +27,11 @@ private[lang] class UnixProcess private (
     outfds: Ptr[CInt],
     errfds: Ptr[CInt]
 ) extends GenericProcess {
-  override def destroy(): Unit = posix.signal.kill(pid, 9)
+  override def destroy(): Unit = posix.signal.kill(pid, SIGTERM)
 
   override def destroyForcibly(): Process = {
-    destroy()
+    import posix.signal._
+    kill(pid, SIGKILL)
     this
   }
 

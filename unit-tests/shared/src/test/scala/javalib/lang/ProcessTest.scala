@@ -9,7 +9,7 @@ import scala.io.Source
 import org.junit.Test
 import org.junit.Assert._
 import org.junit.Assume._
-import org.scalanative.testsuite.utils.Platform.isWindows
+import org.scalanative.testsuite.utils.Platform._
 
 class ProcessTest {
   import javalib.lang.ProcessUtils._
@@ -42,8 +42,10 @@ class ProcessTest {
       "Not possible in Windows, would use dir keyword anyway",
       isWindows
     )
-    val pb = processForCommand(Scripts.ls, resourceDir)
-      .withPath(resourceDir, overwrite = true)
+    assumeFalse("Not JVM complient", executingInJVM)
+
+  val pb = new ProcessBuilder("ls", resourceDir)
+    pb.environment.put("PATH", resourceDir)
     checkPathOverride(pb)
   }
 
@@ -52,16 +54,15 @@ class ProcessTest {
       "Not possible in Windows, would use dir keyword anyway",
       isWindows
     )
-    val pb = processForCommand(Scripts.ls, resourceDir)
-      .withPath(resourceDir, overwrite = false)
+    assumeFalse("Not JVM complient", executingInJVM)
+
+    val pb = new ProcessBuilder("ls", resourceDir)
+    pb.environment.put("PATH", s"$resourceDir:${pb.environment.get("PATH")}")
     checkPathOverride(pb)
   }
 
   @Test def inputAndErrorStream(): Unit = {
-    val proc = processForScript(Scripts.err)
-      .withPath(resourceDir, overwrite = true)
-      .directory(new File(resourceDir))
-      .start()
+    val proc = processForScript(Scripts.err).start()
 
     assertProcessExitOrTimeout(proc)
 
@@ -81,7 +82,6 @@ class ProcessTest {
 
     val proc = processForScript(Scripts.echo)
       .redirectOutput(file)
-      .directory(new File(resourceDir))
       .start()
 
     try {
@@ -109,7 +109,6 @@ class ProcessTest {
       new File(System.getProperty("java.io.tmpdir"))
     )
     val pb = processForScript(Scripts.echo)
-      .directory(new File(resourceDir))
       .redirectInput(file)
 
     try {
@@ -129,7 +128,6 @@ class ProcessTest {
 
   @Test def redirectErrorStream(): Unit = {
     val proc = processForScript(Scripts.err)
-      .withPath(resourceDir, overwrite = true)
       .redirectErrorStream(true)
       .start()
 
@@ -195,8 +193,8 @@ class ProcessTest {
       proc.waitFor(500, TimeUnit.MILLISECONDS)
     )
     assertEquals(
-      // SIGKILL, excess 128
-      if (isWindows) 1 else 0x80 + 9,
+      // SIGTERM, excess 143
+      if (isWindows) 1 else 0x80 + 15,
       proc.exitValue
     )
   }
@@ -219,9 +217,7 @@ class ProcessTest {
   }
 
   @Test def shellFallback(): Unit = {
-    val proc = processForScript(Scripts.hello)
-      .withPath(resourceDir, overwrite = true)
-      .start()
+    val proc = processForScript(Scripts.hello).start()
 
     assertProcessExitOrTimeout(proc)
 

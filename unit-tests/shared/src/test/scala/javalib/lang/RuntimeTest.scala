@@ -8,7 +8,7 @@ import java.io.File
 import org.junit.Test
 import org.junit.Assert._
 import org.junit.Assume._
-import org.scalanative.testsuite.utils.Platform.isWindows
+import org.scalanative.testsuite.utils.Platform._
 
 class RuntimeTest {
   import ProcessUtils._
@@ -30,11 +30,12 @@ class RuntimeTest {
       "Not possible in Windows, would use dir keyword anyway",
       isWindows
     )
+    assumeFalse("Not complient with JVM", executingInJVM)
+    
     val envp = Array(s"PATH=$resourceDir")
     val proc = Runtime.getRuntime.exec(Array("ls"), envp)
-    val out = readInputStream(proc.getInputStream)
     assertTrue(proc.waitFor(5, TimeUnit.SECONDS))
-    assertTrue(out == "1")
+    assertEquals("1", readInputStream(proc.getInputStream))
   }
   @Test def execDir(): Unit = {
     val proc =

@@ -17,7 +17,7 @@ object ProcessUtils {
   val resourceDir = {
     val platform = if (isWindows) "windows" else "unix"
 
-    Paths
+    val r = Paths
       .get(
         System.getProperty("user.dir"),
         if (executingInJVM) ".." else "unit-tests",
@@ -30,6 +30,8 @@ object ProcessUtils {
         ""
       )
       .toString()
+    println(s"resourceDir=${r}")
+    r
   }
 
   val scripts = Scripts.values.map(_.filename)

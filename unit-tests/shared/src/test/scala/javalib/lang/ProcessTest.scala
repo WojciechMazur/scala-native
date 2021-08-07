@@ -21,6 +21,7 @@ class ProcessTest {
       } else {
         processForCommand(Scripts.ls, resourceDir).start()
       }
+    println(s"resourceDir=${resourceDir}")
     assertProcessExitOrTimeout(proc)
     val out = readInputStream(proc.getInputStream())
 
@@ -64,8 +65,11 @@ class ProcessTest {
 
     assertProcessExitOrTimeout(proc)
 
-    assertEquals("foo", readInputStream(proc.getErrorStream))
-    assertEquals("bar", readInputStream(proc.getInputStream))
+    val err = readInputStream(proc.getErrorStream)
+    val out = readInputStream(proc.getInputStream)
+    println(s"err/out=${err}/${out}")
+    assertEquals("foo", err)
+    assertEquals("bar", out)
   }
 
   @Test def inputStreamWritesToFile(): Unit = {
@@ -86,12 +90,12 @@ class ProcessTest {
       proc.getOutputStream.flush()
       if (isWindows) {
         // Currently used batch script needs output stream to be closed
-        //
         proc.getOutputStream.close()
       }
       assertProcessExitOrTimeout(proc)
       assertEquals("", readInputStream(proc.getErrorStream()))
-      val out = Source.fromFile(file).getLines.mkString(System.lineSeparator())
+      val out = Source.fromFile(file.toString).getLines.mkString
+
       assertEquals("hello", out)
     } finally {
       file.delete()
@@ -116,7 +120,7 @@ class ProcessTest {
 
       val proc = pb.start()
       assertProcessExitOrTimeout(proc)
-
+      assertEquals("", readInputStream(proc.getErrorStream()))
       assertEquals("hello", readInputStream(proc.getInputStream).trim)
     } finally {
       file.delete()
@@ -124,7 +128,7 @@ class ProcessTest {
   }
 
   @Test def redirectErrorStream(): Unit = {
-    val proc = processForCommand(Scripts.err)
+    val proc = processForScript(Scripts.err)
       .withPath(resourceDir, overwrite = true)
       .redirectErrorStream(true)
       .start()
@@ -206,6 +210,7 @@ class ProcessTest {
       "process should have exited but timed out",
       p.waitFor(500, TimeUnit.MILLISECONDS)
     )
+    println(s"isWindows=${isWindows}")
     assertEquals(
       // SIGKILL, excess 128
       if (isWindows) 1 else 0x80 + 9,
@@ -214,7 +219,7 @@ class ProcessTest {
   }
 
   @Test def shellFallback(): Unit = {
-    val proc = processForCommand(Scripts.hello)
+    val proc = processForScript(Scripts.hello)
       .withPath(resourceDir, overwrite = true)
       .start()
 

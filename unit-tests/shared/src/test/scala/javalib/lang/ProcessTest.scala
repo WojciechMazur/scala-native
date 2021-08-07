@@ -44,7 +44,7 @@ class ProcessTest {
     )
     assumeFalse("Not JVM complient", executingInJVM)
 
-  val pb = new ProcessBuilder("ls", resourceDir)
+    val pb = new ProcessBuilder("ls", resourceDir)
     pb.environment.put("PATH", resourceDir)
     checkPathOverride(pb)
   }

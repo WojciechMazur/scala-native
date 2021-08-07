@@ -8,7 +8,15 @@ import scala.scalanative.unsafe._
 import scala.scalanative.libc.{errno => err, signal => sig, _}
 import sig._
 import err.errno
-import scala.scalanative.posix.{fcntl, signal, pthread, sys, time, unistd, errno => e}
+import scala.scalanative.posix.{
+  fcntl,
+  signal,
+  pthread,
+  sys,
+  time,
+  unistd,
+  errno => e
+}
 import time._
 import sys.time._
 import e.ETIMEDOUT

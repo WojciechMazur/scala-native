@@ -31,7 +31,7 @@ class RuntimeTest {
       isWindows
     )
     assumeFalse("Not complient with JVM", executingInJVM)
-    
+
     val envp = Array(s"PATH=$resourceDir")
     val proc = Runtime.getRuntime.exec(Array("ls"), envp)
     assertTrue(proc.waitFor(5, TimeUnit.SECONDS))

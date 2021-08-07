@@ -15,18 +15,19 @@ object ProcessUtils {
   final val EOL = System.lineSeparator()
 
   val resourceDir = Paths
-      .get(
-        System.getProperty("user.dir"),
-        if (executingInJVM) ".." else "unit-tests",
-        "shared",
-        "src",
-        "test",
-        "resources",
-        "process",
-        if (isWindows) "windows" else "unix",
-        ""
-      ).toFile()
-      .getCanonicalPath 
+    .get(
+      System.getProperty("user.dir"),
+      if (executingInJVM) ".." else "unit-tests",
+      "shared",
+      "src",
+      "test",
+      "resources",
+      "process",
+      if (isWindows) "windows" else "unix",
+      ""
+    )
+    .toFile()
+    .getCanonicalPath
 
   val scripts = Scripts.values.map(_.filename)
 
@@ -48,7 +49,9 @@ object ProcessUtils {
   }
 
   def processForScript(script: Scripts.Entry, args: String*): ProcessBuilder =
-    processForCommand((Paths.get(resourceDir, script.filename).toString +: args): _*)
+    processForCommand(
+      (Paths.get(resourceDir, script.filename).toString +: args): _*
+    )
 
   def processForCommand(script: Scripts.Entry, args: String*): ProcessBuilder =
     processForCommand((script.cmd +: args): _*)

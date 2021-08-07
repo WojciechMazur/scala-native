@@ -23,6 +23,7 @@ class ProcessTest {
       }
     println(s"resourceDir=${resourceDir}")
     assertProcessExitOrTimeout(proc)
+    assertEquals("", readInputStream(proc.getErrorStream()))
     val out = readInputStream(proc.getInputStream())
 
     assertEquals(scripts, out.split(EOL).toSet)
@@ -68,7 +69,6 @@ class ProcessTest {
 
     val err = readInputStream(proc.getErrorStream)
     val out = readInputStream(proc.getInputStream)
-    println(s"err/out=${err}/${out}")
     assertEquals("foo", err)
     assertEquals("bar", out)
   }
@@ -220,7 +220,7 @@ class ProcessTest {
     val proc = processForScript(Scripts.hello).start()
 
     assertProcessExitOrTimeout(proc)
-
-    assertEquals(s"hello$EOL", readInputStream(proc.getInputStream))
+    assertEquals("", readInputStream(proc.getErrorStream()))
+    assertEquals(s"hello$EOL", readInputStream(proc.getInputStream()))
   }
 }

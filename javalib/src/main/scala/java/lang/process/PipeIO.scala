@@ -1,6 +1,7 @@
 package java.lang.process
 
 import java.io._
+import scala.annotation.tailrec
 import scala.scalanative.annotation.stub
 import scala.scalanative.unsafe._
 import scala.scalanative.libc._, signal._
@@ -62,21 +63,22 @@ private[lang] object PipeIO {
       res
     }
     override def drain() = {
-      var toRead = 0
-      var readBuf: Array[scala.Byte] = Array()
-      while ({
-        toRead = availableFD()
-        toRead > 0
-      }) {
-        val size = if (readBuf == null) 0 else readBuf.size
-        readBuf =
-          if (readBuf == null) new Array[scala.Byte](toRead)
-          else {
-            readBuf = java.util.Arrays.copyOf(readBuf, size + toRead)
-            readBuf
-          }
-        val bytesRead = is.read(readBuf, size, toRead)
+      @tailrec
+      def loop(readBuf: Array[scala.Byte]): Array[Byte] = {
+        if (drained) readBuf
+        else {
+          val toRead = availableFD()
+          if (toRead > 0) {
+            val size = readBuf.size
+            val newBuf = java.util.Arrays.copyOf(readBuf, size + toRead)
+            is.read(newBuf, size, toRead)
+            loop(newBuf)
+          } else readBuf
+        }
       }
+
+      val readBuf = loop(Array.emptyByteArray)
+      drained = true
       is.close()
       this.in = new ByteArrayInputStream(readBuf)
     }
@@ -84,17 +86,18 @@ private[lang] object PipeIO {
     private[this] var drained = false
     private def availableFD() = {
       if (isWindows) {
-        val aviallableBytes = stackalloc[DWord]
+        val availableTotal = stackalloc[DWord]
+        val availableThisMsg = stackalloc[DWord]
         val hasPeaked = PeekNamedPipe(
           pipe = is.getFD().handle,
           buffer = null,
           bufferSize = 0.toUInt,
           bytesRead = null,
-          totalBytesAvailable = aviallableBytes,
-          bytesLeftThisMessage = null
+          totalBytesAvailable = availableTotal,
+          bytesLeftThisMessage = availableThisMsg
         )
-        if (hasPeaked) (!aviallableBytes).toInt
-        else 0
+        if (hasPeaked) (!availableTotal).toInt
+        else -1
       } else {
         val res = stackalloc[CInt]
         ioctl(

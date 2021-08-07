@@ -1,5 +1,5 @@
 import java.net.{Socket, InetSocketAddress}
-import java.io.{PrintWriter, BufferedReader, InputStreamReader}
+import java.io._
 import java.nio.file.{Paths, Files}
 import java.nio.charset.StandardCharsets
 
@@ -12,7 +12,10 @@ object EchoClientTest {
 
     val socket = new Socket("127.0.0.1", port)
     val out =
-      new PrintWriter(socket.getOutputStream, true)
+      new PrintWriter(
+        new OutputStreamWriter(socket.getOutputStream, StandardCharsets.UTF_8),
+        true
+      )
     val in = new BufferedReader(
       new InputStreamReader(socket.getInputStream, StandardCharsets.UTF_8)
     )

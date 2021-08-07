@@ -98,6 +98,11 @@ jobs:
         with:
           distribution: "adopt"
           java-version: "8"
+      - name: Configure Pagefile
+        uses: al-cheb/configure-pagefile-action@v1.2
+        with:
+          minimum-size: 8GB
+          maximum-size: 16GB
 
       #Prepare environment, clang needs to be installed
       #Compilation on MSVC needs c++14 or higher and expects llvm 11.0.0 or newer
@@ -157,6 +162,11 @@ jobs:
         with:
           distribution: "adopt"
           java-version: "8"
+      - name: Configure Pagefile
+        uses: al-cheb/configure-pagefile-action@v1.2
+        with:
+          minimum-size: 8GB
+          maximum-size: 16GB
 
       #Prepare environment, clang needs to be installed
       #Compilation on MSVC needs c++14 or higher and expects llvm 11.0.0 or newer

@@ -86,12 +86,7 @@ launchSilentServer := {
   val f = Future {
     val clientSocket = echoServer.accept
     val in =
-      new BufferedReader(
-        new InputStreamReader(
-          clientSocket.getInputStream,
-          StandardCharsets.UTF_8
-        )
-      )
+      new BufferedReader(new InputStreamReader(clientSocket.getInputStream))
 
     var line = in.readLine
     while (line != null) {

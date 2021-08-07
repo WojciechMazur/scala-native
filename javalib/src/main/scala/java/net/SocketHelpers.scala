@@ -119,6 +119,8 @@ object SocketHelpers {
           case error =>
             return false
         }
+      } catch {
+        case e: Throwable => e
       } finally {
         if (isWindows) closeSocket(sock.toPtr[Byte])
         else close(sock)

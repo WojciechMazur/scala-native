@@ -124,10 +124,10 @@ addCommandAlias(
   "test-runtime",
   Seq(
     "sandbox/run",
-    "tests/test",
     "testsJVM/test",
-    "testsExt/test",
+    "tests/test",
     "testsExtJVM/test",
+    "testsExt/test",
     "junitTestOutputsJVM/test",
     "junitTestOutputsNative/test",
     "scalaPartestJunitTests/test"

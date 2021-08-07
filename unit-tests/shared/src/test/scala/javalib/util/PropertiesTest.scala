@@ -377,7 +377,7 @@ class PropertiesTest {
          |#AfterPound
          |#Wow!""".stripMargin
     val out = out1.toString().replaceAll(System.lineSeparator(), "\n")
-    assertTrue("starts with", out.startsWith(commentsWithoutDate))
+    assertTrue(s"starts with, got: '$out'", out.startsWith(commentsWithoutDate))
   }
 
   @Test def checkPropertiesFormattedCorrectly(): Unit = {

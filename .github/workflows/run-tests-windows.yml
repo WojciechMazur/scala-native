@@ -106,13 +106,13 @@ jobs:
         uses: al-cheb/configure-pagefile-action@v1.2
         if: matrix.gc == 'none'
         with:
-          minimum-size: 16GB
-          maximum-size: 48GB
+          minimum-size: 4GB
+          maximum-size: 40GB
       - uses: al-cheb/configure-pagefile-action@v1.2
         if: matrix.gc != 'none'
         with:
           minimum-size: 4GB
-          maximum-size: 8GB
+          maximum-size: 16GB
 
       #Prepare environment, clang needs to be installed
       #Compilation on MSVC needs c++14 or higher and expects llvm 11.0.0 or newer

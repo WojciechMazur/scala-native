@@ -89,8 +89,7 @@ jobs:
       matrix:
         os: [windows-2019]
         scala: [2.13.6, 2.12.14, 2.11.12]
-        # Commix GC fix not yet merged, would deadlock
-        gc: [none, boehm, immix]
+        gc: [none, boehm, immix, commix]
         mode: [debug, release-fast]
     steps:
       - uses: actions/checkout@v2
@@ -100,7 +99,7 @@ jobs:
           java-version: "8"
       - name: Configure Pagefile
         uses: al-cheb/configure-pagefile-action@v1.2
-        if: matrix.gc == none
+        if: matrix.gc == 'none'
         with:
           minimum-size: 8GB
           maximum-size: 32GB

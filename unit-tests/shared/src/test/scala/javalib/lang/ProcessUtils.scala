@@ -24,7 +24,6 @@ object ProcessUtils {
       "resources",
       "process",
       if (isWindows) "windows" else "unix",
-      ""
     )
     .toFile()
     .getCanonicalPath

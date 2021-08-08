@@ -21,7 +21,6 @@ class ProcessTest {
       } else {
         processForCommand(Scripts.ls, resourceDir).start()
       }
-    println(s"resourceDir=${resourceDir}")
     assertProcessExitOrTimeout(proc)
     assertEquals("", readInputStream(proc.getErrorStream()))
     val out = readInputStream(proc.getInputStream())
@@ -67,10 +66,8 @@ class ProcessTest {
 
     assertProcessExitOrTimeout(proc)
 
-    val err = readInputStream(proc.getErrorStream)
-    val out = readInputStream(proc.getInputStream)
-    assertEquals("foo", err)
-    assertEquals("bar", out)
+    assertEquals("foo", readInputStream(proc.getErrorStream))
+    assertEquals("bar", readInputStream(proc.getInputStream))
   }
 
   @Test def inputStreamWritesToFile(): Unit = {
@@ -208,7 +205,6 @@ class ProcessTest {
       "process should have exited but timed out",
       p.waitFor(500, TimeUnit.MILLISECONDS)
     )
-    println(s"isWindows=${isWindows}")
     assertEquals(
       // SIGKILL, excess 128
       if (isWindows) 1 else 0x80 + 9,

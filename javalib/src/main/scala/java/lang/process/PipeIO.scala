@@ -87,14 +87,13 @@ private[lang] object PipeIO {
     private def availableFD() = {
       if (isWindows) {
         val availableTotal = stackalloc[DWord]
-        val availableThisMsg = stackalloc[DWord]
         val hasPeaked = PeekNamedPipe(
           pipe = is.getFD().handle,
           buffer = null,
           bufferSize = 0.toUInt,
           bytesRead = null,
           totalBytesAvailable = availableTotal,
-          bytesLeftThisMessage = availableThisMsg
+          bytesLeftThisMessage = null
         )
         if (hasPeaked) (!availableTotal).toInt
         else 0

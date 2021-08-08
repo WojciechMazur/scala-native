@@ -69,12 +69,17 @@ private[lang] class WindowsProcess private (
   }
 
   override def waitFor(timeout: scala.Long, unit: TimeUnit): scala.Boolean = {
+    import SynchApiExt._
     def hasValidTimeout = timeout > 0L
     def hasFinished =
       WaitForSingleObject(
         handle,
         unit.toMillis(timeout).toUInt
-      ) != SynchApiExt.WAIT_TIMEOUT
+      ) match {
+        case WAIT_TIMEOUT => false
+        case WAIT_FAILED => throw WindowsException("Failed to wait on proces handle")
+        case _ => true
+      }
 
     !isAlive() ||
     (hasValidTimeout && hasFinished)

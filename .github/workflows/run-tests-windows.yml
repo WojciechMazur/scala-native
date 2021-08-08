@@ -97,12 +97,22 @@ jobs:
         with:
           distribution: "adopt"
           java-version: "8"
+      
+      # None GC runtime tests can use a lot of memory, especially 
+      # in case of unit-tests and partest JUnit tests. 
+      # We need to set proper Pagefile limits in the advance. 
+      # For other GC we limits can be more strict.
       - name: Configure Pagefile
         uses: al-cheb/configure-pagefile-action@v1.2
         if: matrix.gc == 'none'
         with:
-          minimum-size: 8GB
-          maximum-size: 32GB
+          minimum-size: 16GB
+          maximum-size: 48GB
+      - uses: al-cheb/configure-pagefile-action@v1.2
+        if: matrix.gc != 'none'
+        with:
+          minimum-size: 4GB
+          maximum-size: 8GB
 
       #Prepare environment, clang needs to be installed
       #Compilation on MSVC needs c++14 or higher and expects llvm 11.0.0 or newer

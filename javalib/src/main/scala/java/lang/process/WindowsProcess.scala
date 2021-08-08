@@ -87,7 +87,7 @@ private[lang] class WindowsProcess private (
     else PipeIO[PipeIO.Stream](this, errHandle, builder.redirectError())
   private[this] val _outputStream =
     PipeIO[OutputStream](this, inHandle, builder.redirectInput())
-    
+
   private def checkExitValue: Option[scala.Int] = {
     checkResult()
     cachedExitValue

@@ -97,7 +97,7 @@ private[lang] object PipeIO {
           bytesLeftThisMessage = availableThisMsg
         )
         if (hasPeaked) (!availableTotal).toInt
-        else -1
+        else 0
       } else {
         val res = stackalloc[CInt]
         ioctl(

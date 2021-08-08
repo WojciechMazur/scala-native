@@ -1,6 +1,8 @@
 package scala.scalanative.windows
 
-import scala.scalanative.unsafe._
+// Make sure to use windows.Word in this file, depending on Scala version
+// order of type resolution might differ
+import scala.scalanative.unsafe.{Word => _, _}
 import scalanative.unsigned._
 import HandleApi.Handle
 import WinBaseApi.SecurityAttributes

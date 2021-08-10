@@ -205,7 +205,7 @@ final class MergeProcessor(
         // Retry until no new escapes are found
 
         var retries = 0
-        while ({
+        while( {
           retries += 1
           mergeFresh = Fresh(merge.id)
           mergeLocals.clear()
@@ -224,7 +224,7 @@ final class MergeProcessor(
             throw BailOut("too many state merge retries")
           }
           newEscapes.nonEmpty
-        }) ()
+        })()
 
         // Wrap up anre rturn a new merge state
 

@@ -108,7 +108,6 @@ inThisBuild(
       "-encoding",
       "utf8",
       "-feature",
-      "-target:jvm-1.8",
       "-unchecked",
       "-Xfatal-warnings"
     )
@@ -328,8 +327,8 @@ lazy val tools =
     .settings(buildInfoSettings)
     .settings(
       libraryDependencies ++= Seq(
-        "org.scalacheck" %% "scalacheck" % "1.14.3" % "test",
-        "org.scalatest" %% "scalatest" % "3.1.1" % "test"
+        "org.scalacheck" %% "scalacheck" % "1.15.4" % "test",
+        "org.scalatest" %% "scalatest" % "3.2.9" % "test"
       ),
       Test / fork := true,
       Test / javaOptions ++= {
@@ -346,20 +345,25 @@ lazy val tools =
             allCoreLibsCp.map(_.getAbsolutePath).mkString(pathSeparator)
         )
       },
-      scalacOptions ++= {
+      scalacOptions := {
+        val prev = scalacOptions.value
         CrossVersion.partialVersion(scalaVersion.value) match {
-          case Some((2, 11 | 12)) => Nil
-          case _                  =>
+          case Some((2, 11 | 12)) => prev
+          case Some((2, 13))      =>
             // 2.13 and 2.11 tools are only used in partest.
             // It looks like it's impossible to provide alternative sources - it fails to compile plugin sources,
             // before attaching them to other build projects. We disable unsolvable fatal-warnings with filters below
-            Seq(
+            prev ++ Seq(
               // In 2.13 lineStream_! was replaced with lazyList_!.
               "-Wconf:cat=deprecation&msg=lineStream_!:s",
               // OpenHashMap is used with value class parameter type, we cannot replace it with AnyRefMap or LongMap
               // Should not be replaced with HashMap due to performance reasons.
               "-Wconf:cat=deprecation&msg=OpenHashMap:s"
             )
+          case _ =>
+            prev.diff {
+              Seq("-Xfatal-warnings")
+            }
         }
       },
       libraryDependencies ++= {
@@ -367,7 +371,7 @@ lazy val tools =
           case Some((2, 11 | 12)) => Nil
           case _ =>
             List(
-              "org.scala-lang.modules" %% "scala-parallel-collections" % "1.0.0"
+              "org.scala-lang.modules" %% "scala-parallel-collections" % "1.0.3"
             )
         }
       },
@@ -381,18 +385,32 @@ lazy val nscplugin =
     .in(file("nscplugin"))
     .settings(mavenPublishSettings)
     .settings(
-      crossVersion := CrossVersion.full,
       Compile / unmanagedSourceDirectories ++= Seq(
         (nir / Compile / scalaSource).value,
         (util / Compile / scalaSource).value
       ),
-      libraryDependencies ++= Seq(
-        "org.scala-lang" % "scala-compiler" % scalaVersion.value,
-        "org.scala-lang" % "scala-reflect" % scalaVersion.value
-      ),
-      exportJars := true
+      libraryDependencies ++= {
+        CrossVersion.partialVersion(scalaVersion.value) match {
+          case Some((2, _)) =>
+            Seq(
+              "org.scala-lang" % "scala-compiler" % scalaVersion.value,
+              "org.scala-lang" % "scala-reflect" % scalaVersion.value
+            )
+          case _ =>
+            Seq(
+              "org.scala-lang" %% "scala3-compiler" % scalaVersion.value % "provided"
+            )
+        }
+      },
+      exportJars := true,
+      scalacOptions := {
+        val prev = scalacOptions.value
+        CrossVersion.partialVersion(scalaVersion.value) match {
+          case Some((2, _)) => prev ++ Seq("-Xno-patmat-analysis")
+          case _            => prev
+        }
+      }
     )
-    .settings(scalacOptions += "-Xno-patmat-analysis")
 
 lazy val sbtPluginSettings: Seq[Setting[_]] =
   toolSettings ++
@@ -466,8 +484,15 @@ lazy val nativelib =
     .settings(mavenPublishSettings)
     .settings(docsSettings)
     .settings(
-      libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-      exportJars := true
+      libraryDependencies ++= {
+        CrossVersion.partialVersion(scalaVersion.value) match {
+          case Some((2, _)) =>
+            Seq(
+              "org.scala-lang" % "scala-reflect" % scalaVersion.value
+            )
+          case _ => Nil
+        }
+      }
     )
     .dependsOn(nscplugin % "plugin")
 
@@ -885,10 +910,19 @@ lazy val testingCompiler =
     .in(file("testing-compiler"))
     .settings(noPublishSettings)
     .settings(
-      libraryDependencies ++= Seq(
-        "org.scala-lang" % "scala-compiler" % scalaVersion.value,
-        "org.scala-lang" % "scala-reflect" % scalaVersion.value
-      ),
+      libraryDependencies ++= {
+        CrossVersion.partialVersion(scalaVersion.value) match {
+          case Some((2, _)) =>
+            Seq(
+              "org.scala-lang" % "scala-compiler" % scalaVersion.value,
+              "org.scala-lang" % "scala-reflect" % scalaVersion.value
+            )
+          case _ =>
+            Seq(
+              "org.scala-lang" %% "scala3-compiler" % scalaVersion.value % "provided"
+            )
+        }
+      },
       Compile / unmanagedSourceDirectories ++= {
         val oldCompat: File = baseDirectory.value / "src/main/compat-old"
         val newCompat: File = baseDirectory.value / "src/main/compat-new"
@@ -904,7 +938,7 @@ lazy val testingCompiler =
                   .toInt
               if (revision < 13) oldCompat
               else newCompat
-            case (2, 13) => newCompat
+            case _ => newCompat
           }
           .toSeq
       },

@@ -15,7 +15,9 @@ import scala.scalanative.nscplugin.NirPrimitives
 object NirPrimitives extends NirPrimitivesProvider
 
 class NirPrimitives(ctx: Context) extends DottyPrimitives(ctx) {
-  private lazy val nirPrimitives: ReadOnlyMap[Symbol, Int] = initNirPrimitives(using ctx)
+  private lazy val nirPrimitives: ReadOnlyMap[Symbol, Int] = initNirPrimitives(
+    using ctx
+  )
 
   override def getPrimitive(sym: Symbol): Int =
     nirPrimitives.getOrElse(sym, super.getPrimitive(sym))

@@ -25,13 +25,16 @@ class NirDefinitions()(using ctx: Context) extends DottyPrimitives(ctx) {
     def getRequiredModule(cls: String): Symbol = requiredModule(cls)
     def getPackageObject(cls: String): Symbol = requiredPackage(cls)
 
-    def getMember(sym: Symbol, name: Name): Symbol = requiredModuleRef(sym.fullName).member(name).symbol
+    def getMember(sym: Symbol, name: Name): Symbol =
+      requiredModuleRef(sym.fullName).member(name).symbol
     def getMemberMethod(sym: Symbol, name: Name): Symbol = getMember(sym, name)
-    def getDecl(sym: Symbol, name: Name): Symbol =  requiredClassRef(sym.fullName).decl(name).symbol
+    def getDecl(sym: Symbol, name: Name): Symbol =
+      requiredClassRef(sym.fullName).decl(name).symbol
 
     def TermName(name: String): Name = Names.termName(name)
 
-    def symbolAlternatives(sym: Symbol): Seq[Symbol] = sym.alternatives.map(_.symbol)
+    def symbolAlternatives(sym: Symbol): Seq[Symbol] =
+      sym.alternatives.map(_.symbol)
     def symbolCompanion(sym: Symbol): Symbol = sym.companionModule
 
     final val BoxesRunTimeModule: Symbol = ctx.definitions.BoxesRunTimeModule

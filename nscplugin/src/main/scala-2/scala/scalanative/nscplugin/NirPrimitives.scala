@@ -43,7 +43,8 @@ abstract class NirPrimitives {
   private val nirPrimitives = mutable.Map.empty[Symbol, Int]
 
   private def initWithPrimitives(addPrimitive: (Symbol, Int) => Unit): Unit = {
-    type CompatAddPrimitives = ((NirDefinitionsProvider.Compat#Symbol, Int) => Unit)
+    type CompatAddPrimitives =
+      ((NirDefinitionsProvider.Compat#Symbol, Int) => Unit)
     NirPrimitives.addCommonPrimitives(
       nirDefinitions,
       addPrimitive.asInstanceOf[CompatAddPrimitives]

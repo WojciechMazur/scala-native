@@ -7,8 +7,7 @@ import core._
 
 object NirPhase extends PluginPhase:
   val phaseName = "nir"
-  
-  override val runsAfter = Set(transform.Mixin.name)
-  override val runsBefore = Set(transform.LambdaLift.name, backend.jvm.GenBCode.name)
-    
 
+  override val runsAfter = Set(transform.Mixin.name)
+  override val runsBefore =
+    Set(transform.LambdaLift.name, backend.jvm.GenBCode.name)

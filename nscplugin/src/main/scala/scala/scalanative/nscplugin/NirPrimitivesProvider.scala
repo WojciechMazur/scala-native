@@ -62,14 +62,14 @@ trait NirPrimitivesProvider {
 
   final val CFUNCPTR_FROM_FUNCTION = 1 + CAST_LONG_TO_RAWPTR
   final val CFUNCPTR_APPLY = 1 + CFUNCPTR_FROM_FUNCTION
-  
+
   final val LastNirPrimitiveCode = CFUNCPTR_APPLY
 
-  def isNirPrimitive(code: Int): Boolean = 
+  def isNirPrimitive(code: Int): Boolean =
     code >= FirstNirPrimitiveCode && code <= LastNirPrimitiveCode
 
   def isRawPtrOp(code: Int): Boolean =
-  code >= LOAD_BOOL && code <= ELEM_RAW_PTR
+    code >= LOAD_BOOL && code <= ELEM_RAW_PTR
 
   def isRawPtrLoadOp(code: Int): Boolean =
     code >= LOAD_BOOL && code <= LOAD_OBJECT
@@ -80,7 +80,10 @@ trait NirPrimitivesProvider {
   def isRawCastOp(code: Int): Boolean =
     code >= CAST_RAW_PTR_TO_OBJECT && code <= CAST_LONG_TO_RAWPTR
 
-  def addCommonPrimitives(nirDefinitions: NirDefinitionsProvider, addPrimitive: (nirDefinitions.compat.Symbol, Int) => Unit): Unit = {
+  def addCommonPrimitives(
+      nirDefinitions: NirDefinitionsProvider,
+      addPrimitive: (nirDefinitions.compat.Symbol, Int) => Unit
+  ): Unit = {
     import nirDefinitions._
     import compat._
     addPrimitive(BoxedUnit_UNIT, BOXED_UNIT)

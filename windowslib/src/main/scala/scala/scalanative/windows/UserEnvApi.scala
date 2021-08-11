@@ -5,7 +5,7 @@ import scala.scalanative.unsigned._
 import scala.scalanative.windows.HandleApi.Handle
 
 @link("Userenv")
-@extern()
+@externModule()
 object UserEnvApi {
   def GetUserProfileDirectoryA(
       token: Handle,

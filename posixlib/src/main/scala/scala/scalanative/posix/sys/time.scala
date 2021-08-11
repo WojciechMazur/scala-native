@@ -2,10 +2,10 @@ package scala.scalanative
 package posix
 package sys
 
-import scalanative.unsafe.{CInt, CLong, CLongInt, CStruct2, Ptr, extern}
+import scalanative.unsafe._
 import scalanative.posix.sys.types.{suseconds_t, time_t}
 
-@extern
+@externModule
 object time {
 
   type timeval = CStruct2[time_t, suseconds_t]

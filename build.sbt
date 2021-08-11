@@ -101,7 +101,7 @@ inThisBuild(
   Def.settings(
     organization := "org.scala-native", // Maven <groupId>
     version := nativeVersion, // Maven <version>
-    scalaVersion := scala212,
+    scalaVersion := scala3,
     crossScalaVersions := libCrossScalaVersions,
     scalacOptions ++= Seq(
       "-deprecation",

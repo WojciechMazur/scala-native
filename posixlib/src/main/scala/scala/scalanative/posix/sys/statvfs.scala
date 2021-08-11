@@ -4,7 +4,7 @@ package sys
 
 import scalanative.unsafe._
 
-@extern
+@externModule
 object statvfs {
 
   type fsblkcnt_t = CUnsignedLong

@@ -4,7 +4,7 @@ package posix
 import scalanative.unsafe._
 import scalanative.posix.sys.stat.mode_t
 
-@extern
+@externModule
 object fcntl {
 
   def open(pathname: CString, flags: CInt): CInt = extern

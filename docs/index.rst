@@ -27,7 +27,7 @@ runtime designed specifically for Scala. It features:
 
   .. code-block:: scala
 
-      @extern object stdlib {
+      @externModule object stdlib {
         def malloc(size: CSize): Ptr[Byte] = extern
       }
 

@@ -1,10 +1,10 @@
 package scala.scalanative.posix
 
-import scala.scalanative.unsafe.{CInt, CSize, CStruct1, CStruct5, Ptr, extern}
+import scala.scalanative.unsafe._
 import scala.scalanative.posix.time.timespec
 import scala.scalanative.posix.sys.types.pid_t
 
-@extern
+@externModule
 object sched {
 
   def sched_setparam(pid: pid_t, param: Ptr[sched_param]): CInt = extern

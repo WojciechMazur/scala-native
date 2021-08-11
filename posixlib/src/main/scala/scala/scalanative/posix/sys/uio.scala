@@ -4,7 +4,7 @@ package sys
 
 import scalanative.unsafe._
 
-@extern
+@externModule
 object uio {
   type iovec = CStruct2[
     Ptr[Byte], // iov_base

@@ -9,7 +9,7 @@ import WinBaseApi.SecurityAttributes
 
 @link("Advapi32")
 @link("Kernel32")
-@extern()
+@externModule()
 object ProcessThreadsApi {
   type StartupInfoW = CStruct18[
     DWord,

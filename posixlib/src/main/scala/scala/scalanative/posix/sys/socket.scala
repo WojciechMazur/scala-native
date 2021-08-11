@@ -6,7 +6,7 @@ import scalanative.unsafe._
 import scalanative.unsigned._
 import scalanative.meta.LinktimeInfo.isWindows
 
-@extern
+@externModule
 object socket {
   type socklen_t = CUnsignedInt
   type sa_family_t = CUnsignedShort

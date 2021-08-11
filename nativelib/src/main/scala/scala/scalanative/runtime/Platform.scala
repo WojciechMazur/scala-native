@@ -1,9 +1,9 @@
 package scala.scalanative
 package runtime
 
-import scala.scalanative.unsafe.{CSize, CString, CFuncPtr2, extern, name}
+import scala.scalanative.unsafe._
 
-@extern
+@externModule
 object Platform {
   @name("scalanative_platform_is_linux")
   def isLinux(): Boolean = extern

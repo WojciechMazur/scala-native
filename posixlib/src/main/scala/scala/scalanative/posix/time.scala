@@ -7,7 +7,7 @@ import scala.scalanative.posix.sys.types, types._
 // XSI comment before method indicates it is defined in
 // extended POSIX X/Open System Interfaces, not base POSIX.
 
-@extern
+@externModule
 object time {
 
   type time_t = types.time_t

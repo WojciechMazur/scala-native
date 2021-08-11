@@ -1,9 +1,9 @@
 package scala.scalanative
 package posix
 
-import scalanative.unsafe.{CInt, extern, name}
+import scalanative.unsafe._
 
-@extern
+@externModule
 object errno {
   @name("scalanative_e2big")
   def E2BIG: CInt = extern

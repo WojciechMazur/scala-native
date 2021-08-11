@@ -2,7 +2,7 @@ package scala.scalanative.posix.sys
 
 import scalanative.unsafe._
 
-@extern
+@externModule
 object ioctl {
 
   @name("scalanative_ioctl")

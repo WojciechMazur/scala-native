@@ -6,7 +6,7 @@ import scala.scalanative.unsafe._
 import scala.scalanative.unsigned._
 import scala.scalanative.windows.HandleApi.Handle
 
-@extern
+@externModule
 object HandleApi {
   type Handle = Ptr[Byte]
 

@@ -8,7 +8,7 @@ import scalanative.unsafe._
  *  @see
  *    [[http://hboehm.info/gc/gcinterface.html C Interface]]
  */
-@extern
+@externModule
 object GC {
   @deprecated("Marked for removal, use alloc(Class[_], CSize) instead", "0.4.1")
   @name("scalanative_alloc")

@@ -2,7 +2,7 @@ package scala.scalanative.windows.crt
 
 import scala.scalanative.unsafe._
 
-@extern
+@externModule
 object time {
   /* Bindings for time.h which are not part of POSIX standard.
    * We assume the same structure as in the POSIX, however on Windows

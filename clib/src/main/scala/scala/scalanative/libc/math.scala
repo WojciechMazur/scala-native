@@ -3,7 +3,7 @@ package libc
 
 import scalanative.unsafe._
 
-@extern
+@externModule
 object math {
 
   // Basic operations

@@ -1,7 +1,7 @@
 package scala.scalanative.unsafe
 
 // used by ExternTest
-@extern
+@externModule
 object testlib {
   // C code in testlib.c
   @name("exec")

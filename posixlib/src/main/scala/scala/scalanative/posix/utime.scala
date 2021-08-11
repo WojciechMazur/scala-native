@@ -3,7 +3,7 @@ package posix
 
 import scalanative.unsafe._
 
-@extern
+@externModule
 object utime {
   type utimbuf = CStruct2[
     time.time_t, // actime

@@ -21,7 +21,7 @@ import scalanative.unsafe._
  *  https://en.wikipedia.org/wiki/Long_double
  *  http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/complex.h.html
  */
-@extern
+@externModule
 object complex {
   import Nat._2
   type CFloatComplex = CStruct2[CFloat, CFloat]

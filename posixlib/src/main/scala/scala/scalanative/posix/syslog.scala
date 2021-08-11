@@ -3,7 +3,7 @@ package posix
 
 import scalanative.unsafe._
 
-@extern
+@externModule
 object syslog {
   @name("scalanative_closelog")
   def closelog(): Unit = extern

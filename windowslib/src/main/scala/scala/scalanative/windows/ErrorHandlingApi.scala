@@ -4,7 +4,7 @@ import scala.scalanative.unsafe._
 import scala.scalanative.unsigned._
 import java.nio.charset.StandardCharsets
 
-@extern()
+@externModule()
 object ErrorHandlingApi {
   def GetLastError(): UInt = extern
 }

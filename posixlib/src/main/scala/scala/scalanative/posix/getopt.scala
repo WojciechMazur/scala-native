@@ -3,7 +3,7 @@ package posix
 
 import scalanative.unsafe._
 
-@extern
+@externModule
 object getopt {
   var optarg: CString = extern
   var opterr: CInt = extern

@@ -1,10 +1,10 @@
 package scala.scalanative
 package posix
 
-import scalanative.unsafe.{CInt, CString, CStruct5, extern, name, Ptr}
+import scalanative.unsafe._
 import scalanative.posix.sys.stat.{uid_t, gid_t}
 
-@extern
+@externModule
 object pwd {
 
   type passwd = CStruct5[

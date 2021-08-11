@@ -3,7 +3,7 @@ package libc
 
 import scalanative.unsafe._
 
-@extern
+@externModule
 object errno {
   @name("scalanative_errno")
   def errno: CInt = extern

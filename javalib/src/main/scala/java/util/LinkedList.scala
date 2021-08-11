@@ -116,7 +116,6 @@ class LinkedList[E]()
     val iter = c.iterator()
     val changed = iter.hasNext()
     while (iter.hasNext()) addLast(iter.next())
-
     changed
   }
 

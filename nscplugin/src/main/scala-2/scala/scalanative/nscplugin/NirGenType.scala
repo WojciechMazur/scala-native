@@ -61,6 +61,8 @@ trait NirGenType[G <: Global with Singleton] { self: NirGenPhase[G] =>
 
     implicit def fromSymbol(sym: Symbol): SimpleType =
       SimpleType(sym, Seq.empty)
+    implicit def fromCompatSymbol(sym: nirDefinitions.compat.Symbol): SimpleType = 
+      fromSymbol(sym.asInstanceOf[Symbol])
   }
 
   def genArrayCode(st: SimpleType): Char =

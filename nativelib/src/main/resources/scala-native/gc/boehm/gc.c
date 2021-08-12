@@ -1,4 +1,7 @@
-#define GC_THREADS // Todo make optional
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
+#define GC_THREADS
+#endif
+
 #include <gc.h>
 #include <stdlib.h>
 #include <stdio.h>

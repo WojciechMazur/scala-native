@@ -55,8 +55,13 @@ private[scalanative] object LLVM {
           if (config.targetsWindows) Seq("-g")
           else Nil
         }
+        val configFlags = {
+          if (config.compilerConfig.multithreadingSupport)
+            Seq("-DSCALANATIVE_MULTITHREADING_ENABLED")
+          else Nil
+        }
         val flags = opt(config) +: "-fvisibility=hidden" +:
-          stdflag ++: platformFlags ++: config.compileOptions
+          stdflag ++: platformFlags ++: configFlags ++: config.compileOptions
         val compilec =
           Seq(compiler) ++ flto(config) ++ flags ++ target(config) ++
             Seq("-c", inpath, "-o", outpath)
@@ -113,7 +118,11 @@ private[scalanative] object LLVM {
       val platformFlags =
         if (config.targetsWindows) Seq("-g")
         else Seq("-rdynamic")
-      flto(config) ++ platformFlags ++ Seq("-o", outpath.abs) ++ target(config)
+      flto(config) ++ platformFlags ++ target(config) ++
+        Seq(
+          "-o",
+          outpath.abs
+        )
     }
     val paths = objectsPaths.map(_.abs)
     val compile = config.clangPP.abs +: (flags ++ paths ++ linkopts)

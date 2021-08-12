@@ -11,6 +11,9 @@
 #include "utils/MathUtils.h"
 #include "Constants.h"
 #include "Settings.h"
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
+#include "MultithreadingSupport.h"
+#endif
 
 void scalanative_collect();
 

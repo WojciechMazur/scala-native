@@ -7,6 +7,7 @@
 #include "MemoryMap.h"
 #include "MemoryInfo.h"
 #include "Parsing.h"
+#include <ThreadUtil.h>
 
 // Dummy GC that maps chunks of memory and allocates but never frees.
 #ifdef _WIN32
@@ -17,8 +18,8 @@
 #define DEFAULT_CHUNK_SIZE "4G"
 #endif
 
-void *current = 0;
-void *end = 0;
+thread_local void *current = 0;
+thread_local void *end = 0;
 
 static size_t DEFAULT_CHUNK;
 static size_t PREALLOC_CHUNK;
@@ -104,3 +105,30 @@ void *scalanative_alloc_atomic(void *info, size_t size) {
 }
 
 void scalanative_collect() {}
+
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
+// Definitions for GC specific overrides, following Boehm GC convention
+// used when multithreading support is enabled
+// In case of None GC only redirects pthread/WinApi standard function
+typedef void (*ThreadStartRoutine)(void*);
+typedef void *RoutineArgs;
+#ifdef _WIN32 // windows bindings
+Handle GC_CreateThread(SecurityAttributes *threadAttributes, UWORD stackSize,
+                       ThreadStartRoutine routine, RoutineArgs args, DWORD,
+                       creationFlags, DWORD *threadId){
+    return CreateThread(threadAttributes, stackSize, routine, args,
+                        creationFlags, threadId)};
+void GC_ExitThread(DWORD exitCode) { return ExitThread(exitCode); }
+#else  // pthread bindings
+int GC_pthread_create(pthread_t *thread, pthread_attr_t *attr,
+                      ThreadStartRoutine routine, RoutineArgs args) {
+    return pthread_create(thread, attr, routine, args);
+}
+int GC_pthread_join(pthread_t thread, void **threadReturn) {
+    return pthread_join(thread, threadReturn);
+}
+int GC_pthread_detach(pthread_t thread) { return pthread_detach(thread); }
+int GC_pthread_cancel(pthread_t thread) { return pthread_cancel(thread); }
+void GC_pthread_exit(void *returnValue) { return pthread_exit(returnValue); }
+#endif // pthread bindings
+#endif // defined GC_THREAD

@@ -5,7 +5,7 @@
 #include "BlockAllocator.h"
 #include <stdio.h>
 #include <limits.h>
-#include "util/ThreadUtil.h"
+#include "ThreadUtil.h"
 #include <errno.h>
 #include <stdlib.h>
 #ifndef _WIN32

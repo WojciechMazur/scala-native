@@ -137,7 +137,7 @@ private[java] case class WindowsThread(handle: Handle, id: UInt, thread: Thread)
 object WindowsThread {
   import NativeThread._
   @extern
-  @link("gc") @link("user32")
+  @link("user32")
   object GCExt {
     def GC_CreateThread(
         threadAttributes: Ptr[SecurityAttributes],

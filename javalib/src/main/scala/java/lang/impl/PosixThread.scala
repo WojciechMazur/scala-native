@@ -164,7 +164,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
 private[lang] object PosixThread {
   import NativeThread._
   @extern
-  @link("gc") @link("pthread")
+  @link("pthread")
   object GCExt {
     def GC_pthread_create(
         thread: Ptr[pthread_t],

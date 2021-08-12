@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <stdatomic.h>
 #include <stdbool.h>
-#include "util/ThreadUtil.h"
+#include "ThreadUtil.h"
 #include <fcntl.h>
 
 typedef struct {

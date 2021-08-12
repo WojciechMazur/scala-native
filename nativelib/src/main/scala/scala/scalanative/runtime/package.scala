@@ -53,7 +53,8 @@ package object runtime {
   /** Run the runtime's event loop. The method is called from the generated
    *  C-style after the application's main method terminates.
    */
-  @noinline def loop(): Unit = ()
+  @noinline def loop(): Unit =
+    ExecutionContext.loop()
 
   /** Called by the generated code in case of division by zero. */
   @noinline def throwDivisionByZero(): Nothing =

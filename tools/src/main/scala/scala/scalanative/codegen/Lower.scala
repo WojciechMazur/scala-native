@@ -772,7 +772,7 @@ object Lower {
     ): Unit = {
       val Op.Classalloc(ClassRef(cls)) = op
 
-      val size = MemoryLayout.sizeOf(layout(cls).struct)
+      val size = layout(cls).size
       val allocMethod =
         if (size < LARGE_OBJECT_MIN_SIZE) alloc else largeAlloc
 

@@ -14,9 +14,9 @@ final case class MemoryLayout(
   lazy val offsetArray: Seq[Val] = {
     val ptrOffsets =
       tys.collect {
-        // offset in words without rtti
+        // offset in words without object header (rtti, lock)
         case MemoryLayout.PositionedType(_: RefKind, offset) =>
-          Val.Long(offset / MemoryLayout.WORD_SIZE - 1)
+          Val.Long(offset / MemoryLayout.WORD_SIZE - FieldLayout.ObjectHeader.size)
       }
 
     ptrOffsets :+ Val.Long(-1)

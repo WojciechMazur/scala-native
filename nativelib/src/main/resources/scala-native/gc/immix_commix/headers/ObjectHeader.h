@@ -17,7 +17,7 @@ extern int __array_ids_max;
 typedef struct {
     struct {
         word_t *cls;
-        word_t lockWord;
+        word_t *lockWord;
         int32_t id;
         int32_t tid;
         word_t *name;
@@ -31,13 +31,13 @@ typedef word_t *Field_t;
 
 typedef struct {
     Rtti *rtti;
-    word_t lockWord;
+    word_t *lockWord;
     Field_t fields[0];
 } Object;
 
 typedef struct {
     Rtti *rtti;
-    word_t lockWord;
+    word_t *lockWord;
     int32_t length;
     int32_t stride;
 } ArrayHeader;
@@ -66,6 +66,14 @@ static inline size_t Object_Size(Object *object) {
         return MathUtils_RoundToNextMultiple((size_t)object->rtti->size,
                                              ALLOCATION_ALIGNMENT);
     }
+}
+
+static inline bool Field_isInflatedLock(Field_t field) {
+    return ((word_t)field & LOCK_STATUS_MASK) == LOCK_STATUS_INFLATED;
+}
+
+static inline Field_t Field_allignedLockRef(Field_t field) {
+    return (Field_t)((word_t)field ^ LOCK_STATUS_INFLATED);
 }
 
 #endif // IMMIX_OBJECTHEADER_H

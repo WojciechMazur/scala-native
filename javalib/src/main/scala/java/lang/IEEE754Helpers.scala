@@ -35,11 +35,11 @@ private[java] object IEEE754Helpers {
 
     var c = 0
     while (c < n) {
-      !(cStr + c) = bytes(c)
+      (cStr + c).`unary_!_=`(bytes(c))
       c += 1
     }
 
-    !(cStr + n) = 0.toByte
+    (cStr + n).`unary_!_=`(0.toByte)
 
     cStr
   }

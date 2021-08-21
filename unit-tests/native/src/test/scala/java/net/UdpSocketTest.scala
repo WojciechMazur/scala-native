@@ -92,7 +92,7 @@ class UdpSocketTest {
 
       val inAddrInfo = alloc[sockaddr]
       val gsnAddrLen = alloc[socklen_t]
-      !gsnAddrLen = sizeof[sockaddr].toUInt
+      gsnAddrLen.`unary_!_=`(sizeof[sockaddr].toUInt)
 
       val gsnStatus = getsockname(inSocket, inAddrInfo, gsnAddrLen)
       assertNotEquals("getsockname", -1, gsnStatus)
@@ -166,7 +166,7 @@ class UdpSocketTest {
         // Test retrieving remote address.
         val srcAddr = alloc[sockaddr]
         val srcAddrLen = alloc[socklen_t]
-        !srcAddrLen = sizeof[sockaddr].toUInt
+        srcAddrLen.`unary_!_=`(sizeof[sockaddr].toUInt)
         val nBytesRecvd =
           recvfrom(inSocket, inData, maxInData.toUInt, 0, srcAddr, srcAddrLen)
 

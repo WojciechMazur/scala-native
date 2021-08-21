@@ -60,7 +60,7 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
     val len = stackalloc[socket.socklen_t]
     val portOpt = if (family == socket.AF_INET) {
       val sin = stackalloc[in.sockaddr_in]
-      !len = sizeof[in.sockaddr_in].toUInt
+      len.`unary_!_=`(sizeof[in.sockaddr_in].toUInt)
 
       if (socket.getsockname(
             fd.fd,
@@ -73,7 +73,7 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
       }
     } else {
       val sin = stackalloc[in.sockaddr_in6]
-      !len = sizeof[in.sockaddr_in6].toUInt
+      len.`unary_!_=`(sizeof[in.sockaddr_in6].toUInt)
 
       if (socket.getsockname(
             fd.fd,
@@ -135,7 +135,7 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
 
     val storage = stackalloc[Byte](sizeof[in.sockaddr_in6])
     val len = stackalloc[socket.socklen_t]
-    !len = sizeof[in.sockaddr_in6].toUInt
+    len.`unary_!_=`(sizeof[in.sockaddr_in6].toUInt)
 
     val newFd =
       socket.accept(fd.fd, storage.asInstanceOf[Ptr[socket.sockaddr]], len)
@@ -392,11 +392,12 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
     }
 
     val len = stackalloc[socket.socklen_t]
-    !len = if (optID == SocketOptions.SO_LINGER) {
-      sizeof[socket.linger].toUInt
-    } else {
-      sizeof[CInt].toUInt
-    }
+    len.`unary_!_=`(
+      if (optID == SocketOptions.SO_LINGER)
+        sizeof[socket.linger].toUInt
+      else
+        sizeof[CInt].toUInt
+    )
 
     if (socket.getsockopt(fd.fd, level, optValue, opt, len) != 0) {
       throw new SocketException(
@@ -454,7 +455,7 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
       case SocketOptions.TCP_NODELAY | SocketOptions.SO_KEEPALIVE |
           SocketOptions.SO_REUSEADDR | SocketOptions.SO_OOBINLINE =>
         val ptr = stackalloc[CInt]
-        !ptr = if (value.asInstanceOf[Boolean]) 1 else 0
+        ptr.`unary_!_=`(if (value.asInstanceOf[Boolean]) 1 else 0)
         ptr.asInstanceOf[Ptr[Byte]]
       case SocketOptions.SO_LINGER =>
         val ptr = stackalloc[socket.linger]
@@ -486,7 +487,7 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
         }
       case _ =>
         val ptr = stackalloc[CInt]
-        !ptr = value.asInstanceOf[Int]
+        ptr.`unary_!_=`(value.asInstanceOf[Int])
         ptr.asInstanceOf[Ptr[Byte]]
     }
 

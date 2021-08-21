@@ -61,7 +61,7 @@ object Date {
   private def secondsToString(seconds: Long, default: => String): String =
     Zone { implicit z =>
       val ttPtr = alloc[time_t]
-      !ttPtr = seconds
+      ttPtr.`unary_!_=`(seconds)
 
       val tmPtr = alloc[tm]
       def getLocalTime() =

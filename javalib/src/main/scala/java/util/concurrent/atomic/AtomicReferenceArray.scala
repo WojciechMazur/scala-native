@@ -1,13 +1,13 @@
 package java.util.concurrent.atomic
 
-class AtomicReferenceArray[E <: AnyRef](length: Int) extends Serializable {
+class AtomicReferenceArray[E <: AnyRef](len: Int) extends Serializable {
 
   def this(array: Array[E]) = {
     this(array.size)
-    System.arraycopy(array, 0, inner, 0, length)
+    System.arraycopy(array, 0, inner, 0, len)
   }
 
-  private val inner: Array[AnyRef] = new Array[AnyRef](length)
+  private val inner: Array[AnyRef] = new Array[AnyRef](len)
 
   final def length(): Int =
     inner.length

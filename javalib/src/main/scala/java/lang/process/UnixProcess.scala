@@ -85,12 +85,12 @@ private[lang] class UnixProcess private (
       case _ => true
     }
 
-  @inline private def waitImpl(f: () => Int) = {
+  @inline private def waitImpl(f: () => Int): Int = {
     var res = 1
     while ({
       res = f()
       if (res == 0) _exitValue == -1 else res != ETIMEDOUT
-    })
+    }) ()
     res
   }
 

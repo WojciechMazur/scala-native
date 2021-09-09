@@ -9,12 +9,12 @@ private[nio] final class HeapDoubleBuffer private (
     _initialLimit: Int,
     _readOnly: Boolean
 ) extends DoubleBuffer(_capacity, _array0, _arrayOffset0) {
+  import HeapDoubleBuffer.NewHeapDoubleBuffer
 
   position(_initialPosition)
   limit(_initialLimit)
 
-  private[this] implicit def newHeapDoubleBuffer =
-    HeapDoubleBuffer.NewHeapDoubleBuffer
+  private lazy val genHeapBuffer = GenHeapBuffer[DoubleBuffer](this)
 
   def isReadOnly(): Boolean = _readOnly
 
@@ -22,43 +22,43 @@ private[nio] final class HeapDoubleBuffer private (
 
   @noinline
   def slice(): DoubleBuffer =
-    GenHeapBuffer(this).generic_slice()
+    genHeapBuffer.generic_slice()
 
   @noinline
   def duplicate(): DoubleBuffer =
-    GenHeapBuffer(this).generic_duplicate()
+    genHeapBuffer.generic_duplicate()
 
   @noinline
   def asReadOnlyBuffer(): DoubleBuffer =
-    GenHeapBuffer(this).generic_asReadOnlyBuffer()
+    genHeapBuffer.generic_asReadOnlyBuffer()
 
   @noinline
   def get(): Double =
-    GenBuffer(this).generic_get()
+    genBuffer.generic_get()
 
   @noinline
   def put(d: Double): DoubleBuffer =
-    GenBuffer(this).generic_put(d)
+    genBuffer.generic_put(d)
 
   @noinline
   def get(index: Int): Double =
-    GenBuffer(this).generic_get(index)
+    genBuffer.generic_get(index)
 
   @noinline
   def put(index: Int, d: Double): DoubleBuffer =
-    GenBuffer(this).generic_put(index, d)
+    genBuffer.generic_put(index, d)
 
   @noinline
   override def get(dst: Array[Double], offset: Int, length: Int): DoubleBuffer =
-    GenBuffer(this).generic_get(dst, offset, length)
+    genBuffer.generic_get(dst, offset, length)
 
   @noinline
   override def put(src: Array[Double], offset: Int, length: Int): DoubleBuffer =
-    GenBuffer(this).generic_put(src, offset, length)
+    genBuffer.generic_put(src, offset, length)
 
   @noinline
   def compact(): DoubleBuffer =
-    GenHeapBuffer(this).generic_compact()
+    genHeapBuffer.generic_compact()
 
   def order(): ByteOrder = ByteOrder.nativeOrder()
 
@@ -66,11 +66,11 @@ private[nio] final class HeapDoubleBuffer private (
 
   @inline
   private[nio] def load(index: Int): Double =
-    GenHeapBuffer(this).generic_load(index)
+    genHeapBuffer.generic_load(index)
 
   @inline
   private[nio] def store(index: Int, elem: Double): Unit =
-    GenHeapBuffer(this).generic_store(index, elem)
+    genHeapBuffer.generic_store(index, elem)
 
   @inline
   override private[nio] def load(
@@ -79,7 +79,7 @@ private[nio] final class HeapDoubleBuffer private (
       offset: Int,
       length: Int
   ): Unit =
-    GenHeapBuffer(this).generic_load(startIndex, dst, offset, length)
+    genHeapBuffer.generic_load(startIndex, dst, offset, length)
 
   @inline
   override private[nio] def store(
@@ -88,7 +88,7 @@ private[nio] final class HeapDoubleBuffer private (
       offset: Int,
       length: Int
   ): Unit =
-    GenHeapBuffer(this).generic_store(startIndex, src, offset, length)
+    genHeapBuffer.generic_store(startIndex, src, offset, length)
 }
 
 private[nio] object HeapDoubleBuffer {

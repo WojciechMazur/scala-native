@@ -10,12 +10,15 @@ private[nio] final class HeapByteBuffer private (
     _initialLimit: Int,
     _readOnly: Boolean
 ) extends ByteBuffer(_capacity, _array0, _arrayOffset0) {
+  import  HeapByteBuffer.NewHeapByteBuffer
 
   position(_initialPosition)
   limit(_initialLimit)
 
-  private[this] implicit def newHeapByteBuffer =
-    HeapByteBuffer.NewHeapByteBuffer
+  private lazy val genHeapBuffer = GenHeapBuffer[ByteBuffer](this) 
+  // private[this] implicit def newHeapByteBuffer
+  //     : HeapByteBuffer.NewHeapByteBuffer =
+  //   HeapByteBuffer.NewHeapByteBuffer
 
   def isReadOnly(): Boolean = _readOnly
 
@@ -23,43 +26,43 @@ private[nio] final class HeapByteBuffer private (
 
   @noinline
   def slice(): ByteBuffer =
-    GenHeapBuffer(this).generic_slice()
+    genHeapBuffer.generic_slice()
 
   @noinline
   def duplicate(): ByteBuffer =
-    GenHeapBuffer(this).generic_duplicate()
+    genHeapBuffer.generic_duplicate()
 
   @noinline
   def asReadOnlyBuffer(): ByteBuffer =
-    GenHeapBuffer(this).generic_asReadOnlyBuffer()
+    genHeapBuffer.generic_asReadOnlyBuffer()
 
   @noinline
   def get(): Byte =
-    GenBuffer(this).generic_get()
+    genBuffer.generic_get()
 
   @noinline
   def put(b: Byte): ByteBuffer =
-    GenBuffer(this).generic_put(b)
+    genBuffer.generic_put(b)
 
   @noinline
   def get(index: Int): Byte =
-    GenBuffer(this).generic_get(index)
+    genBuffer.generic_get(index)
 
   @noinline
   def put(index: Int, b: Byte): ByteBuffer =
-    GenBuffer(this).generic_put(index, b)
+    genBuffer.generic_put(index, b)
 
   @noinline
   override def get(dst: Array[Byte], offset: Int, length: Int): ByteBuffer =
-    GenBuffer(this).generic_get(dst, offset, length)
+    genBuffer.generic_get(dst, offset, length)
 
   @noinline
   override def put(src: Array[Byte], offset: Int, length: Int): ByteBuffer =
-    GenBuffer(this).generic_put(src, offset, length)
+    genBuffer.generic_put(src, offset, length)
 
   @noinline
   def compact(): ByteBuffer =
-    GenHeapBuffer(this).generic_compact()
+    genHeapBuffer.generic_compact()
 
   // Here begins the stuff specific to ByteArrays
 
@@ -166,11 +169,11 @@ private[nio] final class HeapByteBuffer private (
 
   @inline
   private[nio] def load(index: Int): Byte =
-    GenHeapBuffer(this).generic_load(index)
+    genHeapBuffer.generic_load(index)
 
   @inline
   private[nio] def store(index: Int, elem: Byte): Unit =
-    GenHeapBuffer(this).generic_store(index, elem)
+    genHeapBuffer.generic_store(index, elem)
 
   @inline
   override private[nio] def load(
@@ -179,7 +182,7 @@ private[nio] final class HeapByteBuffer private (
       offset: Int,
       length: Int
   ): Unit =
-    GenHeapBuffer(this).generic_load(startIndex, dst, offset, length)
+    genHeapBuffer.generic_load(startIndex, dst, offset, length)
 
   @inline
   override private[nio] def store(
@@ -188,7 +191,7 @@ private[nio] final class HeapByteBuffer private (
       offset: Int,
       length: Int
   ): Unit =
-    GenHeapBuffer(this).generic_store(startIndex, src, offset, length)
+    genHeapBuffer.generic_store(startIndex, src, offset, length)
 }
 
 private[nio] object HeapByteBuffer {

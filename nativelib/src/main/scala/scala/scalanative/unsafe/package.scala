@@ -209,7 +209,7 @@ package object unsafe {
       var c = 0
       while (c < bytes.length) {
         (cstr + c).`unary_!_=`(bytes(c))
-        (cstr + c).`unary_!_=`(bytes(c))
+        // !(cstr + c) = bytes(c)
         c += 1
       }
 
@@ -252,7 +252,7 @@ package object unsafe {
       var c = 0
       while (c < bytes.length) {
         (cstr + c).`unary_!_=`(bytes(c))
-        (cstr + c).`unary_!_=`(bytes(c))
+        // !(cstr + c) = bytes(c)
         c += 1
       }
 
@@ -260,7 +260,7 @@ package object unsafe {
       val cstrEnd = cstr + c
       c = 0
       while (c < charSize) {
-        (cstrEnd + c).`unary_!_=`(0.toByte)
+        // !(cstrEnd + c) = 0.toByte
         (cstr + c).`unary_!_=`(0.toByte)
         c += 1
       }

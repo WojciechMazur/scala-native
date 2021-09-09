@@ -143,7 +143,7 @@ object System {
     if (isWindows) {
       WindowsHelperMethods.withUserToken(AccessToken.TOKEN_QUERY) { token =>
         val bufSize = stackalloc[UInt]
-        bufSize.`unary_!_=`(256.toUInt)
+        !bufSize = 256.toUInt
         val buf = stackalloc[CChar16](!bufSize)
         if (GetUserProfileDirectoryW(token, buf, bufSize))
           Some(fromCWideString(buf, StandardCharsets.UTF_16LE))

@@ -10,7 +10,7 @@ class StackallocTest {
   @Test def stackallocInt(): Unit = {
     val ptr = stackalloc[Int]
 
-    ptr.`unary_!_=`(42)
+    !ptr = 42
 
     assertFalse(ptr == 42)
   }

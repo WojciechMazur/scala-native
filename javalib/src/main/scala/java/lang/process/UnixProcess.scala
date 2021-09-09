@@ -87,10 +87,7 @@ private[lang] class UnixProcess private (
 
   @inline private def waitImpl(f: () => Int): Int = {
     var res = 1
-    while ({
-      res = f()
-      if (res == 0) _exitValue == -1 else res != ETIMEDOUT
-    }) ()
+    do res = f() while (if (res == 0) _exitValue == -1 else res != ETIMEDOUT) ()
     res
   }
 
@@ -128,7 +125,7 @@ private[lang] class UnixProcess private (
   }
   private[this] def waitFor(ts: Ptr[timespec]): Int = {
     val res = stackalloc[CInt]
-    res.`unary_!_=`(-1)
+    !res = -1
     val result = UnixProcess.waitForPid(pid, ts, res)
     setExitValue(!res)
     result
@@ -246,9 +243,7 @@ object UnixProcess {
       seq: collection.Seq[String]
   )(implicit z: Zone) = {
     val res = alloc[CString]((seq.size + 1).toUInt)
-    seq.zipWithIndex foreach {
-      case (s, i) => (res + i).`unary_!_=`(toCString(s))
-    }
+    seq.zipWithIndex foreach { case (s, i) => !(res + i) = toCString(s) }
     res
   }
 

@@ -40,7 +40,7 @@ class TimeTest {
     else {
       Zone { implicit z =>
         val time_ptr = stackalloc[time_t]
-      time_ptr.`unary_!_=`(now_time_t)
+      !time_ptr = now_time_t
         val localtime: Ptr[tm] = localtime_r(time_ptr, alloc[tm])
 
         localtime.tm_isdst == 0
@@ -78,7 +78,7 @@ class TimeTest {
         Platform.isFreeBSD
       )
       val time_ptr = stackalloc[time_t]
-    time_ptr.`unary_!_=`(epoch + timezone)
+    !time_ptr = epoch + timezone
       val time: Ptr[tm] = localtime(time_ptr)
       val cstr: CString = asctime(time)
       val str: String = fromCString(cstr)
@@ -98,7 +98,7 @@ class TimeTest {
           Platform.isFreeBSD
         )
         val time_ptr = stackalloc[time_t]
-      time_ptr.`unary_!_=`(epoch + timezone)
+      !time_ptr = epoch + timezone
         val time: Ptr[tm] = localtime_r(time_ptr, alloc[tm])
         val cstr: CString = asctime_r(time, alloc[Byte](26))
         val str: String = fromCString(cstr)
@@ -147,7 +147,7 @@ class TimeTest {
       )
 
       val ttPtr = alloc[time_t]
-      ttPtr.`unary_!_=`(1490986064740L / 1000L // Fri Mar 31 14:47:44 EDT 2017)
+      !ttPtr = 1490986064740L / 1000L // Fri Mar 31 14:47:44 EDT 2017
 
       // This code is testing for reading past the end of a "short"
       // Scala Native tm, so the linux 56 byte form is necessary here.

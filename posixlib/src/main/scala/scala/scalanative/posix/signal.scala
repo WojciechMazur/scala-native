@@ -338,11 +338,10 @@ object signalOps {
 
   implicit class sigval_ops(val p: Ptr[sigval]) extends AnyVal {
     def sival_int: Ptr[CInt] = p.asInstanceOf[Ptr[CInt]]
-    def sival_int_=(value: CInt): Unit =
-      p.asInstanceOf[Ptr[CInt]].`unary_!_=`(value)
+    def sival_int_=(value: CInt): Unit = !p.asInstanceOf[Ptr[CInt]] = value
     def sival_ptr: Ptr[Ptr[Byte]] = p.asInstanceOf[Ptr[Ptr[Byte]]]
     def sival_ptr_=(value: Ptr[Byte]): Unit =
-      p.asInstanceOf[Ptr[Ptr[Byte]]].`unary_!_=`(value)
+      !p.asInstanceOf[Ptr[Ptr[Byte]]] = value
   }
 
   def union_sigval()(implicit z: Zone): Ptr[sigval] = alloc[sigval]
@@ -408,7 +407,7 @@ object signalOps {
     def si_band_=(value: CLong): Unit = p._8 = value
     def si_value: sigval = p._9
     def si_value_=(value: sigval): Unit =
-      p._9.asInstanceOf[Ptr[CArray[Byte, Nat._8]]].`unary_!_=`(value)
+      !p._9.asInstanceOf[Ptr[CArray[Byte, Nat._8]]] = value
   }
 
   def struct_siginfo_t()(implicit z: Zone): Ptr[siginfo_t] = alloc[siginfo_t]

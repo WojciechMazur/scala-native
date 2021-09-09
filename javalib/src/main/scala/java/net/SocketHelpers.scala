@@ -85,7 +85,7 @@ object SocketHelpers {
         if (select(sock + 1, null, fdsetPtr, null, time) == 1) {
           val so_error = stackalloc[CInt].asInstanceOf[Ptr[Byte]]
           val len = stackalloc[socklen_t]
-          len.`unary_!_=`(sizeof[CInt].toUInt)
+          !len = sizeof[CInt].toUInt
           getsockopt(sock, SOL_SOCKET, SO_ERROR, so_error, len)
           if (!(so_error.asInstanceOf[Ptr[CInt]]) != 0) {
             return false

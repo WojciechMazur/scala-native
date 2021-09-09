@@ -7,7 +7,7 @@ object ScalaVersions {
   val scala211: String = "2.11.12"
   val scala212: String = crossScala212.last
   val scala213: String = crossScala213.last
-  val scala3 = "3.0.1"
+  val scala3 = "3.1.0-RC1"
 
   val sbt10Version: String = "1.1.6" // minimum version
   val sbt10ScalaVersion: String = scala212

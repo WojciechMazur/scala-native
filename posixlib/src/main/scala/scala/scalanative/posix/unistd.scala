@@ -4,7 +4,7 @@ package posix
 import scalanative.unsafe._
 import scalanative.posix.sys.stat.{uid_t, gid_t}
 
-@externModule
+@extern
 object unistd {
 
   type off_t = CLongLong

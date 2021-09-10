@@ -3,7 +3,7 @@ package libc
 
 import scalanative.unsafe._
 
-@externModule
+@extern
 object string {
   def strcpy(dest: CString, src: CString): CString = extern
   def strncpy(dest: CString, src: CString, count: CSize): CString = extern

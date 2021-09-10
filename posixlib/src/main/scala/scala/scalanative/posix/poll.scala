@@ -3,7 +3,7 @@ package posix
 
 import scalanative.unsafe._
 
-@externModule
+@extern
 object poll {
 
   // See Usage note below. Valid values capped by FOPEN_MAX in underlying OS.

@@ -4,7 +4,7 @@ import scalanative.unsafe._
 import scalanative.posix.sys.socket
 import scalanative.posix.netinet.in
 
-@externModule
+@extern
 object netdb {
   type addrinfo = CStruct8[CInt, CInt, CInt, CInt, socket.socklen_t, Ptr[
     socket.sockaddr

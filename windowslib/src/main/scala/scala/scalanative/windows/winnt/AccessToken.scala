@@ -2,7 +2,7 @@ package scala.scalanative.windows.winnt
 
 import scala.scalanative.unsafe._
 
-@externModule
+@extern
 object AccessToken {
 
   /** Required to change the default owner, primary group, or DACL of an access

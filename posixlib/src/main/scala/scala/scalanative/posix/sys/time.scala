@@ -5,7 +5,7 @@ package sys
 import scalanative.unsafe._
 import scalanative.posix.sys.types.{suseconds_t, time_t}
 
-@externModule
+@extern
 object time {
 
   type timeval = CStruct2[time_t, suseconds_t]

@@ -6,7 +6,7 @@ import scalanative.unsafe._
 import scalanative.posix.inttypes._
 import scalanative.posix.sys.socket
 
-@externModule
+@extern
 object in {
   type in_port_t = uint16_t
   type in_addr_t = uint32_t

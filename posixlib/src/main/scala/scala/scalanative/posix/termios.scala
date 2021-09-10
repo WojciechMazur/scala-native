@@ -5,7 +5,7 @@ import scalanative.unsafe._
 import scalanative.unsafe.Nat._
 import posix.sys.types.pid_t
 
-@externModule
+@extern
 object termios {
 
   // types

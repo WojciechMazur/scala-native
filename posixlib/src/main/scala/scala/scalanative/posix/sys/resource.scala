@@ -12,7 +12,7 @@ package sys
 
 import scalanative.unsafe._
 
-@externModule
+@extern
 object resource {
 
   type id_t = sys.types.id_t

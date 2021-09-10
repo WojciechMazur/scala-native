@@ -3,7 +3,7 @@ package posix
 
 import scalanative.unsafe._
 
-@externModule
+@extern
 object errno {
   @name("scalanative_e2big")
   def E2BIG: CInt = extern

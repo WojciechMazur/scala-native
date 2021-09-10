@@ -6,7 +6,7 @@ import HandleApi.Handle
 import scala.scalanative.windows.winnt._
 
 @link("Advapi32")
-@externModule()
+@extern()
 object WinBaseApi {
   import SecurityBaseApi._
 

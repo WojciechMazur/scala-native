@@ -4,7 +4,7 @@ package posix.sys
 import scala.scalanative.unsigned._
 import scala.scalanative.unsafe._
 
-@externModule
+@extern
 object types {
 
   type blkcnt_t = CLong

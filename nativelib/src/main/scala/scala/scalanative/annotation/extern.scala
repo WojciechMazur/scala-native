@@ -1,7 +1,7 @@
 package scala.scalanative
-package unsafe
+package annotation
 
 /** An annotation that is used to mark objects that contain externally-defined
  *  members.
  */
-final class externModule extends scala.annotation.StaticAnnotation
+final class extern extends scala.annotation.StaticAnnotation

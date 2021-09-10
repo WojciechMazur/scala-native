@@ -3,7 +3,7 @@ package libc
 
 import scalanative.unsafe._
 
-@externModule
+@extern
 object ctype {
   def isascii(c: CInt): CInt = extern
   def isalnum(c: CInt): CInt = extern

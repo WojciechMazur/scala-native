@@ -3,7 +3,7 @@ package posix
 
 import scala.scalanative.unsafe._, Nat._
 
-@externModule
+@extern
 object dirent {
 
   type _256 = Digit3[_2, _5, _6]

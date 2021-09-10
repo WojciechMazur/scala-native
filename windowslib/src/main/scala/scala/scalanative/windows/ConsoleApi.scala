@@ -3,7 +3,7 @@ package scala.scalanative.windows
 import scala.scalanative.unsafe._
 import scala.scalanative.windows.HandleApi.Handle
 
-@externModule()
+@extern()
 object ConsoleApi {
   def GetStdHandle(handleNum: DWord): Handle = extern
   def SetStdHandle(stdHandle: DWord, handle: Handle): Boolean = extern

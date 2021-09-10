@@ -5,7 +5,7 @@ import scala.scalanative.unsigned._
 import scalanative.windows.{Word => WinWord}
 
 @link("ws2_32")
-@externModule
+@extern
 object WinSocketApi {
 
   type Socket = Ptr[Byte]

@@ -5,7 +5,7 @@ import scala.scalanative.unsigned._
 import scala.scalanative.windows.HandleApi.Handle
 
 @link("Advapi32")
-@externModule()
+@extern()
 object SecurityBaseApi {
   import winnt.TokenInformationClass
 

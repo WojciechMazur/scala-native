@@ -1,6 +1,6 @@
 import scalanative.unsafe._
 
-@externModule
+@extern
 object myapi {
   def add3(in: CLongLong): CLongLong = extern
 }

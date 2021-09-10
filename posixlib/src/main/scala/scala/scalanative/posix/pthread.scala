@@ -10,7 +10,7 @@ import scala.scalanative.posix.sys.types._
 // see http://pubs.opengroup.org/onlinepubs/007908799/xsh/threads.html
 
 @link("pthread")
-@externModule
+@extern
 object pthread {
 
   // simpify definitions - not in spec

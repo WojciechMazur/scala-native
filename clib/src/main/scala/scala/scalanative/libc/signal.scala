@@ -3,7 +3,7 @@ package libc
 
 import scalanative.unsafe._
 
-@externModule
+@extern
 object signal {
 
   // Signals

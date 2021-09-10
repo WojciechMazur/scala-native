@@ -7,7 +7,7 @@ import scala.scalanative.windows.HandleApi.Handle
 import MinWinBaseApi._
 import WinBaseApi.SecurityAttributes
 
-@externModule
+@extern
 object FileApi {
   private[windows] type PathMax = Nat.Digit3[Nat._2, Nat._6, Nat._0]
   private[windows] type FileName[C] = CArray[C, PathMax]

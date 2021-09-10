@@ -3,7 +3,7 @@ package runtime
 
 import scala.scalanative.unsafe._
 
-@externModule
+@extern
 object Platform {
   @name("scalanative_platform_is_linux")
   def isLinux(): Boolean = extern

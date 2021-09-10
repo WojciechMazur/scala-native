@@ -4,7 +4,7 @@ package libc
 import scalanative.unsafe._
 
 /** Bindings for float.h */
-@externModule
+@extern
 object float {
 
   // Macros

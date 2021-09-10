@@ -24,7 +24,7 @@ For example, to call C's ``malloc`` one might declare it as following:
 
     import scala.scalanative.unsafe._
 
-    @externModule
+    @extern
     object libc {
       def malloc(size: CSize): Ptr[Byte] = extern
     }
@@ -93,7 +93,7 @@ link with using the ``@link`` annotation.
    import scala.scalanative.unsafe._
 
    @link("mylib")
-   @externModule
+   @extern
    object mylib {
      def f(): Unit = extern
    }
@@ -113,7 +113,7 @@ recommended to enforce the Scala naming conventions in bindings:
     import scala.scalanative.unsafe._
 
     @link("uv")
-    @externModule
+    @extern
     object uv {
       @name("uv_uptime")
       def uptime(result: Ptr[CDouble]): Int = extern
@@ -133,7 +133,7 @@ can be declared as:
 
    import scala.scalanative.unsafe._
 
-   @externModule
+   @extern
    object mystdio {
      def vprintf(format: CString, args: CVarArgList): CInt = extern
    }

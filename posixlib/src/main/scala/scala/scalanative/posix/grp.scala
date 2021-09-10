@@ -4,7 +4,7 @@ package posix
 import scalanative.unsafe._
 import scalanative.posix.sys.stat.gid_t
 
-@externModule
+@extern
 object grp {
   type group = CStruct3[
     CString, // gr_name

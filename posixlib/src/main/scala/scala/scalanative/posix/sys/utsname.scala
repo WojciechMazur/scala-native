@@ -3,12 +3,12 @@ package scala.scalanative.posix.sys
 import scala.scalanative.unsafe._
 import scala.scalanative.unsafe.Nat._
 
-@externModule
+@extern
 object utsname {
   type _256 = Digit3[_2, _5, _6]
   private type str = CArray[Byte, _256]
   type utsname = CStruct5[str, str, str, str, str]
-  @externModule def uname(utsname: Ptr[utsname]): CInt = extern
+  @extern def uname(utsname: Ptr[utsname]): CInt = extern
 }
 
 object uname {

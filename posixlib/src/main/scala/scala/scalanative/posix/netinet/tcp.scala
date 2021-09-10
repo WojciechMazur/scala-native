@@ -2,7 +2,7 @@ package scala.scalanative.posix.netinet
 
 import scalanative.unsafe._
 
-@externModule
+@extern
 object tcp {
 
   @name("scalanative_tcp_nodelay")

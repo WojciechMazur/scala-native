@@ -15,12 +15,12 @@ object ExternTest {
    * These also are having problems at the top level with our CI
    * with the current Docker configuration, see #1991
    */
-  @externModule
+  @extern
   object Ext1 {
     def snprintf(buf: CString, size: CSize, format: CString, l: CString): Int =
       extern
   }
-  @externModule
+  @extern
   object Ext2 {
     @name("snprintf")
     def p(buf: CString, size: CSize, format: CString, i: Int): Int = extern

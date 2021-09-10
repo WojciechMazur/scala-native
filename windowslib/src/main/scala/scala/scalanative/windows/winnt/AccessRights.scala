@@ -3,7 +3,7 @@ package scala.scalanative.windows.winnt
 import scala.scalanative.unsafe._
 
 @link("Advapi32")
-@externModule
+@extern
 object AccessRights {
   @name("scalanative_generic_all")
   def FILE_GENERIC_ALL: AccessRights = extern

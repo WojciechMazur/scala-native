@@ -5,7 +5,7 @@ import scala.scalanative.unsafe._
 import scala.scalanative.meta.LinktimeInfo.isWindows
 
 @link("z")
-@externModule
+@extern
 object zlib {
   import zlibExt._
   type voidpf = Ptr[Byte]

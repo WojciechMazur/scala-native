@@ -75,7 +75,7 @@ macro or pre-processor constants. Here is an example for Scala:
 
 .. code-block:: scala
 
-    @externModule
+    @extern
     object cpio {
       @name("scalanative_c_issock")
       def C_ISSOCK: CUnsignedShort = extern

@@ -10,12 +10,14 @@ private[nio] final class HeapByteBufferCharView private (
     _readOnly: Boolean,
     override private[nio] val isBigEndian: Boolean
 ) extends CharBuffer(_capacity, null, -1) {
-  import HeapByteBufferCharView.NewHeapByteBufferCharView
 
   position(_initialPosition)
   limit(_initialLimit)
 
   protected lazy val genHeapBufferView = GenHeapBufferView[CharBuffer](this)
+  private implicit def newHeapBufferView
+      : GenHeapBufferView.NewHeapBufferView[CharBuffer] =
+    HeapByteBufferCharView.NewHeapByteBufferCharView
 
   def isReadOnly(): Boolean = _readOnly
 

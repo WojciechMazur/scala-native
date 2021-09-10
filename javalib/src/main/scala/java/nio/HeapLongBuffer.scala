@@ -9,7 +9,9 @@ private[nio] final class HeapLongBuffer private (
     _initialLimit: Int,
     _readOnly: Boolean
 ) extends LongBuffer(_capacity, _array0, _arrayOffset0) {
-  import HeapLongBuffer.NewHeapLongBuffer
+  private implicit def newHeapBuffer
+      : GenHeapBuffer.NewHeapBuffer[LongBuffer, Long] =
+    HeapLongBuffer.NewHeapLongBuffer
 
   position(_initialPosition)
   limit(_initialLimit)

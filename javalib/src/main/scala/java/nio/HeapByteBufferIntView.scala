@@ -10,12 +10,14 @@ private[nio] final class HeapByteBufferIntView private (
     _readOnly: Boolean,
     override private[nio] val isBigEndian: Boolean
 ) extends IntBuffer(_capacity, null, -1) {
-  import HeapByteBufferIntView.NewHeapByteBufferIntView
 
   position(_initialPosition)
   limit(_initialLimit)
 
   protected lazy val genHeapBufferView = GenHeapBufferView[IntBuffer](this)
+  private implicit def newHeapBufferView
+      : GenHeapBufferView.NewHeapBufferView[IntBuffer] =
+    HeapByteBufferIntView.NewHeapByteBufferIntView
 
   override def isReadOnly(): Boolean = _readOnly
 

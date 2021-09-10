@@ -10,7 +10,9 @@ private[nio] final class HeapCharBuffer private (
     _initialLimit: Int,
     _readOnly: Boolean
 ) extends CharBuffer(_capacity, _array0, _arrayOffset0) {
-  import HeapCharBuffer.NewHeapCharBuffer
+  private implicit def newHeapBuffer
+      : GenHeapBuffer.NewHeapBuffer[CharBuffer, Char] =
+    HeapCharBuffer.NewHeapCharBuffer
 
   position(_initialPosition)
   limit(_initialLimit)

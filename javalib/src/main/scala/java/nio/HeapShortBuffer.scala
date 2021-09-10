@@ -9,11 +9,12 @@ private[nio] final class HeapShortBuffer private (
     _initialLimit: Int,
     _readOnly: Boolean
 ) extends ShortBuffer(_capacity, _array0, _arrayOffset0) {
-  import HeapShortBuffer.NewHeapShortBuffer
-
   position(_initialPosition)
   limit(_initialLimit)
 
+  private implicit def newHeapByteBuffer
+      : GenHeapBuffer.NewHeapBuffer[ShortBuffer, Short] =
+    HeapShortBuffer.NewHeapShortBuffer
   private lazy val genHeapBuffer = GenHeapBuffer[ShortBuffer](this)
 
   def isReadOnly(): Boolean = _readOnly

@@ -10,15 +10,13 @@ private[nio] final class HeapByteBuffer private (
     _initialLimit: Int,
     _readOnly: Boolean
 ) extends ByteBuffer(_capacity, _array0, _arrayOffset0) {
-  import  HeapByteBuffer.NewHeapByteBuffer
-
   position(_initialPosition)
   limit(_initialLimit)
 
-  private lazy val genHeapBuffer = GenHeapBuffer[ByteBuffer](this) 
-  // private[this] implicit def newHeapByteBuffer
-  //     : HeapByteBuffer.NewHeapByteBuffer =
-  //   HeapByteBuffer.NewHeapByteBuffer
+  private lazy val genHeapBuffer = GenHeapBuffer[ByteBuffer](this)
+  private implicit def newHeapByteBuffer
+      : GenHeapBuffer.NewHeapBuffer[ByteBuffer, Byte] =
+    HeapByteBuffer.NewHeapByteBuffer
 
   def isReadOnly(): Boolean = _readOnly
 

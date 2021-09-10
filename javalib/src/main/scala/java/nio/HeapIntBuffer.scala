@@ -9,7 +9,9 @@ private[nio] final class HeapIntBuffer private (
     _initialLimit: Int,
     _readOnly: Boolean
 ) extends IntBuffer(_capacity, _array0, _arrayOffset0) {
-  import HeapIntBuffer.NewHeapIntBuffer
+  private implicit def newHeapBuffer
+      : GenHeapBuffer.NewHeapBuffer[IntBuffer, Int] =
+    HeapIntBuffer.NewHeapIntBuffer
 
   position(_initialPosition)
   limit(_initialLimit)

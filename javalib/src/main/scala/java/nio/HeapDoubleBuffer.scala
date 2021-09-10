@@ -9,7 +9,9 @@ private[nio] final class HeapDoubleBuffer private (
     _initialLimit: Int,
     _readOnly: Boolean
 ) extends DoubleBuffer(_capacity, _array0, _arrayOffset0) {
-  import HeapDoubleBuffer.NewHeapDoubleBuffer
+  private implicit def newHeapBuffer
+      : GenHeapBuffer.NewHeapBuffer[DoubleBuffer, Double] =
+    HeapDoubleBuffer.NewHeapDoubleBuffer
 
   position(_initialPosition)
   limit(_initialLimit)

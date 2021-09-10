@@ -13,8 +13,9 @@ private[nio] final class HeapFloatBuffer private (
   position(_initialPosition)
   limit(_initialLimit)
 
-  private lazy val genHeapBuffer = GenHeapBuffer[FloatBuffer](this) 
-  private[this] implicit def newHeapFloatBuffer: HeapFloatBuffer.NewHeapFloatBuffer.type =
+  private lazy val genHeapBuffer = GenHeapBuffer[FloatBuffer](this)
+  private[this] implicit def newHeapFloatBuffer
+      : HeapFloatBuffer.NewHeapFloatBuffer.type =
     HeapFloatBuffer.NewHeapFloatBuffer
 
   def isReadOnly(): Boolean = _readOnly

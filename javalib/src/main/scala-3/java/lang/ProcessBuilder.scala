@@ -1,3 +1,7 @@
+// Any changes to this files needs to be synced with it's Scala2 counter part.
+// Due to enum restrictions it is impossible to create common implementation
+// for both Scala versions
+
 package java.lang
 
 import java.util.{ArrayList, List}
@@ -8,7 +12,6 @@ import java.util.Arrays
 import scala.scalanative.unsafe._
 import scala.scalanative.posix.unistd
 import scala.scalanative.runtime.Platform
-import scala.scalanative.meta.LinktimeInfo.isWindows
 import ProcessBuilder.Redirect
 
 final class ProcessBuilder(private var _command: List[String]) {
@@ -107,8 +110,12 @@ final class ProcessBuilder(private var _command: List[String]) {
   def start(): Process = {
     if (_command.isEmpty()) throw new IndexOutOfBoundsException()
     if (_command.contains(null)) throw new NullPointerException()
-    if (isWindows) process.WindowsProcess(this)
-    else process.UnixProcess(this)
+    if (Platform.isWindows()) {
+      val msg = "No windows implementation of java.lang.Process"
+      throw new UnsupportedOperationException(msg)
+    } else {
+      UnixProcess(this)
+    }
   }
 
   @inline private[this] def set(f: => Unit): ProcessBuilder = {
@@ -179,30 +186,12 @@ object ProcessBuilder {
       new RedirectImpl(Type.WRITE, file)
     }
 
-    class Type private (name: String, ordinal: Int)
-        extends Enum[Type](name, ordinal)
-
-    object Type {
-      final val PIPE = new Type("PIPE", 0)
-      final val INHERIT = new Type("INHERIT", 1)
-      final val READ = new Type("READ", 2)
-      final val WRITE = new Type("WRITE", 3)
-      final val APPEND = new Type("APPEND", 4)
-
-      def valueOf(name: String): Type = {
-        if (name == null) throw new NullPointerException()
-        _values.toSeq.find(_.name() == name) match {
-          case Some(t) => t
-          case None =>
-            throw new IllegalArgumentException(
-              s"$name is not a valid Type name"
-            )
-        }
-      }
-
-      def values(): Array[Type] = _values
-
-      private val _values = Array(PIPE, INHERIT, READ, WRITE, APPEND)
+    enum Type extends Enum[Type]() {
+      case PIPE extends Type
+      case INHERIT extends Type
+      case READ extends Type
+      case WRITE extends Type
+      case APPEND extends Type
     }
   }
 }

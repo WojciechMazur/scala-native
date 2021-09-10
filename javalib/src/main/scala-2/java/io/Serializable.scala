@@ -1,5 +1,3 @@
 package java.io
 
-trait Serializable {
-  
-}
+trait Serializable {}

@@ -140,7 +140,7 @@ private[lang] class UnixProcess private (
 
 object UnixProcess {
   @link("pthread")
-  @externModule
+  @extern
   private[this] object ProcessMonitor {
     @name("scalanative_process_monitor_check_result")
     def checkResult(pid: Int): CInt = extern

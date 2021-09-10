@@ -2,6 +2,7 @@ package scala.scalanative.unsafe
 import scala.language.experimental.macros
 
 trait MacroOps {
+
   /** Heap allocate and zero-initialize a value using current implicit
    *  allocator.
    */

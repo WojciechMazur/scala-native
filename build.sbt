@@ -1236,7 +1236,18 @@ lazy val scalaPartestJunitTests = project
       else {
         val upstreamDir = (scalaPartest / fetchScalaSource).value
         CrossVersion.partialVersion(scalaVersion.value) match {
-          case Some((2, 11 | 12)) => Seq.empty[File]
+          case Some((2, 11)) => Seq.empty[File]
+          case Some((2, 12)) =>
+            val revision =
+              scalaVersion.value
+                .stripPrefix("2.12.")
+                .takeWhile(_.isDigit)
+                .toInt
+            if (revision < 15) Nil
+            else
+              Seq(
+                upstreamDir / "src/compiler/scala/tools/nsc/settings/ScalaVersion.scala"
+              )
           case _ =>
             Seq(
               upstreamDir / "src/testkit/scala/tools/testkit/AssertUtil.scala"

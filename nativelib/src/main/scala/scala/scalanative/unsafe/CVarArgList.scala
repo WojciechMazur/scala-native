@@ -157,14 +157,14 @@ object CVarArgList {
       }
     }
 
-    val resultStorage = toRawPtr(z.alloc(count.toUInt * sizeof[Word]))
+    val resultStorage = alloc[Word](count)
     libc.memcpy(
-      resultStorage,
+      toRawPtr(resultStorage),
       toRawPtr(storage),
       count.toUInt * sizeof[Word]
     )
     libc.free(toRawPtr(storage))
-    new CVarArgList(resultStorage)
+    new CVarArgList(toRawPtr(resultStorage))
   }
 
 }

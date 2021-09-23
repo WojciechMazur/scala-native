@@ -146,7 +146,7 @@ object NativeConfig {
       targetTriple: Option[String],
       gc: GC,
       mode: Mode,
-                                buildTarget: BuildTarget,
+      buildTarget: BuildTarget,
       lto: LTO,
       linkStubs: Boolean,
       check: Boolean,

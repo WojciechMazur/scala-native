@@ -1,3 +1,4 @@
+import build.ScalaVersions
 import java.io.File.pathSeparator
 import scala.collection.mutable
 import scala.util.Try
@@ -22,6 +23,14 @@ lazy val nameSettings: Seq[Setting[_]] = Seq(
 
 lazy val disabledDocsSettings: Seq[Setting[_]] = Def.settings(
   Compile / doc / sources := Nil
+)
+
+lazy val scala3CompatSettings: Seq[Setting[_]] = Def.settings(
+  scalacOptions --= {
+    if (scalaVersion.value.startsWith("3."))
+      Seq("-target:jvm-1.8")
+    else Nil
+  }
 )
 
 lazy val docsSettings: Seq[Setting[_]] = {
@@ -108,6 +117,7 @@ inThisBuild(
       "-encoding",
       "utf8",
       "-feature",
+      "-target:jvm-1.8",
       "-unchecked",
       "-Xfatal-warnings"
     )
@@ -384,6 +394,7 @@ lazy val nscplugin =
   project
     .in(file("nscplugin"))
     .settings(mavenPublishSettings)
+    .settings(scala3CompatSettings)
     .settings(
       Compile / unmanagedSourceDirectories ++= Seq(
         (nir / Compile / scalaSource).value,
@@ -569,10 +580,156 @@ lazy val auxlib =
     )
     .dependsOn(nscplugin % "plugin", nativelib)
 
+def scalalibSettings(libraryName: String) = Def.settings(
+  // Code to fetch scala sources adapted, with gratitude, from
+  // Scala.js Build.scala at the suggestion of @sjrd.
+  // https://github.com/scala-js/scala-js/blob/\
+  //    1761f94ee31902b61c579d5cb121117c9dc08295/\
+  //    project/Build.scala#L1125-L1233
+  //
+  // By intent, the Scala Native code below is as identical as feasible.
+  // Scala Native build.sbt uses a slightly different baseDirectory
+  // than Scala.js. See commented starting with "SN Port:" below.
+  libraryDependencies +=
+    "org.scala-lang" % libraryName % scalaVersion.value classifier "sources",
+  fetchScalaSource / artifactPath :=
+    target.value / "scalaSources" / scalaVersion.value,
+  // Scala.js original comment modified to clarify issue is Scala.js.
+  /* Work around for https://github.com/scala-js/scala-js/issues/2649
+   * We would like to always use `update`, but
+   * that fails if the scalaVersion we're looking for happens to be the
+   * version of Scala used by sbt itself. This is clearly a bug in sbt,
+   * which we work around here by using `updateClassifiers` instead in
+   * that case.
+   */
+  fetchScalaSource / update := Def.taskDyn {
+    if (scalaVersion.value == scala.util.Properties.versionNumberString)
+      updateClassifiers
+    else
+      update
+  }.value,
+  fetchScalaSource := {
+    val s = streams.value
+    val cacheDir = s.cacheDirectory
+    val ver = scalaVersion.value
+    val trgDir = (fetchScalaSource / artifactPath).value
+
+    val report = (fetchScalaSource / update).value
+    val scalaLibSourcesJar = report
+      .select(
+        configuration = configurationFilter("compile"),
+        module = moduleFilter(name = libraryName),
+        artifact = artifactFilter(classifier = "sources")
+      )
+      .headOption
+      .getOrElse {
+        throw new Exception(
+          s"Could not fetch $libraryName sources for version $ver"
+        )
+      }
+
+    FileFunction.cached(
+      cacheDir / s"fetchScalaSource-$ver",
+      FilesInfo.lastModified,
+      FilesInfo.exists
+    ) { dependencies =>
+      s.log.info(s"Unpacking Scala library sources to $trgDir...")
+
+      if (trgDir.exists)
+        IO.delete(trgDir)
+      IO.createDirectory(trgDir)
+      IO.unzip(scalaLibSourcesJar, trgDir)
+    }(Set(scalaLibSourcesJar))
+
+    trgDir
+  },
+  Compile / unmanagedSourceDirectories := {
+    // Calculates all prefixes of the current Scala version
+    // (including the empty prefix) to construct override
+    // directories like the following:
+    // - override-2.13.0-RC1
+    // - override-2.13.0
+    // - override-2.13
+    // - override-2
+    // - override
+
+    val ver = scalaVersion.value
+
+    // SN Port: sjs uses baseDirectory.value.getParentFile here.
+    val base = baseDirectory.value
+    val parts = ver.split(Array('.', '-'))
+    val verList = parts.inits.map { ps =>
+      val len = ps.mkString(".").length
+      // re-read version, since we lost '.' and '-'
+      ver.substring(0, len)
+    }
+    def dirStr(v: String) =
+      if (v.isEmpty) "overrides" else s"overrides-$v"
+    val dirs = verList.map(base / dirStr(_)).filter(_.exists)
+    dirs.toSeq // most specific shadow less specific
+  },
+  // Compute sources
+  // Files in earlier src dirs shadow files in later dirs
+  Compile / sources := {
+    // Sources coming from the sources of Scala
+    val scalaSrcDir = fetchScalaSource.value
+
+    // All source directories (overrides shadow scalaSrcDir)
+    val sourceDirectories =
+      (Compile / unmanagedSourceDirectories).value :+ scalaSrcDir
+
+    // Filter sources with overrides
+    def normPath(f: File): String =
+      f.getPath.replace(java.io.File.separator, "/")
+
+    val sources = mutable.ListBuffer.empty[File]
+    val paths = mutable.Set.empty[String]
+
+    val s = streams.value
+
+    for {
+      srcDir <- sourceDirectories
+      normSrcDir = normPath(srcDir)
+      src <- (srcDir ** "*.scala").get
+    } {
+      val normSrc = normPath(src)
+      val path = normSrc.substring(normSrcDir.length)
+      val useless =
+        path.contains("/scala/collection/parallel/") ||
+          path.contains("/scala/util/parsing/")
+      if (!useless) {
+        if (paths.add(path))
+          sources += src
+        else
+          s.log.debug(s"not including $src")
+      }
+    }
+
+    sources.result()
+  },
+  // Don't include classfiles for scalalib in the packaged jar.
+  Compile / packageBin / mappings := {
+    val previous = (Compile / packageBin / mappings).value
+    previous.filter {
+      case (file, path) =>
+        !path.endsWith(".class")
+    }
+  },
+  // Sources in scalalib are only internal overrides, we don't include them in the resulting sources jar
+  Compile / packageSrc / mappings := Seq.empty,
+  exportJars := true
+)
+
 lazy val scalalib =
   project
     .in(file("scalalib"))
     .enablePlugins(MyScalaNativePlugin)
+    .settings(scalalibSettings("scala-library"))
+    .settings(mavenPublishSettings)
+    .settings(disabledDocsSettings)
+    .settings(
+      crossScalaVersions := libCrossScala2Versions
+    )
     .settings(
       scalacOptions -= "-deprecation",
       scalacOptions += "-deprecation:false",
@@ -594,148 +751,27 @@ lazy val scalalib =
         }
       }
     )
-    .settings(mavenPublishSettings)
-    .settings(disabledDocsSettings)
-    .settings(
-      // Code to fetch scala sources adapted, with gratitude, from
-      // Scala.js Build.scala at the suggestion of @sjrd.
-      // https://github.com/scala-js/scala-js/blob/\
-      //    1761f94ee31902b61c579d5cb121117c9dc08295/\
-      //    project/Build.scala#L1125-L1233
-      //
-      // By intent, the Scala Native code below is as identical as feasible.
-      // Scala Native build.sbt uses a slightly different baseDirectory
-      // than Scala.js. See commented starting with "SN Port:" below.
-      libraryDependencies +=
-        "org.scala-lang" % "scala-library" % scalaVersion.value classifier "sources",
-      fetchScalaSource / artifactPath :=
-        target.value / "scalaSources" / scalaVersion.value,
-      // Scala.js original comment modified to clarify issue is Scala.js.
-      /* Work around for https://github.com/scala-js/scala-js/issues/2649
-       * We would like to always use `update`, but
-       * that fails if the scalaVersion we're looking for happens to be the
-       * version of Scala used by sbt itself. This is clearly a bug in sbt,
-       * which we work around here by using `updateClassifiers` instead in
-       * that case.
-       */
-      fetchScalaSource / update := Def.taskDyn {
-        if (scalaVersion.value == scala.util.Properties.versionNumberString)
-          updateClassifiers
-        else
-          update
-      }.value,
-      fetchScalaSource := {
-        val s = streams.value
-        val cacheDir = s.cacheDirectory
-        val ver = scalaVersion.value
-        val trgDir = (fetchScalaSource / artifactPath).value
-
-        val report = (fetchScalaSource / update).value
-        val scalaLibSourcesJar = report
-          .select(
-            configuration = configurationFilter("compile"),
-            module = moduleFilter(name = "scala-library"),
-            artifact = artifactFilter(classifier = "sources")
-          )
-          .headOption
-          .getOrElse {
-            throw new Exception(
-              s"Could not fetch scala-library sources for version $ver"
-            )
-          }
-
-        FileFunction.cached(
-          cacheDir / s"fetchScalaSource-$ver",
-          FilesInfo.lastModified,
-          FilesInfo.exists
-        ) { dependencies =>
-          s.log.info(s"Unpacking Scala library sources to $trgDir...")
-
-          if (trgDir.exists)
-            IO.delete(trgDir)
-          IO.createDirectory(trgDir)
-          IO.unzip(scalaLibSourcesJar, trgDir)
-        }(Set(scalaLibSourcesJar))
-
-        trgDir
-      },
-      Compile / unmanagedSourceDirectories := {
-        // Calculates all prefixes of the current Scala version
-        // (including the empty prefix) to construct override
-        // directories like the following:
-        // - override-2.13.0-RC1
-        // - override-2.13.0
-        // - override-2.13
-        // - override-2
-        // - override
-
-        val ver = scalaVersion.value
-
-        // SN Port: sjs uses baseDirectory.value.getParentFile here.
-        val base = baseDirectory.value
-        val parts = ver.split(Array('.', '-'))
-        val verList = parts.inits.map { ps =>
-          val len = ps.mkString(".").length
-          // re-read version, since we lost '.' and '-'
-          ver.substring(0, len)
-        }
-        def dirStr(v: String) =
-          if (v.isEmpty) "overrides" else s"overrides-$v"
-        val dirs = verList.map(base / dirStr(_)).filter(_.exists)
-        dirs.toSeq // most specific shadow less specific
-      },
-      // Compute sources
-      // Files in earlier src dirs shadow files in later dirs
-      Compile / sources := {
-        // Sources coming from the sources of Scala
-        val scalaSrcDir = fetchScalaSource.value
-
-        // All source directories (overrides shadow scalaSrcDir)
-        val sourceDirectories =
-          (Compile / unmanagedSourceDirectories).value :+ scalaSrcDir
-
-        // Filter sources with overrides
-        def normPath(f: File): String =
-          f.getPath.replace(java.io.File.separator, "/")
-
-        val sources = mutable.ListBuffer.empty[File]
-        val paths = mutable.Set.empty[String]
-
-        val s = streams.value
-
-        for {
-          srcDir <- sourceDirectories
-          normSrcDir = normPath(srcDir)
-          src <- (srcDir ** "*.scala").get
-        } {
-          val normSrc = normPath(src)
-          val path = normSrc.substring(normSrcDir.length)
-          val useless =
-            path.contains("/scala/collection/parallel/") ||
-              path.contains("/scala/util/parsing/")
-          if (!useless) {
-            if (paths.add(path))
-              sources += src
-            else
-              s.log.debug(s"not including $src")
-          }
-        }
-
-        sources.result()
-      },
-      // Don't include classfiles for scalalib in the packaged jar.
-      Compile / packageBin / mappings := {
-        val previous = (Compile / packageBin / mappings).value
-        previous.filter {
-          case (file, path) =>
-            !path.endsWith(".class")
-        }
-      },
-      // Sources in scalalib are only internal overrides, we don't include them in the resulting sources jar
-      Compile / packageSrc / mappings := Seq.empty,
-      exportJars := true
-    )
     .dependsOn(nscplugin % "plugin", auxlib, nativelib, javalib)
+
+lazy val scalalib3 = project
+  .in(file("scalalib3"))
+  .enablePlugins(MyScalaNativePlugin)
+  .settings(scalalibSettings("scala3-library_3"))
+  .settings(scala3CompatSettings)
+  .settings(mavenPublishSettings)
+  .settings(disabledDocsSettings)
+  .settings(
+    scalaVersion := scala3,
+    crossScalaVersions := Seq(scala3),
+    scalacOptions ++= Seq(
+      "-language:implicitConversions"
+    )
+  )
+  .settings(
+    libraryDependencies +=
+      "org.scala-native" %%% "scalalib" % version.value cross (CrossVersion.for3Use2_13)
+  )
+  .dependsOn(nscplugin % "plugin")
 
 // Shortcut for further Native projects to depend on all core libraries
 lazy val allCoreLibs: Project =
@@ -893,7 +929,16 @@ lazy val sandbox =
     .enablePlugins(MyScalaNativePlugin)
     .settings(scalacOptions -= "-Xfatal-warnings")
     .settings(noPublishSettings)
-    .dependsOn(nscplugin % "plugin", allCoreLibs, testInterface % Test)
+    .dependsOn(nscplugin % "plugin", scalalib, testInterface % Test)
+
+lazy val sandbox3 =
+  project
+    .in(file("sandbox3"))
+    .enablePlugins(MyScalaNativePlugin)
+    .settings(scala3CompatSettings)
+    .settings(scalacOptions -= "-Xfatal-warnings")
+    .settings(noPublishSettings)
+    .dependsOn(nscplugin % "plugin", scalalib3)
 
 lazy val testingCompilerInterface =
   project

@@ -1,9 +1,7 @@
 package scala.scalanative.nscplugin
 
 object NirDefinitionsProvider {
-  trait Compat {
-    type Symbol
-    type Name
+  trait Compat[Symbol, Name] {
     def getRequiredClass(cls: String): Symbol
     def getRequiredModule(cls: String): Symbol
     def getPackageObject(cls: String): Symbol
@@ -23,7 +21,7 @@ object NirDefinitionsProvider {
   }
 }
 
-class NirDefinitionsProvider(val compat: NirDefinitionsProvider.Compat) {
+class NirDefinitionsProvider[Symbol, Name](val compat: NirDefinitionsProvider.Compat[Symbol, Name]) {
   import compat._
 
   // Native library

@@ -8,17 +8,8 @@ trait NirDefinitions {
   val global: Global
   import global._
 
-  object nirDefinitions extends NirDefinitionsProvider(Scala2Compat) {
-    implicit def compatSymbolToGlobalSymbol(sym: compat.Symbol): global.Symbol =
-      sym.asInstanceOf[global.Symbol]
-    implicit def compatSymbolFromGlobalSymbol(
-        sym: global.Symbol
-    ): compat.Symbol = sym.asInstanceOf[compat.Symbol]
-  }
-  object Scala2Compat extends NirDefinitionsProvider.Compat {
-    type Symbol = global.Symbol
-    type Name = global.Name
-
+  object nirDefinitions extends NirDefinitionsProvider(Scala2Compat)
+  object Scala2Compat extends NirDefinitionsProvider.Compat[global.Symbol, global.Name] {
     def getRequiredClass(cls: String): Symbol = rootMirror.getRequiredClass(cls)
     def getRequiredModule(cls: String): Symbol =
       rootMirror.getRequiredModule(cls)

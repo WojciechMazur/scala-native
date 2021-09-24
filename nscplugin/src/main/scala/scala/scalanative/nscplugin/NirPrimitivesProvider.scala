@@ -80,9 +80,9 @@ trait NirPrimitivesProvider {
   def isRawCastOp(code: Int): Boolean =
     code >= CAST_RAW_PTR_TO_OBJECT && code <= CAST_LONG_TO_RAWPTR
 
-  def addCommonPrimitives(
-      nirDefinitions: NirDefinitionsProvider,
-      addPrimitive: (nirDefinitions.compat.Symbol, Int) => Unit
+  def addCommonPrimitives[Symbol, Name](
+      nirDefinitions: NirDefinitionsProvider[Symbol, Name],
+      addPrimitive: (Symbol, Int) => Unit
   ): Unit = {
     import nirDefinitions._
     import compat._

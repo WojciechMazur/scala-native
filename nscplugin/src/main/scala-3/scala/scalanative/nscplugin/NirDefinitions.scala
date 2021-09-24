@@ -8,6 +8,7 @@ import StdNames._
 import Types._
 import Contexts._
 import Symbols._
+import Names._
 import dotty.tools.backend.jvm.DottyPrimitives
 import dotty.tools.dotc.util.ReadOnlyMap
 import scala.scalanative.nscplugin.NirPrimitives
@@ -15,12 +16,9 @@ import scala.scalanative.nscplugin.NirPrimitives
 class NirDefinitions()(using ctx: Context) extends DottyPrimitives(ctx) {
   import NirPrimitives._
 
-  object nirDefinitions extends NirDefinitionsProvider(Scala3Compat) {}
+  object nirDefinitions extends NirDefinitionsProvider(Scala3Compat)
 
-  object Scala3Compat extends NirDefinitionsProvider.Compat {
-    type Symbol = core.Symbols.Symbol
-    type Name = core.Names.Name
-
+  object Scala3Compat extends NirDefinitionsProvider.Compat[core.Symbols.Symbol, core.Names.Name] {
     def getRequiredClass(cls: String): Symbol = requiredClass(cls)
     def getRequiredModule(cls: String): Symbol = requiredModule(cls)
     def getPackageObject(cls: String): Symbol = requiredPackage(cls)

@@ -4,10 +4,17 @@ import dotty.tools._
 import dotc._
 import plugins._
 import core._
+import Contexts._
 
-object NirPhase extends PluginPhase:
+object GenNIR extends PluginPhase {
   val phaseName = "nir"
 
   override val runsAfter = Set(transform.Mixin.name)
   override val runsBefore =
     Set(transform.LambdaLift.name, backend.jvm.GenBCode.name)
+
+  override def run(using Context): Unit = {
+    println(s"Producing NIR for `${ctx.compilationUnit.source.file}`")
+    NirCodeGen().run()
+  }
+}

@@ -18,7 +18,11 @@ class NirDefinitions()(using ctx: Context) extends DottyPrimitives(ctx) {
 
   object nirDefinitions extends NirDefinitionsProvider(Scala3Compat)
 
-  object Scala3Compat extends NirDefinitionsProvider.Compat[core.Symbols.Symbol, core.Names.Name] {
+  object Scala3Compat
+      extends NirDefinitionsProvider.Compat[
+        core.Symbols.Symbol,
+        core.Names.Name
+      ] {
     def getRequiredClass(cls: String): Symbol = requiredClass(cls)
     def getRequiredModule(cls: String): Symbol = requiredModule(cls)
     def getPackageObject(cls: String): Symbol = requiredPackage(cls)

@@ -22,6 +22,7 @@ import scala.scalanative.nir
 import nir._
 import scala.scalanative.util.ScopedVar.scoped
 import scala.scalanative.util.unsupported
+import dotty.tools.dotc.ast.desugar
 
 trait NirGenExpr(using Context) {
   self: NirCodeGen =>
@@ -67,12 +68,14 @@ trait NirGenExpr(using Context) {
     def genApply(app: Apply): Val = {
       given nir.Position = app.span
       val Apply(fun, args) = app
+      log(s"genApply $app")
 
+      val sym = fun.symbol
       fun match {
         case _: TypeApply => genApplyTypeApply(app)
         case Select(Super(_, _), _) =>
           genApplyMethod(
-            fun.symbol,
+            sym,
             statically = true,
             curMethodThis.get.get,
             args
@@ -80,8 +83,6 @@ trait NirGenExpr(using Context) {
         case Select(New(_), nme.CONSTRUCTOR) =>
           genApplyNew(app)
         case _ =>
-          val sym = fun.symbol
-
           if (sym.is(Label)) genApplyLabel(app)
           else if (nirPrimitives.isPrimitive(sym)) genApplyPrimitive(app)
           // else if (currentRun.runDefinitions.isBox(sym))
@@ -90,12 +91,14 @@ trait NirGenExpr(using Context) {
           // else if (currentRun.runDefinitions.isUnbox(sym))
           //   genApplyUnbox(app.tpe, args.head)
           else
-            assert(fun.isInstanceOf[Ident], "expected idented")
-            // println(fun)
-            // println(args)
-            // val Ident(receiverp) = fun
-            // val Select(receiverp, _) = fun
-            genApplyMethod(fun.symbol, statically = false, fun, args)
+            val isStatic = sym.owner.isStaticOwner
+            val receiverp = {
+              fun match {
+                case t: Ident => desugarIdent(t)
+                case t        => t
+              }
+            }.asInstanceOf[Select].qualifier
+            genApplyMethod(sym, statically = isStatic, receiverp, args)
       }
     }
 
@@ -391,8 +394,10 @@ trait NirGenExpr(using Context) {
       // lds.map(genLabel(_)).last
     }
 
-    def genModule(sym: Symbol)(using nir.Position): Val =
-      buf.module(genTypeName(sym), unwind)
+    def genModule(sym: Symbol)(using nir.Position): Val = {
+      val moduleSym = if (sym.isTerm) sym.moduleClass else sym
+      buf.module(genTypeName(moduleSym), unwind)
+    }
 
     def genReturn(tree: Return): Val = {
       val Return(exprp, _) = tree
@@ -415,13 +420,19 @@ trait NirGenExpr(using Context) {
     def genSelect(tree: Select): Val = {
       given nir.Position = tree.span
       val Select(qualp, selp) = tree
+      log(s"genSelect $tree")
 
       val sym = tree.symbol
       val owner = sym.owner
 
-      if (sym.is(Module)) genModule(sym)
-      else if (sym.isStatic) genStaticMember(sym)
+      if (sym.is(Module))
+        log(s"genModule - $sym")
+        genModule(sym)
+      else if (sym.isStatic)
+        log(s"genStaticMember - $sym")
+        genStaticMember(sym)
       else if (sym.is(Method))
+        log(s"genMethod - $sym")
         genApplyMethod(sym, statically = false, qualp, Seq())
       else if (owner.isStruct) {
         val index = owner.info.decls.filter(_.isField).toList.indexOf(sym)
@@ -502,11 +513,11 @@ trait NirGenExpr(using Context) {
       val cases = catches.map {
         case cd @ CaseDef(pat, _, body) =>
           val (excty, symopt) = pat match {
-            case Typed(Ident(nme.WILDCARD), tpt) => 
+            case Typed(Ident(nme.WILDCARD), tpt) =>
               genType(tpt.tpe) -> None
             case Ident(nme.WILDCARD) =>
               genType(defn.ThrowableClass.typeRef) -> None
-            case Bind(_, _) => 
+            case Bind(_, _) =>
               genType(pat.symbol.typeRef) -> Some(pat.symbol)
           }
           val f = { () =>
@@ -663,8 +674,8 @@ trait NirGenExpr(using Context) {
       val code = nirPrimitives.getPrimitive(app, receiver.tpe)
       if (isArithmeticOp(code) || isLogicalOp(code) || isComparisonOp(code))
         genSimpleOp(app, receiver :: args, code)
-      // else if (code == CONCAT) genStringConcat(receiver, args.head)
-      // else if (code == HASH) genHashCode(args.head)
+      else if (code == CONCAT) genStringConcat(receiver, args.head)
+      else if (code == HASH) genHashCode(args.head)
       // else if (isArrayOp(code) || code == ARRAY_CLONE) genArrayOp(app, code)
       // else if (NirPrimitives.isRawPtrOp(code)) genRawPtrOp(app, code)
       // else if (NirPrimitives.isRawCastOp(code)) genRawCastOp(app, code)
@@ -784,6 +795,7 @@ trait NirGenExpr(using Context) {
     )(using
         nir.Position
     ): Val = {
+      log(s"genApplyModuleMethod: ${module} - $method : $args")
       val self = genModule(module)
       genApplyMethod(method, statically = true, self, args)
     }
@@ -794,6 +806,8 @@ trait NirGenExpr(using Context) {
         selfp: Tree,
         argsp: Seq[Tree]
     )(using nir.Position): Val = {
+      log(s"genApplyMethod0: static:${statically} ${sym} - $selfp : $argsp")
+
       if (sym.owner.isExternModule && sym.is(Accessor))
         genApplyExternAccessor(sym, argsp)
       else
@@ -807,12 +821,15 @@ trait NirGenExpr(using Context) {
         self: Val,
         argsp: Seq[Tree]
     )(using nir.Position): Val = {
+      log(s"genApplyMethod: static:${statically} ${sym} - $self : $argsp")
+
       val owner = sym.owner
       val name = genMethodName(sym)
       val origSig = genMethodSig(sym)
       val sig =
         if (owner.isExternModule) genExternMethodSig(sym)
         else origSig
+      log(s"genMethodArgs: ${sym} : $argsp")
       val args = genMethodArgs(sym, argsp)
       val method =
         if (statically || owner.isStruct || owner.isExternModule)
@@ -821,10 +838,10 @@ trait NirGenExpr(using Context) {
           val Global.Member(_, sig) = name
           buf.method(self, sig, unwind)
       val values =
-        if (owner.isExternModule)
-          args
-        else
-          self +: args
+        if (owner.isExternModule) args
+        else self +: args
+
+      log(sig -> values)
 
       val res = buf.call(sig, method, values, unwind)
 
@@ -1094,6 +1111,60 @@ trait NirGenExpr(using Context) {
 
     private def genSimpleArgs(argsp: Seq[Tree]): Seq[Val] = {
       argsp.map(genExpr)
+    }
+
+    private def genHashCode(argp: Tree)(using nir.Position): Val = {
+      val arg = boxValue(argp.tpe, genExpr(argp))
+      val isnull =
+        buf.comp(Comp.Ieq, Rt.Object, arg, Val.Null, unwind)(using
+          argp.span: nir.Position
+        )
+      val cond = ValTree(isnull)
+      val thenp = ValTree(Val.Int(0))
+      val elsep = ContTree { () =>
+        val meth = defnNir.NObjectHashCodeMethod
+        genApplyMethod(meth, statically = false, arg, Seq())
+      }
+      genIf(Type.Int, cond, thenp, elsep)
+    }
+
+    private def genStringConcat(leftp: Tree, rightp: Tree): Val = {
+      def stringify(sym: Symbol, value: Val)(using nir.Position): Val = {
+        val cond = ContTree { () =>
+          buf.comp(Comp.Ieq, Rt.Object, value, Val.Null, unwind)
+        }
+        val thenp = ContTree { () => Val.String("null") }
+        val elsep = ContTree { () =>
+          if (sym == defn.StringClass) value
+          else {
+            val meth = defn.Any_toString
+            genApplyMethod(meth, statically = false, value, Seq())
+          }
+        }
+        genIf(Rt.String, cond, thenp, elsep)
+      }
+
+      val left = {
+        given nir.Position = leftp.span
+        val typesym = leftp.tpe.typeSymbol
+        val unboxed = genExpr(leftp)
+        val boxed = boxValue(typesym, unboxed)
+        stringify(typesym, boxed)
+      }
+
+      val right = {
+        given nir.Position = rightp.span
+        val typesym = rightp.tpe.typeSymbol
+        val boxed = genExpr(rightp)
+        stringify(typesym, boxed)
+      }
+
+      genApplyMethod(
+        defn.String_+,
+        statically = true,
+        left,
+        Seq(ValTree(right))
+      )(using leftp.span: nir.Position)
     }
 
     private def genStaticMember(

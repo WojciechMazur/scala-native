@@ -9,9 +9,8 @@ import Contexts._
 object GenNIR extends PluginPhase {
   val phaseName = "nir"
 
-  override val runsAfter = Set(transform.Mixin.name)
-  override val runsBefore =
-    Set(transform.LambdaLift.name, backend.jvm.GenBCode.name)
+  override val runsAfter = Set(transform.LambdaLift.name)
+  override val runsBefore = Set(transform.MoveStatics.name, backend.jvm.GenBCode.name)
 
   override def run(using Context): Unit = {
     println(s"Producing NIR for `${ctx.compilationUnit.source.file}`")

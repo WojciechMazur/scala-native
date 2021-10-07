@@ -26,8 +26,8 @@ trait NirGenDefn(using Context) {
   protected def addDefn(defn: nir.Defn) = generatedDefns += defn
 
   def genClass(td: TypeDef)(using Context): Unit = {
-    println("+++++")
-    println(td.show)
+    log("+++++ gen class")(SanityLevel.InputLog)
+    log(td.show)(SanityLevel.InputLog)
 
     scoped(
       curClassSym := td.symbol,
@@ -43,8 +43,9 @@ trait NirGenDefn(using Context) {
     val attrs = genClassAttrs(td)
     val name = genName(sym)
     def parent = genClassParent(sym)
-    def traits = sym.info
-      .parentSymbols(_.is(Trait))
+    def traits = sym.info.parents
+      .map(_.classSymbol)
+      .filter(_.isTraitOrInterface)
       .map(genTypeName)
 
     addDefn {
@@ -128,9 +129,16 @@ trait NirGenDefn(using Context) {
       curUnwindHandler := None
     ) {
       val sym = dd.symbol
-      val owner = curClassSym.get
+      val owner = {
+        val current = curClassSym.get
+        // if(sym.is(JavaStatic)) ???
+        current
+      }
       val attrs = genMethodAttrs(sym)
       val name = genMethodName(sym)
+      // if(sym.is(JavaStatic)){
+      log(s"method $owner ${name}")(SanityLevel.Defn)
+      // }
       val sig = genMethodSig(sym)
       val isStatic = owner.isExternModule //|| isImplClass(owner)
 
@@ -160,9 +168,9 @@ trait NirGenDefn(using Context) {
           ) {
             addDefn {
               val body = genMethodBody(dd, rhs, isStatic, isExtern = false)
-              println(s"$name - insts[${body.size}]")
-              body.foreach(println)
-              println(s"end\n")
+              log(s"$name - insts[${body.size}]")
+              body.foreach(log(_))
+              log(s"end\n")
               Defn.Define(attrs, name, sig, body)
             }
           }
@@ -214,9 +222,10 @@ trait NirGenDefn(using Context) {
         val ty = genType(curClassSym.get.typeRef)
         Val.Local(fresh(), ty)
       case Some(sym) =>
+        val tpe = sym.info.resultType
         val ty =
-          if (isExtern) genExternType(sym.typeRef)
-          else genType(sym.typeRef)
+          if (isExtern) genExternType(tpe)
+          else genType(tpe)
         val param = Val.Local(fresh(), ty)
         curMethodEnv.enter(sym, param)
         param
@@ -230,7 +239,8 @@ trait NirGenDefn(using Context) {
       if (isExtern) {
         paramSyms.zip(params).foreach {
           case (Some(sym), param) if isExtern =>
-            val ty = genType(sym.typeRef)
+            val tpe = sym.info.resultType
+            val ty = genType(tpe)
             val value = ??? //buf.fromExtern(ty, param)
             curMethodEnv.enter(sym, value)
           case _ =>
@@ -283,8 +293,8 @@ trait NirGenDefn(using Context) {
       //   }
       // }
       // case Block(stats, _) =>
-      //    println(bodyp)
-      //    println(bodyp.show)
+      //    log(bodyp)
+      //    log(bodyp.show)
       // ???
 
       case _ if curMethodSym.get == defnNir.NObjectInitMethod =>
@@ -302,6 +312,9 @@ trait NirGenDefn(using Context) {
           },
           curMethodIsExtern := isExtern
         ) {
+          log(dd.symbol)
+          log(bodyp)
+          log()
           buf.genReturn {
             withOptSynchronized(_.genExpr(bodyp))
           }

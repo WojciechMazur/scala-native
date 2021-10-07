@@ -10,7 +10,6 @@ import core.StdNames._
 import scalanative.util.unreachable
 import scalanative.nir
 
-
 trait NirGenName(using Context) {
   self: NirCodeGen =>
 
@@ -26,13 +25,17 @@ trait NirGenName(using Context) {
       genFieldName(sym)
     }
 
-  def genTypeName(sym: Symbol): nir.Global.Top = {
+  def genTypeName(sym0: Symbol): nir.Global.Top = {
+    val sym =
+      if (sym0.isAllOf(ModuleClass | JavaDefined)) sym0.linkedClass
+      else sym0
     if (sym == defn.ObjectClass) nir.Rt.Object.name.asInstanceOf[nir.Global.Top]
     else {
       val id = {
         val fullName = sym.fullName.toString
         NirGenName.MappedNames.getOrElse(fullName, fullName)
       }
+      log(s"genTypeName: $id")
       nir.Global.Top(id)
     }
   }
@@ -58,6 +61,7 @@ trait NirGenName(using Context) {
   }
 
   def genMethodName(sym: Symbol): nir.Global = {
+    println(sym)
     val owner = genTypeName(sym.owner)
     val id = nativeIdOf(sym)
     val tpe = sym.typeRef.widen
@@ -65,12 +69,13 @@ trait NirGenName(using Context) {
       if (sym.isPrivate) nir.Sig.Scope.Private(owner)
       else nir.Sig.Scope.Public
 
-    val paramTypes = tpe.typeParamSymbols
-      .map(_.info)
+    val paramTypes = sym.info.paramInfoss.flatten
       .map(fromType)
       .map(genType)
 
-    if (sym == defn.String_+) genMethodName(defnNir.StringConcatMethod)
+    if (sym == defn.`String_+`) 
+      println(defn.String_+ -> defnNir.StringConcatMethod)
+      genMethodName(defnNir.StringConcatMethod)
     else if (sym.owner.isExternModule) {
       if (sym.isSetter) {
         // Previously dropSetter was sued
@@ -82,7 +87,7 @@ trait NirGenName(using Context) {
     } else if (sym.name == nme.CONSTRUCTOR) {
       owner.member(nir.Sig.Ctor(paramTypes))
     } else {
-      val retType = genType(fromType(tpe.resultType))
+      val retType = genType(fromType(sym.info.resultType))
       owner.member(nir.Sig.Method(id, paramTypes :+ retType, scope))
     }
   }

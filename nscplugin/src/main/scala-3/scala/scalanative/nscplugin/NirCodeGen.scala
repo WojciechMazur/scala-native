@@ -23,6 +23,19 @@ class NirCodeGen()(using ctx: Context)
   import tpd._
   import nir._
 
+  object SanityLevel {
+    final val Defn = 4
+    final val InputLog = 5
+    final val OutputDefinitions = 5
+  }
+  def log(args: Any*): Unit = log(args:_*)()
+  def log(args: Any*)(sanityLevel: Int = 0): Unit = {
+    val Threashold = 1
+    if (sanityLevel >= Threashold) {
+      println(args.mkString(" | "))
+    }
+  }
+
   protected val defnNir = new NirDefinitions().nirDefinitions
   protected val nirPrimitives = new NirPrimitives(defnNir)
   protected val positionsConversions = new NirPositions()
@@ -52,7 +65,7 @@ class NirCodeGen()(using ctx: Context)
       genCompilationUnit(ctx.compilationUnit)
     } finally {
       generatedDefns.clear()
-      println("---------")
+      log("---------")(SanityLevel.InputLog)
     }
   }
 
@@ -86,9 +99,9 @@ class NirCodeGen()(using ctx: Context)
     val output = outfile.bufferedOutput
     try {
       serializeBinary(defns, output)
-      println(s"file: ${outfile}")
-      defns.foreach(defn => println { s"-\t${defn.name}\t@ ${defn.pos}" })
-      println()
+      log(s"file: ${outfile}")(SanityLevel.OutputDefinitions)
+      defns.foreach(defn => log(s"-\t${defn.name}\t@ ${defn.pos}")(SanityLevel.OutputDefinitions))
+      log()(SanityLevel.OutputDefinitions)
     } finally {
       output.close()
     }

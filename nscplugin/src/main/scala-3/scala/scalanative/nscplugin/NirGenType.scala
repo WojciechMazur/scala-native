@@ -26,7 +26,7 @@ import scala.scalanative.nir
 trait NirGenType(using Context) {
   self: NirCodeGen =>
 
-  private lazy val UnsignedTyped = Set(
+  private lazy val UnsignedTypes = Set(
     defnNir.UByteClass,
     defnNir.UShortClass,
     defnNir.UIntClass,
@@ -48,8 +48,8 @@ trait NirGenType(using Context) {
 
     def isStruct: Boolean =
       sym.hasAnnotation(defnNir.StructClass)
-    
-    def isUnsignedType: Boolean = ???// UnsignedTypes.contains(sym)
+
+    def isUnsignedType: Boolean = UnsignedTypes.contains(sym)
   end extension
 
   sealed case class SimpleType(
@@ -82,9 +82,21 @@ trait NirGenType(using Context) {
         SimpleType(defn.ObjectClass, Nil)
       else
         SimpleType(tref.symbol, Nil)
-    case ConstantType(c)     => fromType(c.tpe)
+    case JavaArrayType(elemTpe) =>
+      SimpleType(defn.ArrayClass, fromType(elemTpe) :: Nil)
+    case ConstantType(c) => fromType(c.tpe)
+    // case ClassInfo(_, sym, _, _,_) => SimpleType(sym, Nil)
+    // fromType(
+    //   ClassInfo(NoPrefix,
+    //   class Array,
+    //   List(
+    //     TypeRef(ThisType(TypeRef(NoPrefix,module class lang)),class Object),
+    //     TypeRef(ThisType(TypeRef(NoPrefix,module class io)),trait Serializable),
+    //     TypeRef(ThisType(TypeRef(NoPrefix,module class lang)),trait Cloneable))
+    //   )
+    // )
     case t @ TypeRef(tpe, _) => SimpleType(t.symbol, tpe.argTypes.map(fromType))
-    case t @ TermRef(_, _) => SimpleType(t.symbol, Nil) 
+    case t @ TermRef(_, _)   => SimpleType(t.symbol, Nil)
     case t => throw new RuntimeException(s"unknown fromType($t)")
   }
 
@@ -116,18 +128,18 @@ trait NirGenType(using Context) {
 //   def genArrayCode(st: SimpleType): Char =
 //     genPrimCode(st.targs.head)
 
-  def genBoxType(st: SimpleType): nir.Type = 
+  def genBoxType(st: SimpleType): nir.Type =
     BoxTypesForSymbol.getOrElse(st.sym.asClass, genType(st))
 
   private lazy val BoxTypesForSymbol = Map(
-    defn.CharClass    -> genType(defn.BoxedCharClass),
+    defn.CharClass -> genType(defn.BoxedCharClass),
     defn.BooleanClass -> genType(defn.BoxedBooleanClass),
-    defn.ByteClass    -> genType(defn.BoxedByteClass),
-    defn.ShortClass   -> genType(defn.BoxedShortClass),
-    defn.IntClass     -> genType(defn.BoxedIntClass),
-    defn.LongClass    -> genType(defn.BoxedLongClass),
-    defn.FloatClass   -> genType(defn.BoxedFloatClass),
-    defn.DoubleClass  -> genType(defn.BoxedDoubleClass)
+    defn.ByteClass -> genType(defn.BoxedByteClass),
+    defn.ShortClass -> genType(defn.BoxedShortClass),
+    defn.IntClass -> genType(defn.BoxedIntClass),
+    defn.LongClass -> genType(defn.BoxedLongClass),
+    defn.FloatClass -> genType(defn.BoxedFloatClass),
+    defn.DoubleClass -> genType(defn.BoxedDoubleClass)
   )
 
   def genExternType(st: SimpleType): nir.Type =
@@ -219,13 +231,15 @@ trait NirGenType(using Context) {
     val tpe = sym.typeRef
     val owner = sym.owner
     val paramtys = genMethodSigParamsImpl(sym, isExtern)
+    log(sym -> paramtys)
     val selfty =
       if (isExtern || owner.isExternModule) None
       else Some(genType(owner))
+    val resultType = sym.info.resultType
     val retty =
       if (sym.isClassConstructor) nir.Type.Unit
-      else if (isExtern) genExternType(sym.typeRef.resultType)
-      else genType(sym.typeRef.resultType)
+      else if (isExtern) genExternType(resultType)
+      else genType(resultType)
 
     nir.Type.Function(selfty ++: paramtys, retty)
   }
@@ -235,25 +249,13 @@ trait NirGenType(using Context) {
       isExtern: Boolean
   ): Seq[nir.Type] = {
 
-    val wereRepeated = Map.empty[Name, Boolean]
-    //  exitingPhase(currentRun.typerPhase) {
-    //   for {
-    //     params <- sym.paramSymss
-    //     param <- params
-    //   } yield {
-    //     param.name -> isScalaRepeatedParamType(param.tpe)
-    //   }
-    // }.toMap
-
-    sym.typeParams.map {
-      case p
-          if wereRepeated.getOrElse(p.name, false) &&
-            sym.owner.isExternModule =>
-        nir.Type.Vararg
-
-      case p =>
-        if (isExtern) genExternType(p)
-        else genType(p)
+    for {
+      paramList <- sym.info.paramInfoss
+      param <- paramList
+    } yield {
+      if (param.isRepeatedParam && sym.owner.isExternModule) nir.Type.Vararg
+      else if (isExtern) genExternType(param)
+      else genType(param)
     }
   }
 }

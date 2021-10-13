@@ -93,7 +93,7 @@ trait NirGenDefn(using Context) {
     val attrs = nir.Attrs(isExtern = isExternModule)
 
     for
-      field <- sym.info.decls.toList
+      field <- sym.info.decls.toList 
       if field.isField
     do
       addDefn {
@@ -102,6 +102,8 @@ trait NirGenDefn(using Context) {
         val pos: nir.Position = field.span
         Defn.Var(attrs, name, ty, Val.Zero(ty))(pos)
       }
+    end for
+    
   }
 
   private def genMethods(td: TypeDef): Unit = {
@@ -109,6 +111,7 @@ trait NirGenDefn(using Context) {
     (tpl.constr :: tpl.body).foreach {
       case EmptyTree  => ()
       case _: ValDef  => () // handled in genClassFields
+      case _: TypeDef => ()
       case dd: DefDef => genMethod(dd)
       case tree =>
         throw new FatalError("Illegal tree in body of genMethods():" + tree)
@@ -297,7 +300,7 @@ trait NirGenDefn(using Context) {
       //    log(bodyp.show)
       // ???
 
-      case _ if curMethodSym.get == defnNir.NObjectInitMethod =>
+      case _ if curMethodSym.get == defnNir.NObject_init =>
         scoped(
           curMethodIsExtern := isExtern
         ) {

@@ -49,55 +49,49 @@ trait NirGenType(using Context) {
     def isStruct: Boolean =
       sym.hasAnnotation(defnNir.StructClass)
 
-    def isUnsignedType: Boolean = UnsignedTypes.contains(sym)
+    def isUnsignedType: Boolean =
+      sym.isClass && UnsignedTypes.contains(sym.asClass)
+
+    /** Tests if this type inherits from CFuncPtr */
+    def isCFuncPtrClass: Boolean = {
+      sym == defnNir.CFuncPtrClass ||
+      sym.info.parents.exists(_.typeSymbol == defnNir.CFuncPtrClass)
+    }
+
+    /** Tests if this type is implementations of CFuncPtr */
+    def isCFuncPtrNClass: Boolean = {
+      defnNir.CFuncPtrNClass.contains(sym) || {
+        sym.info.parents.exists { parent =>
+          defnNir.CFuncPtrNClass.contains(parent.typeSymbol)
+        }
+      }
+    }
   end extension
 
   sealed case class SimpleType(
       sym: Symbol,
       targs: Seq[SimpleType] = Seq.empty
-  ) {
-    def isInterface: Boolean = ???
-    // sym.isInterface
-
-    /** Tests if this type inherits from CFuncPtr */
-    def isCFuncPtrClass: Boolean = ???
-    // sym == CFuncPtrClass ||
-    //   sym.info.parents.exists(_.typeSymbol == CFuncPtrClass)
-
-    /** Tests if this type is implementations of CFuncPtr */
-    def isCFuncPtrNClass: Boolean = ???
-    // CFuncPtrNClass.contains(sym) || {
-    //   sym.info.parents.exists { parent =>
-    //     CFuncPtrNClass.contains(parent.typeSymbol)
-    //   }s
-    // }
-  }
+  )
 
   given fromSymbol: Conversion[Symbol, SimpleType] = { sym =>
     SimpleType(sym, sym.typeParams.map(fromSymbol))
   }
-  given fromType: Conversion[Type, SimpleType] = _.normalized match {
-    case ThisType(tref) =>
-      if (tref == defn.ArrayType)
-        SimpleType(defn.ObjectClass, Nil)
-      else
-        SimpleType(tref.symbol, Nil)
-    case JavaArrayType(elemTpe) =>
-      SimpleType(defn.ArrayClass, fromType(elemTpe) :: Nil)
-    case ConstantType(c) => fromType(c.tpe)
-    // case ClassInfo(_, sym, _, _,_) => SimpleType(sym, Nil)
-    // fromType(
-    //   ClassInfo(NoPrefix,
-    //   class Array,
-    //   List(
-    //     TypeRef(ThisType(TypeRef(NoPrefix,module class lang)),class Object),
-    //     TypeRef(ThisType(TypeRef(NoPrefix,module class io)),trait Serializable),
-    //     TypeRef(ThisType(TypeRef(NoPrefix,module class lang)),trait Cloneable))
-    //   )
-    // )
-    case t @ TypeRef(tpe, _) => SimpleType(t.symbol, tpe.argTypes.map(fromType))
-    case t @ TermRef(_, _)   => SimpleType(t.symbol, Nil)
-    case t => throw new RuntimeException(s"unknown fromType($t)")
+  given fromType: Conversion[Type, SimpleType] = {
+    _.normalized match {
+      case ThisType(tref) =>
+        if (tref == defn.ArrayType)
+          SimpleType(defn.ObjectClass, Nil)
+        else
+          SimpleType(tref.symbol, Nil)
+      case JavaArrayType(elemTpe) =>
+        SimpleType(defn.ArrayClass, fromType(elemTpe) :: Nil)
+      case ConstantType(c)            => fromType(c.tpe)
+      case ClassInfo(_, sym, _, _, _) => SimpleType(sym, Nil)
+      case t @ TypeRef(tpe, _) =>
+        SimpleType(t.symbol, tpe.argTypes.map(fromType))
+      case t @ TermRef(_, _) => fromType(t.info.resultType)
+      case t => throw new RuntimeException(s"unknown fromType($t)")
+    }
   }
 
 //   object SimpleType {
@@ -125,9 +119,6 @@ trait NirGenType(using Context) {
 //       fromSymbol(sym.asInstanceOf[Symbol])
 //   }
 
-//   def genArrayCode(st: SimpleType): Char =
-//     genPrimCode(st.targs.head)
-
   def genBoxType(st: SimpleType): nir.Type =
     BoxTypesForSymbol.getOrElse(st.sym.asClass, genType(st))
 
@@ -142,22 +133,24 @@ trait NirGenType(using Context) {
     defn.DoubleClass -> genType(defn.BoxedDoubleClass)
   )
 
-  def genExternType(st: SimpleType): nir.Type =
-    genType(st) match {
-      case _ if st.isCFuncPtrClass =>
-        nir.Type.Ptr
-      case refty: nir.Type.Ref if nir.Type.boxClasses.contains(refty.name) =>
-        nir.Type.unbox(nir.Type.Ref(refty.name))
-      case ty =>
-        ty
-    }
+  def genExternType(st: SimpleType): nir.Type = {
+    if (st.sym.isCFuncPtrClass)
+      nir.Type.Ptr
+    else
+      genType(st) match {
+        case refty: nir.Type.Ref if nir.Type.boxClasses.contains(refty.name) =>
+          nir.Type.unbox(nir.Type.Ref(refty.name))
+        case ty =>
+          ty
+      }
+  }
 
   @inline
   def genType(st: SimpleType): nir.Type = {
     PrimitiveSymbolToNirTypes.getOrElse(st.sym, genRefType(st))
   }
 
-  private lazy val PrimitiveSymbolToNirTypes = Map(
+  private lazy val PrimitiveSymbolToNirTypes = Map[Symbol, nir.Type](
     defn.CharClass -> nir.Type.Char,
     defn.BooleanClass -> nir.Type.Bool,
     defn.ByteClass -> nir.Type.Byte,
@@ -202,10 +195,13 @@ trait NirGenType(using Context) {
     nir.Type.StructValue(fields)
   }
 
-  def genPrimCode(st: SimpleType): Char =
-    SymbolToPrimCode.getOrElse(st.sym.asClass, 'O')
+  def genArrayCode(st: SimpleType): Char =
+    genPrimCode(st.targs.head)
 
-  private lazy val SymbolToPrimCode = Map(
+  def genPrimCode(st: SimpleType): Char =
+    SymbolToPrimCode.getOrElse(st.sym, 'O')
+
+  private lazy val SymbolToPrimCode: Map[Symbol, Char] = Map(
     defn.CharClass -> 'C',
     defn.BooleanClass -> 'B',
     defn.ByteClass -> 'Z',

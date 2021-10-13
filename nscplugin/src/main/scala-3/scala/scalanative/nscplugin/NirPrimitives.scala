@@ -15,7 +15,9 @@ import scala.scalanative.nscplugin.NirPrimitives
 
 object NirPrimitives {
   final val FirstNirPrimitiveCode = 300
-  final val BOXED_UNIT = 1 + FirstNirPrimitiveCode
+  final val THROW = 1 + FirstNirPrimitiveCode
+
+  final val BOXED_UNIT = 1 + THROW
   final val ARRAY_CLONE = 1 + BOXED_UNIT
 
   final val CQUOTE = 1 + ARRAY_CLONE
@@ -103,8 +105,12 @@ class NirPrimitives(using ctx: Context) extends DottyPrimitives(ctx) {
   override def getPrimitive(app: Apply, tpe: Type)(using Context): Int =
     nirPrimitives.getOrElse(app.fun.symbol, super.getPrimitive(app, tpe))
 
-  override def isPrimitive(sym: Symbol): Boolean =
+  override def isPrimitive(sym: Symbol): Boolean = {
     nirPrimitives.contains(sym) || super.isPrimitive(sym)
+  }
+  override def isPrimitive(tree: Tree): Boolean = {
+    nirPrimitives.contains(tree.symbol) || super.isPrimitive(tree)
+  }
 
   private def initNirPrimitives(using Context): ReadOnlyMap[Symbol, Int] = {
     val defnNir = NirDefinitions.defnNir
@@ -116,6 +122,7 @@ class NirPrimitives(using ctx: Context) extends DottyPrimitives(ctx) {
       primitives(s) = code
     }
 
+    addPrimitive(defn.throwMethod, THROW)
     addPrimitive(defn.BoxedUnit_UNIT, BOXED_UNIT)
     addPrimitive(defn.Array_clone, ARRAY_CLONE)
     addPrimitive(defnNir.CQuote_c, CQUOTE)

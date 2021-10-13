@@ -14,7 +14,7 @@ trait NirGenName(using Context) {
   self: NirCodeGen =>
 
   def genAnonName(owner: Symbol, anon: Symbol) =
-    genName(owner).member(nir.Sig.Extern(anon.fullName.toString))
+    genName(owner).member(nir.Sig.Extern(anon.name.mangledString))
 
   def genName(sym: Symbol): nir.Global =
     if (sym.isType) {
@@ -32,7 +32,7 @@ trait NirGenName(using Context) {
     if (sym == defn.ObjectClass) nir.Rt.Object.name.asInstanceOf[nir.Global.Top]
     else {
       val id = {
-        val fullName = sym.fullName.toString
+        val fullName = sym.fullName.mangledString
         NirGenName.MappedNames.getOrElse(fullName, fullName)
       }
       log(s"genTypeName: $id")
@@ -61,7 +61,6 @@ trait NirGenName(using Context) {
   }
 
   def genMethodName(sym: Symbol): nir.Global = {
-    println(sym)
     val owner = genTypeName(sym.owner)
     val id = nativeIdOf(sym)
     val tpe = sym.typeRef.widen
@@ -73,9 +72,7 @@ trait NirGenName(using Context) {
       .map(fromType)
       .map(genType)
 
-    if (sym == defn.`String_+`) 
-      println(defn.String_+ -> defnNir.StringConcatMethod)
-      genMethodName(defnNir.StringConcatMethod)
+    if (sym == defn.`String_+`) genMethodName(defnNir.String_concat)
     else if (sym.owner.isExternModule) {
       if (sym.isSetter) {
         // Previously dropSetter was sued
@@ -103,19 +100,17 @@ trait NirGenName(using Context) {
       .getAnnotation(defnNir.NameClass)
       .flatMap(_.argumentConstantString(0))
       .getOrElse {
-        val id: String = if (sym.isField) {
-          sym.name.mangledString
-        } else if (sym.is(Method)) {
-          val name = sym.name.mangledString
-          val isScalaHashOrEquals = name.startsWith("__scala_")
-          if (sym.owner == defnNir.NObjectClass || isScalaHashOrEquals) {
-            name.substring(2) // strip the __
-          } else {
-            name
-          }
-        } else {
-          scalanative.util.unreachable
-        }
+        val id: String =
+          if (sym.isField) sym.name.mangledString
+          else if (sym.is(Method))
+            val name = sym.name.mangledString
+            val isScalaHashOrEquals = name.startsWith("__scala_")
+            if (sym.owner == defnNir.NObjectClass || isScalaHashOrEquals) {
+              name.substring(2) // strip the __
+            } else {
+              name
+            }
+          else scalanative.util.unreachable
         /*
          * Double quoted identifiers are not allowed in CLang.
          * We're replacing them with unicode to allow distinction between x / `x` and `"x"`.

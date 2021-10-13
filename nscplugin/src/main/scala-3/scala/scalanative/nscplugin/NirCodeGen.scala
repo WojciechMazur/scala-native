@@ -36,8 +36,8 @@ class NirCodeGen()(using ctx: Context)
     }
   }
 
-  protected val defnNir = new NirDefinitions().nirDefinitions
-  protected val nirPrimitives = new NirPrimitives(defnNir)
+  protected val defnNir = NirDefinitions.defnNir
+  protected val nirPrimitives = new NirPrimitives()
   protected val positionsConversions = new NirPositions()
 
   protected val curClassSym = new util.ScopedVar[Symbol]

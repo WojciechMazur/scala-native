@@ -9,9 +9,6 @@ trait NirGenType[G <: Global with Singleton] { self: NirGenPhase[G] =>
   import nirAddons._
   import nirDefinitions._
 
-
-
-
   sealed case class SimpleType(
       sym: Symbol,
       targs: Seq[SimpleType] = Seq.empty

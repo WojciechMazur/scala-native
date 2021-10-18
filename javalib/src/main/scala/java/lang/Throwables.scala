@@ -473,8 +473,6 @@ class NoSuchMethodException(s: String) extends ReflectiveOperationException(s) {
   def this() = this(null)
 }
 
-
-
 class NumberFormatException(s: String) extends IllegalArgumentException(s) {
   def this() = this(null)
 }

@@ -16,7 +16,8 @@ class ReferenceQueue[T] {
       underlying
         .dequeueFirst(_ => true)
         .map(_.dequeue())
-        .orNull.asInstanceOf[Reference[T]]
+        .orNull
+        .asInstanceOf[Reference[T]]
     }
   }
 

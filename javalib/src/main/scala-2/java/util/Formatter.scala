@@ -17,7 +17,7 @@ final class Formatter private (
     formatterLocaleInfo: Formatter.LocaleInfo
 ) extends FormatterImpl(dest, formatterLocaleInfo) {
   import Formatter._
-  
+
   def this() =
     this(new JStringBuilder(), Formatter.RootLocaleInfo)
   def this(a: Appendable) =

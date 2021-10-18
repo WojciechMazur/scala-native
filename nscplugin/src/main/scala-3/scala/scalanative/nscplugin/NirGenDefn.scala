@@ -162,9 +162,9 @@ trait NirGenDefn(using Context) {
           ) {
             addDefn {
               Defn.Define(
-                attrs, 
-                name, 
-                sig, 
+                attrs,
+                name,
+                sig,
                 genMethodBody(dd, rhs, isStatic, isExtern = false)
               )
             }
@@ -266,7 +266,7 @@ trait NirGenDefn(using Context) {
     }
 
     def genBody(): Val = bodyp match {
-       case _ if curMethodSym.get == defnNir.NObject_init =>
+      case _ if curMethodSym.get == defnNir.NObject_init =>
         scoped(
           curMethodIsExtern := isExtern
         ) {

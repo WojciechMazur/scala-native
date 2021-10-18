@@ -45,9 +45,9 @@ trait NirGenExpr(using Context) {
         case tree: Apply    => genApply(tree)
         // case tree: ApplyDynamic => genApplyDynamic(tree)
         // case tree: ArrayValue =>   genArrayValue(tree)
-        case tree: Assign  => genAssign(tree)
-        case tree: Block   => genBlock(tree)
-        case tree: Closure => genClosure(tree)
+        case tree: Assign         => genAssign(tree)
+        case tree: Block          => genBlock(tree)
+        case tree: Closure        => genClosure(tree)
         case tree: Labeled        => genLabelDef(tree)
         case tree: Ident          => genIdent(tree)
         case tree: If             => genIf(tree)
@@ -198,7 +198,7 @@ trait NirGenExpr(using Context) {
       }
 
       val allCaptureValues = {
-        val isStaticCall = funSym.isStatic 
+        val isStaticCall = funSym.isStatic
         if (isStaticCall) env
         else qualifierOf(fun) :: env
       }
@@ -873,7 +873,7 @@ trait NirGenExpr(using Context) {
       val WhileDo(cond, body) = wd
       val condLabel, bodyLabel, exitLabel = fresh()
 
-      locally{
+      locally {
         given nir.Position = wd.span
         buf.jump(Next(condLabel))
       }

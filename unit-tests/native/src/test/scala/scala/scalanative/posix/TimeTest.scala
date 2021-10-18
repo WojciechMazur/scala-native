@@ -40,7 +40,7 @@ class TimeTest {
     else {
       Zone { implicit z =>
         val time_ptr = stackalloc[time_t]
-      !time_ptr = now_time_t
+        !time_ptr = now_time_t
         val localtime: Ptr[tm] = localtime_r(time_ptr, alloc[tm])
 
         localtime.tm_isdst == 0
@@ -78,7 +78,7 @@ class TimeTest {
         Platform.isFreeBSD
       )
       val time_ptr = stackalloc[time_t]
-    !time_ptr = epoch + timezone
+      !time_ptr = epoch + timezone
       val time: Ptr[tm] = localtime(time_ptr)
       val cstr: CString = asctime(time)
       val str: String = fromCString(cstr)
@@ -98,7 +98,7 @@ class TimeTest {
           Platform.isFreeBSD
         )
         val time_ptr = stackalloc[time_t]
-      !time_ptr = epoch + timezone
+        !time_ptr = epoch + timezone
         val time: Ptr[tm] = localtime_r(time_ptr, alloc[tm])
         val cstr: CString = asctime_r(time, alloc[Byte](26))
         val str: String = fromCString(cstr)

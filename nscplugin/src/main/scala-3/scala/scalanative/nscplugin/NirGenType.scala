@@ -68,6 +68,16 @@ trait NirGenType(using Context) {
     }
   end extension
 
+  extension (tpe: Type)
+    def isPrimitiveValueType: Boolean = {
+      tpe.widenDealias match {
+        case JavaArrayType(_)   => false
+        case _: ErasedValueType => false
+        case t                  => t.typeSymbol.asClass.isPrimitiveValueClass
+      }
+    }
+  end extension
+
   sealed case class SimpleType(
       sym: Symbol,
       targs: Seq[SimpleType] = Seq.empty
@@ -93,31 +103,6 @@ trait NirGenType(using Context) {
       case t => throw new RuntimeException(s"unknown fromType($t)")
     }
   }
-
-//   object SimpleType {
-//     import scala.language.implicitConversions
-
-//     implicit def fromType(t: Type): SimpleType =
-//       t.normalized match {
-//         case ThisType(ArrayClass)  => SimpleType(ObjectClass, Seq.empty)
-//         case ThisType(sym)         => SimpleType(sym, Seq.empty)
-//         case SingleType(_, sym)    => SimpleType(sym, Seq.empty)
-//         case ConstantType(_)       => fromType(t.underlying)
-//         case TypeRef(_, sym, args) => SimpleType(sym, args.map(fromType))
-//         case ClassInfoType(_, _, ArrayClass) =>
-//           abort("ClassInfoType to ArrayClass!")
-//         case ClassInfoType(_, _, sym) => SimpleType(sym, Seq.empty)
-//         case t: AnnotatedType         => fromType(t.underlying)
-//         case tpe: ErasedValueType     => SimpleType(tpe.valueClazz, Seq())
-//       }
-
-//     implicit def fromSymbol(sym: Symbol): SimpleType =
-//       SimpleType(sym, Seq.empty)
-//     implicit def fromCompatSymbol(
-//         sym: nirDefinitions.compat.Symbol
-//     ): SimpleType =
-//       fromSymbol(sym.asInstanceOf[Symbol])
-//   }
 
   def genBoxType(st: SimpleType): nir.Type =
     BoxTypesForSymbol.getOrElse(st.sym.asClass, genType(st))
@@ -227,7 +212,6 @@ trait NirGenType(using Context) {
     val tpe = sym.typeRef
     val owner = sym.owner
     val paramtys = genMethodSigParamsImpl(sym, isExtern)
-    log(sym -> paramtys)
     val selfty =
       if (isExtern || owner.isExternModule) None
       else Some(genType(owner))

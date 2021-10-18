@@ -13,17 +13,10 @@ import scalanative.nir
 trait NirGenName(using Context) {
   self: NirCodeGen =>
 
-  def genAnonName(owner: Symbol, anon: Symbol) =
-    genName(owner).member(nir.Sig.Extern(anon.name.mangledString))
-
   def genName(sym: Symbol): nir.Global =
-    if (sym.isType) {
-      genTypeName(sym)
-    } else if (sym.is(Method)) {
-      genMethodName(sym)
-    } else {
-      genFieldName(sym)
-    }
+    if (sym.isType) genTypeName(sym)
+    else if (sym.is(Method)) genMethodName(sym)
+    else genFieldName(sym)
 
   def genTypeName(sym0: Symbol): nir.Global.Top = {
     val sym =
@@ -35,7 +28,6 @@ trait NirGenName(using Context) {
         val fullName = sym.fullName.mangledString
         NirGenName.MappedNames.getOrElse(fullName, fullName)
       }
-      log(s"genTypeName: $id")
       nir.Global.Top(id)
     }
   }

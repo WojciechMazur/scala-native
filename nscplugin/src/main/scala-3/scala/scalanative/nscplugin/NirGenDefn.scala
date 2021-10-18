@@ -26,9 +26,6 @@ trait NirGenDefn(using Context) {
   protected def addDefn(defn: nir.Defn) = generatedDefns += defn
 
   def genClass(td: TypeDef)(using Context): Unit = {
-    log("+++++ gen class")(SanityLevel.InputLog)
-    log(td.show)(SanityLevel.InputLog)
-
     scoped(
       curClassSym := td.symbol,
       curClassFresh := nir.Fresh()
@@ -93,7 +90,7 @@ trait NirGenDefn(using Context) {
     val attrs = nir.Attrs(isExtern = isExternModule)
 
     for
-      field <- sym.info.decls.toList 
+      field <- sym.info.decls.toList
       if field.isField
     do
       addDefn {
@@ -103,7 +100,7 @@ trait NirGenDefn(using Context) {
         Defn.Var(attrs, name, ty, Val.Zero(ty))(pos)
       }
     end for
-    
+
   }
 
   private def genMethods(td: TypeDef): Unit = {
@@ -122,28 +119,22 @@ trait NirGenDefn(using Context) {
   private def genMethod(dd: DefDef): Unit = {
     implicit val pos: nir.Position = dd.span
     val fresh = Fresh()
-    val env = new MethodEnv(fresh)
 
     scoped(
       curMethodSym := dd.symbol,
-      curMethodEnv := env,
+      curMethodEnv := new MethodEnv(fresh),
+      curMethodLabels := new MethodLabelsEnv(fresh),
       curMethodInfo := CollectMethodInfo().collect(dd.rhs),
       curFresh := fresh,
       curUnwindHandler := None
     ) {
       val sym = dd.symbol
-      val owner = {
-        val current = curClassSym.get
-        // if(sym.is(JavaStatic)) ???
-        current
-      }
+      val owner = curClassSym.get
+
       val attrs = genMethodAttrs(sym)
       val name = genMethodName(sym)
-      // if(sym.is(JavaStatic)){
-      log(s"method $owner ${name}")(SanityLevel.Defn)
-      // }
       val sig = genMethodSig(sym)
-      val isStatic = owner.isExternModule //|| isImplClass(owner)
+      val isStatic = owner.isExternModule || dd.symbol.is(JavaStatic)
 
       dd.rhs match {
         case EmptyTree =>
@@ -170,11 +161,12 @@ trait NirGenDefn(using Context) {
             curMethodSig := sig
           ) {
             addDefn {
-              val body = genMethodBody(dd, rhs, isStatic, isExtern = false)
-              log(s"$name - insts[${body.size}]")
-              body.foreach(log(_))
-              log(s"end\n")
-              Defn.Define(attrs, name, sig, body)
+              Defn.Define(
+                attrs, 
+                name, 
+                sig, 
+                genMethodBody(dd, rhs, isStatic, isExtern = false)
+              )
             }
           }
       }
@@ -315,12 +307,9 @@ trait NirGenDefn(using Context) {
           },
           curMethodIsExtern := isExtern
         ) {
-          log(dd.symbol)
-          log(bodyp)
-          log()
-          buf.genReturn {
+          buf.genReturn(
             withOptSynchronized(_.genExpr(bodyp))
-          }
+          )
         }
     }
     scoped(curExprBuffer := buf) {

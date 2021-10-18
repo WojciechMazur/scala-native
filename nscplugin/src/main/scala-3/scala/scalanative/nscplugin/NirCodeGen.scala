@@ -9,6 +9,7 @@ import dotty.tools.dotc.ast.Trees._
 import dotty.tools.dotc.core
 import core.Contexts._
 import core.Symbols._
+import core.Names._
 import dotty.tools.FatalError
 
 import scala.collection.mutable
@@ -23,19 +24,6 @@ class NirCodeGen()(using ctx: Context)
   import tpd._
   import nir._
 
-  object SanityLevel {
-    final val Defn = 4
-    final val InputLog = 5
-    final val OutputDefinitions = 5
-  }
-  def log(args: Any*): Unit = log(args:_*)()
-  def log(args: Any*)(sanityLevel: Int = 0): Unit = {
-    val Threashold = 1
-    if (sanityLevel >= Threashold) {
-      println(args.mkString(" | "))
-    }
-  }
-
   protected val defnNir = NirDefinitions.defnNir
   protected val nirPrimitives = new NirPrimitives()
   protected val positionsConversions = new NirPositions()
@@ -47,6 +35,7 @@ class NirCodeGen()(using ctx: Context)
   protected val curMethodSig = new util.ScopedVar[nir.Type]
   protected val curMethodInfo = new util.ScopedVar[CollectMethodInfo]
   protected val curMethodEnv = new util.ScopedVar[MethodEnv]
+  protected val curMethodLabels = new util.ScopedVar[MethodLabelsEnv]
   protected val curMethodThis = new util.ScopedVar[Option[nir.Val]]
   protected val curMethodIsExtern = new util.ScopedVar[Boolean]
 
@@ -65,7 +54,6 @@ class NirCodeGen()(using ctx: Context)
       genCompilationUnit(ctx.compilationUnit)
     } finally {
       generatedDefns.clear()
-      log("---------")(SanityLevel.InputLog)
     }
   }
 
@@ -99,9 +87,6 @@ class NirCodeGen()(using ctx: Context)
     val output = outfile.bufferedOutput
     try {
       serializeBinary(defns, output)
-      log(s"file: ${outfile}")(SanityLevel.OutputDefinitions)
-      defns.foreach(defn => log(s"-\t${defn.name}\t@ ${defn.pos}")(SanityLevel.OutputDefinitions))
-      log()(SanityLevel.OutputDefinitions)
     } finally {
       output.close()
     }
@@ -120,7 +105,6 @@ class NirCodeGen()(using ctx: Context)
   }
 
   def fail(msg: => String): Nothing = {
-    // new RuntimeException().printStackTrace
     throw FatalError(
       s"""
       Fatal failure: ${msg}
@@ -133,27 +117,38 @@ class NirCodeGen()(using ctx: Context)
 
   }
 
+  class MethodLabelsEnv(val fresh: nir.Fresh) {
+    private val entries, exits = mutable.Map.empty[Symbol, Local]
+
+    def enterLabel(ld: Labeled): (nir.Local, nir.Local) = {
+      val sym = ld.bind.symbol
+      val entry, exit = fresh()
+      entries += sym -> entry
+      exits += sym -> exit
+      (entry, exit)
+    }
+
+    def resolveEntry(sym: Symbol): nir.Local = entries(sym)
+    def resolveEntry(label: Labeled): nir.Local = entries(label.bind.symbol)
+
+    def resolveExit(sym: Symbol): nir.Local = exits(sym)
+    def resolveExit(label: Labeled): nir.Local = exits(label.bind.symbol)
+
+  }
+
   class MethodEnv(val fresh: nir.Fresh) {
     private val env = mutable.Map.empty[Symbol, nir.Val]
 
     def enter(sym: Symbol, value: nir.Val): Unit = env += sym -> value
-
     def enterLabel(ld: Labeled): nir.Local = {
       val local = fresh()
-      enter(ld.symbol, nir.Val.Local(local, nir.Type.Ptr))
+      enter(ld.bind.symbol, nir.Val.Local(local, nir.Type.Ptr))
       local
     }
 
-    def resolve(sym: Symbol): Val = env.get(sym) match {
-      case Some(v) => v
-      case None =>
-        fail(s"Not found $sym in method env:\n${env.map { (k, v) =>
-          s"-\t$k -> $v\n"
-        }.mkString}")
-    }
-
+    def resolve(sym: Symbol): Val = env(sym)
     def resolveLabel(ld: Labeled): Local = {
-      val Val.Local(n, Type.Ptr) = resolve(ld.symbol)
+      val Val.Local(n, Type.Ptr) = resolve(ld.bind.symbol)
       n
     }
   }

@@ -14,5 +14,7 @@ object ScalaVersions {
 
   val libCrossScala2Versions: Seq[String] =
     Seq(scala211) ++ crossScala212 ++ crossScala213
-  val libCrossScalaVersions: Seq[String] = libCrossScala2Versions ++ Seq(scala3)
+  val libCrossScala3Versions: Seq[String] = Seq(scala3)
+  val libCrossScalaVersions: Seq[String] =
+    libCrossScala2Versions ++ libCrossScala3Versions
 }

@@ -1,7 +1,5 @@
 package java.nio
 
-import scala.scalanative.annotation.alwaysinline
-
 // Ported from Scala.js
 
 object ByteBuffer {
@@ -22,6 +20,7 @@ object ByteBuffer {
 abstract class ByteBuffer private[nio] (
     _capacity: Int,
     private[nio] val _array: Array[Byte],
+    private[nio] val _mappedData: MappedByteBufferData,
     private[nio] val _arrayOffset: Int
 ) extends Buffer(_capacity)
     with Comparable[ByteBuffer] {
@@ -31,7 +30,7 @@ abstract class ByteBuffer private[nio] (
 
   protected lazy val genBuffer = GenBuffer[ByteBuffer](this)
 
-  def this(_capacity: Int) = this(_capacity, null, -1)
+  def this(_capacity: Int) = this(_capacity, null, null, -1)
 
   private[nio] var _isBigEndian: Boolean = true
 

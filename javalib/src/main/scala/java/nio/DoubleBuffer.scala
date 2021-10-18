@@ -17,6 +17,7 @@ object DoubleBuffer {
 abstract class DoubleBuffer private[nio] (
     _capacity: Int,
     private[nio] val _array: Array[Double],
+    private[nio] val _mappedData: MappedByteBufferData,
     private[nio] val _arrayOffset: Int
 ) extends Buffer(_capacity)
     with Comparable[DoubleBuffer] {
@@ -26,7 +27,7 @@ abstract class DoubleBuffer private[nio] (
 
   protected lazy val genBuffer = GenBuffer[DoubleBuffer](this)
 
-  def this(_capacity: Int) = this(_capacity, null, -1)
+  def this(_capacity: Int) = this(_capacity, null, null, -1)
 
   def slice(): DoubleBuffer
 

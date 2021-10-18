@@ -266,33 +266,7 @@ trait NirGenDefn(using Context) {
     }
 
     def genBody(): Val = bodyp match {
-      // Tailrec emits magical labeldefs that can hijack this reference is
-      // current method. This requires special treatment on our side.
-      // case Block(
-      //       List(ValDef(_, nme.THIS)),
-      //       label @ Labeled(name, Ident(nme.THIS) :: _, rhs)
-      //     ) =>
-      // val local = curMethodEnv.enterLabel(label)
-      // val values = params.take(label.params.length)
-
-      // buf.jump(local, values)(label.pos)
-      // scoped(
-      //   curMethodThis := {
-      //     if (isStatic) None
-      //     else Some(Val.Local(params.head.name, params.head.ty))
-      //   },
-      //   curMethodIsExtern := isExtern
-      // ) {
-      //   buf.genReturn {
-      //     withOptSynchronized(_.genTailRecLabel(dd, isStatic, label))
-      //   }
-      // }
-      // case Block(stats, _) =>
-      //    log(bodyp)
-      //    log(bodyp.show)
-      // ???
-
-      case _ if curMethodSym.get == defnNir.NObject_init =>
+       case _ if curMethodSym.get == defnNir.NObject_init =>
         scoped(
           curMethodIsExtern := isExtern
         ) {

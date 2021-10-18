@@ -198,7 +198,7 @@ trait NirGenExpr(using Context) {
       }
 
       val allCaptureValues = {
-        val isStaticCall = funSym.isStatic //isMethodStaticInIR(sym)
+        val isStaticCall = funSym.isStatic 
         if (isStaticCall) env
         else qualifierOf(fun) :: env
       }
@@ -871,27 +871,35 @@ trait NirGenExpr(using Context) {
 
     def genWhileDo(wd: WhileDo): Val = {
       val WhileDo(cond, body) = wd
-      val retty = genType(wd.typeOpt.resultType)
-      val condn, bodyn, exitn = fresh()
+      val condLabel, bodyLabel, exitLabel = fresh()
+
+      locally{
+        given nir.Position = wd.span
+        buf.jump(Next(condLabel))
+      }
 
       locally {
         given nir.Position = cond.span
-        buf.label(condn)
+        buf.label(condLabel)
         val genCond =
           if (cond == EmptyTree) nir.Val.Bool(true)
           else genExpr(cond)
-        buf.branch(genCond, Next(bodyn), Next(exitn))
+        buf.branch(genCond, Next(bodyLabel), Next(exitLabel))
       }
 
       locally {
-        given nir.Position = cond.span
-        buf.label(bodyn)
-        val bodyv = genExpr(body)
-        buf.jump(condn, Nil)
+        given nir.Position = body.span
+        buf.label(bodyLabel)
+        val _ = genExpr(body)
+        buf.jump(condLabel, Nil)
       }
 
-      buf.label(exitn, Seq())(cond.span)
-      Val.Unit
+      locally {
+        given nir.Position = wd.span.endPos
+        buf.label(exitLabel, Seq())
+        buf.unreachable(Next.None)
+        Val.Unit
+      }
     }
 
     private def genApplyBox(st: SimpleType, argp: Tree): Val = {

@@ -274,8 +274,17 @@ jobs:
       - uses: ./.github/actions/linux-setup-env
         with:
           scala-version: ${{matrix.scala}}
-      # Make sure that scalalib (for Scala 2) is published
+      # Make sure that scalalib (for Scala 2) and it's dependendicies are published
       - name: Publish dependencies
-        run: bash scripts/publish-local
+        run: >
+          sbt ++2.13.6
+          nativelib/publishLocal
+          clib/publishLocal
+          posixlib/publishLocal
+          windowslib/publishLocal
+          auxlib/publishLocal
+          javalib/publishLocal
+          scalalib/publishLocal
+
       - name: Run tests
-        run: sbt "++${matrix.scala};sandbox3/run"
+        run: sbt "++${{matrix.scala}};sandbox3/run"

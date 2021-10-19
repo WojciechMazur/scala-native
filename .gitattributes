@@ -1,0 +1,3 @@
+* text=auto
+*.scala eol=lf
+*.scala.patch eol=lf

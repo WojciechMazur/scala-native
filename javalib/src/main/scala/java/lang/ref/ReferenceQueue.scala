@@ -1,44 +1,44 @@
 package java.lang.ref
 
-class ReferenceQueue[T >: Null <: AnyRef] extends Object {
+import scalanative.annotation.stub
+import scala.collection.mutable
 
-  private var firstReference: Reference[_ <: T] =
-    null.asInstanceOf[Reference[_ <: T]]
+class ReferenceQueue[T >: Null <: AnyRef] {
+  private val underlying = mutable.Queue[Reference[_ <: T]]()
+  private[ref] def enqueue(reference: Reference[_ <: T]): Unit =
+    synchronized {
+      underlying += reference
+      notify()
+    }
 
-  @SuppressWarnings(Array("unchecked"))
-  //synchronized
   def poll(): Reference[_ <: T] = {
-    if (firstReference == null) return null
-    val ref: Reference[_ <: T] = firstReference
-    firstReference =
-      if (firstReference.next == firstReference) null
-      else firstReference.next.asInstanceOf[Reference[_ <: T]]
-    ref.next = null
-    ref
+    synchronized[Reference[_ <: T]] {
+      underlying
+        .dequeueFirst(_ => true)
+        .map(_.dequeue())
+        .orNull
+    }
   }
 
-  @SuppressWarnings(Array("unchecked"))
-  //synchronized
-  def remove(timeout: scala.Long): Reference[_ <: T] = {
-    if (firstReference == null) wait(timeout)
-    if (firstReference == null) return null
+  def remove(): Reference[_ <: T] =
+    remove(0)
 
-    val ref: Reference[_ <: T] = firstReference
-    firstReference =
-      if (firstReference.next == firstReference) null
-      else firstReference.next.asInstanceOf[Reference[_ <: T]]
-    ref.next = null
-    ref
+  def remove(timeout: Long): Reference[_ <: T] = {
+    if (timeout < 0) throw new IllegalArgumentException()
+
+    synchronized[Reference[_ <: T]] {
+      def now() = System.currentTimeMillis()
+      val deadline = now() + timeout
+      def timeoutExceeded(current: Long): Boolean = {
+        if (timeout == 0) false
+        else current > deadline
+      }
+
+      while (underlying.isEmpty && !timeoutExceeded(now())) {
+        val timeoutMillis = (deadline - now()).min(0L)
+        wait(timeoutMillis)
+      }
+      poll()
+    }
   }
-
-  def remove(): Reference[_ <: T] = remove(0L)
-
-  //synchronized
-  def enqueue(ref: Reference[_ <: T]): scala.Boolean = {
-    ref.next = if (firstReference == null) ref else firstReference
-    firstReference = ref
-    notify()
-    true
-  }
-
 }

@@ -69,7 +69,7 @@ trait NativeThread {
       }
     }
   }
-  
+
   def parkUntil(deadline: Long): Unit = {
     withParkingLock {
       if (skipNextUnparkEvent) {
@@ -165,11 +165,12 @@ object NativeThread {
 
   @alwaysinline
   def apply(thread: Thread): NativeThread = {
-    if(isMultithreadingEnabled){
+    if (isMultithreadingEnabled) {
       if (isWindows) WindowsThread(thread)
       else PosixThread(thread)
-    } else throw new UnsupportedOperationException(
-      "Cannot start threads with disabled multithreading support"
+    } else
+      throw new UnsupportedOperationException(
+        "Cannot start threads with disabled multithreading support"
       )
   }
 

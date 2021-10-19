@@ -16,6 +16,7 @@ import scala.scalanative.testinterface.adapter.TestAdapter
 import scala.sys.process.Process
 import scala.util.Try
 import scala.scalanative.build.Platform
+import java.nio.file.Files
 
 object ScalaNativePluginInternal {
 
@@ -62,9 +63,7 @@ object ScalaNativePluginInternal {
       .withLTO(Discover.LTO())
       .withGC(Discover.GC())
       .withMode(Discover.mode())
-      .withOptimize(Discover.optimize())
-      .withLinktimeProperties(Discover.linktimeProperties())
-      .withMultithreadingSupport(Discover.multithreadingSupport()),
+      .withOptimize(Discover.optimize()),
     nativeWarnOldJVM := {
       val logger = streams.value.log
       Try(Class.forName("java.util.function.Function")).toOption match {
@@ -111,12 +110,14 @@ object ScalaNativePluginInternal {
         .withDump(nativeDump.value)
     },
     nativeLink := {
+      val classpath = fullClasspath.value.map(_.data.toPath)
       val outpath = (nativeLink / artifactPath).value
+
       val config = {
         val mainClass = selectMainClass.value.getOrElse {
           throw new MessageOnlyException("No main class detected.")
         }
-        val classpath = fullClasspath.value.map(_.data.toPath)
+
         val maincls = mainClass + "$"
         val cwd = nativeWorkdir.value.toPath
 
@@ -129,10 +130,60 @@ object ScalaNativePluginInternal {
           .withCompilerConfig(nativeConfig.value)
       }
 
-      interceptBuildException {
-        Build.build(config, outpath.toPath)(sharedScope)
+      def buildNew(): Unit = {
+        interceptBuildException {
+          Build.build(config, outpath.toPath)(sharedScope)
+        }
       }
 
+      def buildIfChanged(): Unit = {
+        import sbt.util.CacheImplicits._
+        import NativeLinkCacheImplicits._
+        import collection.JavaConverters._
+
+        val cacheFactory = streams.value.cacheStoreFactory / "fileInfo"
+        val classpathTracker =
+          Tracked.inputChanged[
+            (Seq[HashFileInfo], build.Config),
+            HashFileInfo
+          ](
+            cacheFactory.make("inputFileInfo")
+          ) {
+            case (
+                  changed: Boolean,
+                  (filesInfo: Seq[HashFileInfo], config: build.Config)
+                ) =>
+              val outputTracker =
+                Tracked
+                  .lastOutput[Seq[HashFileInfo], HashFileInfo](
+                    cacheFactory.make("outputFileInfo")
+                  ) { (_, prev) =>
+                    val outputHashInfo = FileInfo.hash(outpath)
+                    if (changed || !prev.contains(outputHashInfo)) {
+                      buildNew()
+                      FileInfo.hash(outpath)
+                    } else outputHashInfo
+                  }
+              outputTracker(filesInfo)
+          }
+
+        val classpathFilesInfo = classpath
+          .flatMap { classpath =>
+            if (Files.exists(classpath))
+              Files
+                .walk(classpath)
+                .iterator()
+                .asScala
+                .filter(path => Files.exists(path) && !Files.isDirectory(path))
+                .toList
+            else Nil
+          }
+          .map(path => FileInfo.hash(path.toFile()))
+
+        classpathTracker(classpathFilesInfo, config)
+      }
+
+      buildIfChanged()
       outpath
     },
     run := {
@@ -142,9 +193,17 @@ object ScalaNativePluginInternal {
       val args = spaceDelimited("<arg>").parsed
 
       logger.running(binary +: args)
-      val exitCode = Process(binary +: args, None, env: _*)
-        .run(connectInput = false)
-        .exitValue
+
+      val exitCode = {
+        // It seems that previously used Scala Process has some bug leading
+        // to possible ignoring of inherited IO and termination of wrapper
+        // thread with an exception. We use java.lang ProcessBuilder instead
+        val proc = new ProcessBuilder()
+          .command((Seq(binary) ++ args): _*)
+          .inheritIO()
+        env.foreach((proc.environment().put(_, _)).tupled)
+        proc.start().waitFor()
+      }
 
       val message =
         if (exitCode == 0) None

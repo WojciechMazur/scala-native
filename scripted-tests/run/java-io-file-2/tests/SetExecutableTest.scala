@@ -1,8 +1,9 @@
 object SetExecutableTest {
   import Files._
   import Utils._
+
   def main(args: Array[String]): Unit = {
-    assert(willBeSetExecutableFile.exists(), "willBeSetExecutableFile.exists()")
+    assert(willBeSetExecutableFile.exists())
     // Windows (JVM) does not allow for setExecutable(false),
     // at this point it would always return true
     assertOsSpecific(
@@ -15,27 +16,15 @@ object SetExecutableTest {
       willBeSetExecutableFile.canRead(),
       "!willBeSetExecutableFile.canRead() 1"
     )(onUnix = false, onWindows = true)
-    assert(
-      !willBeSetExecutableFile.canWrite(),
-      "!willBeSetExecutableFile.canWrite() 1"
-    )
+    assert(!willBeSetExecutableFile.canWrite())
 
-    assert(
-      willBeSetExecutableFile.setExecutable(true),
-      "willBeSetExecutableFile.setExecutable(true)"
-    )
-    assert(
-      willBeSetExecutableFile.canExecute(),
-      "willBeSetExecutableFile.canExecute() 2"
-    )
+    assert(willBeSetExecutableFile.setExecutable(true))
+    assert(willBeSetExecutableFile.canExecute())
     assertOsSpecific(
       willBeSetExecutableFile.canRead(),
       "!willBeSetExecutableFile.canRead() 2"
     )(onUnix = false, onWindows = true)
-    assert(
-      !willBeSetExecutableFile.canWrite(),
-      "!willBeSetExecutableFile.canWrite() 2"
-    )
+    assert(!willBeSetExecutableFile.canWrite())
 
     // Windows (JVM) does not allow for setExecutable(false)
     assertOsSpecific(
@@ -50,15 +39,9 @@ object SetExecutableTest {
       willBeSetExecutableFile.canRead(),
       "!willBeSetExecutableFile.canRead() 3"
     )(onUnix = false, onWindows = true)
-    assert(
-      !willBeSetExecutableFile.canWrite(),
-      "!willBeSetExecutableFile.canWrite() 3"
-    )
+    assert(!willBeSetExecutableFile.canWrite())
 
-    assert(
-      willBeSetExecutableDirectory.exists(),
-      "willBeSetExecutableDirectory.exists()"
-    )
+    assert(willBeSetExecutableDirectory.exists())
     // Winodws (JVM) complience
     assertOsSpecific(
       willBeSetExecutableDirectory.canExecute(),
@@ -72,14 +55,8 @@ object SetExecutableTest {
       willBeSetExecutableDirectory.canWrite(),
       "!willBeSetExecutableDirectory.canWrite()"
     )(onUnix = false, onWindows = true)
-    assert(
-      willBeSetExecutableDirectory.setExecutable(true),
-      "willBeSetExecutableDirectory.setExecutable(true)"
-    )
-    assert(
-      willBeSetExecutableDirectory.canExecute(),
-      "willBeSetExecutableDirectory.canExecute()"
-    )
+    assert(willBeSetExecutableDirectory.setExecutable(true))
+    assert(willBeSetExecutableDirectory.canExecute())
     // Windows (JVM) complience
     assertOsSpecific(
       willBeSetExecutableDirectory.canRead(),
@@ -108,10 +85,8 @@ object SetExecutableTest {
       "!willBeSetExecutableDirectory.canWrite()"
     )(onUnix = false, onWindows = true)
 
-    assert(!nonexistentFile.exists, "!nonexistentFile.exists")
-    assert(
-      !nonexistentFile.setExecutable(true),
-      "!nonexistentFile.setExecutable(true)"
-    )
+    assert(!nonexistentFile.exists)
+    assert(!nonexistentFile.setExecutable(true))
+
   }
 }

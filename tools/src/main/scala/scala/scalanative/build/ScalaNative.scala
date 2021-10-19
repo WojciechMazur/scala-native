@@ -104,7 +104,9 @@ private[scalanative] object ScalaNative {
   )(linked: scalanative.linker.Result): scalanative.linker.Result = {
     if (config.check) {
       config.logger.time("Checking intermediate code") {
-        def warn(s: String) = config.logger.warn(s)
+        def warn(s: String) =
+          if (config.compilerConfig.checkFatalWarnings) config.logger.error(s)
+          else config.logger.warn(s)
         val errors = Check(linked)
         if (errors.nonEmpty) {
           val grouped =
@@ -146,6 +148,12 @@ private[scalanative] object ScalaNative {
           }
           warn("")
           warn(s"${errors.size} errors found")
+
+          if (config.compilerConfig.checkFatalWarnings) {
+            throw new BuildException(
+              "Fatal warning(s) found; see the error output for details."
+            )
+          }
         }
       }
     }

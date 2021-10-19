@@ -1,10 +1,9 @@
-import java.nio.file.StandardCopyOption
-import java.nio.file.Files
 import java.io.File.pathSeparator
 import scala.collection.mutable
 import scala.util.Try
-
 import build.ScalaVersions._
+import build.BinaryIncompatibilities
+import com.typesafe.tools.mima.core.ProblemFilter
 
 // Convert "SomeName" to "some-name".
 def convertCamelKebab(name: String): String = {
@@ -73,11 +72,26 @@ lazy val docsSettings: Seq[Setting[_]] = {
 }
 
 // The previous releases of Scala Native with which this version is binary compatible.
-val binCompatVersions = Set()
+val binCompatVersions = Set("0.4.0")
+lazy val neverPublishedProjects = Map(
+  "2.11" -> Set(util, tools, nir, windowslib, testRunner),
+  "2.12" -> Set(windowslib),
+  "2.13" -> Set(util, tools, nir, windowslib, testRunner)
+).mapValues(_.map(_.id))
 
-lazy val mimaSettings: Seq[Setting[_]] = Seq(
-  mimaPreviousArtifacts := binCompatVersions.map { version =>
-    organization.value %% moduleName.value % version
+lazy val mimaSettings = Seq(
+  mimaFailOnNoPrevious := false,
+  mimaBinaryIssueFilters ++= BinaryIncompatibilities.moduleFilters(name.value),
+  mimaPreviousArtifacts ++= {
+    val wasPreviouslyPublished = neverPublishedProjects
+      .get(scalaBinaryVersion.value)
+      .exists(!_.contains(thisProject.value.id))
+    binCompatVersions
+      .filter(_ => wasPreviouslyPublished)
+      .map { version =>
+        ModuleID(organization.value, moduleName.value, version)
+          .cross(crossVersion.value)
+      }
   }
 )
 
@@ -106,7 +120,8 @@ addCommandAlias(
   Seq(
     "test-tools",
     "test-runtime",
-    "test-scripted"
+    "test-scripted",
+    "test-mima"
   ).mkString(";")
 )
 
@@ -116,7 +131,7 @@ addCommandAlias(
     "testRunner/test",
     "testInterface/test",
     "tools/test",
-    "tools/mimaReportBinaryIssues"
+    "test-mima"
   ).mkString(";")
 )
 
@@ -124,14 +139,25 @@ addCommandAlias(
   "test-runtime",
   Seq(
     "sandbox/run",
-    "testsJVM/test",
     "tests/test",
-    "testsExtJVM/test",
+    "testsJVM/test",
     "testsExt/test",
+    "testsExtJVM/test",
     "junitTestOutputsJVM/test",
     "junitTestOutputsNative/test",
     "scalaPartestJunitTests/test"
   ).mkString(";")
+)
+
+addCommandAlias(
+  "test-mima", {
+    Seq("util", "nir", "tools") ++
+      Seq("testRunner", "testInterface", "testInterfaceSbtDefs") ++
+      Seq("junitRuntime") ++
+      Seq("nativelib", "clib", "posixlib", "windowslib") ++
+      Seq("auxlib", "javalib", "scalalib")
+  }.map(_ + "/mimaReportBinaryIssues")
+    .mkString(";")
 )
 
 addCommandAlias(
@@ -143,17 +169,6 @@ addCommandAlias(
 
 lazy val publishSnapshot =
   taskKey[Unit]("Publish snapshot to sonatype on every commit to master.")
-
-// to publish plugin (we only need to do this once, it's already done!)
-// follow: https://www.scala-sbt.org/1.x/docs/Bintray-For-Plugins.html
-// then add a new package
-// name: sbt-scala-native, license: BSD-like, version control: git@github.com:scala-native/scala-native.git
-// to be available without a resolver
-// follow: https://www.scala-sbt.org/1.x/docs/Bintray-For-Plugins.html#Linking+your+package+to+the+sbt+organization
-lazy val bintrayPublishSettings: Seq[Setting[_]] = Seq(
-  bintrayRepository := "sbt-plugins",
-  bintrayOrganization := Some("scala-native")
-) ++ publishSettings
 
 lazy val mavenPublishSettings: Seq[Setting[_]] = Seq(
   publishMavenStyle := true,
@@ -228,7 +243,7 @@ lazy val publishSettings: Seq[Setting[_]] = Seq(
       <url>https://github.com/scala-native/scala-native/issues</url>
     </issueManagement>
   )
-) ++ nameSettings
+) ++ nameSettings ++ mimaSettings
 
 lazy val noPublishSettings: Seq[Setting[_]] = Seq(
   publishArtifact := false,
@@ -357,8 +372,7 @@ lazy val tools =
         }
       },
       // Running tests in parallel results in `FileSystemAlreadyExistsException`
-      Test / parallelExecution := false,
-      mimaSettings
+      Test / parallelExecution := false
     )
     .dependsOn(nir, util, testingCompilerInterface % Test)
 
@@ -382,7 +396,7 @@ lazy val nscplugin =
 
 lazy val sbtPluginSettings: Seq[Setting[_]] =
   toolSettings ++
-    bintrayPublishSettings ++
+    mavenPublishSettings ++
     Seq(
       sbtVersion := sbt10Version,
       scriptedLaunchOpts := {
@@ -391,7 +405,8 @@ lazy val sbtPluginSettings: Seq[Setting[_]] =
             "-Xmx1024M",
             "-XX:MaxMetaspaceSize=256M",
             "-Dplugin.version=" + version.value,
-            "-Dscala.version=" + (nativelib / scalaVersion).value
+            "-Dscala.version=" + (nativelib / scalaVersion).value,
+            "-Dfile.encoding=UTF-8" // Windows uses Cp1250 as default
           ) ++
           ivyPaths.value.ivyHome.map(home => s"-Dsbt.ivy.home=$home").toSeq
       }
@@ -404,11 +419,14 @@ lazy val sbtScalaNative =
     .settings(sbtPluginSettings)
     .settings(
       crossScalaVersions := Seq(sbt10ScalaVersion),
-      addSbtPlugin("org.portable-scala" % "sbt-platform-deps" % "1.0.1"),
+      addSbtPlugin("org.portable-scala" % "sbt-platform-deps" % "1.0.0"),
       sbtTestDirectory := (ThisBuild / baseDirectory).value / "scripted-tests",
       // publish the other projects before running scripted tests.
       scriptedDependencies := {
+        import java.nio.file.{Files, StandardCopyOption}
         // Synchronize SocketHelpers used in java-net-socket test
+        // Each scripted test creates it's own environment in tmp directory
+        // which does not allow us to define external sources in script build
         Files.copy(
           ((javalib / Compile / scalaSource).value / "java/net/SocketHelpers.scala").toPath,
           (sbtTestDirectory.value / "run/java-net-socket/SocketHelpers.scala").toPath,
@@ -667,7 +685,9 @@ lazy val scalalib =
         } {
           val normSrc = normPath(src)
           val path = normSrc.substring(normSrcDir.length)
-          val useless = path.contains("/scala/util/parsing/")
+          val useless =
+            path.contains("/scala/collection/parallel/") ||
+              path.contains("/scala/util/parsing/")
           if (!useless) {
             if (paths.add(path))
               sources += src
@@ -753,12 +773,17 @@ lazy val testsCommonSettings = Def.settings(
     Tests.Argument(TestFrameworks.JUnit, "-a", "-s", "-v")
   ),
   Test / envVars ++= Map(
-        "USER" -> "scala-native",
-        "HOME" -> System.getProperty("user.home"),
-        "SCALA_NATIVE_ENV_WITH_EQUALS" -> "1+1=2",
-        "SCALA_NATIVE_ENV_WITHOUT_VALUE" -> "",
-        "SCALA_NATIVE_ENV_WITH_UNICODE" -> 0x2192.toChar.toString,
-        "SCALA_NATIVE_USER_DIR" -> System.getProperty("user.dir")
+    "USER" -> "scala-native",
+    "HOME" -> System.getProperty("user.home"),
+    "SCALA_NATIVE_ENV_WITH_EQUALS" -> "1+1=2",
+    "SCALA_NATIVE_ENV_WITHOUT_VALUE" -> "",
+    "SCALA_NATIVE_ENV_WITH_UNICODE" -> 0x2192.toChar.toString,
+    "SCALA_NATIVE_USER_DIR" -> System.getProperty("user.dir")
+  ),
+  // Some of the tests are designed with an assumptions about default encoding
+  // Make sure that tests run on JVM are using default defaults
+  Test / javaOptions ++= Seq(
+    "-Dfile.encoding=UTF-8" // Windows uses Cp1250 as default
   )
 )
 
@@ -1127,7 +1152,7 @@ lazy val scalaPartestTests: Project = project
         (auxlib / Compile / packageBin).value,
         (scalalib / Compile / packageBin).value,
         (scalaPartestRuntime / Compile / packageBin).value
-      ).map(_.absolutePath).mkString(":")
+      ).map(_.absolutePath).mkString(pathSeparator)
 
       Tests.Argument(s"--nativeClasspath=$nativeCp")
     },

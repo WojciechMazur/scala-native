@@ -2,6 +2,7 @@ import java.io.File
 import Utils._
 
 object Files {
+
   val emptyNameFile = new File("")
 
   val executableFile = new File("executableFile.txt")
@@ -60,10 +61,11 @@ object Files {
       windows: (String, String)
   ): (File, String) = {
     val (path, expected) =
-      if (isWindows) windows
+      if (Platform.isWindows) windows
       else unix
     new File(path) -> expected
   }
+
   val (canon0F, canon0N) =
     osFilePathTuple(unix = "/." -> "/", windows = "C:\\." -> "C:\\")
   val (canon1F, canon1N) =

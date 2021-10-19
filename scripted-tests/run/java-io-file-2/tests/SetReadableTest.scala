@@ -1,9 +1,9 @@
 object SetReadableTest {
   import Files._
   import Utils._
-  def main(args: Array[String]): Unit = {
 
-    assert(willBeSetReadableFile.exists(), "willBeSetReadableFile.exists()")
+  def main(args: Array[String]): Unit = {
+    assert(willBeSetReadableFile.exists())
     // Winodws (JVM) complience
     assertOsSpecific(
       willBeSetReadableFile.canExecute(),
@@ -13,44 +13,26 @@ object SetReadableTest {
       willBeSetReadableFile.canRead(),
       "!willBeSetReadableFile.canRead()"
     )(onUnix = false, onWindows = true)
-    assert(
-      !willBeSetReadableFile.canWrite(),
-      "!willBeSetReadableFile.canWrite()"
-    )
+    assert(!willBeSetReadableFile.canWrite())
 
-    assert(
-      willBeSetReadableFile.setReadable(true),
-      "willBeSetReadableFile.setReadable(true)"
-    )
+    assert(willBeSetReadableFile.setReadable(true))
     // Winodws (JVM) complience
     assertOsSpecific(
       willBeSetReadableFile.canExecute(),
       "!willBeSetReadableFile.canExecute()"
     )(onUnix = false, onWindows = true)
-    assert(willBeSetReadableFile.canRead(), "willBeSetReadableFile.canRead()")
-    assert(
-      !willBeSetReadableFile.canWrite(),
-      "!willBeSetReadableFile.canWrite()"
-    )
+    assert(willBeSetReadableFile.canRead())
+    assert(!willBeSetReadableFile.canWrite())
 
-    assert(
-      willBeSetReadableFile.setReadable(false),
-      "willBeSetReadableFile.setReadable(false)"
-    )
+    assert(willBeSetReadableFile.setReadable(false))
     assertOsSpecific(
       willBeSetReadableFile.canExecute(),
       "!willBeSetReadableFile.canExecute()"
     )(onUnix = false, onWindows = true)
-    assert(!willBeSetReadableFile.canRead(), "!willBeSetReadableFile.canRead()")
-    assert(
-      !willBeSetReadableFile.canWrite(),
-      "!willBeSetReadableFile.canWrite()"
-    )
+    assert(!willBeSetReadableFile.canRead())
+    assert(!willBeSetReadableFile.canWrite())
 
-    assert(
-      willBeSetReadableDirectory.exists(),
-      "willBeSetReadableDirectory.exists()"
-    )
+    assert(willBeSetReadableDirectory.exists())
     // Winodws (JVM) complience
     assertOsSpecific(
       willBeSetReadableDirectory.canExecute(),
@@ -65,44 +47,27 @@ object SetReadableTest {
       "!willBeSetReadableDirectory.canWrite()"
     )(onUnix = false, onWindows = true)
 
-    assert(
-      willBeSetReadableDirectory.setReadable(true),
-      "willBeSetReadableDirectory.setReadable(true)"
-    )
+    assert(willBeSetReadableDirectory.setReadable(true))
     assertOsSpecific(
       willBeSetReadableDirectory.canExecute(),
       "!willBeSetReadableDirectory.canExecute()"
     )(onUnix = false, onWindows = true)
-    assert(
-      willBeSetReadableDirectory.canRead(),
-      "willBeSetReadableDirectory.canRead()"
-    )
+    assert(willBeSetReadableDirectory.canRead())
     assertOsSpecific(
       willBeSetReadableDirectory.canWrite(),
       "!willBeSetReadableDirectory.canWrite()"
     )(onUnix = false, onWindows = true)
 
-    assert(
-      willBeSetReadableDirectory.setReadable(false),
-      "willBeSetReadableDirectory.setReadable(false)"
-    )
+    assert(willBeSetReadableDirectory.setReadable(false))
     assertOsSpecific(
       willBeSetReadableDirectory.canExecute(),
       "!willBeSetReadableDirectory.canExecute()"
     )(onUnix = false, onWindows = true)
-    assert(
-      !willBeSetReadableDirectory.canRead(),
-      "!willBeSetReadableDirectory.canRead()"
-    )
-    assert(
-      !willBeSetReadableDirectory.canWrite(),
-      "!willBeSetReadableDirectory.canWrite()"
-    )
+    assert(!willBeSetReadableDirectory.canRead())
+    assert(!willBeSetReadableDirectory.canWrite())
 
-    assert(!nonexistentFile.exists, "!nonexistentFile.exists")
-    assert(
-      !nonexistentFile.setReadable(true),
-      "!nonexistentFile.setReadable(true)"
-    )
+    assert(!nonexistentFile.exists)
+    assert(!nonexistentFile.setReadable(true))
+
   }
 }

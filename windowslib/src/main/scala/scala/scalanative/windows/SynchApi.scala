@@ -8,8 +8,6 @@ import HandleApi.Handle
 object SynchApi {
   type CriticalSection = Ptr[Byte]
   type ConditionVariable = Ptr[Byte]
-  type CallbackContext = Ptr[Byte]
-  type WaitOrTimerCallback = CFuncPtr2[CallbackContext, Boolean, Unit]
 
   @name("scalanative_sizeof_CriticalSection")
   def SizeOfCriticalSection: CSize = extern

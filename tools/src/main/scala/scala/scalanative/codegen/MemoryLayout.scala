@@ -16,7 +16,9 @@ final case class MemoryLayout(
       tys.collect {
         // offset in words without object header (rtti, lock)
         case MemoryLayout.PositionedType(_: RefKind, offset) =>
-          Val.Long(offset / MemoryLayout.WORD_SIZE - FieldLayout.ObjectHeader.size)
+          Val.Long(
+            offset / MemoryLayout.WORD_SIZE - FieldLayout.ObjectHeader.size
+          )
       }
 
     ptrOffsets :+ Val.Long(-1)

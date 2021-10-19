@@ -8,7 +8,6 @@ import scala.scalanative.unsafe._
 import scala.scalanative.unsigned._
 import scala.scalanative.unsafe.CFuncPtr1.fromScalaFunction
 import scala.scalanative.runtime.{Intrinsics, fromRawPtr, toRawPtr}
-
 import scala.scalanative.posix.sys.types._
 import scala.scalanative.posix.time._
 import scala.scalanative.posix.timeOps._
@@ -17,7 +16,8 @@ import scala.scalanative.posix.schedOps._
 import scala.scalanative.posix.pthread._
 import scala.scalanative.posix.signal.{pthread_kill => _, _}
 import scala.scalanative.posix.signalOps._
-import scala.scalanative.posix.errno.ETIMEDOUT
+import scala.scalanative.posix.errno.{ETIMEDOUT, EINTR}
+import scala.scalanative.libc.errno
 import scala.scalanative.libc.signal.{SIGUSR1 => _, _}
 import scala.scalanative.posix
 import scala.scalanative.runtime.ByteArray
@@ -205,19 +205,10 @@ private[lang] object PosixThread {
   }
 
   def sleep(millis: scala.Long, nanos: scala.Int): Unit = {
-    import scala.scalanative.posix.errno.EINTR
-    import scala.scalanative.posix.time._
-    import scala.scalanative.posix.timeOps._
-    import scala.scalanative.unsafe._
-    import scala.scalanative.unsigned._
-    import scala.scalanative.posix.unistd
-    import scala.scalanative.libc.errno
-
     @tailrec
     def doSleep(requestedTime: Ptr[timespec]): Unit = {
       val remaining = stackalloc[timespec]
-
-      unistd.nanosleep(requestedTime, remaining) match {
+      nanosleep(requestedTime, remaining) match {
         case _ if Thread.interrupted() =>
           throw new InterruptedException("Sleep was interrupted")
 
@@ -231,7 +222,6 @@ private[lang] object PosixThread {
     val requestedTime = stackalloc[timespec]
     requestedTime.tv_sec = millis / 1000
     requestedTime.tv_nsec = (millis % 1000) * 1e6.toInt + nanos
-
     doSleep(requestedTime)
   }
 

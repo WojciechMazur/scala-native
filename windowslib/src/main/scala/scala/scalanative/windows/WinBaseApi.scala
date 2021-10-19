@@ -49,12 +49,6 @@ object WinBaseApi {
   def GetCurrentDirectoryA(bufferLength: DWord, buffer: CString): DWord = extern
   def GetCurrentDirectoryW(bufferLength: DWord, buffer: CWString): DWord =
     extern
-  def GetVolumePathNameW(
-      filename: CWString,
-      volumePathName: CWString,
-      bufferLength: DWord
-  ): Boolean = extern
-
   def GetFileSecurityW(
       filename: CWString,
       requestedInformation: SecurityInformation,
@@ -124,10 +118,28 @@ object WinBaseApi {
 
   def UnregisterWait(handle: Handle): Boolean = extern
 
-  @name("scalanative_win32_default_language")
+  def CreateFileMappingA(
+      hFile: Handle,
+      lpFileMappingAttributes: SecurityAttributes,
+      flProtect: DWord,
+      dwMaximumSizeHigh: DWord,
+      dwMaximumSizeLow: DWord,
+      lpName: CString
+  ): Handle = extern
+
+  def CreateFileMappingW(
+      hFile: Handle,
+      lpFileMappingAttributes: SecurityAttributes,
+      flProtect: DWord,
+      dwMaximumSizeHigh: DWord,
+      dwMaximumSizeLow: DWord,
+      lpName: CWString
+  ): Handle = extern
+
+  @name("scalanative_lang_user_default")
   final def DefaultLanguageId: DWord = extern
 
-  @name("scalanative_win32_infinite")
+  @name("scalanative_infinite")
   final def Infinite: DWord = extern
 }
 
@@ -172,6 +184,10 @@ object WinBaseApiExt {
   final val PROTECTED_SACL_SECURITY_INFORMATION = 0x40000000L.toUInt
   final val UNPROTECTED_DACL_SECURITY_INFORMATION = 0x20000000L.toUInt
   final val UNPROTECTED_SACL_SECURITY_INFORMATION = 0x10000000L.toUInt
+
+  final val PAGE_READONLY = 0x02.toUInt
+  final val PAGE_READWRITE = 0x04.toUInt
+  final val PAGE_WRITECOPY = 0x08.toUInt
 }
 
 object WinBaseApiOps {

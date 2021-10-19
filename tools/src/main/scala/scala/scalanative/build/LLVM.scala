@@ -67,10 +67,10 @@ private[scalanative] object LLVM {
             Seq("-c", inpath, "-o", outpath)
 
         config.logger.running(compilec)
-        val result = Process(compilec, config.workdir.toFile) ! Logger
-          .toProcessLogger(config.logger)
+        val result = Process(compilec, config.workdir.toFile) !
+          Logger.toProcessLogger(config.logger)
         if (result != 0) {
-          sys.error(s"Failed to compile ${inpath}")
+          throw new BuildException(s"Failed to compile ${inpath}")
         }
       }
       objPath
@@ -116,8 +116,17 @@ private[scalanative] object LLVM {
     val linkopts = config.linkingOptions ++ links.map("-l" + _)
     val flags = {
       val platformFlags =
-        if (config.targetsWindows) Seq("-g")
-        else Seq("-rdynamic")
+        if (config.targetsWindows) {
+          // https://github.com/scala-native/scala-native/issues/2372
+          // When using LTO make sure to use lld linker instead of default one
+          // LLD might find some duplicated symbols defined in both C and C++,
+          // runtime libraries (libUCRT, libCPMT), we ignore this warnings.
+          val ltoSupport = config.compilerConfig.lto match {
+            case LTO.None => Nil
+            case _        => Seq("-fuse-ld=lld", "-Wl,/force:multiple")
+          }
+          Seq("-g") ++ ltoSupport
+        } else Seq("-rdynamic")
       flto(config) ++ platformFlags ++ target(config) ++
         Seq(
           "-o",
@@ -126,30 +135,25 @@ private[scalanative] object LLVM {
     }
     val paths = objectsPaths.map(_.abs)
     val compile = config.clangPP.abs +: (flags ++ paths ++ linkopts)
-    val ltoName = lto(config).getOrElse("none")
 
     config.logger.time(
-      s"Linking native code (${config.gc.name} gc, $ltoName lto)"
+      s"Linking native code (${config.gc.name} gc, ${config.LTO.name} lto)"
     ) {
       config.logger.running(compile)
-      Process(compile, config.workdir.toFile) ! Logger.toProcessLogger(
-        config.logger
-      )
+      val result = Process(compile, config.workdir.toFile) !
+        Logger.toProcessLogger(config.logger)
+      if (result != 0) {
+        throw new BuildException(s"Failed to link ${outpath}")
+      }
     }
     outpath
   }
 
-  private def lto(config: Config): Option[String] =
-    (config.mode, config.LTO) match {
-      case (Mode.Debug, _)             => None
-      case (_: Mode.Release, LTO.None) => None
-      case (_: Mode.Release, lto)      => Some(lto.name)
-    }
-
   private def flto(config: Config): Seq[String] =
-    lto(config).fold[Seq[String]] {
-      Seq()
-    } { name => Seq(s"-flto=$name") }
+    config.compilerConfig.lto match {
+      case LTO.None => Seq.empty
+      case lto      => Seq(s"-flto=${lto.name}")
+    }
 
   private def target(config: Config): Seq[String] =
     config.compilerConfig.targetTriple match {

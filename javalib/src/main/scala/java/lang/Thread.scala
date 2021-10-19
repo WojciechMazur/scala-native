@@ -6,6 +6,8 @@ import scala.scalanative.unsafe._
 import java.util.concurrent.atomic.{AtomicReference, AtomicLong}
 import scala.annotation.tailrec
 import java.util.concurrent.locks.LockSupport
+import scala.scalanative.meta.LinktimeInfo.isWindows
+import java.lang.impl._
 
 // Ported from Harmony
 
@@ -470,7 +472,8 @@ object Thread {
       throw new IllegalArgumentException("nanos value out of range")
     }
 
-    NativeThread.sleep(millis, nanos)
+    if (isWindows) WindowsThread.sleep(millis, nanos)
+    else PosixThread.sleep(millis, nanos)
   }
 
   def sleep(millis: scala.Long): Unit = sleep(millis, 0)

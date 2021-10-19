@@ -23,8 +23,8 @@ object IsAbsoluteTest {
       "absoluteWinStyle2.isAbsolute"
     )(onUnix = false, onWindows = true)
 
-    assert(!relative0.isAbsolute, "!relative0.isAbsolute")
-    assert(!relative1.isAbsolute, "!relative1.isAbsolute")
-    assert(!relative2.isAbsolute, "!relative2.isAbsolute")
+    assert(!relative0.isAbsolute)
+    assert(!relative1.isAbsolute)
+    assert(!relative2.isAbsolute)
   }
 }

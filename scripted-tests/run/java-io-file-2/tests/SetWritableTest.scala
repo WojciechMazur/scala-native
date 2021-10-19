@@ -2,7 +2,7 @@ object SetWritableTest {
   import Files._
   import Utils._
   def main(args: Array[String]): Unit = {
-    assert(willBeSetWritableFile.exists(), "willBeSetWritableFile.exists()")
+    assert(willBeSetWritableFile.exists())
     assertOsSpecific(
       willBeSetWritableFile.canExecute(),
       "!willBeSetWritableFile.canExecute()"
@@ -11,15 +11,9 @@ object SetWritableTest {
       willBeSetWritableFile.canRead(),
       "!willBeSetWritableFile.canRead()"
     )(onUnix = false, onWindows = true)
-    assert(
-      !willBeSetWritableFile.canWrite(),
-      "!willBeSetWritableFile.canWrite()"
-    )
+    assert(!willBeSetWritableFile.canWrite())
 
-    assert(
-      willBeSetWritableFile.setWritable(true),
-      "willBeSetWritableFile.setWritable(true)"
-    )
+    assert(willBeSetWritableFile.setWritable(true))
     assertOsSpecific(
       willBeSetWritableFile.canExecute(),
       "!willBeSetWritableFile.canExecute()"
@@ -33,24 +27,15 @@ object SetWritableTest {
       "willBeSetWritableFile.canWrite()"
     )(onUnix = true, onWindows = false)
 
-    assert(
-      willBeSetWritableFile.setWritable(false),
-      "willBeSetWritableFile.setWritable(false)"
-    )
+    assert(willBeSetWritableFile.setWritable(false))
     assertOsSpecific(
       willBeSetWritableFile.canExecute(),
       "!willBeSetWritableFile.canExecute()"
     )(onUnix = false, onWindows = true)
-    assert(!willBeSetWritableFile.canRead(), "!willBeSetWritableFile.canRead()")
-    assert(
-      !willBeSetWritableFile.canWrite(),
-      "!willBeSetWritableFile.canWrite()"
-    )
+    assert(!willBeSetWritableFile.canRead())
+    assert(!willBeSetWritableFile.canWrite())
 
-    assert(
-      willBeSetWritableDirectory.exists(),
-      "willBeSetWritableDirectory.exists()"
-    )
+    assert(willBeSetWritableDirectory.exists())
     assertOsSpecific(
       willBeSetWritableDirectory.canExecute(),
       "!willBeSetWritableDirectory.canExecute()"
@@ -64,10 +49,7 @@ object SetWritableTest {
       "!willBeSetWritableDirectory.canWrite()"
     )(onUnix = false, onWindows = true)
 
-    assert(
-      willBeSetWritableDirectory.setWritable(true),
-      "willBeSetWritableDirectory.setWritable(true)"
-    )
+    assert(willBeSetWritableDirectory.setWritable(true))
     assertOsSpecific(
       willBeSetWritableDirectory.canExecute(),
       "!willBeSetWritableDirectory.canExecute()"
@@ -76,32 +58,18 @@ object SetWritableTest {
       willBeSetWritableDirectory.canRead(),
       "!willBeSetWritableDirectory.canRead()"
     )(onUnix = false, onWindows = true)
-    assert(
-      willBeSetWritableDirectory.canWrite(),
-      "willBeSetWritableDirectory.canWrite()"
-    )
+    assert(willBeSetWritableDirectory.canWrite())
 
-    assert(
-      willBeSetWritableDirectory.setWritable(false),
-      "willBeSetWritableDirectory.setWritable(false)"
-    )
+    assert(willBeSetWritableDirectory.setWritable(false))
     assertOsSpecific(
       willBeSetWritableDirectory.canExecute(),
       "!willBeSetWritableDirectory.canExecute()"
     )(onUnix = false, onWindows = true)
-    assert(
-      !willBeSetWritableDirectory.canRead(),
-      "!willBeSetWritableDirectory.canRead()"
-    )
-    assert(
-      !willBeSetWritableDirectory.canWrite(),
-      "!willBeSetWritableDirectory.canWrite()"
-    )
+    assert(!willBeSetWritableDirectory.canRead())
+    assert(!willBeSetWritableDirectory.canWrite())
 
-    assert(!nonexistentFile.exists, "!nonexistentFile.exists")
-    assert(
-      !nonexistentFile.setWritable(true),
-      "!nonexistentFile.setWritable(true)"
-    )
+    assert(!nonexistentFile.exists)
+    assert(!nonexistentFile.setWritable(true))
+
   }
 }

@@ -10,6 +10,8 @@ import org.scalanative.testsuite.utils.Platform.isWindows
 class PrintStreamTest {
 
   @Test def printStreamOutputStreamStringWithUnsupportedEncoding(): Unit = {
+    // Make sure to not use /dev/null on Windows leading to FileNotFoundException
+    // On JVM charset check happens before file exists checks
     val devNull = if (isWindows) "NUL" else "/dev/null"
     assertThrows(
       classOf[java.io.UnsupportedEncodingException],

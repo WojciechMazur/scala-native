@@ -71,6 +71,7 @@ object ProcessThreadsApi {
       desiredAccess: DWord,
       tokenHandle: Ptr[Handle]
   ): Boolean = extern
+
   def ResumeThread(thread: Handle): DWord = extern
   def SwitchToThread(): Boolean = extern
   def SuspendThread(thread: Handle): DWord = extern

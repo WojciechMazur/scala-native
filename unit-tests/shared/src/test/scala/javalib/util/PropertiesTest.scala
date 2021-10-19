@@ -15,7 +15,7 @@ import org.junit.Assume._
 import scala.scalanative.junit.utils.AssertThrows.assertThrows
 import scala.scalanative.junit.utils.Utils._
 
-import org.scalanative.testsuite.utils.Platform.hasCompliantAsInstanceOfs
+import org.scalanative.testsuite.utils.Platform._
 
 class PropertiesTest {
   // ported from Scala.js
@@ -197,15 +197,12 @@ class PropertiesTest {
       props.list(ps)
       ps.close()
       assertEquals(
-        out.toString.replaceAll(System.lineSeparator(), "\n").trim,
-        result.replaceAll(System.lineSeparator(), "\n").trim
+        withUnixLineSeperators(out.toString.trim),
+        withUnixLineSeperators(result.trim)
       )
     }
 
-    assertResult(
-      new Properties(),
-      s"-- listing properties --${System.lineSeparator()}"
-    )
+    assertResult(new Properties(), "-- listing properties --\n")
 
     val prop1 = new Properties()
     prop1.put("name", "alice")
@@ -368,15 +365,14 @@ class PropertiesTest {
     assertAll(expected = prop1, actual = prop2)
     // Avoid variable Date output which is last line in comment
     // Matches JVM output
-    val commentsWithoutDate =
-      """|#A Header
+    val commentsWithoutDate = withUnixLineSeperators("""|#A Header
          |#Line2
          |#Line3
          |#Line4
          |!AfterExclaim
          |#AfterPound
-         |#Wow!""".stripMargin.replaceAll(System.lineSeparator(), "\n")
-    val out = out1.toString().replaceAll(System.lineSeparator(), "\n")
+         |#Wow!""".stripMargin)
+    val out = withUnixLineSeperators(out1.toString())
     assertTrue(s"starts with, got: '$out'", out.startsWith(commentsWithoutDate))
   }
 
@@ -471,8 +467,7 @@ class PropertiesTest {
     val prop = new java.util.Properties()
     prop.load(
       new InputStreamReader(
-        new ByteArrayInputStream(in.getBytes(StandardCharsets.UTF_8)),
-        StandardCharsets.UTF_8
+        new ByteArrayInputStream(in.getBytes(StandardCharsets.UTF_8))
       )
     )
     prop
@@ -512,5 +507,11 @@ class PropertiesTest {
       |notrailing = baz \\${"  "}
       |
     """.stripMargin
+  }
+
+  def withUnixLineSeperators(str: String): String = {
+    if (str != null && isWindows) {
+      str.replaceAll(System.lineSeparator(), "\n")
+    } else str
   }
 }

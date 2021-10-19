@@ -1,7 +1,7 @@
 package scala.scalanative
 package unsafe
 
-import org.junit.Test
+import org.junit.{Test, BeforeClass}
 import org.junit.Assert._
 import org.junit.Assume._
 

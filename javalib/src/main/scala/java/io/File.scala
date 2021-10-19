@@ -87,7 +87,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
 
   def setExecutable(executable: Boolean, ownerOnly: Boolean): Boolean = {
     if (isWindows) {
-      // Windows (JVM) does not allow for setting setting as not executable
+      // Windows (JVM) does not allow for setting a file as not executable
       if (!executable) false
       else {
         val accessRights = FILE_GENERIC_EXECUTE
@@ -298,8 +298,12 @@ class File(_path: String) extends Serializable with Comparable[File] {
       )
       fromCWideString(resolvedName, StandardCharsets.UTF_16LE)
     } else {
-      val resolvedName = alloc[Byte](limits.PATH_MAX.toUInt)
-      realpath(toCString(path), resolvedName)
+      val resolvedName = alloc[Byte](limits.PATH_MAX)
+      if (realpath(toCString(path), resolvedName) == null) {
+        throw new IOException(
+          s"realpath can't resolve: ${fromCString(resolvedName)}"
+        )
+      }
       fromCString(resolvedName)
     }
   }
@@ -700,6 +704,10 @@ class File(_path: String) extends Serializable with Comparable[File] {
 
 object File {
 
+  private val `1U` = 1.toUInt
+  private val `4096U` = 4096.toUInt
+  private val `4095U` = 4095.toUInt
+
   private val random = new java.util.Random()
 
   private def octal(v: String): UInt =
@@ -710,11 +718,18 @@ object File {
       if (isWindows) {
         val buffSize = GetCurrentDirectoryW(0.toUInt, null)
         val buff = alloc[windows.WChar](buffSize + 1.toUInt)
-        GetCurrentDirectoryW(buffSize, buff)
+        if (GetCurrentDirectoryW(buffSize, buff) == 0) {
+          throw WindowsException("error in trying to get user directory")
+        }
         fromCWideString(buff, StandardCharsets.UTF_16LE)
       } else {
         val buff: CString = alloc[CChar](4096.toUInt)
-        getcwd(buff, 4095.toUInt)
+        if (getcwd(buff, 4095.toUInt) == 0) {
+          val errMsg = fromCString(string.strerror(errno.errno))
+          throw new IOException(
+            s"error in trying to get user directory - $errMsg"
+          )
+        }
         fromCString(buff)
       }
     }
@@ -823,12 +838,9 @@ object File {
 
         // found an absolute path. continue from there.
         case link if link(0) == separatorChar =>
-          if (Platform.isWindows() &&
-              strncmp(link, c"\\\\?\\", 4.toUInt) == 0 &&
-              strlen(link) <= 7.toUInt) {
-            // It's root directory
+          if (Platform.isWindows() && strncmp(link, c"\\\\?\\", 4.toUInt) == 0)
             path
-          } else
+          else
             resolveLink(link, resolveAbsolute, restart = resolveAbsolute)
 
         // found a relative path. append to the current path, and continue.
@@ -891,9 +903,9 @@ object File {
    *  Otherwise, returns `None`.
    */
   private def readLink(link: CString)(implicit z: Zone): CString = {
-    val bufferSize =
+    val bufferSize: CSize =
       if (isWindows) FileApiExt.MAX_PATH
-      else limits.PATH_MAX.toUInt
+      else limits.PATH_MAX - `1U`
     val buffer: CString = alloc[Byte](bufferSize)
     if (isWindows) {
       val filename = fromCString(link)
@@ -908,7 +920,7 @@ object File {
         def pathLength = GetFinalPathNameByHandleA(
           fileHandle,
           buffer = buffer,
-          bufferSize = bufferSize,
+          bufferSize = bufferSize.toUInt,
           flags = finalPathFlags
         )
 
@@ -917,7 +929,7 @@ object File {
         else buffer
       }
     } else {
-      readlink(link, buffer, bufferSize - 1.toUInt) match {
+      readlink(link, buffer, bufferSize) match {
         case -1 =>
           null
         case read =>

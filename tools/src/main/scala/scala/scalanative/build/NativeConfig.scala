@@ -37,6 +37,9 @@ sealed trait NativeConfig {
   /** Shall linker check that NIR is well-formed after every phase? */
   def check: Boolean
 
+  /** Shall linker NIR check treat warnings as errors? */
+  def checkFatalWarnings: Boolean
+
   /** Shall linker dump intermediate NIR after every phase? */
   def dump: Boolean
 
@@ -46,8 +49,8 @@ sealed trait NativeConfig {
   /** Shall be compiled with multithreading support */
   def multithreadingSupport: Boolean
 
-  /** Map of properties resolved at linktime */
-  def linktimeProperties: Map[String, Any]
+  /** Map of user defined properties resolved at linktime */
+  def linktimeProperties: NativeConfig.LinktimeProperites
 
   /** Create a new config with given garbage collector. */
   def withGC(value: GC): NativeConfig
@@ -82,6 +85,9 @@ sealed trait NativeConfig {
   /** Create a new config with given check value. */
   def withCheck(value: Boolean): NativeConfig
 
+  /** Create a new config with given checkFatalWarnings value. */
+  def withCheckFatalWarnings(value: Boolean): NativeConfig
+
   /** Create a new config with given dump value. */
   def withDump(value: Boolean): NativeConfig
 
@@ -89,13 +95,16 @@ sealed trait NativeConfig {
   def withOptimize(value: Boolean): NativeConfig
 
   /** Create a new config with given linktime properites */
-  def withLinktimeProperties(value: Map[String, Any]): NativeConfig
+  def withLinktimeProperties(
+      value: NativeConfig.LinktimeProperites
+  ): NativeConfig
 
   /** Create a new config with support for multithreading */
   def withMultithreadingSupport(enabled: Boolean): NativeConfig
 }
 
 object NativeConfig {
+  type LinktimeProperites = Map[String, Any]
 
   /** Default empty config object where all of the fields are left blank. */
   def empty: NativeConfig =
@@ -109,11 +118,12 @@ object NativeConfig {
       lto = LTO.default,
       mode = Mode.default,
       check = false,
+      checkFatalWarnings = false,
       dump = false,
       linkStubs = false,
-      optimize = false,
+      optimize = true,
       multithreadingSupport = false,
-      customLinktimeProperties = Map.empty
+      linktimeProperties = Map.empty
     )
 
   private final case class Impl(
@@ -127,10 +137,11 @@ object NativeConfig {
       lto: LTO,
       linkStubs: Boolean,
       check: Boolean,
+      checkFatalWarnings: Boolean,
       dump: Boolean,
       optimize: Boolean,
       multithreadingSupport: Boolean,
-      customLinktimeProperties: Map[String, Any]
+      linktimeProperties: LinktimeProperites
   ) extends NativeConfig {
 
     def withClang(value: Path): NativeConfig =
@@ -167,6 +178,9 @@ object NativeConfig {
     def withCheck(value: Boolean): NativeConfig =
       copy(check = value)
 
+    def withCheckFatalWarnings(value: Boolean): NativeConfig =
+      copy(checkFatalWarnings = value)
+
     def withDump(value: Boolean): NativeConfig =
       copy(dump = value)
 
@@ -176,40 +190,9 @@ object NativeConfig {
     def withMultithreadingSupport(enabled: Boolean): NativeConfig =
       copy(multithreadingSupport = enabled)
 
-    def linktimeProperties: Map[String, Any] = {
-      val linktimeInfo = "scala.scalanative.meta.linktimeinfo"
-      val predefined = Map(
-        s"$linktimeInfo.isMultithreadingEnabled" -> multithreadingSupport,
-        s"$linktimeInfo.isWindows" -> Platform.isWindows
-      )
-      predefined ++ customLinktimeProperties
-    }
-
-    override def withLinktimeProperties(v: Map[String, Any]): NativeConfig = {
-      def isNumberOrString(value: Any) = {
-        def hasSupportedType = value match {
-          case _: Boolean | _: Byte | _: Char | _: Short | _: Int | _: Long |
-              _: Float | _: Double | _: String =>
-            true
-          case _ => false
-        }
-
-        value != null && hasSupportedType
-      }
-
-      val invalid = v.collect {
-        case (key, value) if !isNumberOrString(value) => key
-      }
-      if (invalid.nonEmpty) {
-        System.err.println(
-          s"Invalid link-time properties: \n ${invalid.mkString(" - ", "\n", "")}"
-        )
-        throw new BuildException(
-          "Link-time properties needs to be non-null primitives or non-empty string"
-        )
-      }
-
-      copy(customLinktimeProperties = v)
+    def withLinktimeProperties(v: LinktimeProperites): NativeConfig = {
+      checkLinktimeProperties(v)
+      copy(linktimeProperties = v)
     }
 
     override def toString: String = {
@@ -228,20 +211,45 @@ object NativeConfig {
         }
       }
       s"""NativeConfig(
-        | - clang:           $clang
-        | - clangPP:         $clangPP
-        | - linkingOptions:  $linkingOptions
-        | - compileOptions:  $compileOptions
-        | - targetTriple:    $targetTriple
-        | - GC:              $gc
-        | - mode:            $mode
-        | - LTO:             $lto
-        | - linkStubs:       $linkStubs
-        | - check:           $check
-        | - dump:            $dump
-        | - optimize         $optimize
+        | - clang:              $clang
+        | - clangPP:            $clangPP
+        | - linkingOptions:     $linkingOptions
+        | - compileOptions:     $compileOptions
+        | - targetTriple:       $targetTriple
+        | - GC:                 $gc
+        | - mode:               $mode
+        | - LTO:                $lto
+        | - linkStubs:          $linkStubs
+        | - check:              $check
+        | - checkFatalWarnings: $checkFatalWarnings
+        | - dump:               $dump
+        | - optimize:           $optimize
+        | - multithreading      $multithreadingSupport
         | - linktimeProperties: $listLinktimeProperties
         |)""".stripMargin
+    }
+  }
+
+  def checkLinktimeProperties(properties: LinktimeProperites): Unit = {
+    def isNumberOrString(value: Any) = {
+      value match {
+        case _: Boolean | _: Byte | _: Char | _: Short | _: Int | _: Long |
+            _: Float | _: Double | _: String =>
+          true
+        case _ => false
+      }
+    }
+
+    val invalid = properties.collect {
+      case (key, value) if !isNumberOrString(value) => key
+    }
+    if (invalid.nonEmpty) {
+      throw new BuildException(
+        s"""Link-time properties needs to be non-null primitives or non-empty string
+           |Invalid link-time properties:
+           |${invalid.mkString(" - ", "\n", "")}
+        """.stripMargin
+      )
     }
   }
 

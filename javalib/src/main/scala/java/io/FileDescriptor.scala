@@ -50,6 +50,7 @@ final class FileDescriptor private[java] (
     def throwSyncFailed(): Unit = {
       throw new SyncFailedException("sync failed")
     }
+
     def isStdOrInvalidFileDescriptor: Boolean = {
       if (isWindows) {
         handle == INVALID_HANDLE_VALUE ||

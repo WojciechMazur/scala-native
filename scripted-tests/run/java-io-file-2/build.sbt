@@ -1,4 +1,3 @@
-import java.nio.file.LinkOption
 import Files._
 import Utils._
 import java.nio.file.{Files => NioFiles}
@@ -20,13 +19,14 @@ nativeLinkStubs := true // DateFormatSymbols
 lazy val setupTests = taskKey[Unit]("")
 
 setupTests := {
+
   IO.touch(readableFile)
-  assert(readableFile.setReadable(true), "readableFile, setReadable(true)")
-  assert(readableFile.exists(), "readableFile.exists()")
-  assert(readableFile.canRead(), "readableFile.canRead()")
+  assert(readableFile.setReadable(true))
+  assert(readableFile.exists())
+  assert(readableFile.canRead())
 
   IO.touch(unreadableFile)
-  assert(unreadableFile.exists(), "unreadableFile.exists()")
+  assert(unreadableFile.exists())
   // setReadable(false) not possible on Windows
   assertOsSpecific(
     unreadableFile.setReadable(false),
@@ -38,15 +38,12 @@ setupTests := {
   )(onUnix = false, onWindows = true)
 
   IO.createDirectory(readableDirectory)
-  assert(
-    readableDirectory.setReadable(true),
-    "readableDirectory.setReadable(true)"
-  )
-  assert(readableDirectory.exists(), "readableDirectory.exists()")
-  assert(readableDirectory.canRead(), "readableDirectory.canRead()")
+  assert(readableDirectory.setReadable(true))
+  assert(readableDirectory.exists())
+  assert(readableDirectory.canRead())
 
   IO.createDirectory(unreadableDirectory)
-  assert(unreadableDirectory.exists(), "unreadableDirectory.exists()")
+  assert(unreadableDirectory.exists())
   // setReadable(false) not possible on Windows
   assertOsSpecific(
     unreadableDirectory.setReadable(false),
@@ -58,15 +55,12 @@ setupTests := {
   )(onUnix = false, onWindows = true)
 
   IO.touch(executableFile)
-  assert(
-    executableFile.setExecutable(true),
-    "executableFile.setExecutable(true)"
-  )
-  assert(executableFile.exists(), "executableFile.exists()")
-  assert(executableFile.canExecute(), "executableFile.canExecute()")
+  assert(executableFile.setExecutable(true))
+  assert(executableFile.exists())
+  assert(executableFile.canExecute())
 
   IO.touch(unexecutableFile)
-  assert(unexecutableFile.exists(), "unexecutableFile.exists()")
+  assert(unexecutableFile.exists())
   // setExecutable(false) not possible on Windows
   assertOsSpecific(
     unexecutableFile.setExecutable(false),
@@ -77,15 +71,12 @@ setupTests := {
     "!unexecutableFile.canExecute()"
   )(onUnix = false, onWindows = true)
   IO.createDirectory(executableDirectory)
-  assert(
-    executableDirectory.setExecutable(true),
-    "executableDirectory.setExecutable(true)"
-  )
-  assert(executableDirectory.exists(), "executableDirectory.exists()")
-  assert(executableDirectory.canExecute(), "executableDirectory.canExecute()")
+  assert(executableDirectory.setExecutable(true))
+  assert(executableDirectory.exists())
+  assert(executableDirectory.canExecute())
 
   IO.createDirectory(unexecutableDirectory)
-  assert(unexecutableDirectory.exists(), "unexecutableDirectory.exists()")
+  assert(unexecutableDirectory.exists())
   // setExecutable(false) not possible on Windows
   assertOsSpecific(
     unexecutableDirectory.setExecutable(false),
@@ -97,29 +88,26 @@ setupTests := {
   )(onUnix = false, onWindows = true)
 
   IO.touch(writableFile)
-  assert(writableFile.setWritable(true), "writableFile.setWritable(true)")
-  assert(writableFile.exists(), "writableFile.exists()")
-  assert(writableFile.canWrite(), "writableFile.canWrite()")
+  assert(writableFile.setWritable(true))
+  assert(writableFile.exists())
+  assert(writableFile.canWrite())
 
   IO.touch(unwritableFile)
-  assert(unwritableFile.setWritable(false), "unwritableFile.setWritable(false)")
-  assert(unwritableFile.exists(), "unwritableFile.exists()")
-  assert(!unwritableFile.canWrite(), "!unwritableFile.canWrite()")
+  assert(unwritableFile.setWritable(false))
+  assert(unwritableFile.exists())
+  assert(!unwritableFile.canWrite())
 
   IO.createDirectory(writableDirectory)
-  assert(writableDirectory.exists(), "writableDirectory.exists()")
+  assert(writableDirectory.exists())
   // setWritable directory not possible on Windows
   assertOsSpecific(
     writableDirectory.setWritable(true),
     "writableDirectory.setWritable(true)"
   )(onUnix = true, onWindows = false)
-  assert(
-    writableDirectory.canWrite(),
-    "writableDirectory.canWrite()"
-  )
+  assert(writableDirectory.canWrite())
 
   IO.createDirectory(unwritableDirectory)
-  assert(unwritableDirectory.exists(), "unwritableDirectory.exists()")
+  assert(unwritableDirectory.exists())
   // setWritable directory not possible on Windows
   assertOsSpecific(
     unwritableDirectory.setWritable(false),
@@ -130,143 +118,94 @@ setupTests := {
     "!unwritableDirectory.canWrite()"
   )(onUnix = false, onWindows = true)
 
-  assert(fileA.compareTo(fileB) < 0, "fileA.compareTo(fileB) < 0")
-  assert(fileA.compareTo(fileA) == 0, "fileA.compareTo(fileA) == 0")
-  assert(fileB.compareTo(fileA) > 0, "fileB.compareTo(fileA) > 0")
-  assert(fileB.compareTo(fileB) == 0, "fileB.compareTo(fileB) == 0")
+  assert(fileA.compareTo(fileB) < 0)
+  assert(fileA.compareTo(fileA) == 0)
+  assert(fileB.compareTo(fileA) > 0)
+  assert(fileB.compareTo(fileB) == 0)
 
   // Make sure that the files doesn't already exist, and that it can be created.
-  assert(!willBeCreatedFile.exists(), "!willBeCreatedFile.exists()")
-  assert(willBeCreatedFile.createNewFile(), "willBeCreatedFile.createNewFile()")
-  assert(willBeCreatedFile.exists(), "willBeCreatedFile.exists()")
-  assert(willBeCreatedFile.delete(), "willBeCreatedFile.delete()")
-  assert(!willBeCreatedFile.exists(), "!willBeCreatedFile.exists()")
+  assert(!willBeCreatedFile.exists())
+  assert(willBeCreatedFile.createNewFile())
+  assert(willBeCreatedFile.exists())
+  assert(willBeCreatedFile.delete())
+  assert(!willBeCreatedFile.exists())
 
-  assert(!willBeCreatedDirectory.exists(), "!willBeCreatedDirectory.exists()")
-  assert(willBeCreatedDirectory.mkdir(), "willBeCreatedDirectory.mkdir()")
-  assert(!willBeCreatedDirectory.mkdir(), "!willBeCreatedDirectory.mkdir()")
-  assert(willBeCreatedDirectory.exists(), "willBeCreatedDirectory.exists()")
-  assert(willBeCreatedDirectory.delete(), "willBeCreatedDirectory.delete()")
-  assert(!willBeCreatedDirectory.exists(), "!willBeCreatedDirectory.exists()")
+  assert(!willBeCreatedDirectory.exists())
+  assert(willBeCreatedDirectory.mkdir())
+  assert(!willBeCreatedDirectory.mkdir())
+  assert(willBeCreatedDirectory.exists())
+  assert(willBeCreatedDirectory.delete())
+  assert(!willBeCreatedDirectory.exists())
 
-  assert(
-    !nestedWillBeCreatedDirectoryBase.exists(),
-    "!nestedWillBeCreatedDirectoryBase.exists()"
-  )
-  assert(
-    !nestedWillBeCreatedDirectory.exists(),
-    "!nestedWillBeCreatedDirectory.exists()"
-  )
-  assert(
-    nestedWillBeCreatedDirectory.mkdirs(),
-    "nestedWillBeCreatedDirectory.mkdirs()"
-  )
-  assert(
-    !nestedWillBeCreatedDirectory.mkdir(),
-    "!nestedWillBeCreatedDirectory.mkdir()"
-  )
-  assert(
-    nestedWillBeCreatedDirectory.exists(),
-    "nestedWillBeCreatedDirectory.exists()"
-  )
+  assert(!nestedWillBeCreatedDirectoryBase.exists())
+  assert(!nestedWillBeCreatedDirectory.exists())
+  assert(nestedWillBeCreatedDirectory.mkdirs())
+  assert(!nestedWillBeCreatedDirectory.mkdir())
+  assert(nestedWillBeCreatedDirectory.exists())
   IO.delete(nestedWillBeCreatedDirectoryBase)
-  assert(
-    !nestedWillBeCreatedDirectoryBase.exists(),
-    "!nestedWillBeCreatedDirectoryBase.exists()"
-  )
+  assert(!nestedWillBeCreatedDirectoryBase.exists())
 
   IO.touch(willBeDeletedFile)
   IO.createDirectory(willBeDeletedDirectory)
-  assert(willBeDeletedFile.exists(), "willBeDeletedFile.exists()")
-  assert(willBeDeletedDirectory.exists(), "willBeDeletedDirectory.exists()")
+  assert(willBeDeletedFile.exists())
+  assert(willBeDeletedDirectory.exists())
 
   IO.touch(existingHiddenFile)
   IO.createDirectory(existingHiddenDirectory)
-  assert(existingHiddenFile.exists(), "existingHiddenFile.exists()")
-  assert(existingHiddenDirectory.exists(), "existingHiddenDirectory.exists()")
-  assert(!nonexistentHiddenFile.exists(), "!nonexistentHiddenFile.exists()")
-  if (isWindows) {
+  assert(existingHiddenFile.exists())
+  assert(existingHiddenDirectory.exists())
+  assert(!nonexistentHiddenFile.exists())
+  if (Platform.isWindows) {
     Seq(currentDirectory, existingHiddenDirectory, existingHiddenFile)
       .map(_.toPath)
       .foreach(NioFiles.setAttribute(_, "dos:hidden", true.booleanValue()))
   }
-  assert(currentDirectory.isHidden(), "currentDirectory.isHidden()")
-  assert(existingHiddenFile.isHidden(), "existingHiddenFile.isHidden()")
-  assert(existingHiddenDirectory.isHidden(), "existingHiddenDirectory.isHidden")
+  assert(currentDirectory.isHidden())
+  assert(existingHiddenFile.isHidden())
+  assert(existingHiddenDirectory.isHidden())
   assertOsSpecific(
     nonexistentHiddenFile.isHidden(),
     "nonexistentHiddenFile.isHidden()"
   )(onUnix = true, onWindows = false)
   IO.write(fileWith3Bytes, Array[Byte](1, 2, 3))
-  assert(fileWith3Bytes.exists(), "fileWith3Bytes.exists()")
-  assert(fileWith3Bytes.length() == 3L, "fileWith3Bytes.length() == 3L")
+  assert(fileWith3Bytes.exists())
+  assert(fileWith3Bytes.length() == 3L)
 
   IO.createDirectory(nonEmptyDirectory)
   IO.touch(firstChildFile)
   IO.touch(secondChildFile)
   IO.createDirectory(thirdChildDirectory)
   val listedFiles = nonEmptyDirectory.list().sorted
-  assert(listedFiles.length == 3, "listedFiles.length == 3")
-  assert(
-    listedFiles(0) == firstChildFile.getName,
-    "listedFiles(0) == firstChildFile.getName"
-  )
-  assert(
-    listedFiles(1) == secondChildFile.getName,
-    "listedFiles(1) == secondChildFile.getName"
-  )
-  assert(
-    listedFiles(2) == thirdChildDirectory.getName,
-    "listedFiles(2) == thirdChildDirectory.getName"
-  )
+  assert(listedFiles.length == 3)
+  assert(listedFiles(0) == firstChildFile.getName)
+  assert(listedFiles(1) == secondChildFile.getName)
+  assert(listedFiles(2) == thirdChildDirectory.getName)
 
   IO.touch(willBeRenamedFrom)
-  assert(willBeRenamedFrom.exists, "willBeRenamedFrom.exists")
-  assert(!willBeRenamedTo.exists, "!willBeRenamedTo.exists")
+  assert(willBeRenamedFrom.exists)
+  assert(!willBeRenamedTo.exists)
 
   IO.createDirectory(directoryLinkedTo)
-  assert(directoryLinkedTo.exists, "directoryLinkedTo.exists")
-  if (!isWindows) {
+  assert(directoryLinkedTo.exists)
+  if (!Platform.isWindows) {
     // Symbolic links on Windows are broken, needs admin priviliges
     NioFiles.createSymbolicLink(
       linkToDirectory.toPath,
       directoryLinkedTo.toPath
     )
-    assert(linkToDirectory.exists, "linkToDirectory.exists")
+    assert(linkToDirectory.exists)
     assert(
-      linkToDirectory.getCanonicalPath == directoryLinkedTo.getCanonicalPath,
-      "linkToDirectory.getCanonicalPath == directoryLinkedTo.getCanonicalPath"
+      linkToDirectory.getCanonicalPath == directoryLinkedTo.getCanonicalPath
     )
-    assert(
-      linkToDirectory.getName != directoryLinkedTo.getName,
-      "linkToDirectory.getName != directoryLinkedTo.getName"
-    )
+    assert(linkToDirectory.getName != directoryLinkedTo.getName)
   }
 
-  assert(
-    canon0F.getCanonicalPath == canon0N,
-    "canon0F.getCanonicalPath == canon0N"
-  )
-  assert(
-    canon1F.getCanonicalPath == canon1N,
-    "canon1F.getCanonicalPath == canon1N"
-  )
-  assert(
-    canon2F.getCanonicalPath == canon2N,
-    "canon2F.getCanonicalPath == canon2N"
-  )
-  assert(
-    canon3F.getCanonicalPath == canon3N,
-    "canon3F.getCanonicalPath == canon3N"
-  )
-  assert(
-    canon4F.getCanonicalPath == canon4N,
-    "canon4F.getCanonicalPath == canon4N"
-  )
-  assert(
-    canon5F.getCanonicalPath == canon5N,
-    "canon5F.getCanonicalPath == canon5N"
-  )
+  assert(canon0F.getCanonicalPath == canon0N)
+  assert(canon1F.getCanonicalPath == canon1N)
+  assert(canon2F.getCanonicalPath == canon2N)
+  assert(canon3F.getCanonicalPath == canon3N)
+  assert(canon4F.getCanonicalPath == canon4N)
+  assert(canon5F.getCanonicalPath == canon5N)
 
   assertOsSpecific(
     absoluteUnixStyle.isAbsolute,
@@ -285,90 +224,48 @@ setupTests := {
     "!absoluteWinStyle2.isAbsolute"
   )(onUnix = false, onWindows = true)
 
-  assert(!relative0.isAbsolute, "!relative0.isAbsolute")
-  assert(!relative1.isAbsolute, "!relative1.isAbsolute")
-  assert(!relative2.isAbsolute, "!relative2.isAbsolute")
+  assert(!relative0.isAbsolute)
+  assert(!relative1.isAbsolute)
+  assert(!relative2.isAbsolute)
 
-  assert(
-    children0.getParent == expectedParent0,
-    "children0.getParent == expectedParent0"
-  )
-  assert(
-    children1.getParent == expectedParent1,
-    "children1.getParent == expectedParent1"
-  )
-  assert(
-    children2.getParent == expectedParent2,
-    "children2.getParent == expectedParent2"
-  )
-  assert(
-    children3.getParent == expectedParent3,
-    "children3.getParent == expectedParent3"
-  )
-  assert(
-    children4.getParent == expectedParent4,
-    "children4.getParent == expectedParent4"
-  )
-  assert(
-    children5.getParentFile == expectedParent5,
-    "children5.getParentFile == expectedParent5"
-  )
+  assert(children0.getParent == expectedParent0)
+  assert(children1.getParent == expectedParent1)
+  assert(children2.getParent == expectedParent2)
+  assert(children3.getParent == expectedParent3)
+  assert(children4.getParent == expectedParent4)
+  assert(children5.getParentFile == expectedParent5)
 
   IO.createDirectory(existingTempTarget)
-  assert(existingTempTarget.exists, "existingTempTarget.exists")
-  assert(existingTempTarget.isDirectory, "existingTempTarget.isDirectory")
-  assert(!nonexistingTempTarget.exists, "!nonexistingTempTarget.exists")
+  assert(existingTempTarget.exists)
+  assert(existingTempTarget.isDirectory)
+  assert(!nonexistingTempTarget.exists)
 
   IO.touch(fileWithLastModifiedSet)
-  assert(fileWithLastModifiedSet.exists(), "fileWithLastModifiedSet.exists()")
-  assert(
-    fileWithLastModifiedSet.setLastModified(expectedLastModified),
-    "fileWithLastModifiedSet.setLastModified(expectedLastModified)"
-  )
-  assert(
-    fileWithLastModifiedSet.lastModified == expectedLastModified,
-    "fileWithLastModifiedSet.lastModified == expectedLastModified"
-  )
+  assert(fileWithLastModifiedSet.exists())
+  assert(fileWithLastModifiedSet.setLastModified(expectedLastModified))
+  assert(fileWithLastModifiedSet.lastModified == expectedLastModified)
   IO.touch(willBeSetLastModified)
-  assert(willBeSetLastModified.exists, "willBeSetLastModified.exists")
+  assert(willBeSetLastModified.exists)
 
   IO.touch(willBeSetReadOnlyFile)
-  assert(willBeSetReadOnlyFile.exists, "willBeSetReadOnlyFile.exists")
-  assert(
-    willBeSetReadOnlyFile.setReadable(true, false),
-    "willBeSetReadOnlyFile.setReadable(true, false)"
-  )
-  assert(
-    willBeSetReadOnlyFile.setWritable(true, false),
-    "willBeSetReadOnlyFile.setWritable(true, false)"
-  )
-  assert(
-    willBeSetReadOnlyFile.setExecutable(true, false),
-    "willBeSetReadOnlyFile.setExecutable(true, false)"
-  )
+  assert(willBeSetReadOnlyFile.exists)
+  assert(willBeSetReadOnlyFile.setReadable(true, false))
+  assert(willBeSetReadOnlyFile.setWritable(true, false))
+  assert(willBeSetReadOnlyFile.setExecutable(true, false))
 
   IO.createDirectory(willBeSetReadOnlyDirectory)
-  assert(willBeSetReadOnlyDirectory.exists, "willBeSetReadOnlyDirectory.exists")
-  assert(
-    willBeSetReadOnlyDirectory.setReadable(true, false),
-    "willBeSetReadOnlyDirectory.setReadable(true, false)"
-  )
+  assert(willBeSetReadOnlyDirectory.exists)
+  assert(willBeSetReadOnlyDirectory.setReadable(true, false))
   // Not supported on Windows
   assertOsSpecific(
     willBeSetReadOnlyDirectory.setWritable(true, false),
     "willBeSetReadOnlyDirectory.setWritable(true, false)"
   )(onUnix = true, onWindows = false)
-  assert(
-    willBeSetReadOnlyDirectory.setExecutable(true, false),
-    "willBeSetReadOnlyDirectory.setExecutable(true, false)"
-  )
+  assert(willBeSetReadOnlyDirectory.setExecutable(true, false))
 
   IO.touch(willBeSetExecutableFile)
-  assert(willBeSetExecutableFile.exists, "willBeSetExecutableFile.exists")
-  assert(
-    willBeSetExecutableFile.setWritable(false, false),
-    "willBeSetExecutableFile.setWritable(false, false)"
-  )
+  assert(willBeSetExecutableFile.exists)
+  assert(willBeSetExecutableFile.setWritable(false, false))
   // Not supported on Windows
   assertOsSpecific(
     willBeSetExecutableFile.setReadable(false, false),
@@ -380,10 +277,7 @@ setupTests := {
   )(onUnix = true, onWindows = false)
 
   IO.createDirectory(willBeSetExecutableDirectory)
-  assert(
-    willBeSetExecutableDirectory.exists,
-    "willBeSetExecutableDirectory.exists"
-  )
+  assert(willBeSetExecutableDirectory.exists)
   // Not supported on Windows
   assertOsSpecific(
     willBeSetExecutableDirectory.setReadable(false, false),
@@ -399,11 +293,8 @@ setupTests := {
   )(onUnix = true, onWindows = false)
 
   IO.touch(willBeSetReadableFile)
-  assert(willBeSetReadableFile.exists, "willBeSetReadableFile.exists")
-  assert(
-    willBeSetReadableFile.setWritable(false, false),
-    "willBeSetReadableFile.setWritable(false, false)"
-  )
+  assert(willBeSetReadableFile.exists)
+  assert(willBeSetReadableFile.setWritable(false, false))
   // Not supported on Windows
   assertOsSpecific(
     willBeSetReadableFile.setReadable(false, false),
@@ -415,7 +306,7 @@ setupTests := {
   )(onUnix = true, onWindows = false)
 
   IO.createDirectory(willBeSetReadableDirectory)
-  assert(willBeSetReadableDirectory.exists, "willBeSetReadableDirectory.exists")
+  assert(willBeSetReadableDirectory.exists)
   // Not supported on Windows
   assertOsSpecific(
     willBeSetReadableDirectory.setReadable(false, false),
@@ -431,11 +322,8 @@ setupTests := {
   )(onUnix = true, onWindows = false)
 
   IO.touch(willBeSetWritableFile)
-  assert(willBeSetWritableFile.exists, "willBeSetWritableFile.exists")
-  assert(
-    willBeSetWritableFile.setWritable(false, false),
-    "willBeSetWritableFile.setWritable(false, false)"
-  )
+  assert(willBeSetWritableFile.exists)
+  assert(willBeSetWritableFile.setWritable(false, false))
   // Not supported on Windows
   assertOsSpecific(
     willBeSetWritableFile.setReadable(false, false),
@@ -447,7 +335,7 @@ setupTests := {
   )(onUnix = true, onWindows = false)
 
   IO.createDirectory(willBeSetWritableDirectory)
-  assert(willBeSetWritableDirectory.exists, "willBeSetWritableDirectory.exists")
+  assert(willBeSetWritableDirectory.exists)
   // Not supported on Windows
   assertOsSpecific(
     willBeSetWritableDirectory.setReadable(false, false),
@@ -462,7 +350,7 @@ setupTests := {
     "willBeSetWritableDirectory.setExecutable(false, false)"
   )(onUnix = true, onWindows = false)
 
-  assert(!nonexistentFile.exists(), "!nonexistentFile.exists()")
-  assert(!nonexistentDirectory.exists(), "!nonexistentDirectory.exists()")
+  assert(!nonexistentFile.exists())
+  assert(!nonexistentDirectory.exists())
 
 }

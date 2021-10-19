@@ -15,9 +15,14 @@ package object accctrl {
   type TrusteeType = CInt
   type ObjectsPresent = DWord
   type ExplicitAccessW = CStruct4[DWord, AccessMode, DWord, TrusteeW]
-  type TrusteeW = CStruct6[Ptr[
-    Byte
-  ], MultipleTruteeOperation, TrusteeForm, TrusteeType, Ptr[Byte], CWString]
+  type TrusteeW = CStruct6[
+    Ptr[Byte],
+    MultipleTruteeOperation,
+    TrusteeForm,
+    TrusteeType,
+    Ptr[Byte],
+    CWString
+  ]
   type GUID = CStruct4[UInt, UShort, UShort, CArray[UByte, Nat._8]]
   type ObjectsAndSid = CStruct4[ObjectsPresent, GUID, GUID, SIDPtr]
   type ObjectsAndNameW =

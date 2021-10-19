@@ -11,6 +11,11 @@ outputs:
 runs:
   using: "composite"
   steps:
+    - name: List git config
+      run: git config --list
+    - run: git config --system --list
+    - run: git config --global --list
+    - run: git config --global core.autocrlf=true
     # We need to set proper Pagefile limits in advance.
     # Github actions default page file size is quite small,
     # it's not enough to run all tests, especially when using None GC.

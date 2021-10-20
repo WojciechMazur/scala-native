@@ -16,7 +16,7 @@ jobs:
         scala: [2.13.6, 2.12.15, 2.11.12]
         gc: [none, boehm, immix, commix]
     steps:
-      - run: git config core.autocrlf false
+      - run: git config --global core.autocrlf false
       - uses: actions/checkout@v2
       - uses: ./.github/actions/windows-setup-env
         id: setup

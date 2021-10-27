@@ -329,6 +329,20 @@ lazy val disabledTestsSettings: Seq[Setting[_]] = {
   )
 }
 
+def scalaCompilerDependency(scalaVersion: String) = {
+  CrossVersion.partialVersion(scalaVersion) match {
+    case Some((2, _)) =>
+      Seq(
+        "org.scala-lang" % "scala-compiler" % scalaVersion,
+        "org.scala-lang" % "scala-reflect" % scalaVersion
+      )
+    case _ =>
+      Seq(
+        "org.scala-lang" %% "scala3-compiler" % scalaVersion
+      )
+  }
+}
+
 noPublishSettings
 disabledTestsSettings
 
@@ -417,21 +431,7 @@ lazy val nscplugin =
         (nir / Compile / scalaSource).value,
         (util / Compile / scalaSource).value
       ),
-      libraryDependencies ++= {
-        CrossVersion.partialVersion(scalaVersion.value) match {
-          case Some((2, _)) =>
-            Seq(
-              "org.scala-lang" % "scala-compiler" % scalaVersion.value,
-              "org.scala-lang" % "scala-reflect" % scalaVersion.value
-            )
-          case Some((3, _)) =>
-            Seq(
-              "org.scala-lang" %% "scala3-compiler" % scalaVersion.value % "provided"
-            )
-          case _ =>
-            throw new Exception(s"Unknown Scala version ${scalaVersion.value}")
-        }
-      },
+      libraryDependencies ++= scalaCompilerDependency(scalaVersion.value),
       exportJars := true,
       scalacOptions ++= {
         CrossVersion.partialVersion(scalaVersion.value) match {
@@ -970,7 +970,14 @@ lazy val sandbox3 =
     .enablePlugins(MyScalaNativePlugin)
     .settings(scala3ProjectSettings)
     .settings(sandboxSettings)
-    .dependsOn(nscplugin % "plugin", scalalib3)
+    .settings(
+      libraryDependencies ++= {
+        List("test-interface", "junit-runtime").map {
+          "org.scala-native" %%% _ % version.value % Test cross (CrossVersion.for3Use2_13)
+        }
+      }
+    )
+    .dependsOn(nscplugin % "plugin", junitPlugin % "plugin", scalalib3)
 
 lazy val testingCompilerInterface =
   project
@@ -987,19 +994,7 @@ lazy val testingCompiler =
     .in(file("testing-compiler"))
     .settings(noPublishSettings)
     .settings(
-      libraryDependencies ++= {
-        CrossVersion.partialVersion(scalaVersion.value) match {
-          case Some((2, _)) =>
-            Seq(
-              "org.scala-lang" % "scala-compiler" % scalaVersion.value,
-              "org.scala-lang" % "scala-reflect" % scalaVersion.value
-            )
-          case _ =>
-            Seq(
-              "org.scala-lang" %% "scala3-compiler" % scalaVersion.value
-            )
-        }
-      },
+      libraryDependencies ++= scalaCompilerDependency(scalaVersion.value),
       Compile / unmanagedSourceDirectories ++= {
         val oldCompat: File = baseDirectory.value / "src/main/compat-old"
         val newCompat: File = baseDirectory.value / "src/main/compat-new"
@@ -1084,9 +1079,11 @@ lazy val junitPlugin =
   project
     .in(file("junit-plugin"))
     .settings(mavenPublishSettings)
+    .settings(scala3CompatSettings)
     .settings(
       crossVersion := CrossVersion.full,
-      libraryDependencies += "org.scala-lang" % "scala-compiler" % scalaVersion.value,
+      crossScalaVersions := libCrossScalaVersions,
+      libraryDependencies ++= scalaCompilerDependency(scalaVersion.value),
       exportJars := true
     )
 

@@ -55,7 +55,7 @@ trait NirGenDefn(using Context) {
     }
     genClassFields(td)
     genMethods(td)
-
+    genReflectiveInstantiation(td)
   }
 
   private def genClassAttrs(td: TypeDef): nir.Attrs = {

@@ -1061,7 +1061,7 @@ trait NirGenExpr(using Context) {
       alloc
     }
 
-    private def genApplyModuleMethod(
+    def genApplyModuleMethod(
         module: Symbol,
         method: Symbol,
         args: Seq[Tree]

@@ -20,7 +20,8 @@ class NirCodeGen()(using ctx: Context)
     with NirGenExpr
     with NirGenType
     with NirGenName
-    with NirGenUtil:
+    with NirGenUtil
+    with GenReflectiveInstantisation:
   import tpd._
   import nir._
 
@@ -54,6 +55,7 @@ class NirCodeGen()(using ctx: Context)
       genCompilationUnit(ctx.compilationUnit)
     } finally {
       generatedDefns.clear()
+      reflectiveInstantiationBuffers.clear()
     }
   }
 
@@ -72,6 +74,10 @@ class NirCodeGen()(using ctx: Context)
 
     generatedDefns.toSeq
       .groupBy(defn => getFileFor(cunit, defn.name.top))
+      .foreach(genIRFile(_, _))
+
+    reflectiveInstantiationBuffers
+      .groupMapReduce(buf => getFileFor(cunit, buf.name.top))(_.toSeq)(_ ++ _)
       .foreach(genIRFile(_, _))
   }
 

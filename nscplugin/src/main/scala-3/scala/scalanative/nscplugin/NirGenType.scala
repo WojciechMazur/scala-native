@@ -3,22 +3,14 @@ import scala.language.implicitConversions
 
 import dotty.tools.dotc.ast.tpd
 import dotty.tools.dotc.ast.Trees._
-import dotty.tools.dotc.core._
-import Periods._
-import SymDenotations._
-import Contexts._
-import Decorators._
-import Flags._
-import dotty.tools.dotc.ast.Trees._
-import Names._
-import NameKinds.DefaultGetterName
-import Types._
-import Symbols._
-import Denotations._
-import Phases._
-import StdNames._
-import TypeErasure.ErasedValueType
-import dotty.tools.dotc.core.Contexts.Context
+import dotty.tools.dotc.core
+import core.Contexts._
+import core.Flags._
+import core.Names._
+import core.Types._
+import core.Symbols._
+import core.StdNames._
+import core.TypeErasure._
 import dotty.tools.dotc.transform.SymUtils._
 
 import scala.scalanative.nir
@@ -39,9 +31,6 @@ trait NirGenType(using Context) {
 
     def isScalaModule: Boolean =
       sym.is(ModuleClass, butNot = Lifted)
-
-    def isField: Boolean =
-      sym.isTerm && !sym.is(Method) && !isScalaModule
 
     def isExternModule: Boolean =
       isScalaModule && sym.hasAnnotation(defnNir.ExternClass)

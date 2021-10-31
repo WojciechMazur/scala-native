@@ -6,27 +6,30 @@ import scala.annotation.switch
 import dotty.tools.dotc.ast
 import ast.tpd._
 import ast.TreeInfo._
+import dotty.tools.backend.ScalaPrimitivesOps._
 import dotty.tools.dotc.core
 import core.Contexts._
 import core.Symbols._
 import core.Names._
+import core.Types._
 import core.Constants._
 import core.StdNames._
 import core.Flags._
+import core.Denotations.SingleDenotation
+import core.TypeErasure.ErasedValueType
 import core._
 import dotty.tools.FatalError
 import dotty.tools.dotc.report
-import dotty.tools.backend.ScalaPrimitivesOps._
 import dotty.tools.dotc.transform
-import transform._
+import transform.SymUtils._
+import transform.{ValueClasses, Erasure}
+import dotty.tools.backend.jvm.DottyBackendInterface.symExtensions
 
 import scala.collection.mutable
 import scala.scalanative.nir
 import nir._
 import scala.scalanative.util.ScopedVar.scoped
 import scala.scalanative.util.unsupported
-import dotty.tools.dotc.core.Denotations.SingleDenotation
-import dotty.tools.dotc.core.TypeErasure.ErasedValueType
 
 trait NirGenExpr(using Context) {
   self: NirCodeGen =>
@@ -39,12 +42,10 @@ trait NirGenExpr(using Context) {
     buf =>
     def genExpr(tree: Tree): Val = {
       tree match {
-        case EmptyTree      => Val.Unit
-        case ValTree(value) => value
-        case ContTree(f)    => f()
-        case tree: Apply    => genApply(tree)
-        // case tree: ApplyDynamic => genApplyDynamic(tree)
-        // case tree: ArrayValue =>   genArrayValue(tree)
+        case EmptyTree            => Val.Unit
+        case ValTree(value)       => value
+        case ContTree(f)          => f()
+        case tree: Apply          => genApply(tree)
         case tree: Assign         => genAssign(tree)
         case tree: Block          => genBlock(tree)
         case tree: Closure        => genClosure(tree)
@@ -97,12 +98,10 @@ trait NirGenExpr(using Context) {
             genApplyUnbox(app.tpe, args.head)
           else
             val isStatic = sym.owner.isStaticOwner
-            val receiverp = {
-              fun match {
-                case t: Ident => desugarIdent(t)
-                case t        => t
-              }
-            }.asInstanceOf[Select].qualifier
+            val Select(receiverp, _) = fun match {
+              case t: Ident => desugarIdent(t)
+              case t        => t
+            }
             genApplyMethod(sym, statically = isStatic, receiverp, args)
       }
     }
@@ -121,7 +120,7 @@ trait NirGenExpr(using Context) {
             ???
             // genStoreExtern(externTy, sel.symbol, rhs)
           } else {
-            val ty = genType(sel.symbol.typeRef)
+            val ty = genType(sel.tpe)
             buf.fieldstore(ty, qual, name, rhs, unwind)
           }
 
@@ -186,6 +185,7 @@ trait NirGenExpr(using Context) {
     def genClosure(tree: Closure): Val = {
       given nir.Position = tree.span
       val Closure(env, fun, functionalInterface) = tree
+      val treeTpe = tree.tpe.typeSymbol
       val funSym = fun.symbol
       val funInterfaceSym = functionalInterface.tpe.typeSymbol
       val isFunction =
@@ -213,16 +213,20 @@ trait NirGenExpr(using Context) {
       val (captureTypes, captureNames) = captureTypesAndNames.unzip
 
       def genAnonymousClass: nir.Defn = {
-        val traitName = genName(
-          if (functionalInterface.isEmpty) tree.tpe.typeSymbol
-          else functionalInterface.symbol
-        )
+        val traits =
+          if (functionalInterface.isEmpty) genName(treeTpe) :: Nil
+          else {
+            funInterfaceSym.info.parents.collect {
+              case tpe if tpe.typeSymbol.isTraitOrInterface =>
+                genName(tpe.typeSymbol)
+            }
+          }
 
         nir.Defn.Class(
           attrs = Attrs.None,
           name = anonClassName,
           parent = Some(nir.Rt.Object.name),
-          traits = Seq(traitName)
+          traits = traits
         )
       }
 
@@ -267,14 +271,19 @@ trait NirGenExpr(using Context) {
       }
 
       def resolveAnonClassMethods: List[Symbol] = {
-        val denots =
-          if (isFunction)
-            tree.tpe.typeSymbol.info.allMembers
-              .filter(_.name == nme.apply)
-          else
-            functionalInterface.symbol.info.possibleSamMethods
-        denots
+        // In same cases (eg. `JProcedureN`) we need to generate
+        // both `apply` method and SAM methods
+        // Make sure to also collect parent methods with overriden argument types
+        val applyMethods =
+          (treeTpe.info :: treeTpe.info.parents)
+            .flatMap(_.member(nme.apply).alternatives)
+        val samMethods =
+          if (isFunction) Nil
+          else funInterfaceSym.info.possibleSamMethods
+
+        (applyMethods ++ samMethods)
           .map(_.symbol)
+          .distinct
           .toList
       }
 
@@ -344,12 +353,12 @@ trait NirGenExpr(using Context) {
         resolveAnonClassMethods
           .map(genAnonClassMethod)
 
-      {
+      generatedDefns ++= {
         genAnonymousClass ::
           genAnonymousClassCtor ::
           genCaptureFields :::
           genAnonymousClassMethods
-      }.foreach(addDefn)
+      }
 
       def allocateClosure() = {
         val alloc = buf.classalloc(anonClassName, unwind)
@@ -422,10 +431,14 @@ trait NirGenExpr(using Context) {
 
     def genJavaSeqLiteral(tree: JavaSeqLiteral): Val = {
       given nir.Position = tree.span
+      val JavaArrayType(elemTpe) = tree.tpe
+      val arrayLength = Val.Int(tree.elems.length)
+      val nirElemTpe = genType(elemTpe)
 
-      val genElems = tree.elems.map(genExpr)
-      val arrayTypeRef = genRefType(tree.tpe)
-      Val.ArrayValue(arrayTypeRef, genElems)
+      val alloc = buf.genApplyNewArray(elemTpe, Seq(ValTree(arrayLength)))
+      for (elem, idx) <- tree.elems.zipWithIndex do
+        buf.arraystore(nirElemTpe, alloc, Val.Int(idx), genExpr(elem), unwind)
+      alloc
     }
 
     def genLabelDef(label: Labeled): Val = {
@@ -653,7 +666,7 @@ trait NirGenExpr(using Context) {
       val owner = sym.owner
 
       if (sym.is(Module)) genModule(sym)
-      else if (sym.isStatic) genStaticMember(sym)
+      else if (sym.isStaticMember) genStaticMember(sym)
       else if (sym.is(Method))
         genApplyMethod(sym, statically = false, qualp, Seq())
       else if (owner.isStruct) {
@@ -661,11 +674,11 @@ trait NirGenExpr(using Context) {
         val qual = genExpr(qualp)
         buf.extract(qual, Seq(index), unwind)
       } else {
-        val ty = genType(tree.symbol.typeRef)
+        val ty = genType(tree.tpe)
         val qual = genExpr(qualp)
         val name = genFieldName(tree.symbol)
         if (sym.owner.isExternModule) {
-          val externTy = genExternType(tree.symbol.typeRef)
+          val externTy = genExternType(tree.tpe)
           ??? //genLoadExtern(ty, externTy, tree.symbol)
         } else {
           buf.fieldload(ty, qual, name, unwind)
@@ -1488,13 +1501,15 @@ trait NirGenExpr(using Context) {
 
     private def genStaticMember(
         sym: Symbol
-    )(implicit pos: nir.Position): Val = {
+    )(using nir.Position): Val = {
+      def ty = genType(sym.info.resultType)
+      def module = genModule(sym.owner)
+
       if (sym == defn.BoxedUnit_UNIT) Val.Unit
-      else {
-        val ty = genType(sym.typeRef)
-        val module = genModule(sym.owner)
-        genApplyMethod(sym, statically = true, module, Seq())
-      }
+      else if (sym.isStaticModuleField)
+        val name = genFieldName(sym)
+        buf.fieldload(ty, module, name, unwind)
+      else genApplyMethod(sym, statically = true, module, Seq())
     }
 
     private def genSynchronized(receiverp: Tree, bodyp: Tree)(using
@@ -1810,10 +1825,12 @@ trait NirGenExpr(using Context) {
     )(using
         buf: ExprBuffer,
         pos: nir.Position
-    ) = {
+    ): Val = {
       tpeEnteringPosterasure match {
         case tpe if tpe.isPrimitiveValueType =>
-          buf.unbox(genType(tpe), value, Next.None)
+          val targetTpe = genType(tpeEnteringPosterasure)
+          if (targetTpe == value.ty) value
+          else buf.unbox(genBoxType(tpe), value, Next.None)
 
         case ErasedValueType(valueClass, _) =>
           val boxedClass = valueClass.typeSymbol.asClass

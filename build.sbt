@@ -103,14 +103,15 @@ inThisBuild(
     organization := "org.scala-native", // Maven <groupId>
     version := nativeVersion, // Maven <version>
     scalaVersion := scala3,
-    crossScalaVersions := libCrossScalaVersions,
+    crossScalaVersions := libCrossScala2Versions,
     scalacOptions ++= Seq(
       "-deprecation",
       "-encoding",
       "utf8",
       "-feature",
       "-unchecked",
-      "-Xfatal-warnings"
+      "-Xfatal-warnings",
+      "-target:jvm-1.8"
     ),
     scalacOptions ++= {
       CrossVersion.partialVersion(scalaVersion.value) match {
@@ -265,6 +266,25 @@ lazy val toolSettings: Seq[Setting[_]] =
     javacOptions ++= Seq("-encoding", "utf8")
   )
 
+lazy val scala3CompatSettings: Seq[Setting[_]] = Def.settings(
+  scalacOptions := {
+    val prev = scalacOptions.value
+    CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((3, _)) =>
+        prev.map {
+          case "-target:jvm-1.8" => "-Xtarget:8"
+          case v                 => v
+        }
+      case _ => prev
+    }
+  }
+)
+
+lazy val scala3ProjectSettings: Seq[Setting[_]] = Def.settings(
+  scalaVersion := scala3,
+  crossScalaVersions := libCrossScala3Versions
+) ++ scala3CompatSettings
+
 lazy val buildInfoJVMSettings: Seq[Setting[_]] =
   Def.settings(
     buildInfoPackage := "scala.scalanative.buildinfo",
@@ -368,9 +388,7 @@ lazy val tools =
               "-Wconf:cat=deprecation&msg=OpenHashMap:s"
             )
           case _ =>
-            prev.diff {
-              Seq("-Xfatal-warnings")
-            }
+            prev.diff(Seq("-Xfatal-warnings"))
         }
       },
       libraryDependencies ++= {
@@ -391,7 +409,10 @@ lazy val nscplugin =
   project
     .in(file("nscplugin"))
     .settings(mavenPublishSettings)
+    .settings(scala3CompatSettings)
     .settings(
+      crossVersion := CrossVersion.full,
+      crossScalaVersions := libCrossScalaVersions,
       Compile / unmanagedSourceDirectories ++= Seq(
         (nir / Compile / scalaSource).value,
         (util / Compile / scalaSource).value
@@ -403,18 +424,19 @@ lazy val nscplugin =
               "org.scala-lang" % "scala-compiler" % scalaVersion.value,
               "org.scala-lang" % "scala-reflect" % scalaVersion.value
             )
-          case _ =>
+          case Some((3, _)) =>
             Seq(
               "org.scala-lang" %% "scala3-compiler" % scalaVersion.value % "provided"
             )
+          case _ =>
+            throw new Exception(s"Unknown Scala version ${scalaVersion.value}")
         }
       },
       exportJars := true,
-      scalacOptions := {
-        val prev = scalacOptions.value
+      scalacOptions ++= {
         CrossVersion.partialVersion(scalaVersion.value) match {
-          case Some((2, _)) => prev ++ Seq("-Xno-patmat-analysis")
-          case _            => prev
+          case Some((2, _)) => Seq("-Xno-patmat-analysis")
+          case _            => Nil
         }
       }
     )
@@ -580,7 +602,10 @@ def scalalibSettings(
     libraryName: String,
     scalalibCrossVersions: Seq[String]
 ): Seq[Setting[_]] =
-  Def.settings(
+  mavenPublishSettings ++
+    disabledDocsSettings ++
+    Def.settings(
+      crossScalaVersions := scalalibCrossVersions,
     // Code to fetch scala sources adapted, with gratitude, from
     // Scala.js Build.scala at the suggestion of @sjrd.
     // https://github.com/scala-js/scala-js/blob/\
@@ -740,13 +765,7 @@ lazy val scalalib =
     .in(file("scalalib"))
     .enablePlugins(MyScalaNativePlugin)
     .settings(scalalibSettings("scala-library", libCrossScala2Versions))
-    .settings(mavenPublishSettings)
-    .settings(disabledDocsSettings)
     .settings(
-      crossScalaVersions := libCrossScala2Versions
-    )
-    .settings(
-      scalacOptions -= "-deprecation",
       scalacOptions += "-deprecation:false",
       // The option below is needed since Scala 2.12.12.
       scalacOptions += "-language:postfixOps",
@@ -765,12 +784,6 @@ lazy val scalalib =
           case _ => Nil
         }
       }
-      // libraryDependencies := {
-      //   CrossVersion.partialVersion(scalaVersion.value) match {
-      //     case Some((2, _)) => libraryDependencies.value
-      //     case _            => Nil
-      //   }
-      // }
     )
     .dependsOn(nscplugin % "plugin", auxlib, nativelib, javalib)
 
@@ -778,16 +791,13 @@ lazy val scalalib3 = project
   .in(file("scalalib3"))
   .enablePlugins(MyScalaNativePlugin)
   .settings(scalalibSettings("scala3-library_3", libCrossScala3Versions))
+  .settings(scala3ProjectSettings)
   .settings(mavenPublishSettings)
   .settings(disabledDocsSettings)
   .settings(
-    scalaVersion := scala3,
-    crossScalaVersions := Seq(scala3),
     scalacOptions ++= Seq(
       "-language:implicitConversions"
-    )
-  )
-  .settings(
+    ),
     libraryDependencies +=
       "org.scala-native" %%% "scalalib" % version.value cross (CrossVersion.for3Use2_13)
   )
@@ -849,7 +859,7 @@ def sharedTestSource(withBlacklist: Boolean) = Def.settings(
 
 lazy val testsCommonSettings = Def.settings(
   scalacOptions -= "-deprecation",
-  scalacOptions += "-deprecation:false",
+  scalacOptions ++= Seq("-deprecation:false"),
   Test / testOptions ++= Seq(
     Tests.Argument(TestFrameworks.JUnit, "-a", "-s", "-v")
   ),
@@ -958,8 +968,8 @@ lazy val sandbox3 =
   project
     .in(file("sandbox") / ".scala3")
     .enablePlugins(MyScalaNativePlugin)
+    .settings(scala3ProjectSettings)
     .settings(sandboxSettings)
-    .settings(scalacOptions -= "-Xfatal-warnings")
     .dependsOn(nscplugin % "plugin", scalalib3)
 
 lazy val testingCompilerInterface =

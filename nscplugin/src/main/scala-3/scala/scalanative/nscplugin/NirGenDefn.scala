@@ -9,21 +9,21 @@ import core.Symbols._
 import core.Constants._
 import core.StdNames._
 import core.Flags._
+import dotty.tools.dotc.transform.SymUtils._
 
 import scala.collection.mutable
 import scala.scalanative.nir
 import nir._
+import scala.scalanative.util.ScopedVar
 import scala.scalanative.util.ScopedVar.{scoped, toValue}
 import scala.scalanative.util.unsupported
 import dotty.tools.FatalError
-import scala.scalanative.util.ScopedVar
 
 trait NirGenDefn(using Context) {
   self: NirCodeGen =>
   import positionsConversions.fromSpan
 
   protected val generatedDefns = mutable.UnrolledBuffer.empty[nir.Defn]
-  protected def addDefn(defn: nir.Defn) = generatedDefns += defn
 
   def genClass(td: TypeDef)(using Context): Unit = {
     scoped(
@@ -45,7 +45,7 @@ trait NirGenDefn(using Context) {
       .filter(_.isTraitOrInterface)
       .map(genTypeName)
 
-    addDefn {
+    generatedDefns += {
       if (sym.isScalaModule)
         Defn.Module(attrs, name, parent, traits)
       else if (sym.isTraitOrInterface)
@@ -90,17 +90,14 @@ trait NirGenDefn(using Context) {
     val attrs = nir.Attrs(isExtern = isExternModule)
 
     for
-      field <- sym.info.decls.toList
-      if field.isField
+      sym <- sym.info.decls.toList
+      if sym.isField && !sym.is(Module)
     do
-      addDefn {
-        val ty = genType(field)
-        val name = genFieldName(field)
-        val pos: nir.Position = field.span
-        Defn.Var(attrs, name, ty, Val.Zero(ty))(pos)
-      }
+      given nir.Position = sym.span
+      val ty = genType(sym.info.resultType)
+      val name = genFieldName(sym)
+      generatedDefns += Defn.Var(attrs, name, ty, Val.Zero(ty))
     end for
-
   }
 
   private def genMethods(td: TypeDef): Unit = {
@@ -138,9 +135,7 @@ trait NirGenDefn(using Context) {
 
       dd.rhs match {
         case EmptyTree =>
-          addDefn {
-            Defn.Declare(attrs, name, sig)
-          }
+          generatedDefns += Defn.Declare(attrs, name, sig)
         case _ if dd.name == nme.CONSTRUCTOR && owner.isExternModule =>
           // validateExternCtor(dd.rhs)
           ()
@@ -160,14 +155,12 @@ trait NirGenDefn(using Context) {
           scoped(
             curMethodSig := sig
           ) {
-            addDefn {
-              Defn.Define(
-                attrs,
-                name,
-                sig,
-                genMethodBody(dd, rhs, isStatic, isExtern = false)
-              )
-            }
+            generatedDefns += Defn.Define(
+              attrs,
+              name,
+              sig,
+              genMethodBody(dd, rhs, isStatic, isExtern = false)
+            )
           }
       }
     }
@@ -214,7 +207,7 @@ trait NirGenDefn(using Context) {
     val paramSyms = genParamSyms(dd, isStatic)
     val params = paramSyms.map {
       case None =>
-        val ty = genType(curClassSym.get.typeRef)
+        val ty = genType(curClassSym.get)
         Val.Local(fresh(), ty)
       case Some(sym) =>
         val tpe = sym.info.resultType

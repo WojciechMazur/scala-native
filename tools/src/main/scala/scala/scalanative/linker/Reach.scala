@@ -117,12 +117,14 @@ class Reach(
     }
     def fallback = global match {
       case Global.Member(owner, sig) =>
-        infos(owner)
-          .asInstanceOf[ScopeInfo]
-          .linearized
-          .find(_.responds.contains(sig))
-          .map(_.responds(sig))
-          .flatMap(lookup)
+        infos.get(owner).collect {
+          case scope: ScopeInfo =>
+            scope.linearized
+              .find(_.responds.contains(sig))
+              .map(_.responds(sig))
+              .flatMap(lookup)
+        }.flatten
+
       case _ => None
     }
 

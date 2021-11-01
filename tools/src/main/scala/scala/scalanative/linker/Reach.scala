@@ -102,7 +102,7 @@ class Reach(
     }
   }
 
-  def lookup(global: Global): Option[Defn] = {
+  def lookup(global: Global)(implicit pos: nir.Position): Option[Defn] = {
     val owner = global.top
     if (!loaded.contains(owner) && !unavailable.contains(owner)) {
       loader
@@ -117,13 +117,16 @@ class Reach(
     }
     def fallback = global match {
       case Global.Member(owner, sig) =>
-        infos.get(owner).collect {
-          case scope: ScopeInfo =>
-            scope.linearized
-              .find(_.responds.contains(sig))
-              .map(_.responds(sig))
-              .flatMap(lookup)
-        }.flatten
+        infos
+          .get(owner)
+          .collect {
+            case scope: ScopeInfo =>
+              scope.linearized
+                .find(_.responds.contains(sig))
+                .map(_.responds(sig))
+                .flatMap(lookup)
+          }
+          .flatten
 
       case _ => None
     }
@@ -132,6 +135,10 @@ class Reach(
       .get(owner)
       .flatMap(_.get(global))
       .orElse(fallback)
+      .orElse {
+        addMissing(global, pos)
+        None
+      }
   }
 
   def process(): Unit =
@@ -139,6 +146,12 @@ class Reach(
       val name = todo.head
       todo = todo.tail
       if (!done.contains(name)) {
+        implicit val pos: nir.Position = {
+          for {
+            invokedFrom <- from.get(name)
+            callerInfo <- infos.get(invokedFrom)
+          } yield callerInfo.position
+        }.getOrElse(nir.Position.NoPosition)
         reachDefn(name)
       }
     }
@@ -153,14 +166,15 @@ class Reach(
        */
       delayedMethods.foreach {
         case DelayedMethod(top, sig, position) =>
-          scopeInfo(top).foreach { info =>
+          def registerMissing = addMissing(top.member(sig), position)
+          scopeInfo(top)(position).fold(registerMissing) { info =>
             val wasAllocated = info match {
               case value: Trait => value.implementors.exists(_.allocated)
               case clazz: Class => clazz.allocated
             }
             val targets = info.targets(sig)
             if (targets.isEmpty && wasAllocated) {
-              addMissing(top.member(sig), position)
+              registerMissing
             } else {
               todo ++= targets
             }
@@ -173,7 +187,7 @@ class Reach(
     }
   }
 
-  def reachDefn(name: Global): Unit = {
+  def reachDefn(name: Global)(implicit pos: nir.Position): Unit = {
     stack ::= name
     lookup(name).fold[Unit] {
       reachUnavailable(name)
@@ -192,6 +206,7 @@ class Reach(
   }
 
   def reachDefn(defn: Defn): Unit = {
+    implicit val pos: nir.Position = defn.pos
     defn match {
       case defn: Defn.Var =>
         reachVar(defn)
@@ -216,6 +231,7 @@ class Reach(
   }
 
   def reachEntry(name: Global): Unit = {
+    implicit val pos: nir.Position = nir.Position.NoPosition
     if (!name.isTop) {
       reachEntry(name.top)
     }
@@ -238,6 +254,7 @@ class Reach(
   }
 
   def reachClinit(name: Global): Unit = {
+    implicit val pos: nir.Position = nir.Position.NoPosition
     reachGlobalNow(name)
     infos.get(name).foreach { cls =>
       val clinit = cls.name.member(Sig.Clinit())
@@ -254,7 +271,7 @@ class Reach(
       todo ::= name
     }
 
-  def reachGlobalNow(name: Global): Unit =
+  def reachGlobalNow(name: Global)(implicit pos: nir.Position): Unit =
     if (done.contains(name)) {
       ()
     } else if (!stack.contains(name)) {
@@ -422,7 +439,7 @@ class Reach(
       }
     }
 
-  def scopeInfo(name: Global): Option[ScopeInfo] = {
+  def scopeInfo(name: Global)(implicit pos: nir.Position): Option[ScopeInfo] = {
     reachGlobalNow(name)
     infos(name) match {
       case info: ScopeInfo => Some(info)
@@ -430,7 +447,7 @@ class Reach(
     }
   }
 
-  def scopeInfoOrUnavailable(name: Global): Info = {
+  def scopeInfoOrUnavailable(name: Global)(implicit pos: nir.Position): Info = {
     reachGlobalNow(name)
     infos(name) match {
       case info: ScopeInfo   => info
@@ -439,7 +456,7 @@ class Reach(
     }
   }
 
-  def classInfo(name: Global): Option[Class] = {
+  def classInfo(name: Global)(implicit pos: nir.Position): Option[Class] = {
     reachGlobalNow(name)
     infos(name) match {
       case info: Class => Some(info)
@@ -447,12 +464,12 @@ class Reach(
     }
   }
 
-  def classInfoOrObject(name: Global): Class =
+  def classInfoOrObject(name: Global)(implicit pos: nir.Position): Class =
     classInfo(name).getOrElse {
       classInfo(Rt.Object.name).get
     }
 
-  def traitInfo(name: Global): Option[Trait] = {
+  def traitInfo(name: Global)(implicit pos: nir.Position): Option[Trait] = {
     reachGlobalNow(name)
     infos(name) match {
       case info: Trait => Some(info)
@@ -460,7 +477,7 @@ class Reach(
     }
   }
 
-  def methodInfo(name: Global): Option[Method] = {
+  def methodInfo(name: Global)(implicit pos: nir.Position): Option[Method] = {
     reachGlobalNow(name)
     infos(name) match {
       case info: Method => Some(info)
@@ -468,7 +485,7 @@ class Reach(
     }
   }
 
-  def fieldInfo(name: Global): Option[Field] = {
+  def fieldInfo(name: Global)(implicit pos: nir.Position): Option[Field] = {
     reachGlobalNow(name)
     infos(name) match {
       case info: Field => Some(info)
@@ -840,19 +857,21 @@ class Reach(
   }
 
   protected def addMissing(global: Global, pos: Position): Unit = {
-    val prev = missing.getOrElse(global, Set.empty)
-    val position = NonReachablePosition(
-      path = Paths.get(pos.source),
-      line = pos.line + 1
-    )
-    missing(global) = prev + position
+    val prev = missing.getOrElseUpdate(global, Set.empty)
+    if (pos != nir.Position.NoPosition) {
+      val position = NonReachablePosition(
+        path = Paths.get(pos.source),
+        line = pos.line + 1
+      )
+      missing(global) = prev + position
+    }
   }
 
   private def reportMissing(): Unit = {
     if (missing.nonEmpty) {
       val log = config.logger
       log.error(s"Found ${missing.size} missing definitions while linking")
-      missing.foreach {
+      missing.toSeq.sortBy(_._1).foreach {
         case (global, positions) =>
           log.error(s"Not found $global")
           positions.toList
@@ -861,6 +880,9 @@ class Reach(
               log.error(s"\tat ${pos.path.toString}:${pos.line}")
             }
       }
+      unavailable
+        .diff(missing.keySet)
+        .foreach(name => log.error(s"Not found $name"))
       throw new LinkingException(
         "Undefined definitions found in reachability phase"
       )

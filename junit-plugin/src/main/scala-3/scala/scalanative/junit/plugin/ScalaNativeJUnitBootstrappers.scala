@@ -37,7 +37,7 @@ object ScalaNativeJUnitBootstrappers extends PluginPhase {
   override val runsBefore = Set("genNIR")
 
   // Make sure to sync it the one used in JUnitTask
-  final val bootstrapperSuffix = "$scalanative$junit$bootstrapper$"
+  final val bootstrapperSuffix = "$scalanative$junit$bootstrapper"
 
   // The actual transform -------------------------------
   override def transformPackageDef(tree: PackageDef)(using Context): Tree = {
@@ -121,6 +121,7 @@ object ScalaNativeJUnitBootstrappers extends PluginPhase {
         testClass,
         junitdefn.AfterAnnotClass
       ),
+      genTestMetadata(classSym, testClass),
       genTests(classSym, testMethods),
       genInvokeTest(classSym, testClass, testMethods),
       genNewInstance(classSym, testClass)
@@ -197,6 +198,30 @@ object ScalaNativeJUnitBootstrappers extends PluginPhase {
             Apply(instanceParamRef.cast(testClass.typeRef).select(m), Nil)
           )
         Block(calls, unitLiteral)
+      }
+    )
+  }
+
+  // This method is not part of Scala 3/Scala.js bootstrappers implementation
+  private def genTestMetadata(
+      owner: ClassSymbol,
+      testClass: ClassSymbol
+  )(using Context): DefDef = {
+    val junitdefn = JUnitDefinitions.defnJUnit
+
+    val sym = newSymbol(
+      owner,
+      junitNme.testClassMetadata,
+      Synthetic | Method,
+      MethodType(Nil, junitdefn.TestClassMetadataType)
+    ).entered
+
+    DefDef(
+      sym, {
+        val hasIgnoreAnnot = testClass.hasAnnotation(junitdefn.IgnoreAnnotClass)
+        val isIgnored = Literal(Constant(hasIgnoreAnnot))
+
+        New(junitdefn.TestClassMetadataType, List(isIgnored))
       }
     )
   }
@@ -362,6 +387,7 @@ object ScalaNativeJUnitBootstrappers extends PluginPhase {
     val afterClass: TermName = termName("afterClass")
     val before: TermName = termName("before")
     val after: TermName = termName("after")
+    val testClassMetadata: TermName = termName("testClassMetadata")
     val tests: TermName = termName("tests")
     val invokeTest: TermName = termName("invokeTest")
     val newInstance: TermName = termName("newInstance")

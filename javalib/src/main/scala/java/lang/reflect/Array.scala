@@ -2,10 +2,17 @@ package java.lang.reflect
 
 import scalanative.runtime.{Array => _, _}
 import java.lang._Class
+import scala.scalanative.annotation.alwaysinline
 
 object Array {
-  def newInstance(componentType: _Class[_], length: Int): AnyRef = {
+  def newInstance(componentType: _Class[_], length: Int): Object = {
     val ty = componentType
+    if (ty == null) {
+      throw new NullPointerException()
+    }
+    if (length < 0) {
+      throw new NegativeArraySizeException()
+    }
 
     if (ty == classOf[PrimitiveBoolean]) {
       new scala.Array[Boolean](length)
@@ -25,6 +32,24 @@ object Array {
       new scala.Array[Double](length)
     } else {
       new scala.Array[Object](length)
+    }
+  }
+
+  def newInstance(componentType: _Class[_], dimensions: Array[Int]): Object = {
+    @alwaysinline def arr(n: Int) = newInstance(componentType, n)
+    dimensions match {
+      case scala.Array(n1)             => arr(n1)
+      case scala.Array(n1, n2)         => scala.Array.fill(n1)(arr(n2))
+      case scala.Array(n1, n2, n3)     => scala.Array.fill(n1, n2)(arr(n3))
+      case scala.Array(n1, n2, n3, n4) => scala.Array.fill(n1, n2, n3)(arr(n4))
+      case scala.Array(n1, n2, n3, n4, n5) =>
+        scala.Array.fill(n1, n2, n3, n4)(arr(n5))
+      case _ =>
+        if (dimensions.isEmpty || dimensions.length > 255)
+          throw new IllegalArgumentException()
+        val length = dimensions.head
+        val inner = newInstance(componentType, dimensions.tail)
+        scala.Array.fill(length)(inner.asInstanceOf[Array[_]].clone)
     }
   }
 

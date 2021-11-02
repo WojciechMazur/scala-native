@@ -869,6 +869,8 @@ class Reach(
 
   private def reportMissing(): Unit = {
     if (missing.nonEmpty) {
+      unavailable
+        .foreach(missing.getOrElseUpdate(_, Set.empty))
       val log = config.logger
       log.error(s"Found ${missing.size} missing definitions while linking")
       missing.toSeq.sortBy(_._1).foreach {
@@ -880,9 +882,6 @@ class Reach(
               log.error(s"\tat ${pos.path.toString}:${pos.line}")
             }
       }
-      unavailable
-        .diff(missing.keySet)
-        .foreach(name => log.error(s"Not found $name"))
       throw new LinkingException(
         "Undefined definitions found in reachability phase"
       )

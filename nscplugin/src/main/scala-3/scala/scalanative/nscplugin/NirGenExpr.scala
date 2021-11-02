@@ -116,7 +116,7 @@ trait NirGenExpr(using Context) {
           val rhs = genExpr(rhsp)
           val name = genFieldName(sel.symbol)
           if (sel.symbol.owner.isExternModule) {
-            val externTy = genExternType(sel.symbol.typeRef)
+            val externTy = genExternType(sel.tpe)
             ???
             // genStoreExtern(externTy, sel.symbol, rhs)
           } else {
@@ -751,9 +751,9 @@ trait NirGenExpr(using Context) {
             case Typed(Ident(nme.WILDCARD), tpt) =>
               genType(tpt.tpe) -> None
             case Ident(nme.WILDCARD) =>
-              genType(defn.ThrowableClass.typeRef) -> None
+              genType(defn.ThrowableClass.info.resultType) -> None
             case Bind(_, _) =>
-              genType(pat.symbol.typeRef) -> Some(pat.symbol)
+              genType(pat.tpe) -> Some(pat.symbol)
           }
           val f = { () =>
             symopt.foreach { sym =>
@@ -910,7 +910,6 @@ trait NirGenExpr(using Context) {
       locally {
         given nir.Position = wd.span.endPos
         buf.label(exitLabel, Seq())
-        buf.unreachable(Next.None)
         Val.Unit
       }
     }
@@ -1224,8 +1223,8 @@ trait NirGenExpr(using Context) {
         right: Tree,
         retty: nir.Type
     )(using nir.Position): Val = {
-      val lty = genType(left.tpe.typeSymbol)
-      val rty = genType(right.tpe.typeSymbol)
+      val lty = genType(left.tpe)
+      val rty = genType(right.tpe)
       val opty = {
         if (isShiftOp(code))
           if (lty == nir.Type.Long) nir.Type.Long
@@ -1406,10 +1405,10 @@ trait NirGenExpr(using Context) {
       else {
         val res = Seq.newBuilder[Val]
 
-        argsp.zip(sym.typeRef.typeParamSymbols).foreach {
+        argsp.zip(sym.typeParams).foreach {
           case (argp, paramSym) =>
             given nir.Position = argp.span
-            val externType = genExternType(paramSym.typeRef)
+            val externType = genExternType(paramSym.info.resultType)
             res += ??? //toExtern(externType, genExpr(argp))
         }
 
@@ -1506,7 +1505,7 @@ trait NirGenExpr(using Context) {
       def module = genModule(sym.owner)
 
       if (sym == defn.BoxedUnit_UNIT) Val.Unit
-      else if (sym.isStaticModuleField)
+      else if (sym.isField)
         val name = genFieldName(sym)
         buf.fieldload(ty, module, name, unwind)
       else genApplyMethod(sym, statically = true, module, Seq())

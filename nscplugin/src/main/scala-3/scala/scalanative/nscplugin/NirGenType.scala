@@ -76,7 +76,7 @@ trait NirGenType(using Context) {
     SimpleType(sym, sym.typeParams.map(fromSymbol))
   }
   given fromType: Conversion[Type, SimpleType] = {
-    _.normalized match {
+    _.widenDealias match {
       case ThisType(tref) =>
         if (tref == defn.ArrayType)
           SimpleType(defn.ObjectClass, Nil)
@@ -85,7 +85,7 @@ trait NirGenType(using Context) {
       case JavaArrayType(elemTpe) =>
         SimpleType(defn.ArrayClass, fromType(elemTpe) :: Nil)
       case ConstantType(c)            => fromType(c.tpe)
-      case ClassInfo(_, sym, _, _, _) => SimpleType(sym, Nil)
+      case ClassInfo(_, sym, _, _, _) => fromSymbol(sym)
       case t @ TypeRef(tpe, _) =>
         SimpleType(t.symbol, tpe.argTypes.map(fromType))
       case t @ TermRef(_, _) => fromType(t.info.resultType)

@@ -7,6 +7,7 @@ import core.Symbols._
 import core.Flags._
 import core.StdNames._
 import dotty.tools.dotc.transform.SymUtils._
+import dotty.tools.backend.jvm.DottyBackendInterface.symExtensions
 import scalanative.util.unreachable
 import scalanative.nir
 
@@ -22,7 +23,7 @@ trait NirGenName(using Context) {
     if (sym == defn.ObjectClass) nir.Rt.Object.name.asInstanceOf[nir.Global.Top]
     else {
       val id = {
-        val fullName = sym.fullName.mangledString
+        val fullName = sym.javaClassName
         NirGenName.MappedNames.getOrElse(fullName, fullName)
       }
       nir.Global.Top(id)
@@ -49,7 +50,7 @@ trait NirGenName(using Context) {
   def genMethodName(sym: Symbol): nir.Global = {
     val owner = genTypeName(sym.owner)
     val id = nativeIdOf(sym)
-    val tpe = sym.typeRef.widen
+    val tpe = sym.info.resultType.widen
     val scope =
       if (sym.isPrivate) nir.Sig.Scope.Private(owner)
       else nir.Sig.Scope.Public
@@ -62,7 +63,7 @@ trait NirGenName(using Context) {
     else if (sym.owner.isExternModule) {
       if (sym.isSetter) {
         // Previously dropSetter was sued
-        val id0 = sym.name.mangledString
+        val id0 = sym.javaSimpleName
         owner.member(nir.Sig.Extern(id0))
       } else {
         owner.member(nir.Sig.Extern(id))
@@ -87,15 +88,18 @@ trait NirGenName(using Context) {
       .flatMap(_.argumentConstantString(0))
       .getOrElse {
         val id: String =
-          if (sym.isField) sym.name.mangledString
+          if (sym.isField) sym.javaSimpleName
           else if (sym.is(Method))
-            val name = sym.name.mangledString
+            val name = sym.javaSimpleName
             val isScalaHashOrEquals = name.startsWith("__scala_")
-            if (sym.owner == defnNir.NObjectClass || isScalaHashOrEquals) {
-              name.substring(2) // strip the __
-            } else {
-              name
-            }
+            if (sym.owner == defnNir.NObjectClass || isScalaHashOrEquals)
+              name match {
+                // compat with Scala 2 stdlib
+                case "__scala_$eq$eq" => "scala_==" 
+                case "__scala_$hash$hash" => "scala_##"
+                case _ =>    name.substring(2) // strip the __
+              }
+            else name
           else scalanative.util.unreachable
         /*
          * Double quoted identifiers are not allowed in CLang.

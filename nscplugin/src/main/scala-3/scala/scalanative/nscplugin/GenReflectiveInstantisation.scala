@@ -81,14 +81,13 @@ trait GenReflectiveInstantisation(using Context) {
     staticInitBody
       .filter(_.nonEmpty)
       .foreach { body =>
-        addDefn(
+        generatedDefns += 
           Defn.Define(
             Attrs(),
             name,
             nir.Type.Function(Seq.empty[nir.Type], Type.Unit),
             body
           )
-        )
       }
   }
 

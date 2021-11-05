@@ -10,7 +10,7 @@ object Defaults {
   val links: Seq[Link] = {
     if (Platform.isWindows) Seq("zlib")
     else Seq("z", "pthread")
-  }.map(Link)
+  }.map(Link(_))
 
   def workdir(): Path = Files.createTempDirectory("partest-")
 

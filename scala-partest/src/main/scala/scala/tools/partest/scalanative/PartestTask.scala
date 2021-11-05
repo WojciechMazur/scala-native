@@ -46,7 +46,7 @@ case class PartestTask(taskDef: TaskDef, args: Array[String]) extends Task {
           if (opts.shouldPrecompileLibraries) {
             val forkedClasspath = forkedCp.map(java.nio.file.Paths.get(_)).toSeq
             val paths = precompileLibs(opts, forkedClasspath)
-            opts.copy(precompiledLibrariesPaths = paths)
+            opts.withPrecompiledLibrariesPaths(paths)
           } else opts
         }
 

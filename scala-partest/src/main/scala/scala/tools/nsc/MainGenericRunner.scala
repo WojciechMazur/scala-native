@@ -14,11 +14,10 @@ import scala.tools.partest.scalanative.Defaults
 import scala.tools.nsc.Properties.{copyrightString, versionString}
 
 class MainGenericRunner {
-  private def errorFn(str: String) = Defaults.errorFn(str)
+  private def errorFn(str: String): Boolean = Defaults.errorFn(str)
 
   def process(args: Array[String]): Boolean = {
-    val command =
-      new GenericRunnerCommand(args.toList, (x: String) => errorFn(x))
+    val command = new GenericRunnerCommand(args.toList, errorFn.andThen(_ => ()))
 
     if (!command.ok) return errorFn("\n" + command.shortUsageMsg)
     else if (command.settings.version)

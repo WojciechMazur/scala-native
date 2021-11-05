@@ -98,10 +98,7 @@ trait NirGenExpr(using Context) {
             genApplyUnbox(app.tpe, args.head)
           else
             val isStatic = sym.owner.isStaticOwner
-            val Select(receiverp, _) = fun match {
-              case t: Ident => desugarIdent(t)
-              case t        => t
-            }
+            val Select(receiverp, _) = desugarTree(fun)
             genApplyMethod(sym, statically = isStatic, receiverp, args)
       }
     }
@@ -110,7 +107,7 @@ trait NirGenExpr(using Context) {
       val Assign(lhsp, rhsp) = tree
       given nir.Position = tree.span
 
-      lhsp match {
+      desugarTree(lhsp) match {
         case sel @ Select(qualp, _) =>
           val qual = genExpr(qualp)
           val rhs = genExpr(rhsp)
@@ -939,10 +936,8 @@ trait NirGenExpr(using Context) {
       import dotty.tools.backend.ScalaPrimitivesOps._
       given nir.Position = app.span
       val Apply(fun, args) = app
-      val Select(receiver, _) = fun match {
-        case t: Select => t
-        case t: Ident  => desugarIdent(t)
-      }
+      val Select(receiver, _) = desugarTree(fun)
+
       val sym = app.symbol
       val code = nirPrimitives.getPrimitive(app, receiver.tpe)
       if (isArithmeticOp(code) || isLogicalOp(code) || isComparisonOp(code))

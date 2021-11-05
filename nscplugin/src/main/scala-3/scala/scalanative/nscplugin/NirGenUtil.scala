@@ -21,6 +21,13 @@ trait NirGenUtil(using Context) { self: NirCodeGen =>
     else None +: params
   }
 
+  protected def desugarTree(tree: Tree): Tree = {
+    tree match {
+      case ident: Ident => tpd.desugarIdent(ident)
+      case _            => tree
+    }
+  }
+
   protected def qualifierOf(fun: Tree): Tree = fun match {
     case fun: Ident =>
       fun.tpe match {

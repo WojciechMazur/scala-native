@@ -27,13 +27,23 @@ object ScalaNativePluginInternal {
     taskKey[File]("Working directory for intermediate build files.")
 
   lazy val scalaNativeDependencySettings: Seq[Setting[_]] = Seq(
-    libraryDependencies ++= Seq(
-      "org.scala-native" %%% "nativelib" % nativeVersion,
-      "org.scala-native" %%% "javalib" % nativeVersion,
-      "org.scala-native" %%% "auxlib" % nativeVersion,
-      "org.scala-native" %%% "scalalib" % nativeVersion,
-      "org.scala-native" %%% "test-interface" % nativeVersion % Test
-    ),
+    libraryDependencies ++= CrossVersion
+      .partialVersion(scalaVersion.value)
+      .fold(throw new RuntimeException("Unsupported Scala Version")) {
+        case (2, _) =>
+          Seq(
+            "org.scala-native" %%% "nativelib" % nativeVersion,
+            "org.scala-native" %%% "javalib" % nativeVersion,
+            "org.scala-native" %%% "auxlib" % nativeVersion,
+            "org.scala-native" %%% "scalalib" % nativeVersion,
+            "org.scala-native" %%% "test-interface" % nativeVersion % Test
+          )
+        case (3, _) =>
+          Seq(
+            "org.scala-native" %%% "scalalib3" % nativeVersion,
+            "org.scala-native" %%% "test-interface_3" % nativeVersion % Test
+          )
+      },
     addCompilerPlugin(
       "org.scala-native" % "nscplugin" % nativeVersion cross CrossVersion.full
     )

@@ -118,6 +118,15 @@ object MultiScalaProject {
   private def projectID(id: String, major: String) =
     id + major.replace('.', '_')
 
+  // Generate project name from project id.
+  private def projectName(id: String): String = {
+    // Convert "SomeName" to "some-name".
+    id.replaceAll(
+      "([a-z])([A-Z]+)",
+      "$1-$2"
+    ).toLowerCase
+  }
+
   def apply(id: String): MultiScalaProject = apply(id, file(id))
   def apply(id: String, base: File): MultiScalaProject = {
     val projects = for {
@@ -127,8 +136,10 @@ object MultiScalaProject {
         id = projectID(id, major),
         base = new File(base, "." + major)
       ).settings(
+        name := projectName(id),
         scalaVersion := minors.last,
-        crossScalaVersions := minors
+        crossScalaVersions := minors,
+        Settings.commonSettings
       )
     }
 

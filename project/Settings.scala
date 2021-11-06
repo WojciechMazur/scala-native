@@ -17,16 +17,6 @@ object Settings {
     "Whether we should partest the current scala version (or skip if we can't)"
   )
 
-  // Generate project name from project id.
-  def projectName(project: sbt.ResolvedProject): String = {
-    project.id
-      .replaceAll(
-        "([a-z])([A-Z]+)",
-        "$1-$2"
-      ) // Convert "SomeName" to "some-name".
-      .toLowerCase
-  }
-
   lazy val commonSettings = Def.settings(
     organization := "org.scala-native",
     version := nativeVersion,
@@ -38,14 +28,8 @@ object Settings {
       "-encoding",
       "utf8"
     ),
-    nameSettings,
     publishSettings,
     mimaSettings
-  )
-
-  // Provide consistent project name pattern.
-  lazy val nameSettings = Def.settings(
-    name := projectName(thisProject.value) // Maven <name>
   )
 
   // Docs and API settings
@@ -101,31 +85,55 @@ object Settings {
   )
 
   // MiMa
+
   lazy val mimaSettings = {
     // The previous releases of Scala Native with which this version is binary compatible.
-    val binCompatVersions = Set("0.4.0")
-    // val neverPublishedProjects = Map(
-    //   "2.11" -> Set(util, tools, nir, windowslib, testRunner),
-    //   "2.12" -> Set(windowslib),
-    //   "2.13" -> Set(util, tools, nir, windowslib, testRunner)
-    // ).mapValues(_.map(_.id))
+    val binCompatVersions = Set("0.4.0", "0.4.1")
 
     Def.settings(
       mimaFailOnNoPrevious := false,
-      mimaBinaryIssueFilters ++= BinaryIncompatibilities.moduleFilters(
-        name.value
-      )
-      // mimaPreviousArtifacts ++= {
-      //   val wasPreviouslyPublished = neverPublishedProjects
-      //     .get(scalaBinaryVersion.value)
-      //     .exists(!_.contains(thisProject.value.id))
-      //   binCompatVersions
-      //     .filter(_ => wasPreviouslyPublished)
-      //     .map { version =>
-      //       ModuleID(organization.value, moduleName.value, version)
-      //         .cross(crossVersion.value)
-      //     }
-      // }
+      mimaBinaryIssueFilters ++=
+        BinaryIncompatibilities.moduleFilters(name.value),
+      mimaPreviousArtifacts ++= Def.settingDyn {
+        Def.setting {
+          import Build._
+          lazy val notPublished_040 = Map(
+            "2.11" -> Seq(util, tools, nir, windowslib, testRunner),
+            "2.12" -> Seq(windowslib),
+            "2.13" -> Seq(util, tools, nir, windowslib, testRunner)
+          ).map {
+            case (version, projects) =>
+              (version, projects.map(_.forBinaryVersion(version)))
+          }
+          lazy val notPublished_041 = notPublished_040
+            .map {
+              case (version, projects) =>
+                version -> projects.diff(
+                  Seq(windowslib).map(_.forBinaryVersion(version))
+                )
+            }
+
+          def wasNotPublished(version: String) = {
+            val isScala3 = scalaBinaryVersion == "3"
+            def wasNotPublishedIn(m: Map[String, Seq[Project]]) = {
+              m.get(scalaBinaryVersion.value)
+                .forall(_.exists(_.id == thisProject.value.id))
+            }
+
+            version match {
+              case "0.4.0" => isScala3 || wasNotPublishedIn(notPublished_040)
+              case "0.4.1" => isScala3 || wasNotPublishedIn(notPublished_041)
+            }
+          }
+
+          binCompatVersions
+            .filterNot(wasNotPublished)
+            .map { version =>
+              ModuleID(organization.value, moduleName.value, version)
+                .cross(crossVersion.value)
+            }
+        }
+      }.value
     )
   }
 
@@ -156,7 +164,7 @@ object Settings {
     ),
     Compile / publishArtifact := true,
     Test / publishArtifact := false
-  ) ++ nameSettings ++ mimaSettings
+  ) ++ mimaSettings
 
   lazy val mavenPublishSettings = Def.settings(
     publishSettings,
@@ -164,7 +172,10 @@ object Settings {
     pomIncludeRepository := (_ => false),
     publishTo := {
       val nexus = "https://oss.sonatype.org/"
-      Some("releases" at nexus + "service/local/staging/deploy/maven2")
+      if (isSnapshot.value)
+        Some("snapshots" at nexus + "content/repositories/snapshots")
+      else
+        Some("releases" at nexus + "service/local/staging/deploy/maven2")
     },
     credentials ++= {
       for {
@@ -177,7 +188,6 @@ object Settings {
   )
 
   lazy val noPublishSettings = Def.settings(
-    nameSettings,
     disabledDocsSettings,
     publishArtifact := false,
     packagedArtifacts := Map.empty,
@@ -205,7 +215,6 @@ object Settings {
 
   // Tests
   lazy val testsCommonSettings = Def.settings(
-    commonSettings,
     scalacOptions -= "-deprecation",
     scalacOptions ++= Seq("-deprecation:false"),
     Test / testOptions ++= Seq(
@@ -227,7 +236,6 @@ object Settings {
   )
 
   lazy val testsExtCommonSettings = Def.settings(
-    commonSettings,
     Test / testOptions ++= Seq(
       Tests.Argument(TestFrameworks.JUnit, "-a", "-s", "-v")
     )
@@ -236,7 +244,7 @@ object Settings {
   lazy val disabledTestsSettings = {
     def testsTaskUnsupported[T] = Def.task[T] {
       throw new MessageOnlyException(
-        s"""Usage of this task in ${projectName(thisProject.value)} project is not supported in this build.
+        s"""Usage of this task in ${(thisProject / name).value} project is not supported in this build.
              |To run tests use explicit syntax containing name of project: <project_name>/<task>.
              |You can also use one of predefined aliases: test-all, test-tools, test-runtime, test-scripted.
              |""".stripMargin
@@ -244,7 +252,6 @@ object Settings {
     }
 
     Def.settings(
-      commonSettings,
       inConfig(Test) {
         Seq(
           test / aggregate := false,
@@ -310,10 +317,17 @@ object Settings {
     }
   )
 
-  lazy val testInterfaceCommonSourcesSettings: Seq[Setting[_]] = Seq(
-    Compile / unmanagedSourceDirectories += baseDirectory.value.getParentFile / "test-interface-common/src/main/scala",
-    Test / unmanagedSourceDirectories += baseDirectory.value.getParentFile / "test-interface-common/src/test/scala"
-  )
+  lazy val testInterfaceCommonSourcesSettings: Seq[Setting[_]] = {
+    Seq(
+      Compile / unmanagedSourceDirectories +=
+        baseDirectory.value
+          .getParentFile()
+          .getParentFile() / "test-interface-common/src/main/scala",
+      Test / unmanagedSourceDirectories += baseDirectory.value
+        .getParentFile()
+        .getParentFile() / "test-interface-common/src/test/scala"
+    )
+  }
 
   // Projects
   lazy val compilerPluginSettings = Def.settings(
@@ -342,12 +356,10 @@ object Settings {
 
   lazy val toolSettings: Seq[Setting[_]] =
     Def.settings(
-      commonSettings,
       javacOptions ++= Seq("-encoding", "utf8")
     )
 
   lazy val commonJavalibSettings = Def.settings(
-    commonSettings,
     disabledDocsSettings,
     // This is required to have incremental compilation to work in javalib.
     // We put our classes on scalac's `javabootclasspath` so that it uses them
@@ -376,7 +388,6 @@ object Settings {
       scalalibCrossVersions: Seq[String]
   ): Seq[Setting[_]] =
     Def.settings(
-      commonSettings,
       mavenPublishSettings,
       disabledDocsSettings,
       // Code to fetch scala sources adapted, with gratitude, from
@@ -388,19 +399,6 @@ object Settings {
       // By intent, the Scala Native code below is as identical as feasible.
       // Scala Native build.sbt uses a slightly different baseDirectory
       // than Scala.js. See commented starting with "SN Port:" below.
-
-      // `update/skip` was used instead of `update` task due to its
-      // depenendenies triggering update execution and leading to failure
-      // when wrong Scala version is used
-      update / skip := {
-        val version = scalaVersion.value
-        if (!scalalibCrossVersions.contains(version)) {
-          throw new Exception(
-            s"Cannot use ${name.value} project with uncompattible Scala version ${version}"
-          )
-        }
-        (update / skip).value
-      },
       libraryDependencies += "org.scala-lang" % libraryName % scalaVersion.value classifier "sources",
       fetchScalaSource / artifactPath :=
         target.value / "scalaSources" / scalaVersion.value,
@@ -420,11 +418,6 @@ object Settings {
       }.value,
       fetchScalaSource := {
         val version = scalaVersion.value
-        if (!scalalibCrossVersions.contains(version)) {
-          throw new Exception(
-            s"Cannot compile ${name.value} project with uncompattible Scala version ${version}"
-          )
-        }
         val trgDir = (fetchScalaSource / artifactPath).value
         val s = streams.value
         val cacheDir = s.cacheDirectory
@@ -534,7 +527,6 @@ object Settings {
     )
 
   lazy val commonJUnitTestOutputsSettings = Def.settings(
-    nameSettings,
     noPublishSettings,
     Compile / publishArtifact := false,
     Test / parallelExecution := false,

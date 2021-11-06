@@ -23,7 +23,34 @@ object Build {
         name := "Scala Native",
         commonSettings,
         noPublishSettings,
-        disabledTestsSettings
+        disabledTestsSettings, {
+// format: off
+          val allProjects: Seq[Project] = Seq(
+              sbtScalaNative
+            ) ++ Seq(
+                nscPlugin, junitPlugin,
+                nativelib, clib, posixlib, windowslib,
+                auxlib, javalib, scalalib,
+                testInterface, testInterfaceSbtDefs,
+                testingCompiler, testingCompilerInterface,
+                junitRuntime, junitAsyncNative, junitAsyncJVM,
+                junitTestOutputsJVM, junitTestOutputsNative,
+                tests, testsJVM, testsExt, testsExtJVM, sandbox,
+                scalaPartest, scalaPartestRuntime,
+                scalaPartestTests, scalaPartestJunitTests
+            ).flatMap(_.componentProjects)
+// format: on
+          val keys = Seq[TaskKey[_]](clean)
+          for (key <- keys) yield {
+            /* The match is only used to capture the type parameter `a` of
+             * each individual TaskKey.
+             */
+            key match {
+              case key: TaskKey[a] =>
+                key := key.dependsOn(allProjects.map(_ / key): _*).value
+            }
+          }
+        }
       )
 
   // Compiler plugins
@@ -39,7 +66,7 @@ object Build {
     .dependsOnSource(nir)
     .dependsOnSource(util)
 
-  lazy val junitPlugin = MultiScalaProject("junit-plugin")
+  lazy val junitPlugin = MultiScalaProject("junitPlugin", file("junit-plugin"))
     .settings(compilerPluginSettings)
 
   // NIR compiler
@@ -187,11 +214,12 @@ object Build {
     .dependsOn(posixlib, windowslib, clib)
     .withNativeCompilerPlugin
 
-  lazy val javalibExtDummies = MultiScalaProject("javalib-ext-dummies")
-    .enablePlugins(MyScalaNativePlugin)
-    .settings(noPublishSettings, commonJavalibSettings)
-    .dependsOn(nativelib)
-    .withNativeCompilerPlugin
+  lazy val javalibExtDummies =
+    MultiScalaProject("javalibExtDummies", file("javalib-ext-dummies"))
+      .enablePlugins(MyScalaNativePlugin)
+      .settings(noPublishSettings, commonJavalibSettings)
+      .dependsOn(nativelib)
+      .withNativeCompilerPlugin
 
   lazy val auxlib = MultiScalaProject("auxlib")
     .enablePlugins(MyScalaNativePlugin)
@@ -212,6 +240,7 @@ object Build {
               "-deprecation:false",
               "-language:postfixOps",
               "-language:implicitConversions",
+              "-language:existentials",
               "-language:higherKinds"
             ),
             /* Used to disable fatal warnings due to problems with compilation of `@nowarn` annotation */
@@ -236,11 +265,20 @@ object Build {
             scalacOptions ++= Seq(
               "-language:implicitConversions"
             ),
-            Compile / unmanagedJars := {
-              (Compile / unmanagedJars).value :+ Def.taskDyn {
-                (scalalib.v2_13 / Compile / packageBin)
-                  .map(internal.util.Attributed.blank(_))
+            libraryDependencies += "org.scala-native" %%% "scalalib" % nativeVersion cross (CrossVersion.for3Use2_13),
+            update := {
+              val _ = Def.taskDyn {
+                Def.task {
+                  (nativelib.v2_13 / publishLocal).value
+                  (clib.v2_13 / publishLocal).value
+                  (posixlib.v2_13 / publishLocal).value
+                  (windowslib.v2_13 / publishLocal).value
+                  (javalib.v2_13 / publishLocal).value
+                  (auxlib.v2_13 / publishLocal).value
+                  (scalalib.v2_13 / publishLocal).value
+                }
               }.value
+              update.value
             }
           )
       }
@@ -362,20 +400,21 @@ object Build {
       )
       .dependsOn(testingCompilerInterface)
 
-  lazy val testInterface = MultiScalaProject("test-interface")
-    .enablePlugins(MyScalaNativePlugin)
-    .settings(mavenPublishSettings, testInterfaceCommonSourcesSettings)
-    .withNativeCompilerPlugin
-    .withJUnitPlugin
-    .dependsOn(
-      scalalib,
-      testInterfaceSbtDefs,
-      junitRuntime,
-      junitAsyncNative % "test"
-    )
+  lazy val testInterface =
+    MultiScalaProject("testInterface", file("test-interface"))
+      .enablePlugins(MyScalaNativePlugin)
+      .settings(mavenPublishSettings, testInterfaceCommonSourcesSettings)
+      .withNativeCompilerPlugin
+      .withJUnitPlugin
+      .dependsOn(
+        scalalib,
+        testInterfaceSbtDefs,
+        junitRuntime,
+        junitAsyncNative % "test"
+      )
 
   lazy val testInterfaceSbtDefs =
-    MultiScalaProject("test-interface-sbt-defs")
+    MultiScalaProject("testInterfaceSbtDefs", file("test-interface-sbt-defs"))
       .enablePlugins(MyScalaNativePlugin)
       .settings(mavenPublishSettings)
       .settings(docsSettings)
@@ -396,7 +435,6 @@ object Build {
     MultiScalaProject("junitRuntime", file("junit-runtime"))
       .enablePlugins(MyScalaNativePlugin)
       .settings(mavenPublishSettings)
-      .settings(nameSettings)
       .withNativeCompilerPlugin
       .dependsOn(testInterfaceSbtDefs)
 
@@ -427,7 +465,6 @@ object Build {
     MultiScalaProject("junitAsyncNative", file("junit-async/native"))
       .enablePlugins(MyScalaNativePlugin)
       .settings(
-        nameSettings,
         Compile / publishArtifact := false
       )
       .withNativeCompilerPlugin
@@ -436,7 +473,6 @@ object Build {
   lazy val junitAsyncJVM =
     MultiScalaProject("junitAsyncJVM", file("junit-async/jvm"))
       .settings(
-        nameSettings,
         publishArtifact := false
       )
 

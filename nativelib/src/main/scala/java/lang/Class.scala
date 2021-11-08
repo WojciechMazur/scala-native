@@ -3,14 +3,14 @@ package java.lang
 import java.lang.reflect.{Field, Method}
 import scala.language.implicitConversions
 
-import scalanative.annotation.{extern => externModule, _}
+import scalanative.annotation._
 import scalanative.unsafe._
 import scalanative.runtime.{Array => _, _}
 
 // These two methods are generated at link-time by the toolchain
 // using current closed-world knowledge of classes and traits in
 // the current application.
-@externModule
+@extern
 object rtti {
   def __check_class_has_trait(classId: Int, traitId: Int): scala.Boolean =
     extern

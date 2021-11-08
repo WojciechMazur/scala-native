@@ -59,7 +59,7 @@ class InflaterInputStream private (
       throw new ArrayIndexOutOfBoundsException()
     }
 
-    while ({
+    do {
       if (inf.needsInput()) {
         fill()
       }
@@ -88,8 +88,7 @@ class InflaterInputStream private (
           }
           throw new IOException().initCause(e).asInstanceOf[IOException]
       }
-      true
-    }) ()
+    } while (true)
 
     throw new IllegalStateException()
   }

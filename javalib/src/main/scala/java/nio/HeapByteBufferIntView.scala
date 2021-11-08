@@ -14,68 +14,66 @@ private[nio] final class HeapByteBufferIntView private (
   position(_initialPosition)
   limit(_initialLimit)
 
-  protected lazy val genHeapBufferView = GenHeapBufferView[IntBuffer](this)
-  private implicit def newHeapBufferView
-      : GenHeapBufferView.NewHeapBufferView[IntBuffer] =
+  private[this] implicit def newHeapIntBufferView =
     HeapByteBufferIntView.NewHeapByteBufferIntView
 
-  override def isReadOnly(): Boolean = _readOnly
+  val isReadOnly: Boolean = _readOnly
 
   def isDirect(): Boolean = true
 
   @noinline
   def slice(): IntBuffer =
-    genHeapBufferView.generic_slice()
+    GenHeapBufferView(this).generic_slice()
 
   @noinline
   def duplicate(): IntBuffer =
-    genHeapBufferView.generic_duplicate()
+    GenHeapBufferView(this).generic_duplicate()
 
   @noinline
   def asReadOnlyBuffer(): IntBuffer =
-    genHeapBufferView.generic_asReadOnlyBuffer()
+    GenHeapBufferView(this).generic_asReadOnlyBuffer()
 
   @noinline
   def get(): Int =
-    genBuffer.generic_get()
+    GenBuffer(this).generic_get()
 
   @noinline
   def put(c: Int): IntBuffer =
-    genBuffer.generic_put(c)
+    GenBuffer(this).generic_put(c)
 
   @noinline
   def get(index: Int): Int =
-    genBuffer.generic_get(index)
+    GenBuffer(this).generic_get(index)
 
   @noinline
   def put(index: Int, c: Int): IntBuffer =
-    genBuffer.generic_put(index, c)
+    GenBuffer(this).generic_put(index, c)
 
   @noinline
   override def get(dst: Array[Int], offset: Int, length: Int): IntBuffer =
-    genBuffer.generic_get(dst, offset, length)
+    GenBuffer(this).generic_get(dst, offset, length)
 
   @noinline
   override def put(src: Array[Int], offset: Int, length: Int): IntBuffer =
-    genBuffer.generic_put(src, offset, length)
+    GenBuffer(this).generic_put(src, offset, length)
 
   @noinline
   def compact(): IntBuffer =
-    genHeapBufferView.generic_compact()
+    GenHeapBufferView(this).generic_compact()
 
   @noinline
   def order(): ByteOrder =
-    genHeapBufferView.generic_order()
+    GenHeapBufferView(this).generic_order()
 
   // Private API
 
   @inline
   private[nio] def load(index: Int): Int =
-    genHeapBufferView.byteArrayBits.loadInt(index)
+    GenHeapBufferView(this).byteArrayBits.loadInt(index)
 
   @inline
   private[nio] def store(index: Int, elem: Int): Unit =
-    genHeapBufferView.byteArrayBits.storeInt(index, elem)
+    GenHeapBufferView(this).byteArrayBits.storeInt(index, elem)
 }
 
 private[nio] object HeapByteBufferIntView {

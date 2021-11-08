@@ -14,9 +14,7 @@ private[nio] final class HeapByteBufferShortView private (
   position(_initialPosition)
   limit(_initialLimit)
 
-  protected lazy val genHeapBufferView = GenHeapBufferView[ShortBuffer](this)
-  private implicit def newHeapBuffer
-      : GenHeapBufferView.NewHeapBufferView[ShortBuffer] =
+  private[this] implicit def newHeapShortBufferView =
     HeapByteBufferShortView.NewHeapByteBufferShortView
 
   def isReadOnly(): Boolean = _readOnly
@@ -25,57 +23,57 @@ private[nio] final class HeapByteBufferShortView private (
 
   @noinline
   def slice(): ShortBuffer =
-    genHeapBufferView.generic_slice()
+    GenHeapBufferView(this).generic_slice()
 
   @noinline
   def duplicate(): ShortBuffer =
-    genHeapBufferView.generic_duplicate()
+    GenHeapBufferView(this).generic_duplicate()
 
   @noinline
   def asReadOnlyBuffer(): ShortBuffer =
-    genHeapBufferView.generic_asReadOnlyBuffer()
+    GenHeapBufferView(this).generic_asReadOnlyBuffer()
 
   @noinline
   def get(): Short =
-    genBuffer.generic_get()
+    GenBuffer(this).generic_get()
 
   @noinline
   def put(c: Short): ShortBuffer =
-    genBuffer.generic_put(c)
+    GenBuffer(this).generic_put(c)
 
   @noinline
   def get(index: Int): Short =
-    genBuffer.generic_get(index)
+    GenBuffer(this).generic_get(index)
 
   @noinline
   def put(index: Int, c: Short): ShortBuffer =
-    genBuffer.generic_put(index, c)
+    GenBuffer(this).generic_put(index, c)
 
   @noinline
   override def get(dst: Array[Short], offset: Int, length: Int): ShortBuffer =
-    genBuffer.generic_get(dst, offset, length)
+    GenBuffer(this).generic_get(dst, offset, length)
 
   @noinline
   override def put(src: Array[Short], offset: Int, length: Int): ShortBuffer =
-    genBuffer.generic_put(src, offset, length)
+    GenBuffer(this).generic_put(src, offset, length)
 
   @noinline
   def compact(): ShortBuffer =
-    genHeapBufferView.generic_compact()
+    GenHeapBufferView(this).generic_compact()
 
   @noinline
   def order(): ByteOrder =
-    genHeapBufferView.generic_order()
+    GenHeapBufferView(this).generic_order()
 
   // Private API
 
   @inline
   private[nio] def load(index: Int): Short =
-    genHeapBufferView.byteArrayBits.loadShort(index)
+    GenHeapBufferView(this).byteArrayBits.loadShort(index)
 
   @inline
   private[nio] def store(index: Int, elem: Short): Unit =
-    genHeapBufferView.byteArrayBits.storeShort(index, elem)
+    GenHeapBufferView(this).byteArrayBits.storeShort(index, elem)
 }
 
 private[nio] object HeapByteBufferShortView {

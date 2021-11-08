@@ -175,10 +175,9 @@ object FileHelpers {
       val tmpDir = Option(dir).fold(tempDir)(_.toString)
       val newSuffix = Option(suffix).getOrElse(".tmp")
       var result: File = null
-      while ({
+      do {
         result = genTempFile(prefix, newSuffix, tmpDir)
-        !createNewFile(result.toString, throwOnError)
-      }) ()
+      } while (!createNewFile(result.toString, throwOnError))
       result
     }
 

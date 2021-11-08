@@ -29,13 +29,12 @@ import scala.scalanative.posix.sys.statvfs
 import scalanative.annotation.stub
 
 class UnixFileSystem(
-    fsProvider: FileSystemProvider,
+    override val provider: FileSystemProvider,
     val root: String,
     val defaultDirectory: String
 ) extends FileSystem {
   private var closed: Boolean = false
 
-  override def provider(): FileSystemProvider = fsProvider
   override def close(): Unit =
     closed = true
 

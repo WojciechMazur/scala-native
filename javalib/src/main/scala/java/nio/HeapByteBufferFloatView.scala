@@ -14,9 +14,7 @@ private[nio] final class HeapByteBufferFloatView private (
   position(_initialPosition)
   limit(_initialLimit)
 
-  protected lazy val genHeapBufferView = GenHeapBufferView[FloatBuffer](this)
-  private implicit def newHeapBufferView
-      : GenHeapBufferView.NewHeapBufferView[FloatBuffer] =
+  private[this] implicit def newHeapFloatBufferView =
     HeapByteBufferFloatView.NewHeapByteBufferFloatView
 
   def isReadOnly(): Boolean = _readOnly
@@ -25,57 +23,57 @@ private[nio] final class HeapByteBufferFloatView private (
 
   @noinline
   def slice(): FloatBuffer =
-    genHeapBufferView.generic_slice()
+    GenHeapBufferView(this).generic_slice()
 
   @noinline
   def duplicate(): FloatBuffer =
-    genHeapBufferView.generic_duplicate()
+    GenHeapBufferView(this).generic_duplicate()
 
   @noinline
   def asReadOnlyBuffer(): FloatBuffer =
-    genHeapBufferView.generic_asReadOnlyBuffer()
+    GenHeapBufferView(this).generic_asReadOnlyBuffer()
 
   @noinline
   def get(): Float =
-    genBuffer.generic_get()
+    GenBuffer(this).generic_get()
 
   @noinline
   def put(c: Float): FloatBuffer =
-    genBuffer.generic_put(c)
+    GenBuffer(this).generic_put(c)
 
   @noinline
   def get(index: Int): Float =
-    genBuffer.generic_get(index)
+    GenBuffer(this).generic_get(index)
 
   @noinline
   def put(index: Int, c: Float): FloatBuffer =
-    genBuffer.generic_put(index, c)
+    GenBuffer(this).generic_put(index, c)
 
   @noinline
   override def get(dst: Array[Float], offset: Int, length: Int): FloatBuffer =
-    genBuffer.generic_get(dst, offset, length)
+    GenBuffer(this).generic_get(dst, offset, length)
 
   @noinline
   override def put(src: Array[Float], offset: Int, length: Int): FloatBuffer =
-    genBuffer.generic_put(src, offset, length)
+    GenBuffer(this).generic_put(src, offset, length)
 
   @noinline
   def compact(): FloatBuffer =
-    genHeapBufferView.generic_compact()
+    GenHeapBufferView(this).generic_compact()
 
   @noinline
   def order(): ByteOrder =
-    genHeapBufferView.generic_order()
+    GenHeapBufferView(this).generic_order()
 
   // Private API
 
   @inline
   private[nio] def load(index: Int): Float =
-    genHeapBufferView.byteArrayBits.loadFloat(index)
+    GenHeapBufferView(this).byteArrayBits.loadFloat(index)
 
   @inline
   private[nio] def store(index: Int, elem: Float): Unit =
-    genHeapBufferView.byteArrayBits.storeFloat(index, elem)
+    GenHeapBufferView(this).byteArrayBits.storeFloat(index, elem)
 }
 
 private[nio] object HeapByteBufferFloatView {

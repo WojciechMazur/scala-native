@@ -10,14 +10,12 @@ private[nio] final class HeapCharBuffer private (
     _initialLimit: Int,
     _readOnly: Boolean
 ) extends CharBuffer(_capacity, _array0, null, _arrayOffset0) {
-  private implicit def newHeapBuffer
-      : GenHeapBuffer.NewHeapBuffer[CharBuffer, Char] =
-    HeapCharBuffer.NewHeapCharBuffer
 
   position(_initialPosition)
   limit(_initialLimit)
 
-  private lazy val genHeapBuffer = GenHeapBuffer[CharBuffer](this)
+  private[this] implicit def newHeapCharBuffer =
+    HeapCharBuffer.NewHeapCharBuffer
 
   def isReadOnly(): Boolean = _readOnly
 
@@ -25,15 +23,15 @@ private[nio] final class HeapCharBuffer private (
 
   @noinline
   def slice(): CharBuffer =
-    genHeapBuffer.generic_slice()
+    GenHeapBuffer(this).generic_slice()
 
   @noinline
   def duplicate(): CharBuffer =
-    genHeapBuffer.generic_duplicate()
+    GenHeapBuffer(this).generic_duplicate()
 
   @noinline
   def asReadOnlyBuffer(): CharBuffer =
-    genHeapBuffer.generic_asReadOnlyBuffer()
+    GenHeapBuffer(this).generic_asReadOnlyBuffer()
 
   def subSequence(start: Int, end: Int): CharBuffer = {
     if (start < 0 || end < start || end > remaining())
@@ -50,31 +48,31 @@ private[nio] final class HeapCharBuffer private (
 
   @noinline
   def get(): Char =
-    genBuffer.generic_get()
+    GenBuffer(this).generic_get()
 
   @noinline
   def put(c: Char): CharBuffer =
-    genBuffer.generic_put(c)
+    GenBuffer(this).generic_put(c)
 
   @noinline
   def get(index: Int): Char =
-    genBuffer.generic_get(index)
+    GenBuffer(this).generic_get(index)
 
   @noinline
   def put(index: Int, c: Char): CharBuffer =
-    genBuffer.generic_put(index, c)
+    GenBuffer(this).generic_put(index, c)
 
   @noinline
   override def get(dst: Array[Char], offset: Int, length: Int): CharBuffer =
-    genBuffer.generic_get(dst, offset, length)
+    GenBuffer(this).generic_get(dst, offset, length)
 
   @noinline
   override def put(src: Array[Char], offset: Int, length: Int): CharBuffer =
-    genBuffer.generic_put(src, offset, length)
+    GenBuffer(this).generic_put(src, offset, length)
 
   @noinline
   def compact(): CharBuffer =
-    genHeapBuffer.generic_compact()
+    GenHeapBuffer(this).generic_compact()
 
   def order(): ByteOrder = ByteOrder.nativeOrder()
 
@@ -82,11 +80,11 @@ private[nio] final class HeapCharBuffer private (
 
   @inline
   private[nio] def load(index: Int): Char =
-    genHeapBuffer.generic_load(index)
+    GenHeapBuffer(this).generic_load(index)
 
   @inline
   private[nio] def store(index: Int, elem: Char): Unit =
-    genHeapBuffer.generic_store(index, elem)
+    GenHeapBuffer(this).generic_store(index, elem)
 
   @inline
   override private[nio] def load(
@@ -95,7 +93,7 @@ private[nio] final class HeapCharBuffer private (
       offset: Int,
       length: Int
   ): Unit =
-    genHeapBuffer.generic_load(startIndex, dst, offset, length)
+    GenHeapBuffer(this).generic_load(startIndex, dst, offset, length)
 
   @inline
   override private[nio] def store(
@@ -104,7 +102,7 @@ private[nio] final class HeapCharBuffer private (
       offset: Int,
       length: Int
   ): Unit =
-    genHeapBuffer.generic_store(startIndex, src, offset, length)
+    GenHeapBuffer(this).generic_store(startIndex, src, offset, length)
 }
 
 private[nio] object HeapCharBuffer {

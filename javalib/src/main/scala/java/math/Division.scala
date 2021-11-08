@@ -477,11 +477,10 @@ private[math] object Division {
           }
         } else {
           // Use Knuth's algorithm of successive subtract and shifting
-          while ({
+          do {
             Elementary.inplaceSubtract(op2, op1)
             BitLevel.inplaceShiftRight(op2, op2.getLowestSetBit())
-            op2.compareTo(op1) >= BigInteger.EQUALS
-          }) ()
+          } while (op2.compareTo(op1) >= BigInteger.EQUALS)
         }
         // now op1 >= op2
         val swap: BigInteger = op2
@@ -522,7 +521,7 @@ private[math] object Division {
     if (lsb2 != 0)
       op2 >>>= lsb2
 
-    while ({
+    do {
       if (op1 >= op2) {
         op1 -= op2
         op1 >>>= java.lang.Integer.numberOfTrailingZeros(op1)
@@ -530,8 +529,7 @@ private[math] object Division {
         op2 -= op1
         op2 >>>= java.lang.Integer.numberOfTrailingZeros(op2)
       }
-      op1 != 0
-    }) ()
+    } while (op1 != 0)
     op2 << pow2Count
   }
 
@@ -1017,12 +1015,11 @@ private[math] object Division {
     val m0: Long = a.digits(0) & UINT_MAX
     var n2: Long = 1L
     var powerOfTwo: Long = 2L
-    while ({
+    do {
       if (((m0 * n2) & powerOfTwo) != 0)
         n2 |= powerOfTwo
       powerOfTwo <<= 1
-      powerOfTwo < 0x100000000L
-    }) ()
+    } while (powerOfTwo < 0x100000000L)
     n2 = -n2
     (n2 & UINT_MAX).toInt
   }
@@ -1031,7 +1028,7 @@ private[math] object Division {
    *  operation.
    *
    *  @param bi
-   *  @param n
+   *    @param n
    *  @return
    */
   private def howManyIterations(bi: BigInteger, n: Int): Int = {

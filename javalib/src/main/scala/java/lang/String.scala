@@ -11,7 +11,6 @@ import java.nio._
 import java.nio.charset._
 import java.util.Objects
 import scala.annotation.{switch, tailrec}
-import _String.{string2_string, _string2string}
 
 final class _String()
     extends Serializable
@@ -590,12 +589,11 @@ final class _String()
       val buffer = new Array[Char](count)
       System.arraycopy(value, offset, buffer, 0, count)
 
-      while ({
+      do {
         buffer(index) = newChar
         index += 1
         index = indexOf(oldChar, index)
-        index != -1
-      }) ()
+      } while (index != -1)
 
       new _String(0, count, buffer)
     }
@@ -632,13 +630,12 @@ final class _String()
       val buffer = new java.lang.StringBuilder(count + rs.length)
       val tl = target.length()
       var tail = 0
-      while ({
+      do {
         buffer.append(value, offset + tail, index - tail)
         buffer.append(rs)
         tail = index + tl
         index = indexOf(ts, tail)
-        index != -1
-      }) ()
+      } while (index != -1)
       buffer.append(value, offset + tail, count - tail)
 
       buffer.toString
@@ -771,15 +768,14 @@ final class _String()
       loop(i + 1)
     }
     val preprocessed = replaceCharsAtIndex { i =>
-      def ifMoreAboveOrNull(v: String) = if (moreAbove(i)) v else null
       (this.charAt(i): @switch) match {
-        case '\u0049' => ifMoreAboveOrNull("\u0069\u0307")
-        case '\u004A' => ifMoreAboveOrNull("\u006A\u0307")
-        case '\u012E' => ifMoreAboveOrNull("\u012F\u0307")
-        case '\u00CC' => "\u0069\u0307\u0300"
-        case '\u00CD' => "\u0069\u0307\u0301"
-        case '\u0128' => "\u0069\u0307\u0303"
-        case _        => null
+        case '\u0049' if moreAbove(i) => "\u0069\u0307"
+        case '\u004A' if moreAbove(i) => "\u006A\u0307"
+        case '\u012E' if moreAbove(i) => "\u012F\u0307"
+        case '\u00CC'                 => "\u0069\u0307\u0300"
+        case '\u00CD'                 => "\u0069\u0307\u0301"
+        case '\u0128'                 => "\u0069\u0307\u0303"
+        case _                        => null
       }
     }
 
@@ -835,10 +831,10 @@ final class _String()
 
     val preprocessed = replaceCharsAtIndex { i =>
       (this.charAt(i): @switch) match {
-        case '\u0130' => "\u0069"
-        case '\u0307' => if (afterI(i)) "" else null
-        case '\u0049' => if (!beforeDot(i)) "\u0131" else null
-        case _        => null
+        case '\u0130'                  => "\u0069"
+        case '\u0307' if afterI(i)     => ""
+        case '\u0049' if !beforeDot(i) => "\u0131"
+        case _                         => null
       }
     }
 
@@ -1191,10 +1187,9 @@ for (cp <- 0 to Character.MAX_CODE_POINT) {
       if (separatorCount == count) {
         return Array.empty[String]
       }
-      while ({
+      do {
         begin -= 1
-        charAt(begin - 1) == ch
-      }) ()
+      } while (charAt(begin - 1) == ch)
       separatorCount -= count - begin
       begin
     } else {
@@ -1330,8 +1325,8 @@ object _String {
     new Formatter(loc).format(fmt, args).toString()
 
   import scala.language.implicitConversions
-  @inline private[lang] implicit def _string2string(s: _String): String =
+  @inline private implicit def _string2string(s: _String): String =
     s.asInstanceOf[String]
-  @inline private[lang] implicit def string2_string(s: String): _String =
+  @inline private implicit def string2_string(s: String): _String =
     s.asInstanceOf[_String]
 }

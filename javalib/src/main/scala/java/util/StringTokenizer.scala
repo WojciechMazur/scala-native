@@ -80,6 +80,7 @@ class StringTokenizer(
       }
 
       while (i < length && delimiters.indexOf(string.charAt(i), 0) >= 0) i += 1
+
       position = i
 
       if (i < length) {

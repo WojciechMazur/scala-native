@@ -1,7 +1,7 @@
 package scala.scalanative
 package posix
 
-import scalanative.unsafe._
+import scalanative.unsafe.{CInt, extern, name}
 
 @extern
 object errno {

@@ -9,14 +9,12 @@ private[nio] final class HeapLongBuffer private (
     _initialLimit: Int,
     _readOnly: Boolean
 ) extends LongBuffer(_capacity, _array0, null, _arrayOffset0) {
-  private implicit def newHeapBuffer
-      : GenHeapBuffer.NewHeapBuffer[LongBuffer, Long] =
-    HeapLongBuffer.NewHeapLongBuffer
 
   position(_initialPosition)
   limit(_initialLimit)
 
-  private lazy val genHeapBuffer = GenHeapBuffer[LongBuffer](this)
+  private[this] implicit def newHeapLongBuffer =
+    HeapLongBuffer.NewHeapLongBuffer
 
   def isReadOnly(): Boolean = _readOnly
 
@@ -24,43 +22,43 @@ private[nio] final class HeapLongBuffer private (
 
   @noinline
   def slice(): LongBuffer =
-    genHeapBuffer.generic_slice()
+    GenHeapBuffer(this).generic_slice()
 
   @noinline
   def duplicate(): LongBuffer =
-    genHeapBuffer.generic_duplicate()
+    GenHeapBuffer(this).generic_duplicate()
 
   @noinline
   def asReadOnlyBuffer(): LongBuffer =
-    genHeapBuffer.generic_asReadOnlyBuffer()
+    GenHeapBuffer(this).generic_asReadOnlyBuffer()
 
   @noinline
   def get(): Long =
-    genBuffer.generic_get()
+    GenBuffer(this).generic_get()
 
   @noinline
   def put(l: Long): LongBuffer =
-    genBuffer.generic_put(l)
+    GenBuffer(this).generic_put(l)
 
   @noinline
   def get(index: Int): Long =
-    genBuffer.generic_get(index)
+    GenBuffer(this).generic_get(index)
 
   @noinline
   def put(index: Int, l: Long): LongBuffer =
-    genBuffer.generic_put(index, l)
+    GenBuffer(this).generic_put(index, l)
 
   @noinline
   override def get(dst: Array[Long], offset: Int, length: Int): LongBuffer =
-    genBuffer.generic_get(dst, offset, length)
+    GenBuffer(this).generic_get(dst, offset, length)
 
   @noinline
   override def put(src: Array[Long], offset: Int, length: Int): LongBuffer =
-    genBuffer.generic_put(src, offset, length)
+    GenBuffer(this).generic_put(src, offset, length)
 
   @noinline
   def compact(): LongBuffer =
-    genHeapBuffer.generic_compact()
+    GenHeapBuffer(this).generic_compact()
 
   def order(): ByteOrder = ByteOrder.nativeOrder()
 
@@ -68,11 +66,11 @@ private[nio] final class HeapLongBuffer private (
 
   @inline
   private[nio] def load(index: Int): Long =
-    genHeapBuffer.generic_load(index)
+    GenHeapBuffer(this).generic_load(index)
 
   @inline
   private[nio] def store(index: Int, elem: Long): Unit =
-    genHeapBuffer.generic_store(index, elem)
+    GenHeapBuffer(this).generic_store(index, elem)
 
   @inline
   override private[nio] def load(
@@ -81,7 +79,7 @@ private[nio] final class HeapLongBuffer private (
       offset: Int,
       length: Int
   ): Unit =
-    genHeapBuffer.generic_load(startIndex, dst, offset, length)
+    GenHeapBuffer(this).generic_load(startIndex, dst, offset, length)
 
   @inline
   override private[nio] def store(
@@ -90,7 +88,7 @@ private[nio] final class HeapLongBuffer private (
       offset: Int,
       length: Int
   ): Unit =
-    genHeapBuffer.generic_store(startIndex, src, offset, length)
+    GenHeapBuffer(this).generic_store(startIndex, src, offset, length)
 }
 
 private[nio] object HeapLongBuffer {

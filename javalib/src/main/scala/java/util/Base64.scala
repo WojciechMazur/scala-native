@@ -463,6 +463,7 @@ object Base64 {
       }
 
       while (src.remaining >= 3) encode(src.get(), src.get(), src.get())
+
       (length % 3) match {
         case 0 =>
         case 1 =>

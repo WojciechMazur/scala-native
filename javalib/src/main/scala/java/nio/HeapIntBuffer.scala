@@ -9,14 +9,11 @@ private[nio] final class HeapIntBuffer private (
     _initialLimit: Int,
     _readOnly: Boolean
 ) extends IntBuffer(_capacity, _array0, null, _arrayOffset0) {
-  private implicit def newHeapBuffer
-      : GenHeapBuffer.NewHeapBuffer[IntBuffer, Int] =
-    HeapIntBuffer.NewHeapIntBuffer
 
   position(_initialPosition)
   limit(_initialLimit)
 
-  private lazy val genHeapBuffer = GenHeapBuffer[IntBuffer](this)
+  private[this] implicit def newHeapIntBuffer = HeapIntBuffer.NewHeapIntBuffer
 
   def isReadOnly(): Boolean = _readOnly
 
@@ -24,43 +21,43 @@ private[nio] final class HeapIntBuffer private (
 
   @noinline
   def slice(): IntBuffer =
-    genHeapBuffer.generic_slice()
+    GenHeapBuffer(this).generic_slice()
 
   @noinline
   def duplicate(): IntBuffer =
-    genHeapBuffer.generic_duplicate()
+    GenHeapBuffer(this).generic_duplicate()
 
   @noinline
   def asReadOnlyBuffer(): IntBuffer =
-    genHeapBuffer.generic_asReadOnlyBuffer()
+    GenHeapBuffer(this).generic_asReadOnlyBuffer()
 
   @noinline
   def get(): Int =
-    genBuffer.generic_get()
+    GenBuffer(this).generic_get()
 
   @noinline
   def put(i: Int): IntBuffer =
-    genBuffer.generic_put(i)
+    GenBuffer(this).generic_put(i)
 
   @noinline
   def get(index: Int): Int =
-    genBuffer.generic_get(index)
+    GenBuffer(this).generic_get(index)
 
   @noinline
   def put(index: Int, i: Int): IntBuffer =
-    genBuffer.generic_put(index, i)
+    GenBuffer(this).generic_put(index, i)
 
   @noinline
   override def get(dst: Array[Int], offset: Int, length: Int): IntBuffer =
-    genBuffer.generic_get(dst, offset, length)
+    GenBuffer(this).generic_get(dst, offset, length)
 
   @noinline
   override def put(src: Array[Int], offset: Int, length: Int): IntBuffer =
-    genBuffer.generic_put(src, offset, length)
+    GenBuffer(this).generic_put(src, offset, length)
 
   @noinline
   def compact(): IntBuffer =
-    genHeapBuffer.generic_compact()
+    GenHeapBuffer(this).generic_compact()
 
   def order(): ByteOrder = ByteOrder.nativeOrder()
 
@@ -68,11 +65,11 @@ private[nio] final class HeapIntBuffer private (
 
   @inline
   private[nio] def load(index: Int): Int =
-    genHeapBuffer.generic_load(index)
+    GenHeapBuffer(this).generic_load(index)
 
   @inline
   private[nio] def store(index: Int, elem: Int): Unit =
-    genHeapBuffer.generic_store(index, elem)
+    GenHeapBuffer(this).generic_store(index, elem)
 
   @inline
   override private[nio] def load(
@@ -81,7 +78,7 @@ private[nio] final class HeapIntBuffer private (
       offset: Int,
       length: Int
   ): Unit =
-    genHeapBuffer.generic_load(startIndex, dst, offset, length)
+    GenHeapBuffer(this).generic_load(startIndex, dst, offset, length)
 
   @inline
   override private[nio] def store(
@@ -90,7 +87,7 @@ private[nio] final class HeapIntBuffer private (
       offset: Int,
       length: Int
   ): Unit =
-    genHeapBuffer.generic_store(startIndex, src, offset, length)
+    GenHeapBuffer(this).generic_store(startIndex, src, offset, length)
 }
 
 private[nio] object HeapIntBuffer {

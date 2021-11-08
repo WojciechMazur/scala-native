@@ -22,7 +22,6 @@ abstract class IntBuffer private[nio] (
 ) extends Buffer(_capacity)
     with Comparable[IntBuffer] {
 
-  protected lazy val genBuffer = GenBuffer[IntBuffer](this)
   private[nio] type ElementType = Int
   private[nio] type BufferType = IntBuffer
 
@@ -44,30 +43,30 @@ abstract class IntBuffer private[nio] (
 
   @noinline
   def get(dst: Array[Int], offset: Int, length: Int): IntBuffer =
-    genBuffer.generic_get(dst, offset, length)
+    GenBuffer(this).generic_get(dst, offset, length)
 
   def get(dst: Array[Int]): IntBuffer =
     get(dst, 0, dst.length)
 
   @noinline
   def put(src: IntBuffer): IntBuffer =
-    genBuffer.generic_put(src)
+    GenBuffer(this).generic_put(src)
 
   @noinline
   def put(src: Array[Int], offset: Int, length: Int): IntBuffer =
-    genBuffer.generic_put(src, offset, length)
+    GenBuffer(this).generic_put(src, offset, length)
 
   final def put(src: Array[Int]): IntBuffer =
     put(src, 0, src.length)
 
   @inline final def hasArray(): Boolean =
-    genBuffer.generic_hasArray()
+    GenBuffer(this).generic_hasArray()
 
   @inline final def array(): Array[Int] =
-    genBuffer.generic_array()
+    GenBuffer(this).generic_array()
 
   @inline final def arrayOffset(): Int =
-    genBuffer.generic_arrayOffset()
+    GenBuffer(this).generic_arrayOffset()
 
   @inline override def position(newPosition: Int): IntBuffer = {
     super.position(newPosition)
@@ -115,7 +114,7 @@ abstract class IntBuffer private[nio] (
 
   @noinline
   override def hashCode(): Int =
-    genBuffer.generic_hashCode(IntBuffer.HashSeed)
+    GenBuffer(this).generic_hashCode(IntBuffer.HashSeed)
 
   override def equals(that: Any): Boolean = that match {
     case that: IntBuffer => compareTo(that) == 0
@@ -124,7 +123,7 @@ abstract class IntBuffer private[nio] (
 
   @noinline
   def compareTo(that: IntBuffer): Int =
-    genBuffer.generic_compareTo(that)(_.compareTo(_))
+    GenBuffer(this).generic_compareTo(that)(_.compareTo(_))
 
   def order(): ByteOrder
 
@@ -141,7 +140,7 @@ abstract class IntBuffer private[nio] (
       offset: Int,
       length: Int
   ): Unit =
-    genBuffer.generic_load(startIndex, dst, offset, length)
+    GenBuffer(this).generic_load(startIndex, dst, offset, length)
 
   @inline
   private[nio] def store(
@@ -150,5 +149,5 @@ abstract class IntBuffer private[nio] (
       offset: Int,
       length: Int
   ): Unit =
-    genBuffer.generic_store(startIndex, src, offset, length)
+    GenBuffer(this).generic_store(startIndex, src, offset, length)
 }

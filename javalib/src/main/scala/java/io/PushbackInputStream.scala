@@ -87,7 +87,8 @@ class PushbackInputStream(_in: InputStream, size: Int)
     } else {
       var numSkipped = 0L
       if (pos < buf.length) {
-        numSkipped += (buf.length - pos).toLong.min(count)
+        numSkipped += (if (count < buf.length - pos) count
+                       else buf.length - pos)
         pos += numSkipped.toInt
       }
       if (numSkipped < count) {

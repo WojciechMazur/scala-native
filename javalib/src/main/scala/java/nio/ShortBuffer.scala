@@ -25,8 +25,6 @@ abstract class ShortBuffer private[nio] (
   private[nio] type ElementType = Short
   private[nio] type BufferType = ShortBuffer
 
-  protected lazy val genBuffer = GenBuffer[ShortBuffer](this)
-
   def this(_capacity: Int) = this(_capacity, null, null, -1)
 
   def slice(): ShortBuffer
@@ -45,30 +43,30 @@ abstract class ShortBuffer private[nio] (
 
   @noinline
   def get(dst: Array[Short], offset: Int, length: Int): ShortBuffer =
-    genBuffer.generic_get(dst, offset, length)
+    GenBuffer(this).generic_get(dst, offset, length)
 
   def get(dst: Array[Short]): ShortBuffer =
     get(dst, 0, dst.length)
 
   @noinline
   def put(src: ShortBuffer): ShortBuffer =
-    genBuffer.generic_put(src)
+    GenBuffer(this).generic_put(src)
 
   @noinline
   def put(src: Array[Short], offset: Int, length: Int): ShortBuffer =
-    genBuffer.generic_put(src, offset, length)
+    GenBuffer(this).generic_put(src, offset, length)
 
   final def put(src: Array[Short]): ShortBuffer =
     put(src, 0, src.length)
 
   @inline final def hasArray(): Boolean =
-    genBuffer.generic_hasArray()
+    GenBuffer(this).generic_hasArray()
 
   @inline final def array(): Array[Short] =
-    genBuffer.generic_array()
+    GenBuffer(this).generic_array()
 
   @inline final def arrayOffset(): Int =
-    genBuffer.generic_arrayOffset()
+    GenBuffer(this).generic_arrayOffset()
 
   @inline override def position(newPosition: Int): ShortBuffer = {
     super.position(newPosition)
@@ -113,7 +111,7 @@ abstract class ShortBuffer private[nio] (
 
   @noinline
   override def hashCode(): Int =
-    genBuffer.generic_hashCode(ShortBuffer.HashSeed)
+    GenBuffer(this).generic_hashCode(ShortBuffer.HashSeed)
 
   override def equals(that: Any): Boolean = that match {
     case that: ShortBuffer => compareTo(that) == 0
@@ -122,7 +120,7 @@ abstract class ShortBuffer private[nio] (
 
   @noinline
   def compareTo(that: ShortBuffer): Int =
-    genBuffer.generic_compareTo(that)(_.compareTo(_))
+    GenBuffer(this).generic_compareTo(that)(_.compareTo(_))
 
   def order(): ByteOrder
 
@@ -139,7 +137,7 @@ abstract class ShortBuffer private[nio] (
       offset: Int,
       length: Int
   ): Unit =
-    genBuffer.generic_load(startIndex, dst, offset, length)
+    GenBuffer(this).generic_load(startIndex, dst, offset, length)
 
   @inline
   private[nio] def store(
@@ -148,5 +146,5 @@ abstract class ShortBuffer private[nio] (
       offset: Int,
       length: Int
   ): Unit =
-    genBuffer.generic_store(startIndex, src, offset, length)
+    GenBuffer(this).generic_store(startIndex, src, offset, length)
 }

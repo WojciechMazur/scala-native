@@ -25,8 +25,6 @@ abstract class FloatBuffer private[nio] (
   private[nio] type ElementType = Float
   private[nio] type BufferType = FloatBuffer
 
-  protected lazy val genBuffer = GenBuffer[FloatBuffer](this)
-
   def this(_capacity: Int) = this(_capacity, null, null, -1)
 
   def slice(): FloatBuffer
@@ -45,30 +43,30 @@ abstract class FloatBuffer private[nio] (
 
   @noinline
   def get(dst: Array[Float], offset: Int, length: Int): FloatBuffer =
-    genBuffer.generic_get(dst, offset, length)
+    GenBuffer(this).generic_get(dst, offset, length)
 
   def get(dst: Array[Float]): FloatBuffer =
     get(dst, 0, dst.length)
 
   @noinline
   def put(src: FloatBuffer): FloatBuffer =
-    genBuffer.generic_put(src)
+    GenBuffer(this).generic_put(src)
 
   @noinline
   def put(src: Array[Float], offset: Int, length: Int): FloatBuffer =
-    genBuffer.generic_put(src, offset, length)
+    GenBuffer(this).generic_put(src, offset, length)
 
   final def put(src: Array[Float]): FloatBuffer =
     put(src, 0, src.length)
 
   @inline final def hasArray(): Boolean =
-    genBuffer.generic_hasArray()
+    GenBuffer(this).generic_hasArray()
 
   @inline final def array(): Array[Float] =
-    genBuffer.generic_array()
+    GenBuffer(this).generic_array()
 
   @inline final def arrayOffset(): Int =
-    genBuffer.generic_arrayOffset()
+    GenBuffer(this).generic_arrayOffset()
 
   @inline override def position(newPosition: Int): FloatBuffer = {
     super.position(newPosition)
@@ -113,7 +111,7 @@ abstract class FloatBuffer private[nio] (
 
   @noinline
   override def hashCode(): Int =
-    genBuffer.generic_hashCode(FloatBuffer.HashSeed)
+    GenBuffer(this).generic_hashCode(FloatBuffer.HashSeed)
 
   override def equals(that: Any): Boolean = that match {
     case that: FloatBuffer => compareTo(that) == 0
@@ -122,7 +120,7 @@ abstract class FloatBuffer private[nio] (
 
   @noinline
   def compareTo(that: FloatBuffer): Int =
-    genBuffer.generic_compareTo(that)(_.compareTo(_))
+    GenBuffer(this).generic_compareTo(that)(_.compareTo(_))
 
   def order(): ByteOrder
 
@@ -139,7 +137,7 @@ abstract class FloatBuffer private[nio] (
       offset: Int,
       length: Int
   ): Unit =
-    genBuffer.generic_load(startIndex, dst, offset, length)
+    GenBuffer(this).generic_load(startIndex, dst, offset, length)
 
   @inline
   private[nio] def store(
@@ -148,5 +146,5 @@ abstract class FloatBuffer private[nio] (
       offset: Int,
       length: Int
   ): Unit =
-    genBuffer.generic_store(startIndex, src, offset, length)
+    GenBuffer(this).generic_store(startIndex, src, offset, length)
 }

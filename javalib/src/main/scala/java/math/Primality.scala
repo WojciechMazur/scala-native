@@ -115,7 +115,7 @@ private[math] object Primality {
       val n = new BigInteger(1, count, new Array[Int](count))
 
       val last = count - 1
-      while ({
+      do {
         // To fill the array with random integers
         for (i <- 0 until n.numberLength) {
           n.digits(i) = rnd.nextInt()
@@ -124,8 +124,7 @@ private[math] object Primality {
         n.digits(last) = (n.digits(last) | 0x80000000) >>> shiftCount
         // To create an odd number
         n.digits(0) |= 1
-        !isProbablePrime(n, certainty)
-      }) ()
+      } while (!isProbablePrime(n, certainty))
       n
     }
   }
@@ -290,12 +289,10 @@ private[math] object Primality {
          * methods would call Miller-Rabin with t <= 50 so this part is only to
          * do more robust the algorithm
          */
-        while ({
+        do {
           x = new BigInteger(bitLength, rnd)
-          (x.compareTo(n) >= BigInteger.EQUALS ||
-          x.sign == 0 ||
+        } while ((x.compareTo(n) >= BigInteger.EQUALS) || x.sign == 0 ||
           x.isOne())
-        }) ()
       }
 
       y = x.modPow(q, n)

@@ -1,16 +1,6 @@
-/*
- * Ported from Scala.js (https://www.scala-js.org/)
- *
- * Copyright EPFL.
- *
- * Licensed under Apache License 2.0
- * (https://www.apache.org/licenses/LICENSE-2.0).
- *
- * See the NOTICE file distributed with this work for
- * additional information regarding copyright ownership.
- */
+// Ported from Scala.js commit: a6c1451 dated: 2021-10-16
 
-package scala.scalanative.junit.utils
+package org.scalanative.testsuite.javalib.util
 
 import java.{util => ju}
 
@@ -37,19 +27,16 @@ object Utils {
       def hasNext(): Boolean = iter.hasNext()
 
       def next(): B = f(iter.next())
-
-      override def remove(): Unit =
-        throw new UnsupportedOperationException("Iterator.remove()")
     }
   }
 
-  def enumerationIsEmpty(e: ju.Enumeration[_]): Boolean =
-    !e.hasMoreElements()
+  def enumerationIsEmpty(enumeration: ju.Enumeration[_]): Boolean =
+    !enumeration.hasMoreElements()
 
-  def enumerationSize(e: ju.Enumeration[_]): Int = {
+  def enumerationSize(enumeration: ju.Enumeration[_]): Int = {
     var result = 0
-    while (e.hasMoreElements()) {
-      e.nextElement()
+    while (enumeration.hasMoreElements()) {
+      enumeration.nextElement()
       result += 1
     }
     result
@@ -57,12 +44,10 @@ object Utils {
 
   def assertEnumSameElementsAsSet[A](
       expected: A*
-  )(e: ju.Enumeration[_ <: A]): Unit = {
+  )(enumeration: ju.Enumeration[_ <: A]): Unit = {
     assertIteratorSameElementsAsSet(expected: _*)(new ju.Iterator[A] {
-      def hasNext(): Boolean = e.hasMoreElements()
-      def next(): A = e.nextElement()
-      override def remove(): Unit =
-        throw new UnsupportedOperationException("Iterator.remove()")
+      def hasNext(): Boolean = enumeration.hasMoreElements()
+      def next(): A = enumeration.nextElement()
     })
   }
 

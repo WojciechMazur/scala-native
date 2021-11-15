@@ -4,7 +4,6 @@ import sbt._
 import Keys._
 import Def.SettingsDefinition
 import scala.language.implicitConversions
-import scalafix.sbt.ScalafixPlugin.autoImport._
 
 final case class MultiScalaProject private (
     private val projects: Map[String, Project]

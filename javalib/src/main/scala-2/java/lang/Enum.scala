@@ -2,7 +2,7 @@ package java.lang
 
 abstract class Enum[E <: Enum[E]] protected (_name: String, _ordinal: Int)
     extends Comparable[E]
-    with java.io.Serializable {
+    with Serializable {
   def name(): String = _name
   def ordinal(): Int = _ordinal
   override def toString(): String = _name

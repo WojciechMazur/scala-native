@@ -2,9 +2,10 @@ package java.lang.reflect
 
 import scalanative.runtime.{Array => _, _}
 import java.lang._Class
+import scala.scalanative.annotation.alwaysinline
 
 object Array {
-  def newInstance(componentType: _Class[_], length: Int): AnyRef = {
+  def newInstance(componentType: _Class[_], length: Int): Object = {
     val ty = componentType
 
     if (ty == classOf[PrimitiveBoolean]) {
@@ -28,6 +29,26 @@ object Array {
     }
   }
 
+  def newInstance(componentType: _Class[_], dimensions: Array[Int]): Object = {
+    null
+    // @alwaysinline def arr(n: Int) = newInstance(componentType, n)
+    // arr(0)
+    // val n = dimensions
+    // dimensions.length match {
+    //   case 1 => arr(n(0))
+    //   case 2 => scala.Array.fill(n(0))(arr(n(1)))
+    //   case 3 => scala.Array.fill(n(0), n(1))(arr(n(2)))
+    //   case 4 => scala.Array.fill(n(0), n(1), n(2))(arr(n(3)))
+    //   case 5 => scala.Array.fill(n(0), n(1), n(2), n(3))(arr(n(4)))
+    //   case _ =>
+    //     if (dimensions.length == 0 || dimensions.length > 255)
+    //       throw new IllegalArgumentException()
+    //     val length = dimensions.head
+    //     val inner = newInstance(componentType, dimensions.tail)
+    //     scala.Array.fill(length)(inner.asInstanceOf[Array[Any]].clone)
+    // }
+  }
+
   def getLength(array: AnyRef): Int = array match {
     // yes, this is kind of stupid, but that's how it is
     case array: Array[Object]  => array.length
@@ -45,14 +66,14 @@ object Array {
 
   def get(array: AnyRef, index: Int): AnyRef = array match {
     case array: Array[Object]  => array(index)
-    case array: Array[Boolean] => new java.lang.Boolean(array(index))
-    case array: Array[Char]    => new java.lang.Character(array(index))
-    case array: Array[Byte]    => new java.lang.Byte(array(index))
-    case array: Array[Short]   => new java.lang.Short(array(index))
-    case array: Array[Int]     => new java.lang.Integer(array(index))
-    case array: Array[Long]    => new java.lang.Long(array(index))
-    case array: Array[Float]   => new java.lang.Float(array(index))
-    case array: Array[Double]  => new java.lang.Double(array(index))
+    case array: Array[Boolean] => java.lang.Boolean.valueOf(array(index))
+    case array: Array[Char]    => java.lang.Character.valueOf(array(index))
+    case array: Array[Byte]    => java.lang.Byte.valueOf(array(index))
+    case array: Array[Short]   => java.lang.Short.valueOf(array(index))
+    case array: Array[Int]     => java.lang.Integer.valueOf(array(index))
+    case array: Array[Long]    => java.lang.Long.valueOf(array(index))
+    case array: Array[Float]   => java.lang.Float.valueOf(array(index))
+    case array: Array[Double]  => java.lang.Double.valueOf(array(index))
     case _ =>
       throw new IllegalArgumentException("argument type mismatch")
   }

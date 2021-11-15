@@ -4,16 +4,21 @@ import sbt._
 import Keys._
 import Def.SettingsDefinition
 import scala.language.implicitConversions
+import scalafix.sbt.ScalafixPlugin.autoImport._
 
 final case class MultiScalaProject private (
     private val projects: Map[String, Project]
 ) extends CompositeProject {
   import MultiScalaProject._
 
-  lazy val v2_11: Project = projects("2.11")
-  lazy val v2_12: Project = projects("2.12")
-  lazy val v2_13: Project = projects("2.13")
-  lazy val v3: Project = projects("3").settings(Settings.scala3CompatSettings)
+  def project(v: String) = projects(v)
+
+  lazy val v2_11: Project = project("2.11")
+  lazy val v2_12: Project = project("2.12")
+  lazy val v2_13: Project = project("2.13")
+  lazy val v3: Project = project("3").settings(Settings.scala3CompatSettings)
+
+  override def componentProjects: Seq[Project] = Seq(v2_11, v2_12, v2_13, v3)
 
   def mapBinaryVersions(
       mapping: String => Project => Project
@@ -23,7 +28,7 @@ final case class MultiScalaProject private (
     })
   }
 
-  def forBinaryVersion(version: String): Project = projects(version)
+  def forBinaryVersion(version: String): Project = project(version)
 
   def settings(ss: SettingsDefinition*): MultiScalaProject =
     transform(_.settings(ss: _*))
@@ -79,8 +84,6 @@ final case class MultiScalaProject private (
   def %(configuration: String) =
     new ScopedMultiScalaProject(this, Some(configuration))
 
-  override def componentProjects: Seq[Project] = projects.valuesIterator.toSeq
-
   private def zipped[T](
       that: Map[String, T]
   )(f: (Project, T) => Project): MultiScalaProject = {
@@ -127,8 +130,12 @@ object MultiScalaProject {
     ).toLowerCase
   }
 
-  def apply(id: String): MultiScalaProject = apply(id, file(id))
-  def apply(id: String, base: File): MultiScalaProject = {
+  def apply(id: String): MultiScalaProject =
+    apply(id, file(id))
+  def apply(
+      id: String,
+      base: File
+  ): MultiScalaProject = {
     val projects = for {
       (major, minors) <- versions
     } yield {

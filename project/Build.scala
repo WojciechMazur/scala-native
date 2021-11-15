@@ -120,7 +120,7 @@ object Build {
             .map(_.getAbsolutePath)
             .mkString(pathSeparator)
           Seq(
-            "-Dscalanative.nscPlugin.jar=" + nscCompilerJar,
+            "-Dscalanative.nscplugin.jar=" + nscCompilerJar,
             "-Dscalanative.testingcompiler.cp=" + testingCompilerCp,
             "-Dscalanative.nativeruntime.cp=" + scalalibCp
           )
@@ -257,30 +257,38 @@ object Build {
               }
             }
           ).dependsOn(auxlib.forBinaryVersion(version))
-            .dependsOn(nativelib.forBinaryVersion(version))
             .dependsOn(javalib.forBinaryVersion(version))
-        case "3" =>
+        case version @ "3" =>
           _.settings(
-            commonScalalibSettings("scala3-library_3", libCrossScala3Versions),
+            name := "scalalib3",
+            commonScalalibSettings(
+              "scala3-library_3",
+              libCrossScala3Versions
+            ),
             scalacOptions ++= Seq(
               "-language:implicitConversions"
             ),
-            libraryDependencies += "org.scala-native" %%% "scalalib" % nativeVersion cross (CrossVersion.for3Use2_13),
+            libraryDependencies += ("org.scala-native" %%% "scalalib" % nativeVersion)
+              .exclude("org.scala-native", "nativelib_native0.4_2.13")
+              .exclude("org.scala-native", "clib_native0.4_2.13")
+              .exclude("org.scala-native", "posixlib_native0.4_2.13")
+              .exclude("org.scala-native", "windowslib_native0.4_2.13")
+              .exclude("org.scala-native", "auxlib_native0.4_2.13")
+              .exclude("org.scala-native", "javalib_native0.4_2.13")
+              .cross(CrossVersion.for3Use2_13),
             update := {
               val _ = Def.taskDyn {
                 Def.task {
-                  (nativelib.v2_13 / publishLocal).value
-                  (clib.v2_13 / publishLocal).value
-                  (posixlib.v2_13 / publishLocal).value
-                  (windowslib.v2_13 / publishLocal).value
-                  (javalib.v2_13 / publishLocal).value
-                  (auxlib.v2_13 / publishLocal).value
                   (scalalib.v2_13 / publishLocal).value
                 }
               }.value
               update.value
             }
           )
+            .dependsOn(
+              auxlib.forBinaryVersion(version),
+              javalib.forBinaryVersion(version)
+            )
       }
 
 // Tests ------------------------------------------------
@@ -294,13 +302,17 @@ object Build {
       nativeConfig ~= {
         _.withLinkStubs(true)
       },
-      Test / unmanagedSourceDirectories ++= scalaVersionsDependendent(
-        scalaVersion.value
-      )(Seq.empty[File]) {
-        case (2, n) if n >= 12 =>
-          Seq(
-            (Test / sourceDirectory).value / "scala-2.12+"
-          )
+      Test / unmanagedSourceDirectories ++= {
+        val base = (Test / sourceDirectory).value
+        scalaVersionsDependendent(scalaVersion.value)(Seq.empty[File]) {
+          case (2, n) if n >= 12 =>
+            Seq(
+              base / "scala-2",
+              base / "scala-2.12+"
+            )
+          case (2, _) => Seq(base / "scala-2")
+          case (3, _) => Seq(base / "scala-3")
+        }
       }
     )
     .withNativeCompilerPlugin
@@ -378,8 +390,9 @@ object Build {
         noPublishSettings,
         libraryDependencies ++= scalaCompilerDependency(scalaVersion.value),
         Compile / unmanagedSourceDirectories ++= {
-          val oldCompat: File = baseDirectory.value / "src/main/compat-old"
-          val newCompat: File = baseDirectory.value / "src/main/compat-new"
+          val base = baseDirectory.value.getParentFile()
+          val oldCompat: File = base / "src/main/compat-old"
+          val newCompat: File = base / "src/main/compat-new"
           CrossVersion
             .partialVersion(scalaVersion.value)
             .collect {
@@ -483,7 +496,7 @@ object Build {
         shouldPartestSetting,
         resolvers += Resolver.typesafeIvyRepo("releases"),
         fetchScalaSource / artifactPath :=
-          baseDirectory.value / "fetchedSources" / scalaVersion.value,
+          baseDirectory.value.getParentFile / "fetchedSources" / scalaVersion.value,
         fetchScalaSource := {
           import org.eclipse.jgit.api._
 
@@ -676,7 +689,8 @@ object Build {
 
             val jUnitTestsPath =
               (scalaPartest / fetchScalaSource).value / "test" / "junit"
-            val scalaScalaJUnitSources = allScalaFromDir(jUnitTestsPath)
+            val scalaScalaJUnitSources =
+              allScalaFromDir(jUnitTestsPath, jUnitTestsPath)
             checkBlacklistCoherency(blacklist, scalaScalaJUnitSources)
             scalaScalaJUnitSources.collect {
               case (rel, file) if !blacklist.contains(rel) => file

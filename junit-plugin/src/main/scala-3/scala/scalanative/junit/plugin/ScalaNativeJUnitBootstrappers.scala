@@ -338,19 +338,23 @@ object ScalaNativeJUnitBootstrappers extends PluginPhase {
     val junitdefn = JUnitDefinitions.defnJUnit
 
     val resultType = testMethod.info.resultType
-    if (resultType.isRef(defn.UnitClass)) {
+    def returnsUnit =
+      resultType.isRef(defn.UnitClass) || resultType.isRef(defn.BoxedUnitClass)
+    def returnsFuture = resultType.isRef(junitdefn.FutureClass)
+    
+    if (returnsUnit) {
       val newSuccess =
         ref(junitdefn.SuccessModule_apply).appliedTo(ref(defn.BoxedUnit_UNIT))
       Block(
         instance.select(testMethod).appliedToNone :: Nil,
         ref(junitdefn.FutureModule_successful).appliedTo(newSuccess)
       )
-    } else if (resultType.isRef(junitdefn.FutureClass)) {
+    } else if (returnsFuture) {
       instance.select(testMethod).appliedToNone
     } else {
       // We lie in the error message to not expose that we support async testing.
       report.error(
-        "JUnit test must have Unit return type",
+        s"JUnit test must have Unit return type, but got $resultType",
         testMethod.sourcePos
       )
       EmptyTree

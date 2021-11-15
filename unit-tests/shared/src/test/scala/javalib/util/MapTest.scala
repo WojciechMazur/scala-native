@@ -56,7 +56,7 @@ trait MapTest {
     assertEquals(12345, one)
   }
 
-  @Test def shouldStoreDoublesAlsoInCornerCases() {
+  @Test def shouldStoreDoublesAlsoInCornerCases(): Unit = {
     assumeNotIdentityHashMapOnJVM()
 
     val mp = factory.empty[Double, Double]
@@ -108,7 +108,7 @@ trait MapTest {
     assertNull(mp.get("ONE"))
   }
 
-  @Test def shouldRemoveStoredElementsInDoubleCornerCases() {
+  @Test def shouldRemoveStoredElementsInDoubleCornerCases(): Unit = {
     assumeNotIdentityHashMapOnJVM()
 
     val mp = factory.empty[Double, String]

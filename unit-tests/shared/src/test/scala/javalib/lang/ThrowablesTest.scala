@@ -69,7 +69,7 @@ class ThrowablesTest {
     checkStackTraceString(sw.toString)
   }
 
-  private def checkSuppressed(throwable: Throwable, expectedLength: Int) {
+  private def checkSuppressed(throwable: Throwable, expectedLength: Int): Unit = {
     val getSuppressedLength = throwable.getSuppressed.length
     assertTrue(
       s"getSuppressed.length: ${getSuppressedLength} != " +

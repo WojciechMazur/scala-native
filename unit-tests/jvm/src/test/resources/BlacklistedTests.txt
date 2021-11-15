@@ -21,7 +21,7 @@ scala/javalib/nio/file/FileSystemExceptionTest.scala
 scala/javalib/nio/file/DirectoryStreamTest.scala
 
 scala/scala/ObjectCloneTest.scala
-scala/scala/ReflectiveProxyTest.scala
+scala-2/scala/ReflectiveProxyTest.scala
 scala/scala/ExecutionContextTest.scala
 scala/scala/AsInstanceOfTest.scala
 

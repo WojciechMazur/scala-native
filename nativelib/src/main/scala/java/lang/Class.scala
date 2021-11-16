@@ -3,7 +3,7 @@ package java.lang
 import java.lang.reflect.{Field, Method}
 import scala.language.implicitConversions
 
-import scalanative.annotation._
+import scalanative.annotation.{alwaysinline, stub}
 import scalanative.unsafe._
 import scalanative.runtime.{Array => _, _}
 

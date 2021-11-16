@@ -36,7 +36,7 @@ final class NirDefinitions()(using ctx: Context) {
   @tu lazy val StubType = requiredClassRef("scala.scalanative.annotation.stub")
   @tu lazy val NameType = requiredClassRef("scala.scalanative.unsafe.name")
   @tu lazy val LinkType = requiredClassRef("scala.scalanative.unsafe.link")
-  @tu lazy val ExternType = requiredClassRef("scala.scalanative.unsafe.extern")
+  @tu lazy val ExternType = requiredClassRef("scala.scalanative.annotation.extern")
   @tu lazy val StructType = requiredClassRef("scala.scalanative.runtime.struct")
   @tu lazy val ResolvedAtLinktimeType = requiredClassRef("scala.scalanative.unsafe.resolvedAtLinktime")
   @tu lazy val JavaDefaultMethodType = requiredClassRef("scala.scalanative.annotation.JavaDefaultMethod")

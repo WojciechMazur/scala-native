@@ -188,7 +188,7 @@ object WinSocketApiOps {
   final def init(): Unit = {
     if (!winSocketsInitialized) {
       val requiredVersion = (wordFromBytes _).tupled(WinSocketVersion)
-      val winSocketData = stackalloc[Byte](WinSocketApi.WSADataSize)
+      val winSocketData: Ptr[WSAData] = stackalloc[Byte](WinSocketApi.WSADataSize)
         .asInstanceOf[Ptr[WSAData]]
 
       val initError = WinSocketApi.WSAStartup(requiredVersion, winSocketData)

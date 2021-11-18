@@ -93,6 +93,9 @@ object NirPrimitives {
 
   def isRawCastOp(code: Int): Boolean =
     code >= CAST_RAW_PTR_TO_OBJECT && code <= CAST_LONG_TO_RAWPTR
+    
+  def isUnsignedOp(code: Int): Boolean = 
+    code >= DIV_UINT && code <= ULONG_TO_DOUBLE
 }
 
 class NirPrimitives(using ctx: Context) extends DottyPrimitives(ctx) {

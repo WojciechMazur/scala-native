@@ -32,6 +32,9 @@ trait NirGenType(using Context) {
     def isScalaModule: Boolean =
       sym.is(ModuleClass, butNot = Lifted)
 
+    def isStaticModule: Boolean = 
+      sym.is(Module) && sym.isStatic
+
     def isExternModule: Boolean =
       isScalaModule && sym.hasAnnotation(defnNir.ExternClass)
 
@@ -206,7 +209,7 @@ trait NirGenType(using Context) {
       else Some(genType(owner))
     val resultType = sym.info.resultType
     val retty =
-      if (sym.isClassConstructor) nir.Type.Unit
+      if (sym.isConstructor) nir.Type.Unit
       else if (isExtern) genExternType(resultType)
       else genType(resultType)
 
@@ -222,7 +225,8 @@ trait NirGenType(using Context) {
       paramList <- sym.info.paramInfoss
       param <- paramList
     } yield {
-      if (param.isRepeatedParam && sym.owner.isExternModule) nir.Type.Vararg
+      if (param.isRepeatedParam && sym.owner.isExternModule) 
+        nir.Type.Vararg
       else if (isExtern) genExternType(param)
       else genType(param)
     }

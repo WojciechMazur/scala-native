@@ -391,9 +391,9 @@ object Settings {
     // Don't include classfiles for javalib in the packaged jar.
     Compile / packageBin / mappings := {
       val previous = (Compile / packageBin / mappings).value
+      val ignoredExtensions = Set(".class", ".tasty")
       previous.filter {
-        case (_, path) =>
-          !path.endsWith(".class")
+        case (_, path) => !ignoredExtensions.exists(path.endsWith(_))
       }
     },
     exportJars := true

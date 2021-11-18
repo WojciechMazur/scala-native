@@ -10,6 +10,7 @@ import dotty.tools.dotc.transform.SymUtils._
 import dotty.tools.backend.jvm.DottyBackendInterface.symExtensions
 import scalanative.util.unreachable
 import scalanative.nir
+import scala.language.implicitConversions
 
 trait NirGenName(using Context) {
   self: NirCodeGen =>
@@ -34,7 +35,11 @@ trait NirGenName(using Context) {
     val owner = genTypeName(sym.owner)
     val id = nativeIdOf(sym)
     val scope = {
-      if (sym.isPrivate || !sym.is(Mutable)) nir.Sig.Scope.Private(owner)
+      /* Variables are internally private, but with public setter/getter.
+       * Removing this check would cause problems with reachability
+       */
+      if (sym.isPrivate && !sym.is(Mutable))
+        nir.Sig.Scope.Private(owner)
       else nir.Sig.Scope.Public
     }
 
@@ -62,7 +67,7 @@ trait NirGenName(using Context) {
     if (sym == defn.`String_+`) genMethodName(defnNir.String_concat)
     else if (sym.owner.isExternModule) {
       if (sym.isSetter) {
-        // Previously dropSetter was sued
+        // Previously dropSetter was used
         val id0 = sym.javaSimpleName
         owner.member(nir.Sig.Extern(id0))
       } else {
@@ -77,9 +82,24 @@ trait NirGenName(using Context) {
   }
 
   def genFuncPtrExternForwarderName(ownerSym: Symbol): nir.Global = {
-    ???
-    // val owner = genTypeName(ownerSym)
-    // owner.member(nir.Sig.Generated("$extern$forwarder"))
+    val owner = genTypeName(ownerSym)
+    owner.member(nir.Sig.Generated("$extern$forwarder"))
+  }
+
+  def genStaticMemberName(sym: Symbol): nir.Global = {
+    require(
+      sym.is(JavaStaticTerm),
+      s"genStaticMemberName called with non-static symbol (${sym.flagsString}): $sym"
+    )
+
+    val name = sym.name.mangledString
+    val owner = genTypeName(sym.owner)
+    val resultType = genType(sym.info.resultType)
+    val scope =
+      if (sym.isPrivate) nir.Sig.Scope.Private(owner)
+      else nir.Sig.Scope.Public
+    val methodSig = nir.Sig.Method(name, Seq(resultType), scope)
+    owner.member(methodSig)
   }
 
   private def nativeIdOf(sym: Symbol): String = {
@@ -87,20 +107,17 @@ trait NirGenName(using Context) {
       .getAnnotation(defnNir.NameClass)
       .flatMap(_.argumentConstantString(0))
       .getOrElse {
+        // We cannot use sym.javaSimpleName for compatibility with Scala 2 names
+        def name = sym.name.toString
         val id: String =
-          if (sym.isField) sym.javaSimpleName
+          if (sym.isField) name
           else if (sym.is(Method))
-            val name = sym.javaSimpleName
             val isScalaHashOrEquals = name.startsWith("__scala_")
             if (sym.owner == defnNir.NObjectClass || isScalaHashOrEquals)
-              name match {
-                // compat with Scala 2 stdlib
-                case "__scala_$eq$eq" => "scala_==" 
-                case "__scala_$hash$hash" => "scala_##"
-                case _ =>    name.substring(2) // strip the __
-              }
+              name.substring(2) // strip the __
             else name
           else scalanative.util.unreachable
+
         /*
          * Double quoted identifiers are not allowed in CLang.
          * We're replacing them with unicode to allow distinction between x / `x` and `"x"`.
@@ -113,8 +130,20 @@ trait NirGenName(using Context) {
 
 object NirGenName {
   private val MappedNames = Map(
-    "java.lang._String" -> "java.lang.String",
+    "java.lang._Class" -> "java.lang.Class",
+    "java.lang._Cloneable" -> "java.lang.Cloneable",
+    "java.lang._Comparable" -> "java.lang.Comparable",
+    "java.lang._Enum" -> "java.lang.Enum",
+    "java.lang._NullPointerException" -> "java.lang.NullPointerException",
     "java.lang._Object" -> "java.lang.Object",
-    "java.lang._Class" -> "java.lang.Class"
-  )
+    "java.lang._String" -> "java.lang.String",
+    "java.lang.annotation._Retention" -> "java.lang.annotation.Retention",
+    "java.io._Serializable" -> "java.io.Serializable"
+  ).flatMap {
+    case classEntry @ (nativeName, javaName) =>
+      List(
+        classEntry,
+        (nativeName + "$", javaName + "$")
+      )
+  }
 }

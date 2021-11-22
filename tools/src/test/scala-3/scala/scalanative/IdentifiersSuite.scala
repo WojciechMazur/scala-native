@@ -23,17 +23,11 @@ class IdentifiersSuite extends ReachabilitySuite {
         |  `x`
         |  `"x"`
         |  `"x"x"`
-        |  `$u0022x"`
-        |  `"x$u0022`
-        |  `"x$u0022x"`
         |
         |  y()
         |  `y`()
         |  `"y"`()
         |  `"y"y"`()
-        |  `$u0022y"`()
-        |  `"y$u0022`()
-        |  `"y$u0022y"`()
         |}
         |""".stripMargin
 

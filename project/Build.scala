@@ -504,6 +504,14 @@ object Build {
           val ver = scalaVersion.value
           val trgDir = (fetchScalaSource / artifactPath).value
 
+          val (repoURL, tag) = CrossVersion
+            .partialVersion(ver)
+            .collect {
+              case (2, _) => "https://github.com/scala/scala.git" -> s"v$ver"
+              case (3, _) => "https://github.com/lampepfl/dotty.git" -> ver
+            }
+            .getOrElse(throw new RuntimeException("Invalid Scala version"))
+
           if (!trgDir.exists) {
             s.log.info(s"Fetching Scala source version $ver")
 
@@ -513,7 +521,7 @@ object Build {
             // Clone scala source code
             new CloneCommand()
               .setDirectory(trgDir)
-              .setURI("https://github.com/scala/scala.git")
+              .setURI(repoURL)
               .call()
           }
 
@@ -521,7 +529,7 @@ object Build {
           // something is wrong
           val git = Git.open(trgDir)
           s.log.info(s"Checking out Scala source version $ver")
-          git.checkout().setName(s"v$ver").call()
+          git.checkout().setName(tag).call()
 
           trgDir
         },
@@ -613,18 +621,20 @@ object Build {
               if (!(scalaPartest / shouldPartest).value) Nil
               else {
                 val upstreamDir = (scalaPartest / fetchScalaSource).value
-                CrossVersion.partialVersion(scalaVersion.value) match {
-                  case Some((2, 11 | 12)) => Seq.empty[File]
-                  case _ =>
-                    val testkit =
-                      upstreamDir / "src/testkit/scala/tools/testkit"
-                    val partest =
-                      upstreamDir / "src/partest/scala/tools/partest"
-                    Seq(
-                      testkit / "AssertUtil.scala",
-                      partest / "Util.scala"
-                    )
-                }
+                CrossVersion
+                  .partialVersion(scalaVersion.value)
+                  .collect {
+                    case (2, 13) =>
+                      val testkit =
+                        upstreamDir / "src/testkit/scala/tools/testkit"
+                      val partest =
+                        upstreamDir / "src/partest/scala/tools/partest"
+                      Seq(
+                        testkit / "AssertUtil.scala",
+                        partest / "Util.scala"
+                      )
+                  }
+                  .getOrElse(Seq.empty[File])
               }
             },
             Compile / unmanagedSourceDirectories ++= {

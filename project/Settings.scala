@@ -646,7 +646,7 @@ object Settings {
   def shouldPartestSetting: Seq[Def.Setting[_]] = {
     Def.settings(
       shouldPartest := {
-        baseDirectory.value.getParentFile / "scala-partest-tests" / "src" / "test" / "resources" /
+        baseDirectory.value.getParentFile.getParentFile / "scala-partest-tests" / "src" / "test" / "resources" /
           "scala" / "tools" / "partest" / "scalanative" / scalaVersion.value
       }.exists()
     )

@@ -45,7 +45,7 @@ trait GenReflectiveInstantisation(using Context) {
   }
 
   def genReflectiveInstantiation(td: TypeDef): Unit = {
-    val sym = td.symbol
+    val sym = td.symbol.asClass
     val enableReflectiveInstantiation =
       (sym :: sym.info.parents.map(_.typeSymbol))
         .exists(
@@ -56,7 +56,9 @@ trait GenReflectiveInstantisation(using Context) {
       scoped(
         curClassSym := sym,
         curFresh := Fresh(),
-        curUnwindHandler := None
+        curUnwindHandler := None,
+        curMethodThis := None,
+        curMethodOuterSym := None
       ) {
         registerReflectiveInstantiation(td)
       }
@@ -81,7 +83,7 @@ trait GenReflectiveInstantisation(using Context) {
     staticInitBody
       .filter(_.nonEmpty)
       .foreach { body =>
-        generatedDefns += 
+        generatedDefns +=
           Defn.Define(
             Attrs(),
             name,
@@ -211,6 +213,7 @@ trait GenReflectiveInstantisation(using Context) {
       reflInstBuffer: ReflectiveInstantiationBuffer
   ): Val = {
     val applyMethodSig = Sig.Method("apply", Seq(Rt.Object))
+    val enclosingClass = curClassSym.get.originalOwner
 
     // Generate the module loader class. The generated class extends
     // AbstractFunction0[Any], i.e. has an apply method, which loads the module.
@@ -221,7 +224,9 @@ trait GenReflectiveInstantisation(using Context) {
         val thisArg = Val.Local(curFresh(), Type.Ref(reflInstBuffer.name))
         buf.label(curFresh(), Seq(thisArg))
 
-        val module = buf.module(fqSymName, unwind(curFresh))
+        val module =
+          if (enclosingClass.exists && !enclosingClass.is(ModuleClass)) Val.Null
+          else buf.module(fqSymName, unwind(curFresh))
         buf.ret(module)
         buf.toSeq
       }

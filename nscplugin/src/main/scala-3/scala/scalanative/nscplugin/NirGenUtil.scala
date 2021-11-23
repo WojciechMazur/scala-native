@@ -53,16 +53,16 @@ trait NirGenUtil(using Context) { self: NirCodeGen =>
   }
 
   protected def qualifierOf(fun: Tree): Tree = {
-  fun match {
-    case fun: Ident =>
-      fun.tpe match {
-        case TermRef(prefix: TermRef, _)  => tpd.ref(prefix)
-        case TermRef(prefix: ThisType, _) => tpd.This(prefix.cls)
-      }
-    case Select(qualifier, _) => qualifier
-    case TypeApply(fun, _)    => qualifierOf(fun)
+    fun match {
+      case fun: Ident =>
+        fun.tpe match {
+          case TermRef(prefix: TermRef, _)  => tpd.ref(prefix)
+          case TermRef(prefix: ThisType, _) => tpd.This(prefix.cls)
+        }
+      case Select(qualifier, _) => qualifier
+      case TypeApply(fun, _)    => qualifierOf(fun)
+    }
   }
-}
 
   protected def unwrapClassTagOption(tree: Tree): Option[Symbol] =
     tree match {

@@ -27,11 +27,13 @@ trait NirGenDefn(using Context) {
   protected val generatedDefns = mutable.UnrolledBuffer.empty[nir.Defn]
 
   def genClass(td: TypeDef)(using Context): Unit = {
+    val sym = td.symbol.asClass
     scoped(
-      curClassSym := td.symbol,
+      curClassSym := sym,
       curClassFresh := nir.Fresh()
     ) {
-      genNormalClass(td)
+      if (sym.isStruct) genStruct(td)
+      else genNormalClass(td)
     }
   }
 
@@ -48,12 +50,9 @@ trait NirGenDefn(using Context) {
       .map(genTypeName)
 
     generatedDefns += {
-      if (sym.isStaticModule)
-        Defn.Module(attrs, name, parent, traits)
-      else if (sym.isTraitOrInterface)
-        Defn.Trait(attrs, name, traits)
-      else
-        Defn.Class(attrs, name, parent, traits)
+      if (sym.isStaticModule) Defn.Module(attrs, name, parent, traits)
+      else if (sym.isTraitOrInterface)   Defn.Trait(attrs, name, traits)
+      else Defn.Class(attrs, name, parent, traits)
     }
     genClassFields(td)
     genMethods(td)
@@ -102,7 +101,7 @@ trait NirGenDefn(using Context) {
 
       val isStaticField = f.is(JavaStatic)
       val mutable = isStaticField || f.is(Mutable)
-      val isExternModule = f.isExternModule
+      val isExternModule = classSym.isExternModule
       val attrs = nir.Attrs(isExtern = isExternModule)
 
       val ty = genType(f.info.resultType)
@@ -216,7 +215,7 @@ trait NirGenDefn(using Context) {
       }
 
     val isStub = sym.hasAnnotation(defnNir.StubClass)
-    val isExtern = sym.hasAnnotation(defnNir.ExternClass)
+    val isExtern = sym.owner.hasAnnotation(defnNir.ExternClass)
 
     Attrs
       .fromSeq(inlineAttrs ++ optAttrs)
@@ -238,9 +237,6 @@ trait NirGenDefn(using Context) {
     val buf = ExprBuffer()
 
     val sym = curMethodSym.get
-    val thisParam = Option.unless(isStatic) {
-      Val.Local(fresh(), genType(curClassSym.get))
-    }
     val argParamSyms = for {
       paramList <- dd.paramss.take(1)
       param <- paramList
@@ -254,12 +250,17 @@ trait NirGenDefn(using Context) {
       curMethodEnv.enter(sym, param)
       param
     }
+    val thisParam = Option.unless(isStatic) {
+      Val.Local(fresh(), genType(curClassSym.get))
+    }
+    val outerParam = argParamSyms
+      .find(_.name == nme.OUTER)
     val params = thisParam.toList ::: argParams
+
     val isSynchronized = dd.symbol.is(Synchronized)
 
     def genEntry(): Unit = {
       buf.label(fresh(), params)
-
       if (isExtern) {
         argParamSyms.zip(argParams).foreach {
           case (sym, param) =>
@@ -301,11 +302,13 @@ trait NirGenDefn(using Context) {
       else
         scoped(
           curMethodThis := thisParam,
+          curMethodOuterSym := outerParam,
           curMethodIsExtern := isExtern
         ) {
           buf.genReturn(withOptSynchronized(_.genExpr(bodyp)) match {
-            case Val.Zero(_) => Val.Zero(genType(curMethodSym.get.info.resultType))
-            case v           => v
+            case Val.Zero(_) =>
+              Val.Zero(genType(curMethodSym.get.info.resultType))
+            case v => v
           })
         }
     }
@@ -318,18 +321,26 @@ trait NirGenDefn(using Context) {
     }
   }
 
+  private def genStruct(td: TypeDef): Unit = {
+    given nir.Position = td.span
+
+    val sym = td.symbol
+    val attrs = Attrs.None
+    val name = genTypeName(sym)
+
+    generatedDefns += Defn.Class(attrs, name, None, Seq.empty)
+    genMethods(td)
+  }
+
   private def checkExplicitReturnTypeAnnotation(
       externMethodDd: DefDef,
       methodKind: String
   ): Unit = {
-    externMethodDd.tpt match {
-      case resultTypeTree: TypeTree if resultTypeTree.isEmpty =>
-        report.error(
-          s"$methodKind ${externMethodDd.name} needs result type",
-          externMethodDd.sourcePos
-        )
-      case _ => () // no-op
-    }
+    if (externMethodDd.tpt.symbol == defn.NothingClass)
+      report.error(
+        s"$methodKind ${externMethodDd.name} needs result type",
+        externMethodDd.sourcePos
+      )
   }
 
   protected def genLinktimeResolved(dd: DefDef, name: Global)(using

@@ -80,28 +80,9 @@ trait NirGenExpr(using Context) {
       val Apply(fun, args) = app
 
       val sym = fun.symbol
-      def applyMethod(): Val = {
-        val currentClass = curClassSym.get.asClass
-        val curThis = curMethodThis.get
-        val owner = sym.owner
-        // In case if static method is defined in outer class, use it's accessor to resolve
-        // instance of expected type
-        if (sym.is(JavaStatic) && currentClass != owner && curThis.nonEmpty) {
-          val outerAccessor =
-            transform.ExplicitOuter.outerAccessor(currentClass)
-          val outer =
-            if (outerAccessor.exists && outerAccessor.info.resultType.typeSymbol == owner)
-              genApplyMethod(outerAccessor, false, curThis.get, Nil)
-            else Val.Zero(genType(owner))
-          genApplyMethod(sym, statically = false, outer, args)
-        } else
-          genApplyMethod(
-            sym,
-            statically = owner.isStaticOwner,
-            qualifierOf(fun),
-            args
-          )
-      }
+      def isStatic = sym.owner.isStaticOwner
+      def qualifier = qualifierOf(fun)
+
       fun match {
         case _: TypeApply => genApplyTypeApply(app)
         case Select(Super(_, _), _) =>
@@ -125,7 +106,7 @@ trait NirGenExpr(using Context) {
           }
           if (dimensions.size == 1)
             genApplyNewArray(tpe, dimensions)
-          else applyMethod()
+          else genApplyMethod(sym, statically = isStatic, qualifier, args)
         case _ =>
           if (nirPrimitives.isPrimitive(fun)) genApplyPrimitive(app)
           else if (Erasure.Boxing.isBox(sym))
@@ -133,8 +114,7 @@ trait NirGenExpr(using Context) {
             genApplyBox(arg.tpe, arg)
           else if (Erasure.Boxing.isUnbox(sym))
             genApplyUnbox(app.tpe, args.head)
-          else applyMethod()
-
+          else genApplyMethod(sym, statically = isStatic, qualifier, args)
       }
     }
 
@@ -229,10 +209,7 @@ trait NirGenExpr(using Context) {
       }
 
       val isStaticCall = funSym.is(JavaStatic)
-      val allCaptureValues = {
-        if (isStaticCall) env
-        else qualifierOf(fun) :: env
-      }
+      val allCaptureValues = qualifierOf(fun) :: env
       val captureSyms = allCaptureValues.map(_.symbol)
       val captureTypesAndNames = {
         for
@@ -325,17 +302,16 @@ trait NirGenExpr(using Context) {
         val paramSyms = funSym.paramSymss.flatten
 
         def genBody = {
-          val bodyFresh = Fresh()
+          given fresh: Fresh = Fresh()
+          given buf: ExprBuffer = new ExprBuffer()
           scoped(
-            curFresh := bodyFresh,
-            curMethodEnv := MethodEnv(bodyFresh),
-            curMethodLabels := MethodLabelsEnv(bodyFresh),
+            curFresh := fresh,
+            curExprBuffer := buf,
+            curMethodEnv := MethodEnv(fresh),
+            curMethodLabels := MethodLabelsEnv(fresh),
             curMethodInfo := CollectMethodInfo(),
             curUnwindHandler := None
           ) {
-            given fresh: Fresh = Fresh()
-            given buf: ExprBuffer = new ExprBuffer()
-
             val self = Val.Local(fresh(), selfType)
             val params = sigTypes.map(Val.Local(fresh(), _))
 
@@ -354,16 +330,17 @@ trait NirGenExpr(using Context) {
               yield buf.fieldload(tpe, self, name, unwind)
 
             val allVals = (captureVals ++ paramVals).toList
-            val thisVal :: argVals =
-              if (isStaticCall) curMethodThis.get.getOrElse(Val.Null) :: allVals
-              else allVals
-
-            val res = buf.genApplyMethod(
-              funSym,
-              statically = false,
-              thisVal,
-              argVals.map(ValTree(_))
-            )
+            val thisVal :: argVals = allVals
+            val res = scoped(
+              curMethodThis := Some(thisVal)
+            ) {
+              buf.genApplyMethod(
+                funSym,
+                statically = false,
+                thisVal,
+                argVals.map(ValTree(_))
+              )
+            }
             val retValue =
               if (retType == res.ty) res
               else
@@ -723,23 +700,26 @@ trait NirGenExpr(using Context) {
 
     def genThis(tree: This): Val = {
       given nir.Position = tree.span
-      val currentClass = curClassSym.get
-      val symIsModuleClass = tree.symbol.is(ModuleClass)
-      assert(
-        tree.symbol == currentClass || symIsModuleClass,
-        s"Trying to access the this of another class: tree.symbol = ${tree.symbol}, class symbol = $currentClass"
-      )
-      if (symIsModuleClass &&
-          tree.symbol != currentClass &&
-          !tree.symbol.is(Package))
-        genModule(tree.symbol)
+      val sym = tree.symbol
+      def currentThis = curMethodThis.get
+      def currentClass = curClassSym.get
+      def currentMethod = curMethodSym.get
+
+      def canUseCurrentThis = currentThis.nonEmpty &&
+        (sym == currentClass || currentMethod.owner == currentClass)
+      val canLoadAsModule =
+        sym != currentClass &&
+          sym.is(ModuleClass, butNot = Package) ||
+          sym.isPackageObject
+
+      if (canLoadAsModule) genModule(sym)
+      else if (canUseCurrentThis) currentThis.get
       else
-        curMethodThis.getOrElse {
-          // println(
-          //   s"no this for ${tree.symbol.fullName} in ${curClassSym.get} ${curClassSym.get.flagsString} ${curMethodSym.get} ${curMethodSym.get.flagsString}"
-          // )
-          Val.Zero(genType(currentClass))
-        }
+        report.error(
+          s"Cannot resolve `this` instance for ${tree}",
+          tree.sourcePos
+        )
+        Val.Zero(genType(currentClass))
     }
 
     def genTry(tree: Try): Val = tree match {
@@ -1141,14 +1121,32 @@ trait NirGenExpr(using Context) {
         self: Val,
         argsp: Seq[Tree]
     )(using nir.Position): Val = {
-      val owner = sym.owner
+      val owner = sym.owner.asClass
       val name = genMethodName(sym)
+      val curThis = curMethodThis.get
+      val outerSym = curMethodOuterSym.get
 
       val origSig = genMethodSig(sym)
       val sig =
         if (owner.isExternModule) genExternMethodSig(sym)
         else origSig
       val args = genMethodArgs(sym, argsp)
+
+      // In case if static method is defined in outer class, use it's accessor to resolve
+      // instance of expected type
+      def outerSymResult = outerSym.map(_.info.resultType.typeSymbol)
+      lazy val outerAccessor = transform.ExplicitOuter
+        .outerAccessor(curClassSym.get)
+        .filter(_.info.resultType.typeSymbol == owner)
+
+      val selfVal =
+        if (curClassSym.get.isSubClass(owner)) self
+        else if (outerSymResult.exists(_.isSubClass(owner)))
+          curMethodEnv.resolve(outerSym.get)
+        else if (outerAccessor.exists && curThis.isDefined)
+          genApplyMethod(outerAccessor, false, curThis.get, Nil)
+        else self
+
       val isStaticCall = statically ||
         sym.is(JavaStatic) ||
         owner.isStruct || owner.isExternModule
@@ -1156,10 +1154,10 @@ trait NirGenExpr(using Context) {
         if (isStaticCall) Val.Global(name, nir.Type.Ptr)
         else
           val Global.Member(_, sig) = name
-          buf.method(self, sig, unwind)
+          buf.method(selfVal, sig, unwind)
       val values =
         if (owner.isExternModule) args
-        else self +: args
+        else selfVal +: args
 
       val res = buf.call(sig, method, values, unwind)
 
@@ -1171,21 +1169,6 @@ trait NirGenExpr(using Context) {
       }
     }
 
-    private def genApplyMethod(
-        name: Global,
-        statically: Boolean,
-        self: Val,
-        args: Seq[Val]
-    )(using nir.Position): Val = {
-      val Global.Member(owner, sig) = name
-      val Sig.Method(_, types, _) = sig.unmangled
-      val ty = Type.Function(types.init, types.last)
-      val method =
-        if (statically) Val.Global(name, nir.Type.Ptr)
-        else buf.method(self, sig, unwind)
-      buf.call(ty, method, args, unwind)
-    }
-
     private def genApplyExternAccessor(sym: Symbol, argsp: Seq[Tree])(using
         nir.Position
     ): Val = {
@@ -1195,7 +1178,7 @@ trait NirGenExpr(using Context) {
           val externTy = genExternMethodSig(sym).ret
           genLoadExtern(ty, externTy, sym)
         case Seq(valuep) =>
-          val externTy = genExternType(sym.info.resultType)
+          val externTy = genExternType(valuep.tpe)
           genStoreExtern(externTy, sym, genExpr(valuep))
       }
     }
@@ -1567,9 +1550,6 @@ trait NirGenExpr(using Context) {
       def module = genModule(sym.owner)
 
       if (sym == defn.BoxedUnit_UNIT) Val.Unit
-      else if (sym.isField)
-        val name = genStaticMemberName(sym)
-        genApplyMethod(name, statically = true, module, Seq())
       else genApplyMethod(sym, statically = true, module, Seq())
     }
 
@@ -1995,6 +1975,27 @@ trait NirGenExpr(using Context) {
             )(using position)
           }
 
+        // special case for Scala 3 - it wraps != into !(_ == _)
+        // if(property == x) (...)
+        case Apply(
+              Select(
+                Apply(
+                  Select(LinktimeProperty(name, position), nme.EQ),
+                  List(arg @ Literal(Constant(_)))
+                ),
+                nme.UNARY_!
+              ),
+              List()
+            ) =>
+          Some {
+            val argValue = genLiteralValue(arg)
+            SimpleCondition(
+              propertyName = name,
+              comparison = genComparsion(nme.NE, argValue),
+              value = argValue
+            )(using position)
+          }
+
         // if(cond1 {&&,||} cond2) (...)
         case Apply(Select(cond1, op), List(cond2)) =>
           (getLinktimeCondition(cond1), getLinktimeCondition(cond2)) match {
@@ -2199,20 +2200,19 @@ trait NirGenExpr(using Context) {
       alloc
     }
 
-    private def genFuncExternForwarder(funcName: Global, treeSym: Symbol)(using
+    private def genFuncExternForwarder(funcName: Global, funSym: Symbol)(using
         nir.Position
     ): Defn = {
       val attrs = Attrs(isExtern = true)
 
-      val sig = genMethodSig(treeSym)
-      val externSig = genExternMethodSig(treeSym)
+      val sig = genMethodSig(funSym)
+      val externSig = genExternMethodSig(funSym)
 
       val Type.Function(origtys, _) = sig
       val Type.Function(paramtys, retty) = externSig
 
-      val methodName = genMethodName(treeSym)
+      val methodName = genMethodName(funSym)
       val method = Val.Global(methodName, Type.Ptr)
-      val methodRef = Val.Global(methodName, origtys.head)
 
       val forwarderName = funcName.member(ExternForwarderSig)
       val forwarderBody = scoped(
@@ -2227,7 +2227,16 @@ trait NirGenExpr(using Context) {
           case (param, ty) => buf.fromExtern(ty, param)
         }
 
-        val res = buf.call(sig, method, methodRef +: boxedParams, Next.None)
+        val owner =
+          if (funSym.is(JavaStatic)) Val.Null
+          else buf.genModule(funSym.owner)
+        val res = buf.genApplyMethod(
+          funSym,
+          true,
+          ValTree(owner),
+          boxedParams.map(ValTree(_))
+        )
+
         val unboxedRes = buf.toExtern(retty, res)
         buf.ret(unboxedRes)
 

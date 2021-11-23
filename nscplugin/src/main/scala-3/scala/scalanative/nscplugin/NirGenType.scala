@@ -32,7 +32,7 @@ trait NirGenType(using Context) {
     def isScalaModule: Boolean =
       sym.is(ModuleClass, butNot = Lifted)
 
-    def isStaticModule: Boolean = 
+    def isStaticModule: Boolean =
       sym.is(Module) && sym.isStatic
 
     def isExternModule: Boolean =
@@ -164,12 +164,27 @@ trait NirGenType(using Context) {
       }
 
   private def genStruct(st: SimpleType): nir.Type = {
-    val fields = for {
-      f <- st.sym.info.decls.toList
-      if f.isField
-    } yield genType(f)
+    val symInfo = st.sym.info
+    // In Scala 2 we used fields to create struct type, but this seems to be broken in Scala 3 -
+    // when compiling original file (eg. in nativelib) we do get correct list of fields,
+    // however in the place of usage in other project (eg. javalib) symbol info does contain only accessors,
+    // but no information about fields.
+    // .class fiele do contain information about fields, so probablly TASTy (which is used)
+    // in compilation in dependent projects does not contains this information
+    // Since structs in the current form are a legacy feature, and are used only to
+    // receive output from native function returning Struct by value (only in LLVMIntriniscs)
+    // we can leave it as it is in the current, simplified form using constructor arguments
 
-    nir.Type.StructValue(fields)
+    def ctorParams =
+      symInfo
+        .member(nme.CONSTRUCTOR)
+        .symbol
+        .paramSymss
+        .head
+        .map(_.info.resultType)
+        .map(genType(_))
+
+    nir.Type.StructValue(ctorParams)
   }
 
   def genArrayCode(st: SimpleType): Char =
@@ -201,7 +216,6 @@ trait NirGenType(using Context) {
   ): nir.Type.Function = {
     require(sym.is(Method) || sym.isStatic, "symbol is not a method")
 
-    val tpe = sym.typeRef
     val owner = sym.owner
     val paramtys = genMethodSigParamsImpl(sym, isExtern)
     val selfty =
@@ -225,7 +239,7 @@ trait NirGenType(using Context) {
       paramList <- sym.info.paramInfoss
       param <- paramList
     } yield {
-      if (param.isRepeatedParam && sym.owner.isExternModule) 
+      if (param.isRepeatedParam && sym.owner.isExternModule)
         nir.Type.Vararg
       else if (isExtern) genExternType(param)
       else genType(param)

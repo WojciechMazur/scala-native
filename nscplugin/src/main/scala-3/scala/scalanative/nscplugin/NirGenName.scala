@@ -21,7 +21,7 @@ trait NirGenName(using Context) {
     else genFieldName(sym)
 
   def genTypeName(sym: Symbol): nir.Global.Top = {
-    if (sym == defn.ObjectClass) nir.Rt.Object.name.asInstanceOf[nir.Global.Top]
+    if (sym == defn.ObjectClass) nir.Rt.Object.name.top
     else {
       val id = {
         val fullName = sym.javaClassName
@@ -65,20 +65,17 @@ trait NirGenName(using Context) {
       .map(genType)
 
     if (sym == defn.`String_+`) genMethodName(defnNir.String_concat)
-    else if (sym.owner.isExternModule) {
-      if (sym.isSetter) {
-        // Previously dropSetter was used
-        val id0 = sym.javaSimpleName
-        owner.member(nir.Sig.Extern(id0))
-      } else {
+    else if (sym.owner.isExternModule)
+      if (sym.isSetter)
+        val id = nativeIdOf(sym.getter)
         owner.member(nir.Sig.Extern(id))
-      }
-    } else if (sym.name == nme.CONSTRUCTOR) {
-      owner.member(nir.Sig.Ctor(paramTypes))
-    } else {
+      else owner.member(nir.Sig.Extern(id))
+    else if (sym.name == nme.CONSTRUCTOR) owner.member(nir.Sig.Ctor(paramTypes))
+    else if (sym.name == nme.TRAIT_CONSTRUCTOR)
+      owner.member(nir.Sig.Method(id, Seq(nir.Type.Unit), scope))
+    else
       val retType = genType(fromType(sym.info.resultType))
       owner.member(nir.Sig.Method(id, paramTypes :+ retType, scope))
-    }
   }
 
   def genFuncPtrExternForwarderName(ownerSym: Symbol): nir.Global = {

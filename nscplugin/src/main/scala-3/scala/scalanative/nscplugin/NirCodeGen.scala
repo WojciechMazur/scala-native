@@ -29,10 +29,11 @@ class NirCodeGen()(using ctx: Context)
   protected val nirPrimitives = new NirPrimitives()
   protected val positionsConversions = new NirPositions()
 
-  protected val curClassSym = new util.ScopedVar[Symbol]
+  protected val curClassSym = new util.ScopedVar[ClassSymbol]
   protected val curClassFresh = new util.ScopedVar[nir.Fresh]
 
   protected val curMethodSym = new util.ScopedVar[Symbol]
+  protected val curMethodOuterSym = new util.ScopedVar[Option[Symbol]]
   protected val curMethodSig = new util.ScopedVar[nir.Type]
   protected val curMethodInfo = new util.ScopedVar[CollectMethodInfo]
   protected val curMethodEnv = new util.ScopedVar[MethodEnv]
@@ -162,10 +163,12 @@ class NirCodeGen()(using ctx: Context)
       tree match {
         case label: Labeled =>
           labels += label
-        case Assign(id @ Ident(_), _) =>
-          mutableVars += id.symbol
-        case _ =>
-          ()
+        case Assign(ident: Ident, _) =>
+          desugarIdent(ident) match {
+            case id: Ident => mutableVars += id.symbol
+            case _         => ()
+          }
+        case _ => ()
       }
       traverseChildren(tree)
     }

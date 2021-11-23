@@ -48,7 +48,7 @@ class AsInstanceOfTest {
   }
 
   @Test def any42AsInstanceOfObject(): Unit = {
-    assertTrue(any42.asInstanceOf[Object] == java.lang.Integer(42))
+    assertTrue(any42.asInstanceOf[Object] == java.lang.Integer.valueOf(42))
   }
 
   @Test def any42AsInstanceOfInt(): Unit = {

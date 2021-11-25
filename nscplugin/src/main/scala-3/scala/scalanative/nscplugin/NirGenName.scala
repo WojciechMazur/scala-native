@@ -78,27 +78,6 @@ trait NirGenName(using Context) {
       owner.member(nir.Sig.Method(id, paramTypes :+ retType, scope))
   }
 
-  def genFuncPtrExternForwarderName(ownerSym: Symbol): nir.Global = {
-    val owner = genTypeName(ownerSym)
-    owner.member(nir.Sig.Generated("$extern$forwarder"))
-  }
-
-  def genStaticMemberName(sym: Symbol): nir.Global = {
-    require(
-      sym.is(JavaStaticTerm),
-      s"genStaticMemberName called with non-static symbol (${sym.flagsString}): $sym"
-    )
-
-    val name = sym.name.mangledString
-    val owner = genTypeName(sym.owner)
-    val resultType = genType(sym.info.resultType)
-    val scope =
-      if (sym.isPrivate) nir.Sig.Scope.Private(owner)
-      else nir.Sig.Scope.Public
-    val methodSig = nir.Sig.Method(name, Seq(resultType), scope)
-    owner.member(methodSig)
-  }
-
   private def nativeIdOf(sym: Symbol): String = {
     sym
       .getAnnotation(defnNir.NameClass)

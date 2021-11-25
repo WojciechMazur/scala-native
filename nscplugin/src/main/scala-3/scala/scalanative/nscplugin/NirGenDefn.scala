@@ -99,11 +99,11 @@ trait NirGenDefn(using Context) {
     do
       given nir.Position = f.span
 
-      val isStaticField = f.is(JavaStatic)
+      val isStaticField =
+        f.is(JavaStatic) || f.hasAnnotation(defn.StaticAnnotationClass)
       val mutable = isStaticField || f.is(Mutable)
       val isExternModule = classSym.isExternModule
       val attrs = nir.Attrs(isExtern = isExternModule)
-
       val ty = genType(f.info.resultType)
       val fieldName @ Global.Member(owner, sig) = genName(f)
       generatedDefns += Defn.Var(attrs, fieldName, ty, Val.Zero(ty))
@@ -114,7 +114,7 @@ trait NirGenDefn(using Context) {
         // enum values, which are backed by static fields.
         generatedDefns += Defn.Define(
           attrs = Attrs(inlineHint = nir.Attr.InlineHint),
-          name = genStaticMemberName(f),
+          name = genMethodName(f),
           ty = Type.Function(Nil, ty),
           insts = {
             given fresh: Fresh = Fresh()
@@ -146,9 +146,15 @@ trait NirGenDefn(using Context) {
 
     // Generate forwarders for static methods inside companion module
     val currentClass = curClassSym.get
-    val staticMethods = generatedMethods.filter(_.symbol.is(JavaStatic))
+    val staticMethods = generatedMethods.filter(d =>
+      d.symbol.is(JavaStatic) && d.name == nme.main
+    )
     if (!currentClass.is(Module) && staticMethods.nonEmpty) {
-      genStaticMethodForwarders(td, generatedMethods)
+      scoped(
+        curUnwindHandler := None
+      ) {
+        genStaticMethodForwarders(td, staticMethods)
+      }
     }
   }
 
@@ -157,12 +163,12 @@ trait NirGenDefn(using Context) {
       methods: Seq[DefDef]
   ): Unit = {
     val currentClass = td.symbol.asClass
+    val companionModule = currentClass.denot.companionModule
     val Global.Top(clsName) = genTypeName(currentClass)
     val moduleName = Global.Top(clsName + nme.MODULE_SUFFIX)
     val moduleType = Type.Ref(moduleName)
-
     // Create companion module stub if it's not defined
-    if (!currentClass.denot.moduleClass.exists) {
+    if (!companionModule.exists) {
       given nir.Position = td.span
       generatedDefns += Defn.Module(
         attrs = Attrs.None,

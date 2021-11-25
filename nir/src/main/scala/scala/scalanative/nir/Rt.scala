@@ -51,6 +51,15 @@ object Rt {
 
   val GenericArray = Ref(Global.Top("scala.scalanative.runtime.Array"))
 
+  val RuntimePackageName = Runtime.name
+  val RuntimePackageIntrinisc =
+    RuntimePackageName member Sig.Method("intrinsic", Seq(Type.Nothing))
+
+  val LazyValsName = Global.Top("scala.runtime.LazyVals$")
+  val LazyValsGetOffset = LazyValsName.member(
+    Sig.Method("getOffset", Seq(Rt.Class, Rt.String, Type.Long))
+  )
+
   val arrayAlloc: Map[Sig, Global] = Seq(
     "BooleanArray",
     "CharArray",

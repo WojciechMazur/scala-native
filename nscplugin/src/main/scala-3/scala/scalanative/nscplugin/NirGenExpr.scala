@@ -1102,7 +1102,7 @@ trait NirGenExpr(using Context) {
       genApplyMethod(method, statically = true, self, args)
     }
 
-    private def genApplyMethod(
+    def genApplyMethod(
         sym: Symbol,
         statically: Boolean,
         selfp: Tree,

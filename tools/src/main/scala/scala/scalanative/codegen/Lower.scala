@@ -75,6 +75,31 @@ object Lower {
       buf.toSeq
     }
 
+    def optionallyRewriteOp(op: Op): Option[Op] =
+      op match {
+        // LazyVals.getOffset -> replace with calculated offset based on memory layout
+        case Op.Call(
+              name,
+              Val.Global(Rt.LazyValsGetOffset, _),
+              args
+            ) =>
+          val Seq(self, Val.ClassOf(classRef), Val.String(fieldName)) = args
+          for {
+            cls <- linked.infos.get(classRef).collect {
+              case cls: Class => cls
+            }
+            layout <- meta.layout.get(cls)
+            field <- layout.entries.find { field =>
+              val Global.Member(owner, sig) = field.name
+              val Sig.Field(id, _) = sig.unmangled
+              owner == classRef && id == fieldName
+            }
+            fieldIndex = layout.index(field)
+            position <- layout.layout.tys.lift(fieldIndex)
+          } yield Op.Copy(Val.Long(position.offset))
+        case _ => None
+      }
+
     override def onDefn(defn: Defn): Defn = defn match {
       case defn: Defn.Define =>
         val Type.Function(_, ty) = defn.ty
@@ -334,7 +359,10 @@ object Lower {
       buf.jump(Next(failL))
     }
 
-    def genOp(buf: Buffer, n: Local, op: Op)(implicit pos: Position): Unit = {
+    def genOp(buf: Buffer, n: Local, originalOp: Op)(implicit
+        pos: Position
+    ): Unit = {
+      val op = optionallyRewriteOp(originalOp).getOrElse(originalOp)
       op match {
         case op: Op.Fieldload =>
           genFieldloadOp(buf, n, op)

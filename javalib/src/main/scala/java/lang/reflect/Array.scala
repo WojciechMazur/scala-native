@@ -29,26 +29,6 @@ object Array {
     }
   }
 
-  def newInstance(componentType: _Class[_], dimensions: Array[Int]): Object = {
-    null
-    // @alwaysinline def arr(n: Int) = newInstance(componentType, n)
-    // arr(0)
-    // val n = dimensions
-    // dimensions.length match {
-    //   case 1 => arr(n(0))
-    //   case 2 => scala.Array.fill(n(0))(arr(n(1)))
-    //   case 3 => scala.Array.fill(n(0), n(1))(arr(n(2)))
-    //   case 4 => scala.Array.fill(n(0), n(1), n(2))(arr(n(3)))
-    //   case 5 => scala.Array.fill(n(0), n(1), n(2), n(3))(arr(n(4)))
-    //   case _ =>
-    //     if (dimensions.length == 0 || dimensions.length > 255)
-    //       throw new IllegalArgumentException()
-    //     val length = dimensions.head
-    //     val inner = newInstance(componentType, dimensions.tail)
-    //     scala.Array.fill(length)(inner.asInstanceOf[Array[Any]].clone)
-    // }
-  }
-
   def getLength(array: AnyRef): Int = array match {
     // yes, this is kind of stupid, but that's how it is
     case array: Array[Object]  => array.length

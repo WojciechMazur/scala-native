@@ -2123,6 +2123,8 @@ trait NirGenExpr(using Context) {
       val args = argsp
         .zip(evidences)
         .map {
+          case (Apply(Select(_, nme.box), List(value)), _) =>
+            genExpr(value)
           case (arg, evidence) =>
             given nir.Position = arg.span
             val tag = unwrapTag(evidence)
@@ -2151,22 +2153,23 @@ trait NirGenExpr(using Context) {
 
     private def genCFuncFromScalaFunction(app: Apply): Val = {
       given pos: nir.Position = app.span
-      val fn = app.args.head
-
-      def withGeneratedForwarder(fnRef: Val)(sym: Symbol): Val = {
-        val Type.Ref(className, _, _) = fnRef.ty
-        generatedDefns += genFuncExternForwarder(className, sym)
-        fnRef
-      }
+      val fn :: evidences = app.args
+      val paramTypes = evidences.map(unwrapTag)
 
       @tailrec
       def resolveFunction(tree: Tree): Val = tree match {
         case Typed(expr, _) => resolveFunction(expr)
         case Block(_, expr) => resolveFunction(expr)
         case fn @ Closure(_, target, _) =>
-          withGeneratedForwarder {
-            genClosure(fn)
-          }(target.symbol)
+          val fnRef = genClosure(fn)
+          val Type.Ref(className, _, _) = fnRef.ty
+
+          generatedDefns += genFuncExternForwarder(
+            className,
+            target.symbol,
+            paramTypes
+          )
+          fnRef
 
         case _ =>
           report.error(
@@ -2196,16 +2199,37 @@ trait NirGenExpr(using Context) {
       alloc
     }
 
-    private def genFuncExternForwarder(funcName: Global, funSym: Symbol)(using
-        nir.Position
-    ): Defn = {
+    private def genFuncExternForwarder(
+        funcName: Global,
+        funSym: Symbol,
+        evidences: List[SimpleType]
+    )(using nir.Position): Defn = {
       val attrs = Attrs(isExtern = true)
 
+      // In case if passed function is adapted closure it's param types
+      // would be erased, in such case we would recover original types
+      // using evidence types (materialized unsafe.Tags)
+      val isAdapted = funSym.name.mangledString.contains("$adapted$")
       val sig = genMethodSig(funSym)
       val externSig = genExternMethodSig(funSym)
 
-      val Type.Function(origtys, _) = sig
-      val Type.Function(paramtys, retty) = externSig
+      val Type.Function(origtys, _) =
+        if (!isAdapted) sig
+        else {
+          val params :+ retty = evidences
+            .map(genType)
+            .map(t => nir.Type.box.getOrElse(t, t))
+          Type.Function(params, retty)
+        }
+
+      val forwarderSig @ Type.Function(paramtys, retty) =
+        if (!isAdapted) externSig
+        else {
+          val params :+ retty = evidences
+            .map(genExternType)
+            .map(t => nir.Type.unbox.getOrElse(t, t))
+          Type.Function(params, retty)
+        }
 
       val methodName = genMethodName(funSym)
       val method = Val.Global(methodName, Type.Ptr)
@@ -2219,16 +2243,15 @@ trait NirGenExpr(using Context) {
 
         val params = paramtys.map(ty => Val.Local(fresh(), ty))
         buf.label(fresh(), params)
-        val boxedParams = params.zip(origtys.tail).map {
-          case (param, ty) => buf.fromExtern(ty, param)
-        }
 
+        val origTypes = if (isAdapted) origtys else origtys.tail
+        val boxedParams = origTypes.zip(params).map(buf.fromExtern(_, _))
         val owner =
           if (funSym.is(JavaStatic)) Val.Null
           else buf.genModule(funSym.owner)
         val res = buf.genApplyMethod(
           funSym,
-          true,
+          statically = true,
           ValTree(owner),
           boxedParams.map(ValTree(_))
         )
@@ -2238,7 +2261,7 @@ trait NirGenExpr(using Context) {
 
         buf.toSeq
       }
-      Defn.Define(attrs, forwarderName, externSig, forwarderBody)
+      Defn.Define(attrs, forwarderName, forwarderSig, forwarderBody)
     }
 
     private object LinktimeProperty {

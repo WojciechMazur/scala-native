@@ -96,16 +96,12 @@ trait NirGenExpr(using Context) {
           genApplyNew(app)
         case _ if sym == defn.newArrayMethod =>
           val Seq(
-            Literal(Constant(componentType)),
+            Literal(componentType: Constant),
             arrayType,
             SeqLiteral(dimensions, _)
           ) = args
-          val tpe = componentType match {
-            case t: TypeRef                => t.underlying
-            case JavaArrayType(t: TypeRef) => t.underlying
-          }
           if (dimensions.size == 1)
-            genApplyNewArray(tpe, dimensions)
+            genApplyNewArray(componentType.typeValue, dimensions)
           else genApplyMethod(sym, statically = isStatic, qualifier, args)
         case _ =>
           if (nirPrimitives.isPrimitive(fun)) genApplyPrimitive(app)

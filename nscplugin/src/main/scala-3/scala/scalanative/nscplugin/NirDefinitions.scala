@@ -389,12 +389,6 @@ final class NirDefinitions()(using ctx: Context) {
   def InlineClass(using Context) = InlineType.symbol.asClass
   def NoInlineClass(using Context) = NoInlineType.symbol.asClass
 
-  @tu lazy val EnumerationType = requiredClassRef("scala.Enumeration")
-  def EnumerationClass(using Context) = EnumerationType.symbol.asClass
-
-  @tu lazy val PropertiesTraitType = requiredClassRef("scala.util.PropertiesTrait")
-  def PropertiesTrait(using Context) = PropertiesTraitType.symbol.asClass
-
   @tu lazy val HashMethods = Seq(
     defn.BoxesRunTimeModule.requiredMethod("hashFromObject"),
     defn.BoxesRunTimeModule.requiredMethod("hashFromNumber"),

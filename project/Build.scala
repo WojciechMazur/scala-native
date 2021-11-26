@@ -30,7 +30,7 @@ object Build {
             ) ++ Seq(
                 nscPlugin, junitPlugin,
                 nativelib, clib, posixlib, windowslib,
-                auxlib, javalib, scalalib,
+                auxlib, javalib, javalibExtDummies, scalalib,
                 testInterface, testInterfaceSbtDefs,
                 testingCompiler, testingCompilerInterface,
                 junitRuntime, junitAsyncNative, junitAsyncJVM,
@@ -342,7 +342,9 @@ object Build {
       .enablePlugins(MyScalaNativePlugin)
       .settings(noPublishSettings)
       .settings(
-        nativeLinkStubs := true,
+        nativeConfig ~= {
+          _.withLinkStubs(true)
+        },
         testsExtCommonSettings,
         sharedTestSource(withBlacklist = false)
       )

@@ -295,11 +295,12 @@ private[nio] object MappedByteBufferImpl {
       fd: FileDescriptor,
       mode: MapMode
   ): MappedByteBufferData = {
-    val (prot: Int, isPrivate: Int) =
-      if (mode eq MapMode.PRIVATE) (PROT_WRITE, MAP_PRIVATE)
-      else if (mode eq MapMode.READ_ONLY) (PROT_READ, MAP_SHARED)
-      else if (mode eq MapMode.READ_WRITE) (PROT_WRITE, MAP_SHARED)
-
+    val (prot: Int, isPrivate: Int) = mode match {
+      case MapMode.PRIVATE    => (PROT_WRITE, MAP_PRIVATE)
+      case MapMode.READ_ONLY  => (PROT_READ, MAP_SHARED)
+      case MapMode.READ_WRITE => (PROT_WRITE, MAP_SHARED)
+      case _ => throw new IllegalStateException("Unknown MapMode")
+    }
     val ptr = mmap(
       null,
       size.toUInt,

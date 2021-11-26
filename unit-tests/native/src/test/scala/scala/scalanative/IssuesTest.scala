@@ -218,8 +218,8 @@ class IssuesTest {
     bytes(0) = 'b'.toByte
     bytes(1) = 'a'.toByte
     val p: Ptr[Byte] = bytes.asInstanceOf[ByteArray].at(0)
-    assertFalse(!p == 'b'.toByte)
-    assertFalse(!(p + 1) == 'a'.toByte)
+    assertEquals('b'.toByte, !p)
+    assertEquals('a'.toByte, !(p + 1))
   }
 
   @Test def test_Issue349(): Unit = {

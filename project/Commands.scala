@@ -61,7 +61,7 @@ object Commands {
   case class UnsafeCommand(
       name: String,
       tasks: Seq[ProjectsTask] = Nil,
-      simpleTasks: Seq[TaskKey[_]] = Nil,
+      simpleTasks: Seq[TaskKey[_]] = Nil
   ) {
     def withSimpleTask(task: TaskKey[_]) =
       copy(simpleTasks = simpleTasks :+ task)
@@ -79,11 +79,13 @@ object Commands {
     def toCommand = Command.args(name, "<args>") {
       case (state, args) =>
         val version = args.headOption
+          .map(CrossVersion.binaryScalaVersion)
           .orElse(state.getSetting(scalaBinaryVersion))
           .getOrElse(
-            "Used command needs explicit Sclaa binary verion as an argument"
+            "Used command needs explicit Scala binary verion as an argument"
           )
 
+        // state.
         for {
           task <- tasks.flatMap(_.forVersion(version)) ++ simpleTasks
         } state.unsafeRunTask(task)

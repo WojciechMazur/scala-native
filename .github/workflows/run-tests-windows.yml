@@ -13,7 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-2019]
-        scala: [2.13.7, 2.12.15, 2.11.12]
+        scala: [3.1.0, 2.13.7, 2.12.15, 2.11.12]
         gc: [none, boehm, immix, commix]
     steps:
       # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
@@ -35,12 +35,12 @@ jobs:
           set SCALANATIVE_LIB_DIRS=${{steps.setup.outputs.vcpkg-dir}}\lib&
           set SCALANATIVE &
           sbt ++${{matrix.scala}}
-          sandbox/run
-          testsJVM/test
-          tests/test
-          testsExt/test
-          testsExtJVM/test
-          "scalaPartestTests/testOnly -- --showDiff neg/abstract.scala pos/abstract.scala run/Course-2002-01.scala"
+          sandbox${{env.project-version}}/run
+          testsJVM${{env.project-version}}/test
+          tests${{env.project-version}}/test
+          testsExt${{env.project-version}}/test
+          testsExtJVM${{env.project-version}}/test
+          "scalaPartestTests${{env.project-version}}/testOnly -- --showDiff neg/abstract.scala pos/abstract.scala run/Course-2002-01.scala"
         shell: cmd
       
       - name: Test runtime
@@ -51,8 +51,8 @@ jobs:
           set SCALANATIVE_LIB_DIRS=${{steps.setup.outputs.vcpkg-dir}}\lib&
           set SCALANATIVE &
           sbt ++${{matrix.scala}}
-          test-runtime
-          "scalaPartestTests/testOnly -- --showDiff neg/abstract.scala pos/abstract.scala run/Course-2002-01.scala"
+          test-runtime ${{matrix.scala}}
+          "scalaPartestTests${{env.project-version}}/testOnly -- --showDiff neg/abstract.scala pos/abstract.scala run/Course-2002-01.scala"
         shell: cmd
 
   run-scripted-tests:
@@ -82,11 +82,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scala: [2.13.7, 2.12.15, 2.11.12]
+        scala: [3.1.0, 2.13.7, 2.12.15, 2.11.12]
         build-mode: [release-fast]
         lto: [thin]
         optimize: [true]
         include:
+          - scala: 3.1.0
+            lto: full
+            optimize: true
           - scala: 2.13.7
             lto: full
             optimize: true
@@ -114,6 +117,6 @@ jobs:
           set SCALANATIVE_CI_NO_DEBUG_SYMBOLS=${{matrix.lto == 'full'}}&
           set SCALANATIVE &
           sbt ++${{matrix.scala}}
-          tests/test
-          testsExt/test
+          tests${{env.project-version}}/test
+          testsExt${{env.project-version}}/test
         shell: cmd

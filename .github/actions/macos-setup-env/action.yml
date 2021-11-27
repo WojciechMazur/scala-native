@@ -12,6 +12,11 @@ runs:
       run: |
         version=${{ inputs.scala-version }}
         echo "binary-version=${version%.*}" >> $GITHUB_ENV
+        if [[ $version == 2.* ]]; then
+          echo "project-version=${${version%.*}/./_}" >> $GITHUB_ENV
+        else 
+          echo "project-version=3" >> $GITHUB_ENV
+        fi
 
     # Loads cache with dependencies created in test-tools job
     - name: Cache dependencies

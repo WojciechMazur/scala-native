@@ -49,7 +49,9 @@ object BinaryIncompatibilities {
     exclude[Problem]("scala.scalanative.runtime.ClassInstancesRegistry*"),
     exclude[Problem]("scala.scalanative.runtime.package*TypeOps*"),
     // Moved to Scala version specific directory
-    exclude[MissingClassProblem]("scala.scalanative.unsafe.package$MacroImpl$")
+    exclude[MissingClassProblem]("scala.scalanative.unsafe.package$MacroImpl$"),
+    // Moved to unsafe.annotation, added alias in extern
+    exclude[MissingClassProblem]("scala.scalanative.unsafe.extern")
   )
   final val CLib: Filters = Nil
   final val PosixLib: Filters = Seq(

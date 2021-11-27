@@ -33,7 +33,7 @@ jobs:
         run: >
           export SCALANATIVE_GC=${{matrix.gc}} &&
           sbt ++${{matrix.scala}}
-          test-runtime ${{matrix.scala}}
+          "test-runtime ${{matrix.scala}}"
       
       - name: Test partests infrastructure
         # No partests support for Scala 3

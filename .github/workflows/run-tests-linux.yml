@@ -177,7 +177,7 @@ jobs:
           SCALANATIVE_GC: ${{ matrix.gc }}
           SCALANATIVE_OPTIMIZE: true
           SCALA_VERSION: ${{ matrix.scala}}
-          TEST_COMMAND: test-runtime ${{ matrix.scala }}
+          TEST_COMMAND: "test-runtime ${{ matrix.scala }}"
         run: ./ci-docker/run-test-gha.sh "${{ needs.build-image.outputs.image-name }}-amd64"
 
   # This job is basically copy-paste of test-runtime.
@@ -212,7 +212,7 @@ jobs:
           SCALANATIVE_GC: immix
           SCALANATIVE_OPTIMIZE: false
           SCALA_VERSION: ${{ matrix.scala}}
-          TEST_COMMAND: test-runtime ${{ matrix.scala }}
+          TEST_COMMAND: "test-runtime ${{ matrix.scala }}"
         run: ./ci-docker/run-test-gha.sh "${{ needs.build-image.outputs.image-name }}-amd64"
 
   test-runtime-lto:
@@ -249,7 +249,7 @@ jobs:
           SCALANATIVE_OPTIMIZE: ${{matrix.optimize}}
           SCALANATIVE_LTO: ${{matrix.lto}}
           SCALA_VERSION: ${{ matrix.scala}}
-          TEST_COMMAND: test-runtime ${{ matrix.scala }}
+          TEST_COMMAND: "test-runtime ${{ matrix.scala }}"
         run: ./ci-docker/run-test-gha.sh "${{ needs.build-image.outputs.image-name }}-amd64"
 
   # This job is basically copy-paste of test-runtime.

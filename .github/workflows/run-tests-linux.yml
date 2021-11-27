@@ -23,7 +23,7 @@ jobs:
           scala-version: ${{matrix.scala}}
 
       - name: Test tools
-        run: sbt "++ ${{ matrix.scala }} -v" "-no-colors" "-J-Xmx3G" test-tools ${{ matrix.scala }}
+        run: sbt "++ ${{ matrix.scala }} -v" "-no-colors" "-J-Xmx3G" "test-tools ${{ matrix.scala }}"
 
         # Make sure that Scala partest blacklisted tests contain only valid test names
       - name: Setup Ammonite

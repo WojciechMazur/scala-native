@@ -1049,7 +1049,6 @@ run/java-erasure.scala
 
 
 ## Fails
-run/productElementName-oob.scala
 run/t10290.scala
 run/t6827.scala
 run/classtags-cached.scala

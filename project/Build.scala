@@ -494,6 +494,9 @@ object Build {
   lazy val scalaPartest =
     MultiScalaProject("scalaPartest", file("scala-partest"))
       .settings(
+        scalacOptions --= Seq(
+          "-Xfatal-warnings"
+        ),
         noPublishSettings,
         shouldPartestSetting,
         resolvers += Resolver.typesafeIvyRepo("releases"),
@@ -578,25 +581,24 @@ object Build {
           Def.settings(
             Test / definedTests ++= Def
               .taskDyn[Seq[sbt.TestDefinition]] {
-                if (shouldPartest.value) Def.task {
-                  val _ = (scalaPartest / fetchScalaSource).value
-                  Seq(
-                    new sbt.TestDefinition(
-                      s"partest-${scalaVersion.value}",
-                      // marker fingerprint since there are no test classes
-                      // to be discovered by sbt:
-                      new sbt.testing.AnnotatedFingerprint {
-                        def isModule = true
-                        def annotationName = "partest"
-                      },
-                      true,
-                      Array()
+                if (!shouldPartest.value) Def.task(Seq())
+                else
+                  Def.task {
+                    val _ = (scalaPartest / fetchScalaSource).value
+                    Seq(
+                      new sbt.TestDefinition(
+                        s"partest-${scalaVersion.value}",
+                        // marker fingerprint since there are no test classes
+                        // to be discovered by sbt:
+                        new sbt.testing.AnnotatedFingerprint {
+                          def isModule = true
+                          def annotationName = "partest"
+                        },
+                        true,
+                        Array()
+                      )
                     )
-                  )
-                }
-                else {
-                  Def.task(Seq())
-                }
+                  }
               }
               .value,
             testOptions += {
@@ -728,12 +730,6 @@ object Build {
 
     def withJUnitPlugin: MultiScalaProject = {
       project.dependsOn(junitPlugin % "plugin")
-      // project.zippedrSettings(jUnitPlugin) { jUnitPlugin =>
-      //   scalacOptions in Test ++= {
-      //     val jar = (packageBin in (jUnitPlugin, Compile)).value
-      //     Seq(s"-Xplugin:$jar")
-      //   }
-      // }
     }
 
     /** Depends on the sources of another project. */

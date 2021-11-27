@@ -17,7 +17,7 @@ class MainGenericRunner {
   private def errorFn(str: String): Boolean = Defaults.errorFn(str)
 
   def process(args: Array[String]): Boolean = {
-    val command = new GenericRunnerCommand(args.toList, errorFn.andThen(_ => ()))
+    val command = new GenericRunnerCommand(args.toList, errorFn(_))
 
     if (!command.ok) return errorFn("\n" + command.shortUsageMsg)
     else if (command.settings.version)

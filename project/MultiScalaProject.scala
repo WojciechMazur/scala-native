@@ -10,7 +10,12 @@ final case class MultiScalaProject private (
 ) extends CompositeProject {
   import MultiScalaProject._
 
-  def project(v: String) = projects(v)
+  def project(v: String) = projects.getOrElse(
+    v,
+    throw new RuntimeException(
+      s"Selected project is not defined for version $v"
+    )
+  )
 
   lazy val v2_11: Project = project("2.11")
   lazy val v2_12: Project = project("2.12")

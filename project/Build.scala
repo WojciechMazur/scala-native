@@ -21,6 +21,7 @@ object Build {
     Project(id = "scala-native", base = file("."))
       .settings(
         name := "Scala Native",
+        crossScalaVersions := ScalaVersions.libCrossScalaVersions,
         commonSettings,
         noPublishSettings,
         disabledTestsSettings, {

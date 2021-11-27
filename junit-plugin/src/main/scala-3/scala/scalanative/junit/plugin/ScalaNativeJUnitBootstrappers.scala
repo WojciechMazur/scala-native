@@ -341,7 +341,7 @@ object ScalaNativeJUnitBootstrappers extends PluginPhase {
     def returnsUnit =
       resultType.isRef(defn.UnitClass) || resultType.isRef(defn.BoxedUnitClass)
     def returnsFuture = resultType.isRef(junitdefn.FutureClass)
-    
+
     if (returnsUnit) {
       val newSuccess =
         ref(junitdefn.SuccessModule_apply).appliedTo(ref(defn.BoxedUnit_UNIT))

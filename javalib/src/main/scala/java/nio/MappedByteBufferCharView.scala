@@ -16,7 +16,8 @@ private[nio] final class MappedByteBufferCharView private (
   limit(_initialLimit)
 
   protected def genHeapBufferView = GenMappedBufferView[CharBuffer](this)
-  private implicit def newMappedCharBufferView: GenMappedBufferView.NewMappedBufferView[CharBuffer] =
+  private implicit def newMappedCharBufferView
+      : GenMappedBufferView.NewMappedBufferView[CharBuffer] =
     MappedByteBufferCharView.NewMappedByteBufferCharView
 
   def isReadOnly(): Boolean = _readOnly

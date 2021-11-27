@@ -143,8 +143,8 @@ final class NirDefinitions()(using ctx: Context) {
   def UnsafeTag_materializeCStructTags(using Context) = UnsafeTag_materializeCStructTagsR.map(_.symbol)
 
   // Native runtime package
-  @tu lazy val RuntimePackageVal =  requiredModuleRef("scala.scalanative.runtime.package")
-  @tu lazy val RuntimePackageClass =  RuntimePackageVal.classSymbol.asClass
+  @tu lazy val RuntimePackageVal = requiredModuleRef("scala.scalanative.runtime.package")
+  @tu lazy val RuntimePackageClass = RuntimePackageVal.classSymbol.asClass
   @tu lazy val RuntimePackage_getMonitorR = RuntimePackageClass.requiredMethodRef("getMonitor")
   def RuntimePackage_getMonitor(using Context) = RuntimePackage_getMonitorR.symbol
 

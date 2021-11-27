@@ -100,7 +100,6 @@ package object unsafe extends unsafe.UnsafePackageCompat {
 
   type extern = scala.scalanative.annotation.extern
 
-
   /** Used as right hand side of external method and field declarations. */
   def extern: Nothing = intrinsic
 

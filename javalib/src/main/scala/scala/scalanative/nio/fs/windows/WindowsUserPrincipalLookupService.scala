@@ -56,7 +56,8 @@ object WindowsUserPrincipalLookupService extends UserPrincipalLookupService {
         )
       } else {
         val sidRef: SIDPtr = alloc[Byte](!cbSid)
-        val domainName: Ptr[CChar16] = alloc[CChar16](!domainSize).asInstanceOf[CWString]
+        val domainName: Ptr[CChar16] =
+          alloc[CChar16](!domainSize).asInstanceOf[CWString]
 
         if (!LookupAccountNameW(
               systemName = null,

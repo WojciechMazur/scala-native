@@ -120,7 +120,7 @@ private[testinterface] class TestAdapterBridge(rpcClient: NativeRPC) {
       _ansiCodesSupported: Boolean
   ) extends Logger {
     def ansiCodesSupported(): Boolean = _ansiCodesSupported
-    
+
     private def l[T](x: T) = new LogElement(index, x)
 
     def error(msg: String): Unit = mux.send(logError, runID)(l(msg))

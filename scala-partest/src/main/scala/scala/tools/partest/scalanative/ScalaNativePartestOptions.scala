@@ -18,9 +18,11 @@ case class ScalaNativePartestOptions private (
     lto: build.LTO
 ) {
   // In Scala 3 `copy` is a private method if constructor is private
-  // We define this helper method to mitigate this issue, as it's the only 
+  // We define this helper method to mitigate this issue, as it's the only
   // case of usage outside this class
-  def withPrecompiledLibrariesPaths(paths: Seq[Path]): ScalaNativePartestOptions = {
+  def withPrecompiledLibrariesPaths(
+      paths: Seq[Path]
+  ): ScalaNativePartestOptions = {
     copy(precompiledLibrariesPaths = paths)
   }
 

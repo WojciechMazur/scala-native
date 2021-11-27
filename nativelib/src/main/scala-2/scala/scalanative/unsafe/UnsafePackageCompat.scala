@@ -2,6 +2,7 @@ package scala.scalanative.unsafe
 import scala.language.experimental.macros
 
 private[scalanative] trait UnsafePackageCompat { self =>
+
   /** Heap allocate and zero-initialize a value using current implicit
    *  allocator.
    */
@@ -38,53 +39,53 @@ private[scalanative] trait UnsafePackageCompat { self =>
    */
   def stackalloc[T](n: CSize)(implicit tag: Tag[T]): Ptr[T] =
     macro MacroImpl.stackallocN[T]
-  
-    /** Stack allocate n values of given type.
-     *
-     *  Note: unlike alloc, the memory is not zero-initialized. This method takes
-     *  argument of type `CSSize` for easier interop, but it's always converted
-     *  into `CSize`
-     */
-    @deprecated(
-      "alloc with signed type is deprecated, convert size to unsigned value",
-      "0.4.0"
-    )
-    def stackalloc[T](n: CSSize)(implicit tag: Tag[T]): Ptr[T] =
-      macro MacroImpl.stackallocN[T]
-    }
 
-    private object MacroImpl {
-      import scala.reflect.macros.blackbox.Context
+  /** Stack allocate n values of given type.
+   *
+   *  Note: unlike alloc, the memory is not zero-initialized. This method takes
+   *  argument of type `CSSize` for easier interop, but it's always converted
+   *  into `CSize`
+   */
+  @deprecated(
+    "alloc with signed type is deprecated, convert size to unsigned value",
+    "0.4.0"
+  )
+  def stackalloc[T](n: CSSize)(implicit tag: Tag[T]): Ptr[T] =
+    macro MacroImpl.stackallocN[T]
+}
 
-      def alloc1[T: c.WeakTypeTag](c: Context)(tag: c.Tree, z: c.Tree): c.Tree = {
-        import c.universe._
-        val T = weakTypeOf[T]
+private object MacroImpl {
+  import scala.reflect.macros.blackbox.Context
 
-        val size, ptr, rawptr = TermName(c.freshName())
+  def alloc1[T: c.WeakTypeTag](c: Context)(tag: c.Tree, z: c.Tree): c.Tree = {
+    import c.universe._
+    val T = weakTypeOf[T]
 
-        val runtime = q"_root_.scala.scalanative.runtime"
+    val size, ptr, rawptr = TermName(c.freshName())
 
-        q"""{
+    val runtime = q"_root_.scala.scalanative.runtime"
+
+    q"""{
           val $size   = _root_.scala.scalanative.unsafe.sizeof[$T]($tag)
           val $ptr    = $z.alloc($size)
           val $rawptr = $runtime.toRawPtr($ptr)
           $runtime.libc.memset($rawptr, 0, $size)
           $ptr.asInstanceOf[Ptr[$T]]
         }"""
-      }
+  }
 
-      def allocN[T: c.WeakTypeTag](
-          c: Context
-      )(n: c.Tree)(tag: c.Tree, z: c.Tree): c.Tree = {
-        import c.universe._
+  def allocN[T: c.WeakTypeTag](
+      c: Context
+  )(n: c.Tree)(tag: c.Tree, z: c.Tree): c.Tree = {
+    import c.universe._
 
-        val T = weakTypeOf[T]
+    val T = weakTypeOf[T]
 
-        val size, ptr, rawptr = TermName(c.freshName())
+    val size, ptr, rawptr = TermName(c.freshName())
 
-        val runtime = q"_root_.scala.scalanative.runtime"
+    val runtime = q"_root_.scala.scalanative.runtime"
 
-        q"""{
+    q"""{
           import _root_.scala.scalanative.unsigned.UnsignedRichLong
           val $size   = _root_.scala.scalanative.unsafe.sizeof[$T]($tag) * $n.toULong
           val $ptr    = $z.alloc($size)
@@ -92,42 +93,42 @@ private[scalanative] trait UnsafePackageCompat { self =>
           $runtime.libc.memset($rawptr, 0, $size)
           $ptr.asInstanceOf[Ptr[$T]]
         }"""
-      }
+  }
 
-      def stackalloc1[T: c.WeakTypeTag](c: Context)(tag: c.Tree): c.Tree = {
-        import c.universe._
+  def stackalloc1[T: c.WeakTypeTag](c: Context)(tag: c.Tree): c.Tree = {
+    import c.universe._
 
-        val T = weakTypeOf[T]
+    val T = weakTypeOf[T]
 
-        val size, rawptr = TermName(c.freshName())
+    val size, rawptr = TermName(c.freshName())
 
-        val runtime = q"_root_.scala.scalanative.runtime"
+    val runtime = q"_root_.scala.scalanative.runtime"
 
-        q"""{
+    q"""{
           val $size   = _root_.scala.scalanative.unsafe.sizeof[$T]($tag)
           val $rawptr = $runtime.Intrinsics.stackalloc($size)
           $runtime.libc.memset($rawptr, 0, $size)
           $runtime.fromRawPtr[$T]($rawptr)
         }"""
-      }
+  }
 
-      def stackallocN[T: c.WeakTypeTag](
-          c: Context
-      )(n: c.Tree)(tag: c.Tree): c.Tree = {
-        import c.universe._
+  def stackallocN[T: c.WeakTypeTag](
+      c: Context
+  )(n: c.Tree)(tag: c.Tree): c.Tree = {
+    import c.universe._
 
-        val T = weakTypeOf[T]
+    val T = weakTypeOf[T]
 
-        val size, rawptr = TermName(c.freshName())
+    val size, rawptr = TermName(c.freshName())
 
-        val runtime = q"_root_.scala.scalanative.runtime"
+    val runtime = q"_root_.scala.scalanative.runtime"
 
-        q"""{
+    q"""{
           import _root_.scala.scalanative.unsigned.UnsignedRichLong
           val $size   = _root_.scala.scalanative.unsafe.sizeof[$T]($tag) * $n.toULong
           val $rawptr = $runtime.Intrinsics.stackalloc($size)
           $runtime.libc.memset($rawptr, 0, $size)
           $runtime.fromRawPtr[$T]($rawptr)
         }"""
-      }
+  }
 }

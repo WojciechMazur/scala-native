@@ -277,10 +277,6 @@ private[testinterface] object Serializer {
     def serialize(x: Status, out: SerializeState): Unit = out.write(x.ordinal)
 
     def deserialize(in: DeserializeState): Status = {
-      // Drop warning for Scala 3 compat:
-      // Scala 2.13 expects Status.values()
-      // Scala 3 expects Status.values
-      @nowarn
       val values = Status.values
       val ord = in.read[Int]()
       if (ord < 0 || ord >= values.size)

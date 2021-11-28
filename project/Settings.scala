@@ -333,17 +333,21 @@ object Settings {
     }
   )
 
-  lazy val testInterfaceCommonSourcesSettings: Seq[Setting[_]] = {
-    Seq(
-      Compile / unmanagedSourceDirectories +=
-        baseDirectory.value
-          .getParentFile()
-          .getParentFile() / "test-interface-common/src/main/scala",
-      Test / unmanagedSourceDirectories += baseDirectory.value
+  lazy val testInterfaceCommonSourcesSettings: Seq[Setting[_]] = Def.settings(
+    Compile / unmanagedSourceDirectories +=
+      baseDirectory.value
         .getParentFile()
-        .getParentFile() / "test-interface-common/src/test/scala"
-    )
-  }
+        .getParentFile() / "test-interface-common/src/main/scala",
+    Test / unmanagedSourceDirectories += baseDirectory.value
+      .getParentFile()
+      .getParentFile() / "test-interface-common/src/test/scala",
+    scalacOptions --= scalaVersionsDependendent(scalaVersion.value)(
+      Seq.empty[String]
+    ) {
+      // In Scala 2 enum `Status.value` is defined as `values()`, however in Scala 3 it's `values`
+      case (2, 13) => Seq("-Xfatal-warnings")
+    }
+  )
 
   // Projects
   lazy val compilerPluginSettings = Def.settings(

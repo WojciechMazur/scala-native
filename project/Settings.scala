@@ -20,8 +20,18 @@ object Settings {
     "Whether we should partest the current scala version (or skip if we can't)"
   )
 
+// Generate project name from project id.
+  private def projectName(id: String): String = {
+    // Convert "SomeName" to "some-name".
+    id.replaceAll(
+      "([a-z])([A-Z]+)",
+      "$1-$2"
+    ).toLowerCase
+  }
+
   lazy val commonSettings = Def.settings(
     organization := "org.scala-native",
+    name := projectName(thisProject.value.id),
     version := nativeVersion,
     scalacOptions ++= Seq(
       "-deprecation",

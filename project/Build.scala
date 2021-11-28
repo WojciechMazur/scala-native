@@ -275,10 +275,12 @@ object Build {
             libraryDependencies += ("org.scala-native" %%% "scalalib" % nativeVersion)
               .excludeAll(ExclusionRule("org.scala-native"))
               .cross(CrossVersion.for3Use2_13),
-            Compile / unmanagedJars += Def
-              .taskDyn(scalalib.v2_13 / Compile / packageBin)
-              .map(Attributed.blank(_))
-              .value
+            
+            update := {
+              update.dependsOn{
+                Def.taskDyn(scalalib.v2_13/Compile/publishLocal)
+              }.value
+            }
           )
             .dependsOn(
               auxlib.forBinaryVersion(version),

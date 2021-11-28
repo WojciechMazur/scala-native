@@ -36,7 +36,7 @@ jobs:
 
       - name: Check partest disabled tests list
         # No partests support for Scala 3
-        if: "!startsWith(${{matrix.scala}}, '3.')"
+        if: ${{ !startsWith(matrix.scala, '3.') }}
         run: |
           sbt "++ ${{ matrix.scala }} -v" \
           "-no-colors" \
@@ -47,7 +47,7 @@ jobs:
         # to make sure that infrastructure works correctly.
       - name: Run subset of partest tests
         # No partests support for Scala 3
-        if: "!startsWith(${{matrix.scala}}, '3.')"
+        if: ${{ !startsWith(matrix.scala, '3.') }}
         run: |
           sbt "++ ${{ matrix.scala }} -v" \
           "-no-colors" \

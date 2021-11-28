@@ -275,10 +275,9 @@ object Build {
             libraryDependencies += ("org.scala-native" %%% "scalalib" % nativeVersion)
               .excludeAll(ExclusionRule("org.scala-native"))
               .cross(CrossVersion.for3Use2_13),
-            
             update := {
-              update.dependsOn{
-                Def.taskDyn(scalalib.v2_13/Compile/publishLocal)
+              update.dependsOn {
+                Def.taskDyn(scalalib.v2_13 / Compile / publishLocal)
               }.value
             }
           )

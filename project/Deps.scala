@@ -17,7 +17,11 @@ object Deps {
   }.headOption.getOrElse(throw new RuntimeException("Unknown Scala versions"))
   def ScalaReflect(version: String) = "org.scala-lang" % "scala-reflect" % version
 
-  lazy val ScalaCheck          = "org.scalacheck"         %% "scalacheck"                 % "1.15.4"
+  def ScalaCheck(scalaVersion: String) = scalaVersionsDependendent(scalaVersion) {
+    case (2, 11) => "org.scalacheck" %% "scalacheck" % "1.15.2" :: Nil // Last released version
+    case _       => "org.scalacheck" %% "scalacheck" % "1.15.4" :: Nil
+  }.headOption.getOrElse(throw new RuntimeException("Unknown Scala versions"))
+
   lazy val ScalaTest           = "org.scalatest"          %% "scalatest"                  % "3.2.9"
   lazy val ScalaParCollections = "org.scala-lang.modules" %% "scala-parallel-collections" % "1.0.3"
   lazy val SbtPlatformDeps     = "org.portable-scala"      % "sbt-platform-deps"          % "1.0.1"
@@ -26,7 +30,7 @@ object Deps {
   lazy val JUnit               = "junit"                   % "junit"                      % "4.13.2"
 
   def Tools(scalaVersion: String) = {
-    List(ScalaCheck % "test", ScalaTest % "test") ++
+    List(ScalaCheck(scalaVersion) % "test", ScalaTest % "test") ++
       scalaVersionsDependendent(scalaVersion) {
         case (2, 11 | 12) => Nil
         case _            => ScalaParCollections :: Nil

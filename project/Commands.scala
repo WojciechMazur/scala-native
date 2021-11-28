@@ -7,90 +7,87 @@ import com.typesafe.tools.mima.plugin.MimaPlugin.autoImport._
 import ScriptedPlugin.autoImport._
 
 object Commands {
-  lazy val values = Seq(testAll, testRuntime, testTools, testMima, testScripted)
+  lazy val values = Seq(testAll, testTools, testRuntime, testMima, testScripted)
 
-  lazy val testScripted = UnsafeCommand("test-scripted")
-    .withSimpleTask(sbtScalaNative / scripted / test)
-
-  lazy val testAll = UnsafeCommand("test-all")
-    .withCommand(testTools)
-    .withCommand(testRuntime)
-    // testMima is already part of testTools
-    .withCommand(testScripted)
-
-  lazy val testRuntime = UnsafeCommand("test-runtime")
-    .withProjectsTasks(_ / Test / test)(
-      tests,
-      testsJVM,
-      testsExt,
-      testsExtJVM,
-      junitTestOutputsJVM,
-      junitTestOutputsNative,
-      scalaPartestJunitTests
-    )
-
-  lazy val testTools = UnsafeCommand("test-tools")
-    .withProjectsTasks(_ / Test / test)(testRunner, testInterface, tools)
-    .withCommand(testMima)
-
-  lazy val testMima = UnsafeCommand("test-mima")
-    .withProjectsTasks(_ / mimaReportBinaryIssues)(
-      Build.util,
-      nir,
-      tools,
-      testRunner,
-      testInterface,
-      testInterfaceSbtDefs,
-      junitRuntime,
-      nativelib,
-      clib,
-      posixlib,
-      windowslib,
-      auxlib,
-      javalib,
-      scalalib
-    )
-
-  case class ProjectsTask(
-      projects: Seq[MultiScalaProject],
-      task: Project => TaskKey[_]
-  ) {
-    def forVersion(v: String): Seq[TaskKey[_]] =
-      projects.map(p => task(p.forBinaryVersion(v)))
+  lazy val testScripted = Command.command("test-scripted") {
+    "sbtScalaNative/scripted" :: _
   }
-  case class UnsafeCommand(
-      name: String,
-      tasks: Seq[ProjectsTask] = Nil,
-      simpleTasks: Seq[TaskKey[_]] = Nil
-  ) {
-    def withSimpleTask(task: TaskKey[_]) =
-      copy(simpleTasks = simpleTasks :+ task)
 
-    def withProjectsTasks(
-        taskFn: Project => TaskKey[_]
-    )(projects: MultiScalaProject*) = {
-      copy(tasks = tasks :+ ProjectsTask(projects, taskFn))
-    }
+  lazy val testAll = Command.command("test-all") {
+    "test-tools" ::
+      "test-mima" ::
+      "test-runtime" ::
+      "test-scripted" :: _
+  }
 
-    def withCommand(other: UnsafeCommand) = {
-      copy(tasks = tasks ++ other.tasks)
-    }
+  lazy val testRuntime = projectVersionCommand("test-runtime") {
+    case (version, state) =>
+      val runs =
+        List(sandbox)
+          .map(_.forBinaryVersion(version).id)
+          .map(id => s"$id/run")
 
-    def toCommand = Command.args(name, "<args>") {
+      val tests = List(
+        Build.tests,
+        testsJVM,
+        testsExt,
+        testsExtJVM,
+        junitTestOutputsJVM,
+        junitTestOutputsNative,
+        scalaPartestJunitTests
+      ).map(_.forBinaryVersion(version).id)
+        .map(id => s"$id/test")
+      runs :::
+        tests :::
+        state
+  }
+
+  lazy val testTools = projectVersionCommand("test-tools") {
+    case (version, state) =>
+      val tests = List(tools, testRunner, testInterface)
+        .map(_.forBinaryVersion(version).id)
+        .map(id => s"$id/test")
+      tests :::
+        List("test-mima") :::
+        state
+  }
+
+  lazy val testMima = projectVersionCommand("test-mima") {
+    case (version, state) =>
+      val tests = List(
+        Build.util,
+        nir,
+        tools,
+        testRunner,
+        testInterface,
+        testInterfaceSbtDefs,
+        junitRuntime,
+        nativelib,
+        clib,
+        posixlib,
+        windowslib,
+        auxlib,
+        javalib,
+        scalalib
+      ).map(_.forBinaryVersion(version).id)
+        .map(id => s"$id/mimaReportBinaryIssues")
+
+      tests ::: state
+  }
+
+  private def projectVersionCommand(
+      name: String
+  )(fn: (String, State) => State): Command = {
+    Command.args(name, "<args>") {
       case (state, args) =>
         val version = args.headOption
           .map(CrossVersion.binaryScalaVersion)
           .orElse(state.getSetting(scalaBinaryVersion))
           .getOrElse(
-            "Used command needs explicit Scala binary verion as an argument"
+            "Used command needs explicit Scala binary version as an argument"
           )
 
-        // state.
-        for {
-          task <- tasks.flatMap(_.forVersion(version)) ++ simpleTasks
-        } state.unsafeRunTask(task)
-
-        state
+        fn(version, state)
     }
   }
 

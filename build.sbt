@@ -36,4 +36,4 @@ lazy val scalaPartestTests        = Build.scalaPartestTests
 lazy val scalaPartestJunitTests   = Build.scalaPartestJunitTests
 lazy val scalaPartestRuntime      = Build.scalaPartestRuntime
 
-commands ++= build.Commands.values.map(_.toCommand)
+commands ++= build.Commands.values

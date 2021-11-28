@@ -21,6 +21,7 @@ object Build {
     Project(id = "scala-native", base = file("."))
       .settings(
         name := "Scala Native",
+        scalaVersion := ScalaVersions.scala212,
         crossScalaVersions := ScalaVersions.libCrossScalaVersions,
         commonSettings,
         noPublishSettings,
@@ -133,8 +134,10 @@ object Build {
     project
       .in(file("sbt-scala-native"))
       .enablePlugins(ScriptedPlugin)
-      .settings(sbtPluginSettings)
       .settings(
+        sbtPluginSettings,
+        disabledDocsSettings,
+        scalaVersion := ScalaVersions.scala212,
         crossScalaVersions := Seq(sbt10ScalaVersion),
         addSbtPlugin(Deps.SbtPlatformDeps),
         sbtTestDirectory := (ThisBuild / baseDirectory).value / "scripted-tests",

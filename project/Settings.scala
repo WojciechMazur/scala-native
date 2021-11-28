@@ -354,8 +354,10 @@ object Settings {
   )
 
   lazy val sbtPluginSettings = Def.settings(
+    commonSettings,
     toolSettings,
     mavenPublishSettings,
+    sbtPlugin := true,
     sbtVersion := ScalaVersions.sbt10Version,
     scriptedLaunchOpts := {
       scriptedLaunchOpts.value ++

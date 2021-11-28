@@ -273,21 +273,12 @@ object Build {
               "-language:implicitConversions"
             ),
             libraryDependencies += ("org.scala-native" %%% "scalalib" % nativeVersion)
-              .exclude("org.scala-native", "nativelib_native0.4_2.13")
-              .exclude("org.scala-native", "clib_native0.4_2.13")
-              .exclude("org.scala-native", "posixlib_native0.4_2.13")
-              .exclude("org.scala-native", "windowslib_native0.4_2.13")
-              .exclude("org.scala-native", "auxlib_native0.4_2.13")
-              .exclude("org.scala-native", "javalib_native0.4_2.13")
+              .excludeAll(ExclusionRule("org.scala-native"))
               .cross(CrossVersion.for3Use2_13),
-            update := {
-              val _ = Def.taskDyn {
-                Def.task {
-                  (scalalib.v2_13 / publishLocal).value
-                }
-              }.value
-              update.value
-            }
+            Compile / unmanagedJars += Def
+              .taskDyn(scalalib.v2_13 / Compile / packageBin)
+              .map(Attributed.blank(_))
+              .value
           )
             .dependsOn(
               auxlib.forBinaryVersion(version),

@@ -4,7 +4,6 @@ package scala.scalanative.testinterface.common
 
 import sbt.testing._
 import java.io._
-import scala.annotation.nowarn
 
 private[testinterface] trait Serializer[T] {
   def serialize(x: T, out: Serializer.SerializeState): Unit

@@ -43,7 +43,8 @@ object Settings {
       "utf8"
     ),
     publishSettings,
-    mimaSettings
+    mimaSettings,
+    docsSettings
   )
 
   // Docs and API settings
@@ -53,11 +54,14 @@ object Settings {
     Def.settings(
       autoAPIMappings := true,
       exportJars := true, // required so ScalaDoc linking works
-      Compile / doc / scalacOptions := {
-        val prev = (Compile / doc / scalacOptions).value
-        if (scalaVersion.value.startsWith("2.11."))
-          prev.filter(_ != "-Xfatal-warnings")
-        else prev
+      Compile / doc / scalacOptions --= scalaVersionsDependendent(
+        scalaVersion.value
+      )(Seq.empty[String]) {
+        case (2, 11) => Seq("-Xfatal-warnings")
+        case (3, _)  =>
+          // Remove all plugins as they lead to exceptions
+          (Compile / doc / scalacOptions).value
+            .filter(_.contains("-Xplugin"))
       },
       // Add Java Scaladoc mapping
       apiMappings ++= {

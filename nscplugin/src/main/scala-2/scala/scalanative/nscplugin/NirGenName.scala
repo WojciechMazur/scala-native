@@ -108,8 +108,9 @@ trait NirGenName[G <: Global with Singleton] {
       val id: String = if (sym.owner.isExternModule) {
         // Don't use encoded names for externs
         // LLVM intrinisc methods are using dots
-        sym.decodedName
+        sym.decodedName.trim()
       } else if (sym.isField) {
+        // Scala 2 fields can contain ' ' suffix
         name.trim()
       } else if (sym.isMethod) {
         val isScalaHashOrEquals = name.startsWith("__scala_")

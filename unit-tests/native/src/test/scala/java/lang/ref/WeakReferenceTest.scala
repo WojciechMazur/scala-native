@@ -39,7 +39,7 @@ class WeakReferenceTest {
     val weakRef2 = allocWeakRef(refQueue)
     val weakRefList = List(weakRef1, weakRef2)
 
-    for (_ <- 0 until 5){
+    for (_ <- 0 until 3) {
       GC.collect()
       Thread.sleep(200)
     }

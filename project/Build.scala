@@ -741,12 +741,16 @@ object Build {
     }
 
     def withJUnitPlugin: MultiScalaProject = {
-      project.settings(
-        Test / scalacOptions += {
-          val jar = (junitPlugin.v2_12 / Compile / packageBin).value
-          s"-Xplugin:$jar"
-        }
-      )
+      project.mapBinaryVersions { version =>
+        _.settings(
+          Test / scalacOptions += Def.taskDyn {
+            val pluginProject = junitPlugin.forBinaryVersion(version)
+            (pluginProject / Compile / packageBin).map { jar =>
+              s"-Xplugin:$jar"
+            }
+          }.value
+        )
+      }
     }
 
     /** Depends on the sources of another project. */

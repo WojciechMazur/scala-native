@@ -17,8 +17,6 @@ object WindowsUserPrincipalLookupService extends UserPrincipalLookupService {
     lookupByName(name) match {
       case Success(user: WindowsUserPrincipal.User) => user
       case other =>
-        println(name)
-        println(other)
         throw new UserPrincipalNotFoundException(name)
     }
   }
@@ -56,8 +54,10 @@ object WindowsUserPrincipalLookupService extends UserPrincipalLookupService {
         )
       } else {
         val sidRef: SIDPtr = alloc[Byte](!cbSid)
-        val domainName: Ptr[CChar16] =
-          alloc[CChar16](!domainSize).asInstanceOf[CWString]
+        // Workaround for Scala 3, without explicit type it would be evaluated
+        // to `alloc[CChar16].apply(!domainSize)`
+        val domainBuf: Ptr[CChar16] = alloc[CChar16](!domainSize)
+        val domainName: CWString = domainBuf.asInstanceOf[CWString]
 
         if (!LookupAccountNameW(
               systemName = null,

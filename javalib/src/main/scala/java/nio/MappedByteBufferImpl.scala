@@ -258,10 +258,12 @@ private[nio] object MappedByteBufferImpl {
       fd: FileDescriptor,
       mode: MapMode
   ): MappedByteBufferData = {
-    val (flProtect: DWord, dwDesiredAccess: DWord) =
-      if (mode eq MapMode.PRIVATE) (PAGE_WRITECOPY, FILE_MAP_COPY)
-      else if (mode eq MapMode.READ_ONLY) (PAGE_READONLY, FILE_MAP_READ)
-      else if (mode eq MapMode.READ_WRITE) (PAGE_READWRITE, FILE_MAP_WRITE)
+    val (flProtect: DWord, dwDesiredAccess: DWord) = mode match {
+      case MapMode.PRIVATE    => (PAGE_WRITECOPY, FILE_MAP_COPY)
+      case MapMode.READ_ONLY  => (PAGE_READONLY, FILE_MAP_READ)
+      case MapMode.READ_WRITE => (PAGE_READWRITE, FILE_MAP_WRITE)
+      case _ => throw new IllegalStateException("Unknown MapMode")
+    }
 
     val mappingHandle =
       CreateFileMappingA(

@@ -37,7 +37,7 @@ object select {
   //    Zone {
   //
   //        // Zone.alloc is documented as returning zeroed memory.
-  //        val fdsetPtr = alloc[fd_set] //  No need to FD_ZERO.
+  //        val fdsetPtr = alloc[fd_set]() //  No need to FD_ZERO.
   //        FD_SET(sock, fdsetPtr)
   //
   //        // If used, allocate writefds and/or exceptfds the same way.

@@ -67,7 +67,7 @@ object SocketHelpers {
         }
         setSocketNonBlocking(sock)
         // stackalloc is documented as returning zeroed memory
-        val fdsetPtr = stackalloc[fd_set] //  No need to FD_ZERO
+        val fdsetPtr = stackalloc[fd_set]() //  No need to FD_ZERO
         FD_SET(sock, fdsetPtr)
 
         // calculate once and use a second time below.

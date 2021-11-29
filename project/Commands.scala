@@ -92,7 +92,7 @@ object Commands {
           """set sbtScalaNative/sbtVersion := "1.5.0"""" :: Nil
         else Nil
 
-      setScriptedLaunchOpts :: 
+      setScriptedLaunchOpts ::
         overrideSbtVersion :::
         "sbtScalaNative/scripted" ::
         state

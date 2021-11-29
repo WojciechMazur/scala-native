@@ -741,7 +741,12 @@ object Build {
     }
 
     def withJUnitPlugin: MultiScalaProject = {
-      project.dependsOn(junitPlugin % "plugin")
+      project.settings(
+        Test / scalacOptions += {
+          val jar = (junitPlugin.v2_12 / Compile / packageBin).value
+          s"-Xplugin:$jar"
+        }
+      )
     }
 
     /** Depends on the sources of another project. */

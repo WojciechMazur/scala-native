@@ -380,9 +380,6 @@ final class NirDefinitions()(using ctx: Context) {
   @tu lazy val String_concatR = defn.StringClass.requiredMethodRef("concat")
   def String_concat(using Context) = String_concatR.symbol
 
-  @tu lazy val JavaPropertiesType = requiredClassRef("java.util.Properties")
-  def JavaPropertiesClass = JavaPropertiesType.symbol.asClass
-
   // Scala library & runtime
   @tu lazy val InlineType = requiredClassRef("scala.inline")
   @tu lazy val NoInlineType = requiredClassRef("scala.noinline")

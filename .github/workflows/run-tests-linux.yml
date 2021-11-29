@@ -4,7 +4,10 @@ on:
   push:
     branches:
       - master
-
+concurrency: 
+  group: ${{ github.head_ref }}
+  cancel-in-progress: true
+  
 jobs:
   # Compile all sources for given Scala version
   # Cache external dependencies

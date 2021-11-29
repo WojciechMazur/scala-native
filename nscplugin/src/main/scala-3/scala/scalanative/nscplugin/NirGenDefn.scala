@@ -248,19 +248,19 @@ trait NirGenDefn(using Context) {
       val attrs = genMethodAttrs(sym)
       val name = genMethodName(sym)
       val sig = genMethodSig(sym)
-      val isStatic = owner.isExternModule
+      val isStatic = sym.isExtern
 
       dd.rhs match {
         case EmptyTree =>
           generatedDefns += Defn.Declare(attrs, name, sig)
-        case _ if dd.name == nme.CONSTRUCTOR && owner.isExternModule =>
+        case _ if dd.name == nme.CONSTRUCTOR && sym.isExtern =>
           validateExternCtor(dd.rhs)
           ()
 
         case _ if dd.name == nme.CONSTRUCTOR && owner.isStruct =>
           ()
 
-        case rhs if owner.isExternModule =>
+        case rhs if sym.isExtern =>
           checkExplicitReturnTypeAnnotation(dd, "extern method")
           genExternMethod(attrs, name, sig, rhs)
 

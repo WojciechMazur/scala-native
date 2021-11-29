@@ -685,7 +685,7 @@ trait NirGenExpr(using Context) {
         val ty = genType(tree.tpe)
         val qual = genExpr(qualp)
         val name = genFieldName(tree.symbol)
-        if (sym.owner.isExternModule) {
+        if (sym.isExtern) {
           val externTy = genExternType(tree.tpe)
           genLoadExtern(ty, externTy, tree.symbol)
         } else {
@@ -1104,8 +1104,7 @@ trait NirGenExpr(using Context) {
         selfp: Tree,
         argsp: Seq[Tree]
     )(using nir.Position): Val = {
-      if (sym.owner.isExternModule && sym.is(Accessor))
-        genApplyExternAccessor(sym, argsp)
+      if (sym.isExtern && sym.is(Accessor)) genApplyExternAccessor(sym, argsp)
       else
         val self = genExpr(selfp)
         genApplyMethod(sym, statically, self, argsp)
@@ -1444,7 +1443,7 @@ trait NirGenExpr(using Context) {
     }
 
     def genMethodArgs(sym: Symbol, argsp: Seq[Tree]): Seq[Val] = {
-      if (!sym.owner.isExternModule) genSimpleArgs(argsp)
+      if (!sym.isExtern) genSimpleArgs(argsp)
       else {
         val res = Seq.newBuilder[Val]
         argsp.zip(sym.denot.paramSymss.flatten).foreach {
@@ -2062,7 +2061,7 @@ trait NirGenExpr(using Context) {
     def genLoadExtern(ty: nir.Type, externTy: nir.Type, sym: Symbol)(using
         nir.Position
     ): Val = {
-      assert(sym.owner.isExternModule, "loadExtern was not extern")
+      assert(sym.isExtern, "loadExtern was not extern")
 
       val name = Val.Global(genName(sym), Type.Ptr)
 
@@ -2072,7 +2071,7 @@ trait NirGenExpr(using Context) {
     def genStoreExtern(externTy: nir.Type, sym: Symbol, value: Val)(using
         nir.Position
     ): Val = {
-      assert(sym.owner.isExternModule, "storeExtern was not extern")
+      assert(sym.isExtern, "storeExtern was not extern")
       val name = Val.Global(genName(sym), Type.Ptr)
       val externValue = toExtern(externTy, value)
 

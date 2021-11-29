@@ -44,11 +44,8 @@ trait NirGenName(using Context) {
     }
 
     owner.member {
-      if (sym.owner.isExternModule) {
-        nir.Sig.Extern(id)
-      } else {
-        nir.Sig.Field(id, scope)
-      }
+      if (sym.isExtern) nir.Sig.Extern(id)
+      else nir.Sig.Field(id, scope)
     }
   }
 
@@ -65,7 +62,7 @@ trait NirGenName(using Context) {
       .map(genType)
 
     if (sym == defn.`String_+`) genMethodName(defnNir.String_concat)
-    else if (sym.owner.isExternModule)
+    else if (sym.isExtern)
       if (sym.isSetter)
         val id = nativeIdOf(sym.getter)
         owner.member(nir.Sig.Extern(id))

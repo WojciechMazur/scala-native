@@ -35,6 +35,8 @@ trait NirGenType(using Context) {
     def isStaticModule: Boolean =
       sym.is(Module) && sym.isStatic
 
+    def isExtern: Boolean = sym.owner.isExternModule
+
     def isExternModule: Boolean =
       isScalaModule && sym.hasAnnotation(defnNir.ExternClass)
 
@@ -239,7 +241,7 @@ trait NirGenType(using Context) {
       paramList <- sym.info.paramInfoss
       param <- paramList
     } yield {
-      if (param.isRepeatedParam && sym.owner.isExternModule)
+      if (param.isRepeatedParam && sym.isExtern)
         nir.Type.Vararg
       else if (isExtern) genExternType(param)
       else genType(param)

@@ -139,6 +139,7 @@ object MultiScalaProject {
         base = new File(base, "." + major)
       ).settings(
         Settings.commonSettings,
+        name := Settings.projectName(id),
         scalaVersion := minors.last,
         crossScalaVersions := minors
       )

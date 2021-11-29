@@ -21,7 +21,7 @@ object Settings {
   )
 
 // Generate project name from project id.
-  private def projectName(id: String): String = {
+  private[build] def projectName(id: String): String = {
     // Convert "SomeName" to "some-name".
     id.replaceAll(
       "([a-z])([A-Z]+)",

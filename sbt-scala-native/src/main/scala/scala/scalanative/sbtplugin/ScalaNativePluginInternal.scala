@@ -41,7 +41,7 @@ object ScalaNativePluginInternal {
         case (3, _) =>
           Seq(
             "org.scala-native" %%% "scalalib3" % nativeVersion,
-            "org.scala-native" %%% "test-interface_3" % nativeVersion % Test
+            "org.scala-native" %%% "test-interface" % nativeVersion % Test
           )
       },
     addCompilerPlugin(

@@ -80,10 +80,12 @@ trait NirGenName(using Context) {
       .getAnnotation(defnNir.NameClass)
       .flatMap(_.argumentConstantString(0))
       .getOrElse {
-        // We cannot use sym.javaSimpleName for compatibility with Scala 2 names
-        def name = sym.name.toString
+        val name = sym.javaSimpleName
         val id: String =
-          if (sym.isField) name
+          // Don't use encoded names for externs
+          // LLVM intrinisc methods are using dots
+          if (sym.isExtern) sym.name.decode.toString
+          else if (sym.isField) name
           else if (sym.is(Method))
             val isScalaHashOrEquals = name.startsWith("__scala_")
             if (sym.owner == defnNir.NObjectClass || isScalaHashOrEquals)

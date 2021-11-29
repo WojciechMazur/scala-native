@@ -42,7 +42,7 @@ jobs:
           testsExtJVM${{env.project-version}}/test
           "scalaPartestTests${{env.project-version}}/testOnly -- --showDiff neg/abstract.scala pos/abstract.scala run/Course-2002-01.scala"
         shell: cmd
-      
+
       - name: Test runtime
         if: matrix.gc != 'none'
         run: >
@@ -62,7 +62,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-2019]
-        scala: [2.12.15]
+        scala: [2.12.15, 3.1.0]
     steps:
       # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
       - name: Setup git config
@@ -73,7 +73,7 @@ jobs:
           scala-version: ${{matrix.scala}}
 
       - name: Test scripted
-        run: sbt ++${{matrix.scala}};test-scripted
+        run: sbt "++${{matrix.scala}}" "test-scripted ${{matrix.scala}}"
         shell: cmd
 
   test-runtime-lto:

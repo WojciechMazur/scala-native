@@ -130,15 +130,13 @@ object Build {
     }
     .dependsOn(nir, util, testingCompilerInterface % "test")
 
-  lazy val sbtScalaNative =
+  lazy val sbtScalaNative: Project =
     project
       .in(file("sbt-scala-native"))
       .enablePlugins(ScriptedPlugin)
       .settings(
         sbtPluginSettings,
         disabledDocsSettings,
-        scalaVersion := ScalaVersions.scala212,
-        crossScalaVersions := Seq(sbt10ScalaVersion),
         addSbtPlugin(Deps.SbtPlatformDeps),
         sbtTestDirectory := (ThisBuild / baseDirectory).value / "scripted-tests",
         // publish the other projects before running scripted tests.
@@ -153,29 +151,47 @@ object Build {
             StandardCopyOption.REPLACE_EXISTING
           )
           scriptedDependencies
-            .dependsOn(
-              // Compiler plugins
-              nscPlugin.v2_12 / publishLocal,
-              junitPlugin.v2_12 / publishLocal,
-              // Native libraries
-              nativelib.v2_12 / publishLocal,
-              clib.v2_12 / publishLocal,
-              posixlib.v2_12 / publishLocal,
-              windowslib.v2_12 / publishLocal,
-              // Standard language libraries
-              javalib.v2_12 / publishLocal,
-              auxlib.v2_12 / publishLocal,
-              scalalib.v2_12 / publishLocal,
-              // Testing infrastructure
-              testInterfaceSbtDefs.v2_12 / publishLocal,
-              testInterface.v2_12 / publishLocal,
-              junitRuntime.v2_12 / publishLocal,
-              // JVM libraries
-              util.v2_12 / publishLocal,
-              nir.v2_12 / publishLocal,
-              tools.v2_12 / publishLocal,
-              testRunner.v2_12 / publishLocal
-            )
+            .dependsOn(Def.taskDyn {
+              // Read scriptedLaunchOpts to get rid of cyclic dependency with root project
+              val ver = {
+                val versionProp = "-Dscala.version="
+                val scalaVersion = scriptedLaunchOpts.value
+                  .find(_.startsWith(versionProp))
+                  .map(_.stripPrefix(versionProp))
+                  .getOrElse(
+                    throw new RuntimeException(
+                      "scala.version not set in scripted launch opts"
+                    )
+                  )
+                CrossVersion.binaryScalaVersion(scalaVersion)
+              }
+
+              Def
+                .task(())
+                .dependsOn(
+                  // Compiler plugins
+                  nscPlugin.forBinaryVersion(ver) / publishLocal,
+                  junitPlugin.forBinaryVersion(ver) / publishLocal,
+                  // Native libraries
+                  nativelib.forBinaryVersion(ver) / publishLocal,
+                  clib.forBinaryVersion(ver) / publishLocal,
+                  posixlib.forBinaryVersion(ver) / publishLocal,
+                  windowslib.forBinaryVersion(ver) / publishLocal,
+                  // Standard language libraries
+                  javalib.forBinaryVersion(ver) / publishLocal,
+                  auxlib.forBinaryVersion(ver) / publishLocal,
+                  scalalib.forBinaryVersion(ver) / publishLocal,
+                  // Testing infrastructure
+                  testInterfaceSbtDefs.forBinaryVersion(ver) / publishLocal,
+                  testInterface.forBinaryVersion(ver) / publishLocal,
+                  junitRuntime.forBinaryVersion(ver) / publishLocal,
+                  // JVM libraries
+                  util.forBinaryVersion(ver) / publishLocal,
+                  nir.forBinaryVersion(ver) / publishLocal,
+                  tools.forBinaryVersion(ver) / publishLocal,
+                  testRunner.forBinaryVersion(ver) / publishLocal
+                )
+            })
             .value
         }
       )

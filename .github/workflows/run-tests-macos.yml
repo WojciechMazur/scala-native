@@ -48,7 +48,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scala: [2.12.15]
+        scala: [2.12.15, 3.1.0]
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/actions/macos-setup-env
@@ -56,4 +56,4 @@ jobs:
           scala-version: ${{matrix.scala}}
 
       - name: Test scripted
-        run: sbt "test-scripted"
+        run: sbt "test-scripted ${{matrix.scala}}"

@@ -377,13 +377,15 @@ object Settings {
     mavenPublishSettings,
     sbtPlugin := true,
     sbtVersion := ScalaVersions.sbt10Version,
+    scalaVersion := ScalaVersions.sbt10ScalaVersion,
     scriptedLaunchOpts := {
       scriptedLaunchOpts.value ++
         Seq(
           "-Xmx1024M",
           "-XX:MaxMetaspaceSize=256M",
           "-Dplugin.version=" + version.value,
-          "-Dscala.version=" + scalaVersion.value,
+          // Default scala.version, can be overriden in test-scrippted command
+          "-Dscala.version=" + ScalaVersions.scala212,
           "-Dfile.encoding=UTF-8" // Windows uses Cp1250 as default
         ) ++
         ivyPaths.value.ivyHome.map(home => s"-Dsbt.ivy.home=$home").toSeq

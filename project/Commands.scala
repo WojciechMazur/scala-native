@@ -9,10 +9,6 @@ import ScriptedPlugin.autoImport._
 object Commands {
   lazy val values = Seq(testAll, testTools, testRuntime, testMima, testScripted)
 
-  lazy val testScripted = Command.command("test-scripted") {
-    "sbtScalaNative/scripted" :: _
-  }
-
   lazy val testAll = Command.command("test-all") {
     "test-tools" ::
       "test-mima" ::
@@ -73,6 +69,33 @@ object Commands {
         .map(id => s"$id/mimaReportBinaryIssues")
 
       tests ::: state
+  }
+
+  lazy val testScripted = Command.args("test-scripted", "<args>") {
+    case (state, args) =>
+      val version = args.headOption
+        .orElse(state.getSetting(scalaVersion))
+        .getOrElse(
+          "Used command needs explicit Scala binary version as an argument"
+        )
+      val binaryVersion = CrossVersion.binaryScalaVersion(version)
+      val setScriptedLaunchOpts =
+        s"""set sbtScalaNative/scriptedLaunchOpts := {
+            |  (sbtScalaNative/scriptedLaunchOpts).value
+            |   .filterNot(_.startsWith("-Dscala.version=")) :+
+            |   "-Dscala.version=$version"
+            |}""".stripMargin
+      // Scala 3 is supported since sbt 1.5.0
+      // Older versions set incorrect binary version
+      val overrideSbtVersion =
+        if (version.startsWith("3."))
+          """set sbtScalaNative/sbtVersion := "1.5.0"""" :: Nil
+        else Nil
+
+      setScriptedLaunchOpts :: 
+        overrideSbtVersion :::
+        "sbtScalaNative/scripted" ::
+        state
   }
 
   private def projectVersionCommand(

@@ -261,7 +261,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scala: [2.12.15]
+        scala: [2.12.15, 3.1.0]
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/actions/linux-setup-env
@@ -274,5 +274,5 @@ jobs:
           SCALANATIVE_GC: immix
           SCALANATIVE_OPTIMIZE: true
           SCALA_VERSION: ${{ matrix.scala}}
-          TEST_COMMAND: test-scripted ${{ matrix.scala }}
+          TEST_COMMAND: "test-scripted ${{matrix.scala}}"
         run: ./ci-docker/run-test-gha.sh "${{ needs.build-image.outputs.image-name }}-amd64"

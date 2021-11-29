@@ -214,8 +214,9 @@ trait NirGenDefn(using Context) {
           given fresh: Fresh = Fresh()
           given buf: ExprBuffer = ExprBuffer()
 
-          val params = paramTypes.map(Val.Local(fresh(), _))
-          buf.label(fresh(), params)
+          val entryParams @ (self +: params) =
+            forwarderParamTypes.map(Val.Local(fresh(), _))
+          buf.label(fresh(), entryParams)
           val result = buf.call(
             methodType,
             Val.Global(methodName, Type.Ptr),

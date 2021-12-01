@@ -280,7 +280,7 @@ object Build {
             .dependsOn(javalib.forBinaryVersion(version))
         case version @ "3" =>
           _.settings(
-            name := "scalalib3",
+            name := "scala3lib",
             commonScalalibSettings(
               "scala3-library_3",
               libCrossScala3Versions

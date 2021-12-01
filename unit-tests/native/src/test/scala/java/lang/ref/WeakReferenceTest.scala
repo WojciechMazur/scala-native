@@ -39,19 +39,19 @@ class WeakReferenceTest {
     val weakRef2 = allocWeakRef(refQueue)
     val weakRefList = List(weakRef1, weakRef2)
 
-    for (_ <- 0 until 3) {
+    for (_ <- 0 until 5) {
       GC.collect()
       Thread.sleep(200)
     }
 
-    assertEquals("weakRef1", weakRef1.get(), null)
-    assertEquals("weakRef2", weakRef2.get(), null)
+    assertEquals("weakRef1", null, weakRef1.get())
+    assertEquals("weakRef2", null, weakRef2.get())
     val a = refQueue.poll()
     val b = refQueue.poll()
     assertTrue("!contains a", weakRefList.contains(a))
     assertTrue("!contains b", weakRefList.contains(b))
     assertNotEquals(a, b)
-    assertEquals("pool not null", refQueue.poll(), null)
+    assertEquals("pool not null", null, refQueue.poll())
   }
 
   @Test def clear(): Unit = {

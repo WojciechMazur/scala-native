@@ -97,7 +97,7 @@ class Buffer(implicit fresh: Fresh) {
       implicit pos: Position
   ): Val =
     let(Op.Fieldstore(ty, obj, name, value), unwind)
-  def field(obj: Val, name: Global, unwind: Next)(implicit pos: Position) = 
+  def field(obj: Val, name: Global, unwind: Next)(implicit pos: Position) =
     let(Op.Field(obj, name), unwind)
   def method(obj: Val, sig: Sig, unwind: Next)(implicit pos: Position): Val =
     let(Op.Method(obj, sig), unwind)

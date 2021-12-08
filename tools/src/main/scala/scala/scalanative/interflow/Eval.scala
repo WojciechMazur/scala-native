@@ -242,7 +242,7 @@ trait Eval { self: Interflow =>
                 )
             )
         }
-        
+
       case Op.Field(rawObj, name) =>
         val obj = eval(rawObj)
         visitRoot(name)

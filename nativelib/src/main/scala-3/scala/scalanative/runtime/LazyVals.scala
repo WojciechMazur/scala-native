@@ -9,7 +9,7 @@ import scala.runtime.LazyVals.{BITS_PER_LAZY_VAL, STATE}
  *  scala.runtime.LazyVals
  */
 private object LazyVals {
-  
+
   private final val LAZY_VAL_MASK = 3L
 
   /* ------------- Start of public API ------------- */

@@ -141,5 +141,6 @@ object Intrinsics {
   def castLongToRawPtr(int: Long): RawPtr = intrinsic
 
   /** Intrinsified resolving of class field as a raw pointer */
-  def classFieldRawPtr[T <: AnyRef](obj: T, fieldName: String): RawPtr = intrinsic
+  def classFieldRawPtr[T <: AnyRef](obj: T, fieldName: String): RawPtr =
+    intrinsic
 }

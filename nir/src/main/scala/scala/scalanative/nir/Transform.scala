@@ -83,7 +83,7 @@ trait Transform {
       Op.Fieldload(onType(ty), onVal(v), n)
     case Op.Fieldstore(ty, v1, n, v2) =>
       Op.Fieldstore(onType(ty), onVal(v1), n, onVal(v2))
-    case Op.Field(v, n) => 
+    case Op.Field(v, n) =>
       Op.Field(onVal(v), n)
     case Op.Method(v, n) =>
       Op.Method(onVal(v), n)

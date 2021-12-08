@@ -146,7 +146,9 @@ final class NirDefinitions()(using ctx: Context) {
   @tu lazy val RuntimePackageVal = requiredModuleRef("scala.scalanative.runtime.package")
   @tu lazy val RuntimePackageClass = RuntimePackageVal.classSymbol.asClass
   @tu lazy val RuntimePackage_getMonitorR = RuntimePackageClass.requiredMethodRef("getMonitor")
+  @tu lazy val RuntimePackage_fromRawPtrR = RuntimePackageClass.requiredMethodRef("fromRawPtr")
   def RuntimePackage_getMonitor(using Context) = RuntimePackage_getMonitorR.symbol
+  def RuntimePackage_fromRawPtr(using Context) = RuntimePackage_fromRawPtrR.symbol
 
   @tu lazy val RuntimeMonitorType = requiredClassRef("scala.scalanative.runtime.Monitor")
   @tu lazy val RuntimeMonitorModuleType = requiredModuleRef("scala.scalanative.runtime.Monitor")

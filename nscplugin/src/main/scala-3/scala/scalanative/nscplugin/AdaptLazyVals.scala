@@ -19,115 +19,125 @@ import core.Constants.Constant
 import NoContext.given_Context
 import dotty.tools.backend.sjs.ScopedVar
 import dotty.tools.dotc.ast.Trees
+import scala.annotation.{threadUnsafe => tu}
 
 object AdaptLazyVals extends PluginPhase {
-  val phaseName = "scalanative-adaptLazyValy"
+  val phaseName = "scalanative-adaptLazyVals"
 
-  override val runsAfter = Set(LazyVals.name)
-  override val runsBefore = Set(MoveStatics.name)
-
-  private val curOffsetTrees = ScopedVar(Map.empty[Symbol, Tree])
+  override val runsAfter = Set(LazyVals.name, MoveStatics.name)
+  override val runsBefore = Set(GenNIR.phaseName)
 
   def defn(using Context): Definitions = ctx.definitions
   def defnNir(using Context) = NirDefinitions.defnNir
+  def defnLazyVals(using Context) = LazyValsDefns.get
 
   private def isLazyFieldOffset(name: Name) =
     name.startsWith(nme.LAZY_FIELD_OFFSET.toString)
 
-  override def transformTypeDef(td: TypeDef)(using Context): Tree = {
-    val sym = td.symbol
-    val hasLazyFields =
-      sym.denot.info.fields.exists(f => isLazyFieldOffset(f.name))
+  // Map of field symbols for LazyVals offsets and literals
+  // with the name of referenced bitmap fields within given TypeDef
+  private val bitmapFieldNames = collection.mutable.Map.empty[Symbol, Literal]
 
-    if (!hasLazyFields) td
-    else {
-      val TypeDef(
-        _,
-        templ @ Template(
-          constructor,
-          parents,
-          self,
-          body: List[Tree @unchecked]
-        )
-      ) = td
-
-      // Collect definitions of LazyVals OFFSET fields, replace their usages
-      // with inlined method invocation - it would be replaced with constant value
-      // in Lower phase of SN linker
-      val transforemedBodies = {
-        val offsetTrees = body.collect {
-          case vd: ValDef if isLazyFieldOffset(vd.name) =>
-            (vd.symbol, vd.rhs)
-        }
-        ScopedVar.withScopedVars(
-          curOffsetTrees := offsetTrees.toMap
-        ) {
-          body.map(transformAllDeep)
-        }
-      }
-
-      // Create dummy methods used to initialize LazyVals bitmap fields
-      // It is needed as we don't support static class constructors.
-      // Make sure tht method would not be optimized by SN since there is
-      // no other direct usage of this fields (access happends only via field offset)
-      val dummyInitBitmpatFieldsDef = {
-        val methodSym = newSymbol(
-          owner = td.symbol,
-          name = termName("$scalanative$setupDummyBitmapFields"),
-          flags = Synthetic | Method | JavaStatic,
-          info = MethodType(Nil, defn.UnitType),
-          privateWithin = td.symbol,
-          coord = td.symbol.coord
-        )
-        methodSym.addAnnotation(defnNir.NoOptimizeClass)
-        val dummyAssigns = body.collect {
-          case vd: ValDef if vd.name.is(NameKinds.LazyBitMapName) =>
-            val sym = vd.symbol
-            val selfIdent = Ident(sym.namedType)
-            cpy.Assign(constructor)(lhs = selfIdent, rhs = selfIdent)
-        }
-        val res = DefDef(
-          methodSym.asTerm,
-          cpy.Block(constructor)(dummyAssigns, Literal(Constant(())))
-        )
-        res
-      }
-
-      // Update class constructor to call dummy bitmap init method
-      val DefDef(_, _, _, (b: Block @unchecked)) = constructor
-      val newConstructor = cpy.DefDef(constructor)(rhs =
-        cpy.Block(b)(
-          stats = {
-            b.stats :+
-              cpy.Apply(b)(
-                fun = Select(
-                  This(td.symbol.asClass),
-                  dummyInitBitmpatFieldsDef.namedType
-                ),
-                args = Nil
-              )
-          },
-          expr = b.expr
-        )
-      )
-
-      // Create new template with new methods and updated bodies
-      val newTemplate =
-        cpy.Template(templ)(
-          constr = newConstructor,
-          body = transforemedBodies :+ dummyInitBitmpatFieldsDef
-        )
-
-      cpy.TypeDef(td)(td.name, newTemplate)
-    }
+  override def prepareForUnit(tree: Tree)(using Context): Context = {
+    bitmapFieldNames.clear()
+    super.prepareForUnit(tree)
   }
 
-  override def transformIdent(ident: Ident)(using Context): Tree = {
-    // curOffsetTrees would be empty if transformTypeDef was not entered yet
-    if (!isLazyFieldOffset(ident.name) || curOffsetTrees.get.isEmpty)
-      ident
-    else
-      curOffsetTrees.get(ident.symbol)
+  // Collect informations about offset fields
+  override def prepareForTypeDef(td: TypeDef)(using Context): Context = {
+    val sym = td.symbol
+    val hasLazyFields = sym.denot.info.fields
+      .exists(f => isLazyFieldOffset(f.name))
+
+    if (hasLazyFields) {
+      val template @ Template(_, _, _, _) = td.rhs
+      bitmapFieldNames ++= template.body.collect {
+        case vd: ValDef if isLazyFieldOffset(vd.name) =>
+          val Apply(_, List(cls: Literal, fieldname: Literal)) = vd.rhs
+          vd.symbol -> fieldname
+      }.toMap
+    }
+
+    ctx
+  }
+
+  // Replace all usages of all unsuportted LazyVals methods with their
+  // Scala Native specific implementation (taking Ptr intead of object + offset)
+  override def transformApply(tree: Apply)(using Context): Tree = {
+    // Create call to SN intrinsic methods returning pointer to bitmap field
+    def classFieldPtr(target: Tree, fieldRef: Tree): Tree = {
+      val fieldName = bitmapFieldNames(fieldRef.symbol)
+      cpy.Apply(tree)(
+        fun = ref(defnNir.RuntimePackage_fromRawPtr),
+        args = List(
+          cpy.Apply(tree)(
+            fun = ref(defnNir.Intrinsics_classFieldRawPtr),
+            args = List(target, fieldName)
+          )
+        )
+      )
+    }
+
+    val Apply(fun, args) = tree
+    val sym = fun.symbol
+
+    if bitmapFieldNames.isEmpty then tree // No LazyVals in TypeDef, fast path
+    else if sym == defnLazyVals.LazyVals_get then
+      val List(target, fieldRef) = args
+      cpy.Apply(tree)(
+        fun = ref(defnLazyVals.NativeLazyVals_get),
+        args = List(classFieldPtr(target, fieldRef))
+      )
+    else if sym == defnLazyVals.LazyVals_setFlag then
+      val List(target, fieldRef, value, ord) = args
+      cpy.Apply(tree)(
+        fun = ref(defnLazyVals.NativeLazyVals_setFlag),
+        args = List(classFieldPtr(target, fieldRef), value, ord)
+      )
+    else if sym == defnLazyVals.LazyVals_CAS then
+      val List(target, fieldRef, expected, value, ord) = args
+      cpy.Apply(tree)(
+        fun = ref(defnLazyVals.NativeLazyVals_CAS),
+        args = List(classFieldPtr(target, fieldRef), expected, value, ord)
+      )
+    else if sym == defnLazyVals.LazyVals_wait4Notification then
+      val List(target, fieldRef, value, ord) = args
+      cpy.Apply(tree)(
+        fun = ref(defnLazyVals.NativeLazyVals_wait4Notification),
+        args = List(classFieldPtr(target, fieldRef), value, ord)
+      )
+    else tree
+  }
+
+  object LazyValsDefns {
+    var lastCtx: Option[Context] = None
+    var lastDefns: LazyValsDefns = _
+
+    def get(using Context): LazyValsDefns = {
+      if (!lastCtx.contains(ctx)) {
+        lastDefns = LazyValsDefns()
+        lastCtx = Some(ctx)
+      }
+      lastDefns
+    }
+  }
+  class LazyValsDefns(using Context) {
+    @tu lazy val NativeLazyValsModule = requiredModule(
+      "scala.scalanative.runtime.LazyVals"
+    )
+    @tu lazy val NativeLazyVals_get = NativeLazyValsModule.requiredMethod("get")
+    @tu lazy val NativeLazyVals_setFlag =
+      NativeLazyValsModule.requiredMethod("setFlag")
+    @tu lazy val NativeLazyVals_CAS = NativeLazyValsModule.requiredMethod("CAS")
+    @tu lazy val NativeLazyVals_wait4Notification =
+      NativeLazyValsModule.requiredMethod("wait4Notification")
+
+    @tu lazy val LazyValsModule = requiredModule("scala.runtime.LazyVals")
+    @tu lazy val LazyVals_get = LazyValsModule.requiredMethod("get")
+    @tu lazy val LazyVals_setFlag = LazyValsModule.requiredMethod("setFlag")
+    @tu lazy val LazyVals_CAS = LazyValsModule.requiredMethod("CAS")
+    @tu lazy val LazyVals_wait4Notification =
+      LazyValsModule.requiredMethod("wait4Notification")
   }
 
 }

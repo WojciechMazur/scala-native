@@ -16,6 +16,14 @@ import scalanative.linker.{
   Result
 }
 import scalanative.interflow.UseDef.eliminateDeadCode
+import scala.scalanative.nir.Type.Bool
+import scala.scalanative.nir.Type.Ptr
+import scala.scalanative.nir.Type.ArrayValue
+import scala.scalanative.nir.Type.StructValue
+import scala.scalanative.nir.Type.Ref
+import scala.scalanative.nir.Type.Vararg
+import scala.scalanative.nir.Type.Virtual
+import scala.scalanative.nir.Type.Var
 
 object Lower {
 
@@ -368,6 +376,8 @@ object Lower {
           genFieldloadOp(buf, n, op)
         case op: Op.Fieldstore =>
           genFieldstoreOp(buf, n, op)
+        case op: Op.Field =>
+          genFieldOp(buf, n, op)
         case op: Op.Store =>
           genStoreOp(buf, n, op)
         case op: Op.Method =>
@@ -480,6 +490,14 @@ object Lower {
 
       val elem = genFieldElemOp(buf, genVal(buf, obj), name)
       genStoreOp(buf, n, Op.Store(ty, elem, value))
+    }
+
+    def genFieldOp(buf: Buffer, n: Local, op: Op)(implicit
+        pos: Position
+    ) = {
+      val Op.Field(obj, name) = op
+      val elem = genFieldElemOp(buf, obj, name)
+      buf.let(n, Op.Copy(elem), unwind)
     }
 
     def genStoreOp(buf: Buffer, n: Local, op: Op.Store)(implicit

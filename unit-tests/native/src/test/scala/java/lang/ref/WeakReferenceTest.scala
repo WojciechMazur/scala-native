@@ -45,7 +45,10 @@ class WeakReferenceTest {
           if (retries > 0) {
             // Give GC something to collect
             System.err.println(s"$clue - not yet collected $ref ($retries)")
-            assert(0.until(10000).mkString.length() > 0, "dummy GC garbage generator")
+            assert(
+              0.until(10000).mkString.length() > 0,
+              "dummy GC garbage generator"
+            )
             Thread.sleep(200)
             GC.collect()
             assertEventuallyIsCollected(clue, ref, retries - 1)

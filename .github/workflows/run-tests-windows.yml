@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-2019]
-        scala: [3.1.0, 2.13.7, 2.12.15, 2.11.12]
+        scala: [3.1.0]
         gc: [none, boehm, immix, commix]
     steps:
       # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
@@ -59,34 +59,13 @@ jobs:
           "scalaPartestTests${{env.project-version}}/testOnly -- --showDiff neg/abstract.scala pos/abstract.scala run/Course-2002-01.scala"
         shell: cmd
 
-  run-scripted-tests:
-    name: Scripted tests
-    runs-on: ${{matrix.os}}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-2019]
-        scala: [2.12.15, 3.1.0]
-    steps:
-      # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
-      - name: Setup git config
-        run: git config --global core.autocrlf false
-      - uses: actions/checkout@v2
-      - uses: ./.github/actions/windows-setup-env
-        with:
-          scala-version: ${{matrix.scala}}
-
-      - name: Test scripted
-        run: sbt "++${{matrix.scala}}" "test-scripted ${{matrix.scala}}"
-        shell: cmd
-
   test-runtime-lto:
     name: Test LTO
     runs-on: windows-2019
     strategy:
       fail-fast: false
       matrix:
-        scala: [3.1.0, 2.13.7, 2.12.15, 2.11.12]
+        scala: [3.1.0]
         build-mode: [release-fast]
         lto: [thin]
         optimize: [true]
@@ -94,12 +73,6 @@ jobs:
           - scala: 3.1.0
             lto: full
             optimize: true
-          - scala: 2.13.7
-            lto: full
-            optimize: true
-          - scala: 2.12.15
-            lto: full
-            optimize: false
     steps:
       # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
       - name: Setup git config

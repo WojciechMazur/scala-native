@@ -42,7 +42,8 @@ static void *wait_loop(void *arg) {
         int status;
         pthread_mutex_lock(&shared_mutex);
         while (active_subprocs_count == 0) {
-            printf("ProcessMonitor wait [%d]\n", active_subprocs_count);
+            printf("ProcessMonitor wait %d [%d]\n", getppid(),
+                   active_subprocs_count);
             pthread_cond_wait(&has_active_subprocs, &shared_mutex);
         }
         printf("ProcessMonitor waitpid [%d]\n", active_subprocs_count);
@@ -52,7 +53,8 @@ static void *wait_loop(void *arg) {
 
         const int pid = waitpid(-1, &status, 0);
         if (pid != -1) {
-            printf("ProcessMonitor got pid %d [%d]\n", pid, active_subprocs_count);
+            printf("ProcessMonitor got pid %d [%d]\n", pid,
+                   active_subprocs_count);
             pthread_mutex_lock(&shared_mutex);
             active_subprocs_count -= 1;
             const int last_result =
@@ -68,7 +70,8 @@ static void *wait_loop(void *arg) {
             }
             pthread_mutex_unlock(&shared_mutex);
         } else {
-            printf("ProcessMonitor error %d - %s [%d]\n", errno, strerror(errno), active_subprocs_count);
+            printf("ProcessMonitor error %d - %s [%d]\n", errno,
+                   strerror(errno), active_subprocs_count);
         }
     }
     // should be unreachable
@@ -127,8 +130,13 @@ int scalanative_process_monitor_wait_for_pid(const int pid, timespec *ts,
 
 void scalanative_process_monitor_init() {
     pthread_t thread;
+    pthread_condattr_t cond_attr;
     pthread_mutex_init(&shared_mutex, NULL);
-    pthread_cond_init(&has_active_subprocs, NULL);
+    pthread_condattr_init(&cond_attr);
+    // Set cond_attr to shared, to allow communication between parent and child
+    // processess
+    pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_SHARED);
+    pthread_cond_init(&has_active_subprocs, &cond_attr);
     pthread_create(&thread, NULL, wait_loop, NULL);
     pthread_detach(thread);
 }

@@ -33,6 +33,7 @@ struct Monitor {
         delete cond;
     }
 };
+
 volatile int32_t active_subprocs_count = 0;
 static pthread_cond_t has_active_subprocs;
 static pthread_mutex_t shared_mutex;
@@ -49,8 +50,6 @@ static void my_log(const char *message) {
 static void *wait_loop(void *arg) {
     while (1) {
         int status;
-#if !(defined(__APPLE__) && defined(__MACH__))
-
         pthread_mutex_lock(&shared_mutex);
         while (active_subprocs_count == 0) {
             my_log("ProcessMonitor wait");
@@ -60,7 +59,6 @@ static void *wait_loop(void *arg) {
         // Release mutex to allow for starting new processes while waiting
         // until any process finishes.
         pthread_mutex_unlock(&shared_mutex);
-#endif
 
         const int pid = waitpid(-1, &status, 0);
         if (pid != -1) {
@@ -71,8 +69,8 @@ static void *wait_loop(void *arg) {
                 WIFSIGNALED(status) ? 0x80 + status : status;
             const auto monitor = waiting_procs.find(pid);
             if (monitor != waiting_procs.end()) {
-                auto m = monitor->second;
                 waiting_procs.erase(monitor);
+                auto m = monitor->second;
                 *m->res = last_result;
                 pthread_cond_broadcast(m->cond);
             } else {
@@ -80,8 +78,8 @@ static void *wait_loop(void *arg) {
             }
             pthread_mutex_unlock(&shared_mutex);
         } else {
-            // printf("ProcessMonitor error %d - %s [%d]\n", errno,
-            //        strerror(errno), active_subprocs_count);
+            printf("ProcessMonitor error %d - %s [%d]\n", errno,
+                   strerror(errno), active_subprocs_count);
         }
     }
     // should be unreachable
@@ -92,9 +90,8 @@ static void *wait_loop(void *arg) {
 static int check_result(const int pid, pthread_mutex_t *lock) {
     const auto result = finished_procs.find(pid);
     if (result != finished_procs.end()) {
-        const auto exit_code = result->second;
         finished_procs.erase(result);
-        return exit_code;
+        return result->second;
     }
     return -1;
 }

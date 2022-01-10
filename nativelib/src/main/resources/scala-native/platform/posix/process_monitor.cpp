@@ -51,10 +51,10 @@ static void *wait_loop(void *arg) {
     while (1) {
         int status;
         pthread_mutex_lock(&shared_mutex);
-        while (active_subprocs_count == 0) {
-            my_log("ProcessMonitor wait");
-            pthread_cond_wait(&has_active_subprocs, &shared_mutex);
-        }
+        // while (active_subprocs_count == 0) {
+        //     my_log("ProcessMonitor wait");
+        //     pthread_cond_wait(&has_active_subprocs, &shared_mutex);
+        // }
         my_log("ProcessMonitor waitpid");
         // Release mutex to allow for starting new processes while waiting
         // until any process finishes.

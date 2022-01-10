@@ -200,7 +200,6 @@ object UnixProcess {
          * to run on the child before execve inside of a method.
          */
         def invokeChildProcess(): Process = {
-          ProcessMonitor.notifyMonitor()
           if (dir != null) unistd.chdir(toCString(dir.toString))
           setupChildFDS(!infds, builder.redirectInput(), unistd.STDIN_FILENO)
           setupChildFDS(
@@ -221,6 +220,7 @@ object UnixProcess {
           unistd.close(!errfds)
           unistd.close(!(errfds + 1))
 
+          ProcessMonitor.notifyMonitor()
           binaries.foreach { b =>
             val bin = toCString(b)
             if (unistd.execve(bin, argv, envp) == -1 && errno == e.ENOEXEC) {

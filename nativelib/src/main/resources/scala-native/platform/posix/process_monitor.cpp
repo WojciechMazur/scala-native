@@ -39,13 +39,11 @@ static std::unordered_map<int, int> finished_procs;
 static void *wait_loop(void *arg) {
     while (1) {
         int status;
-        pthread_mutex_lock(&shared_mutex);
 #if !(defined(__APPLE__) && defined(__MACH__))
+        pthread_mutex_lock(&shared_mutex);
         while (active_subprocs_count == 0) {
             pthread_cond_wait(&has_active_subprocs, &shared_mutex);
         }
-        // Release mutex to allow for starting new processes while waiting
-        // until any process finishes.
         pthread_mutex_unlock(&shared_mutex);
 #endif
         const int pid = waitpid(-1, &status, 0);

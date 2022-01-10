@@ -99,7 +99,9 @@ void scalanative_process_monitor_notify() {
 }
 
 int scalanative_process_monitor_check_result(const int pid) {
+    printf("monitor - check result of %d (lock)\n", pid);
     pthread_mutex_lock(&shared_mutex);
+    printf("monitor - check result of %d (locked)\n", pid);
     const int res = check_result(pid, &shared_mutex);
     pthread_mutex_unlock(&shared_mutex);
     return res;
@@ -107,7 +109,9 @@ int scalanative_process_monitor_check_result(const int pid) {
 
 int scalanative_process_monitor_wait_for_pid(const int pid, timespec *ts,
                                              int *proc_res) {
+    printf("monitor - wait for pid %d (lock)\n", pid);
     pthread_mutex_lock(&shared_mutex);
+    printf("monitor - wait for pid %d (locked)\n", pid);
     const int result = check_result(pid, &shared_mutex);
     if (result != -1) {
         *proc_res = result;

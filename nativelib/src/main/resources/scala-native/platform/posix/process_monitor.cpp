@@ -80,8 +80,8 @@ static void *wait_loop(void *arg) {
             }
             pthread_mutex_unlock(&shared_mutex);
         } else {
-            printf("ProcessMonitor error %d - %s [%d]\n", errno,
-                   strerror(errno), active_subprocs_count);
+            // printf("ProcessMonitor error %d - %s [%d]\n", errno,
+            //        strerror(errno), active_subprocs_count);
         }
     }
     // should be unreachable

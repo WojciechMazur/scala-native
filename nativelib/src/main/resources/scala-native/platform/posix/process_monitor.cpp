@@ -131,7 +131,7 @@ int scalanative_process_monitor_wait_for_pid(const int pid, timespec *ts,
 void scalanative_process_monitor_init() {
     pthread_t thread;
     pthread_condattr_t cond_attr;
-    pthread_attr_t mutex_attr;
+    pthread_mutexattr_t mutex_attr;
 
     pthread_mutexattr_init(&mutex_attr);
     pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);

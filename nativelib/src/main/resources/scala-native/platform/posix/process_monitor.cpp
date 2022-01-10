@@ -131,12 +131,18 @@ int scalanative_process_monitor_wait_for_pid(const int pid, timespec *ts,
 void scalanative_process_monitor_init() {
     pthread_t thread;
     pthread_condattr_t cond_attr;
-    pthread_mutex_init(&shared_mutex, NULL);
-    pthread_condattr_init(&cond_attr);
+    pthread_attr_t mutex_attr;
+
+    pthread_mutexattr_init(&mutex_attr);
+    pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
+    pthread_mutex_init(&shared_mutex, &mutex_attr);
+
     // Set cond_attr to shared, to allow communication between parent and child
     // processess
+    pthread_condattr_init(&cond_attr);
     pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_SHARED);
     pthread_cond_init(&has_active_subprocs, &cond_attr);
+
     pthread_create(&thread, NULL, wait_loop, NULL);
     pthread_detach(thread);
 }

@@ -39,16 +39,18 @@ static pthread_mutex_t shared_mutex;
 static std::unordered_map<int, std::shared_ptr<Monitor>> waiting_procs;
 static std::unordered_map<int, int> finished_procs;
 
-static void my_log(const char* message){
+static void my_log(const char *message) {
     char buff[100];
     time_t now = time(0);
-    strftime(buff, 100, "%Y-%m-%d %H:%M:%S.000", localtime (&now));
+    strftime(buff, 100, "%Y-%m-%d %H:%M:%S.000", localtime(&now));
     printf("%s - %s\n", buff, message);
 }
 
 static void *wait_loop(void *arg) {
     while (1) {
         int status;
+#if !(defined(__APPLE__) && defined(__MACH__))
+
         pthread_mutex_lock(&shared_mutex);
         while (active_subprocs_count == 0) {
             my_log("ProcessMonitor wait");
@@ -58,6 +60,7 @@ static void *wait_loop(void *arg) {
         // Release mutex to allow for starting new processes while waiting
         // until any process finishes.
         pthread_mutex_unlock(&shared_mutex);
+#endif
 
         const int pid = waitpid(-1, &status, 0);
         if (pid != -1) {

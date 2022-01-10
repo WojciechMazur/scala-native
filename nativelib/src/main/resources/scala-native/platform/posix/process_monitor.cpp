@@ -7,6 +7,9 @@
 #include <sys/wait.h>
 #include <sys/time.h>
 #include <unordered_map>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
 
 #define RETURN_ON_ERROR(f)                                                     \
     do {                                                                       \
@@ -39,14 +42,17 @@ static void *wait_loop(void *arg) {
         int status;
         pthread_mutex_lock(&shared_mutex);
         while (active_subprocs_count == 0) {
+            printf("ProcessMonitor wait [%d]\n", active_subprocs_count);
             pthread_cond_wait(&has_active_subprocs, &shared_mutex);
         }
+        printf("ProcessMonitor waitpid [%d]\n", active_subprocs_count);
         // Release mutex to allow for starting new processes while waiting
         // until any process finishes.
         pthread_mutex_unlock(&shared_mutex);
 
         const int pid = waitpid(-1, &status, 0);
         if (pid != -1) {
+            printf("ProcessMonitor got pid %d [%d]\n", pid, active_subprocs_count);
             pthread_mutex_lock(&shared_mutex);
             active_subprocs_count -= 1;
             const int last_result =
@@ -61,6 +67,8 @@ static void *wait_loop(void *arg) {
                 finished_procs[pid] = last_result;
             }
             pthread_mutex_unlock(&shared_mutex);
+        } else {
+            printf("ProcessMonitor error %d - %s [%d]\n", errno, strerror(errno), active_subprocs_count);
         }
     }
     // should be unreachable
@@ -82,6 +90,7 @@ extern "C" {
 void scalanative_process_monitor_notify() {
     pthread_mutex_lock(&shared_mutex);
     active_subprocs_count += 1;
+    printf("ProcessMonitor notify %d [%d]\n", getpid(), active_subprocs_count);
     pthread_cond_signal(&has_active_subprocs);
     pthread_mutex_unlock(&shared_mutex);
 }

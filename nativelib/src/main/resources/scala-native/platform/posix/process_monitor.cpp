@@ -61,7 +61,7 @@ static void *wait_loop(void *arg) {
 
         const int pid = waitpid(-1, &status, 0);
         if (pid != -1) {
-            my_log("ProcessMonitor got pid\n");
+            my_log("ProcessMonitor got pid");
             pthread_mutex_lock(&shared_mutex);
             active_subprocs_count -= 1;
             const int last_result =
@@ -100,7 +100,7 @@ extern "C" {
 void scalanative_process_monitor_notify() {
     pthread_mutex_lock(&shared_mutex);
     active_subprocs_count += 1;
-    my_log("ProcessMonitor notify");
+    my_log("ProcessMonitor notify\n");
     pthread_cond_signal(&has_active_subprocs);
     pthread_mutex_unlock(&shared_mutex);
 }

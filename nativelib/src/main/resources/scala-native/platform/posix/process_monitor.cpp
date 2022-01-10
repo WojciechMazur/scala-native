@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
+#include <time.h>
 
 #define RETURN_ON_ERROR(f)                                                     \
     do {                                                                       \
@@ -38,24 +39,29 @@ static pthread_mutex_t shared_mutex;
 static std::unordered_map<int, std::shared_ptr<Monitor>> waiting_procs;
 static std::unordered_map<int, int> finished_procs;
 
+static void my_log(const char* message){
+    char buff[100];
+    time_t now = time(0);
+    strftime(buff, 100, "%Y-%m-%d %H:%M:%S.000", localtime (&now));
+    printf("%s - %s\n", buff, message);
+}
+
 static void *wait_loop(void *arg) {
     while (1) {
         int status;
         pthread_mutex_lock(&shared_mutex);
         while (active_subprocs_count == 0) {
-            printf("ProcessMonitor wait %d [%d]\n", getppid(),
-                   active_subprocs_count);
+            my_log("ProcessMonitor wait");
             pthread_cond_wait(&has_active_subprocs, &shared_mutex);
         }
-        printf("ProcessMonitor waitpid [%d]\n", active_subprocs_count);
+        my_log("ProcessMonitor waitpid");
         // Release mutex to allow for starting new processes while waiting
         // until any process finishes.
         pthread_mutex_unlock(&shared_mutex);
 
         const int pid = waitpid(-1, &status, 0);
         if (pid != -1) {
-            printf("ProcessMonitor got pid %d [%d]\n", pid,
-                   active_subprocs_count);
+            my_log("ProcessMonitor got pid\n");
             pthread_mutex_lock(&shared_mutex);
             active_subprocs_count -= 1;
             const int last_result =
@@ -94,15 +100,15 @@ extern "C" {
 void scalanative_process_monitor_notify() {
     pthread_mutex_lock(&shared_mutex);
     active_subprocs_count += 1;
-    printf("ProcessMonitor notify %d [%d]\n", getpid(), active_subprocs_count);
+    my_log("ProcessMonitor notify");
     pthread_cond_signal(&has_active_subprocs);
     pthread_mutex_unlock(&shared_mutex);
 }
 
 int scalanative_process_monitor_check_result(const int pid) {
-    printf("monitor - check result of %d (lock)\n", pid);
+    my_log("monitor - check result (lock)");
     pthread_mutex_lock(&shared_mutex);
-    printf("monitor - check result of %d (locked)\n", pid);
+    my_log("monitor - check result (locked)");
     const int res = check_result(pid, &shared_mutex);
     pthread_mutex_unlock(&shared_mutex);
     return res;
@@ -110,9 +116,9 @@ int scalanative_process_monitor_check_result(const int pid) {
 
 int scalanative_process_monitor_wait_for_pid(const int pid, timespec *ts,
                                              int *proc_res) {
-    printf("monitor - wait for pid %d (lock)\n", pid);
+    my_log("monitor - wait for pid (lock)");
     pthread_mutex_lock(&shared_mutex);
-    printf("monitor - wait for pid %d (locked)\n", pid);
+    my_log("monitor - wait for pid (locked)");
     const int result = check_result(pid, &shared_mutex);
     if (result != -1) {
         *proc_res = result;

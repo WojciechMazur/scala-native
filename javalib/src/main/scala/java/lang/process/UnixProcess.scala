@@ -221,9 +221,9 @@ object UnixProcess {
           unistd.close(!errfds)
           unistd.close(!(errfds + 1))
 
-          if(!Platform.isMac()){
-            ProcessMonitor.notifyMonitor()
-          }
+          // if(!Platform.isMac()){
+          //   ProcessMonitor.notifyMonitor()
+          // }
           binaries.foreach { b =>
             val bin = toCString(b)
             if (unistd.execve(bin, argv, envp) == -1 && errno == e.ENOEXEC) {

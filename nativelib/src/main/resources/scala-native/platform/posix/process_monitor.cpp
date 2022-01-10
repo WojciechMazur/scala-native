@@ -39,13 +39,13 @@ static std::unordered_map<int, int> finished_procs;
 static void *wait_loop(void *arg) {
     while (1) {
         int status;
-#if !(defined(__APPLE__) && defined(__MACH__))
-        pthread_mutex_lock(&shared_mutex);
-        while (active_subprocs_count == 0) {
-            pthread_cond_wait(&has_active_subprocs, &shared_mutex);
-        }
-        pthread_mutex_unlock(&shared_mutex);
-#endif
+        // #if !(defined(__APPLE__) && defined(__MACH__))
+        //         pthread_mutex_lock(&shared_mutex);
+        //         while (active_subprocs_count == 0) {
+        //             pthread_cond_wait(&has_active_subprocs, &shared_mutex);
+        //         }
+        //         pthread_mutex_unlock(&shared_mutex);
+        // #endif
         const int pid = waitpid(-1, &status, 0);
         if (pid != -1) {
             pthread_mutex_lock(&shared_mutex);
@@ -80,10 +80,10 @@ static int check_result(const int pid, pthread_mutex_t *lock) {
 
 extern "C" {
 void scalanative_process_monitor_notify() {
-    pthread_mutex_lock(&shared_mutex);
-    active_subprocs_count += 1;
-    pthread_cond_signal(&has_active_subprocs);
-    pthread_mutex_unlock(&shared_mutex);
+    // pthread_mutex_lock(&shared_mutex);
+    // active_subprocs_count += 1;
+    // pthread_cond_signal(&has_active_subprocs);
+    // pthread_mutex_unlock(&shared_mutex);
 }
 
 int scalanative_process_monitor_check_result(const int pid) {

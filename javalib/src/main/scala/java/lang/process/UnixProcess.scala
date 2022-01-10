@@ -27,6 +27,7 @@ import scala.collection.mutable.ArraySeq
 import scala.scalanative.posix.sys.types.{pthread_cond_t, pthread_mutex_t}
 import java.io.FileDescriptor
 import scala.scalanative.posix
+import _root_.scala.scalanative.runtime.Platform
 
 private[lang] class UnixProcess private (
     pid: CInt,
@@ -220,7 +221,9 @@ object UnixProcess {
           unistd.close(!errfds)
           unistd.close(!(errfds + 1))
 
-          ProcessMonitor.notifyMonitor()
+          if(!Platform.isMac()){
+            ProcessMonitor.notifyMonitor()
+          }
           binaries.foreach { b =>
             val bin = toCString(b)
             if (unistd.execve(bin, argv, envp) == -1 && errno == e.ENOEXEC) {

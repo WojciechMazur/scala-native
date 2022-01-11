@@ -46,6 +46,7 @@ trait NirGenStat(using Context) {
   }
 
   private def genNormalClass(td: TypeDef): Unit = {
+    lazyValsAdapter.prepareForTypeDef(td)
     implicit val pos: nir.Position = td.span
     val sym = td.symbol.asClass
     val attrs = genClassAttrs(td)
@@ -108,9 +109,9 @@ trait NirGenStat(using Context) {
       given nir.Position = f.span
 
       val isStatic = f.is(JavaStatic) || f.isScalaStatic
+      val isExtern = f.isExtern
       val mutable = isStatic || f.is(Mutable)
-      val isExternModule = classSym.isExternModule
-      val attrs = nir.Attrs(isExtern = isExternModule)
+      val attrs = nir.Attrs(isExtern = f.isExtern)
       val ty = genType(f.info.resultType)
       val fieldName @ Global.Member(owner, sig) = genFieldName(f)
       generatedDefns += Defn.Var(attrs, fieldName, ty, Val.Zero(ty))
@@ -142,7 +143,11 @@ trait NirGenStat(using Context) {
       case EmptyTree  => Nil
       case _: ValDef  => Nil // handled in genClassFields
       case _: TypeDef => Nil
-      case dd: DefDef => genMethod(dd)
+      case dd: DefDef =>
+        lazyValsAdapter.transformDefDef(dd) match {
+          case dd: DefDef => genMethod(dd)
+          case _          => Nil // erased
+        }
       case tree =>
         throw new FatalError("Illegal tree in body of genMethods():" + tree)
     }
@@ -222,7 +227,7 @@ trait NirGenStat(using Context) {
       }
 
     val isStub = sym.hasAnnotation(defnNir.StubClass)
-    val isExtern = sym.owner.hasAnnotation(defnNir.ExternClass)
+    val isExtern = sym.hasAnnotation(defnNir.ExternClass)
 
     Attrs
       .fromSeq(inlineAttrs ++ optAttrs)
@@ -240,7 +245,7 @@ trait NirGenStat(using Context) {
     given nir.Position = bodyp.span
     given fresh: nir.Fresh = curFresh.get
     val buf = ExprBuffer()
-    val isExtern = dd.symbol.owner.isExternModule
+    val isExtern = dd.symbol.isExtern
     val isStatic = dd.symbol.isStaticInNIR
     val isSynchronized = dd.symbol.is(Synchronized)
 
@@ -297,7 +302,6 @@ trait NirGenStat(using Context) {
       else
         scoped(
           curMethodThis := thisParam,
-          curMethodOuterSym := outerParam,
           curMethodIsExtern := isExtern
         ) {
           buf.genReturn(withOptSynchronized(_.genExpr(bodyp)) match {
@@ -327,14 +331,14 @@ trait NirGenStat(using Context) {
     genMethods(td)
   }
 
-  private def checkExplicitReturnTypeAnnotation(
-      externMethodDd: DefDef,
+  protected def checkExplicitReturnTypeAnnotation(
+      externDef: ValOrDefDef,
       methodKind: String
   ): Unit = {
-    if (externMethodDd.tpt.symbol == defn.NothingClass)
+    if (externDef.tpt.symbol == defn.NothingClass)
       report.error(
-        s"$methodKind ${externMethodDd.name} needs result type",
-        externMethodDd.sourcePos
+        s"$methodKind ${externDef.name} needs result type",
+        externDef.sourcePos
       )
   }
 
@@ -557,8 +561,7 @@ trait NirGenStat(using Context) {
           val fresh = curFresh.get
           scoped(
             curUnwindHandler := None,
-            curMethodThis := None,
-            curMethodOuterSym := None
+            curMethodThis := None
           ) {
             val entryParams = forwarderParamTypes.map(Val.Local(fresh(), _))
             val args = entryParams.map(ValTree(_))

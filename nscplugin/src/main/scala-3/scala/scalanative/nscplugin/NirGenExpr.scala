@@ -45,10 +45,12 @@ trait NirGenExpr(using Context) {
     buf =>
     def genExpr(tree: Tree): Val = {
       tree match {
-        case EmptyTree            => Val.Unit
-        case ValTree(value)       => value
-        case ContTree(f)          => f()
-        case tree: Apply          => genApply(tree)
+        case EmptyTree      => Val.Unit
+        case ValTree(value) => value
+        case ContTree(f)    => f()
+        case tree: Apply =>
+          val updatedTree = lazyValsAdapter.transformApply(tree)
+          genApply(updatedTree)
         case tree: Assign         => genAssign(tree)
         case tree: Block          => genBlock(tree)
         case tree: Closure        => genClosure(tree)
@@ -122,12 +124,20 @@ trait NirGenExpr(using Context) {
 
       desugarTree(lhsp) match {
         case sel @ Select(qualp, _) =>
-          val rhs = genExpr(rhsp)
+          def rhs = genExpr(rhsp)
           val sym = sel.symbol
           val name = genFieldName(sym)
-          if (sym.owner.isExternModule) {
-            val externTy = genExternType(sel.tpe)
-            genStoreExtern(externTy, sym, rhs)
+          if (sym.isExtern) {
+            // Ignore intrinsic call to extern in class constructor
+            // It would always present and would lead to undefined behaviour otherwise
+            val shouldIgnoreAssign =
+              curMethodSym.get.isClassConstructor &&
+                rhsp.symbol == defnNir.UnsafePackage_extern
+            if (shouldIgnoreAssign) Val.Unit
+            else {
+              val externTy = genExternType(sel.tpe)
+              genStoreExtern(externTy, sym, rhs)
+            }
           } else {
             val qual =
               if (sym.isStaticMember) genModule(qualp.symbol)
@@ -929,6 +939,8 @@ trait NirGenExpr(using Context) {
       given nir.Position = vd.span
       val rhs = genExpr(vd.rhs)
       val isMutable = curMethodInfo.mutableVars.contains(vd.symbol)
+      if (vd.symbol.isExtern)
+        checkExplicitReturnTypeAnnotation(vd, "extern field")
       if (isMutable)
         val slot = curMethodEnv.resolve(vd.symbol)
         buf.varstore(slot, rhs, unwind)
@@ -1143,46 +1155,27 @@ trait NirGenExpr(using Context) {
       assert(!sym.isStaticMethod, sym)
       val owner = sym.owner.asClass
       val name = genMethodName(sym)
-      val curThis = curMethodThis.get
-      val outerSym = curMethodOuterSym.get
 
       val origSig = genMethodSig(sym)
       val sig =
-        if (owner.isExternModule) genExternMethodSig(sym)
+        if (sym.isExtern) genExternMethodSig(sym)
         else origSig
       val args = genMethodArgs(sym, argsp)
 
-      // In case if static method is defined in outer class, use it's accessor to resolve
-      // instance of expected type
-      def outerSymResult = outerSym.map(_.info.resultType.typeSymbol)
-      lazy val outerAccessor = transform.ExplicitOuter
-        .outerAccessor(curClassSym.get)
-        .filter(_.info.resultType.typeSymbol == owner)
-
-      val selfVal =
-        if (curClassSym.get.isSubClass(owner)) self
-        else if (outerSymResult.exists(_.isSubClass(owner)))
-          curMethodEnv.resolve(outerSym.get)
-        else if (outerAccessor.exists && curThis.isDefined)
-          genApplyMethod(outerAccessor, false, curThis.get, Nil)
-        else self
-
-      val isStaticCall = statically ||
-        owner.isStruct || owner.isExternModule
+      val isStaticCall = statically || owner.isStruct || sym.isExtern
       val method =
         if (isStaticCall) Val.Global(name, nir.Type.Ptr)
         else
           val Global.Member(_, sig) = name
-          buf.method(selfVal, sig, unwind)
+          buf.method(self, sig, unwind)
       val values =
-        if (owner.isExternModule) args
-        else selfVal +: args
+        if (sym.isExtern) args
+        else self +: args
 
       val res = buf.call(sig, method, values, unwind)
 
-      if (!owner.isExternModule) {
-        res
-      } else {
+      if (!sym.isExtern) res
+      else {
         val Type.Function(_, retty) = origSig
         fromExtern(retty, res)
       }
@@ -2252,6 +2245,13 @@ trait NirGenExpr(using Context) {
             paramTypes
           )
           fnRef
+
+        case ref: RefTree =>
+          report.error(
+            s"Function passed to ${app.symbol.show} needs to be inlined",
+            tree.sourcePos
+          )
+          Val.Null
 
         case _ =>
           report.error(

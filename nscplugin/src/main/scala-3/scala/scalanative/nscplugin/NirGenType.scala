@@ -43,7 +43,11 @@ trait NirGenType(using Context) {
     def isStaticInNIR: Boolean =
       sym.is(JavaStatic) || sym.isScalaStatic || sym.isExtern
 
-    def isExtern: Boolean = sym.owner.isExternModule
+    def isExtern: Boolean = sym.exists && {
+      sym.owner.isExternModule ||
+      sym.hasAnnotation(defnNir.ExternClass) ||
+      (sym.is(Accessor) && sym.field.isExtern)
+    }
 
     def isExternModule: Boolean =
       isScalaModule && sym.hasAnnotation(defnNir.ExternClass)
@@ -224,7 +228,10 @@ trait NirGenType(using Context) {
       sym: Symbol,
       isExtern: Boolean
   ): nir.Type.Function = {
-    require(sym.is(Method) || sym.isStatic, "symbol is not a method")
+    require(
+      sym.is(Method) || sym.isStatic,
+      s"symbol ${sym.owner} $sym is not a method"
+    )
 
     val owner = sym.owner
     val paramtys = genMethodSigParamsImpl(sym, isExtern)

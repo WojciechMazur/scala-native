@@ -33,7 +33,6 @@ class NirCodeGen(val settings: GenNIR.Settings)(using ctx: Context)
   protected val curClassFresh = new util.ScopedVar[nir.Fresh]
 
   protected val curMethodSym = new util.ScopedVar[Symbol]
-  protected val curMethodOuterSym = new util.ScopedVar[Option[Symbol]]
   protected val curMethodSig = new util.ScopedVar[nir.Type]
   protected val curMethodInfo = new util.ScopedVar[CollectMethodInfo]
   protected val curMethodEnv = new util.ScopedVar[MethodEnv]
@@ -43,6 +42,8 @@ class NirCodeGen(val settings: GenNIR.Settings)(using ctx: Context)
 
   protected val curFresh = new util.ScopedVar[nir.Fresh]
   protected val curUnwindHandler = new util.ScopedVar[Option[nir.Local]]
+
+  protected val lazyValsAdapter = AdaptLazyVals(defnNir)
 
   protected def unwind(implicit fresh: Fresh): Next =
     curUnwindHandler.get
@@ -62,6 +63,7 @@ class NirCodeGen(val settings: GenNIR.Settings)(using ctx: Context)
   }
 
   private def genCompilationUnit(cunit: CompilationUnit): Unit = {
+    lazyValsAdapter.clean()
     def collectTypeDefs(tree: Tree): List[TypeDef] = {
       tree match {
         case EmptyTree            => Nil

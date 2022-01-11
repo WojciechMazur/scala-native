@@ -29,8 +29,8 @@ struct Monitor {
     }
 };
 
-//volatile int32_t active_subprocs_count = 0;
-//static pthread_cond_t has_active_subprocs;
+volatile int32_t active_subprocs_count = 0;
+static pthread_cond_t has_active_subprocs;
 static pthread_mutex_t shared_mutex;
 static std::unordered_map<int, std::shared_ptr<Monitor>> waiting_procs;
 static std::unordered_map<int, int> finished_procs;
@@ -38,17 +38,17 @@ static std::unordered_map<int, int> finished_procs;
 static void *wait_loop(void *arg) {
     while (1) {
         int status;
-        // #if !(defined(__APPLE__) && defined(__MACH__))
-        //         pthread_mutex_lock(&shared_mutex);
-        //         while (active_subprocs_count == 0) {
-        //             pthread_cond_wait(&has_active_subprocs, &shared_mutex);
-        //         }
-        //         pthread_mutex_unlock(&shared_mutex);
-        // #endif
+#if !(defined(__APPLE__) && defined(__MACH__))
+        pthread_mutex_lock(&shared_mutex);
+        while (active_subprocs_count == 0) {
+            pthread_cond_wait(&has_active_subprocs, &shared_mutex);
+        }
+        pthread_mutex_unlock(&shared_mutex);
+#endif
         const int pid = waitpid(-1, &status, 0);
         if (pid != -1) {
             pthread_mutex_lock(&shared_mutex);
-//            active_subprocs_count -= 1;
+            active_subprocs_count -= 1;
             const int last_result =
                 WIFSIGNALED(status) ? 0x80 + status : status;
             const auto monitor = waiting_procs.find(pid);
@@ -79,10 +79,10 @@ static int check_result(const int pid, pthread_mutex_t *lock) {
 
 extern "C" {
 void scalanative_process_monitor_notify() {
-    // pthread_mutex_lock(&shared_mutex);
-    // active_subprocs_count += 1;
-    // pthread_cond_signal(&has_active_subprocs);
-    // pthread_mutex_unlock(&shared_mutex);
+    pthread_mutex_lock(&shared_mutex);
+    active_subprocs_count += 1;
+    pthread_cond_signal(&has_active_subprocs);
+    pthread_mutex_unlock(&shared_mutex);
 }
 
 int scalanative_process_monitor_check_result(const int pid) {
@@ -117,18 +117,19 @@ int scalanative_process_monitor_wait_for_pid(const int pid, timespec *ts,
 
 void scalanative_process_monitor_init() {
     pthread_t thread;
-//    pthread_condattr_t cond_attr;
-//    pthread_mutexattr_t mutex_attr;
+    //    pthread_condattr_t cond_attr;
+    //    pthread_mutexattr_t mutex_attr;
 
-//    pthread_mutexattr_init(&mutex_attr);
-//    pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
+    //    pthread_mutexattr_init(&mutex_attr);
+    //    pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
     pthread_mutex_init(&shared_mutex, NULL);
 
     // Set cond_attr to shared, to allow communication between parent and child
     // processess
-//    pthread_condattr_init(&cond_attr);
-//    pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_SHARED);
-//    pthread_cond_init(&has_active_subprocs, &cond_attr);
+    //    pthread_condattr_init(&cond_attr);
+    //    pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_SHARED);
+    //    pthread_cond_init(&has_active_subprocs, &cond_attr);
+    pthread_cond_init(&has_active_subprocs, NULL);
 
     pthread_create(&thread, NULL, wait_loop, NULL);
     pthread_detach(thread);

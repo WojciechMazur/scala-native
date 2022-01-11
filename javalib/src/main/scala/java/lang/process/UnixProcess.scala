@@ -220,7 +220,7 @@ object UnixProcess {
           unistd.close(!errfds)
           unistd.close(!(errfds + 1))
 
-          if (!Platform.isMac()) {
+          if (!scalanative.runtime.Platform.isMac()) {
             ProcessMonitor.notifyMonitor()
           }
           binaries.foreach { b =>

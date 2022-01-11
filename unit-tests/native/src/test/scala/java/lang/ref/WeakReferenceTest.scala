@@ -6,8 +6,10 @@ import org.junit.Assume._
 
 import scala.scalanative.meta.LinktimeInfo.isWeakReferenceSupported
 import scala.scalanative.annotation.nooptimize
+import scala.scalanative.buildinfo.ScalaNativeBuildInfo
 
 import scala.scalanative.runtime.GC
+import org.scalanative.testsuite.utils.Platform
 
 // "AfterGC" tests are very sensitive to optimizations,
 // both by Scala Native and LLVM.
@@ -33,6 +35,13 @@ class WeakReferenceTest {
   }
 
   @nooptimize @Test def addsToReferenceQueueAfterGC(): Unit = {
+    assumeFalse(
+      ScalaNativeBuildInfo.scalaVersion.startsWith("3.") &&
+        Platform.executingInScalaNative &&
+        Platform.isWindows,
+      "Scala 3 fails to clean weak references in some build cases on Windows"
+    )
+
     def assertEventuallyIsCollected(
         clue: String,
         ref: WeakReference[_],
@@ -45,10 +54,6 @@ class WeakReferenceTest {
           if (retries > 0) {
             // Give GC something to collect
             System.err.println(s"$clue - not yet collected $ref ($retries)")
-            assert(
-              0.until(10000).mkString.length() > 0,
-              "dummy GC garbage generator"
-            )
             Thread.sleep(200)
             GC.collect()
             assertEventuallyIsCollected(clue, ref, retries - 1)
@@ -68,7 +73,7 @@ class WeakReferenceTest {
 
     GC.collect()
     assertEventuallyIsCollected("weakRef1", weakRef1, retries = 5)
-    assertEventuallyIsCollected("weakRef2", weakRef2, retries = 500)
+    assertEventuallyIsCollected("weakRef2", weakRef2, retries = 5)
 
     assertEquals("weakRef1", null, weakRef1.get())
     assertEquals("weakRef2", null, weakRef2.get())

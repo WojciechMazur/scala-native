@@ -57,9 +57,9 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
   }
 
   private def fetchLocalPort(family: Int): Option[Int] = {
-    val len = stackalloc[socket.socklen_t]
+    val len = stackalloc[socket.socklen_t]()
     val portOpt = if (family == socket.AF_INET) {
-      val sin = stackalloc[in.sockaddr_in]
+      val sin = stackalloc[in.sockaddr_in]()
       !len = sizeof[in.sockaddr_in].toUInt
 
       if (socket.getsockname(
@@ -72,7 +72,7 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
         Some(sin.sin_port)
       }
     } else {
-      val sin = stackalloc[in.sockaddr_in6]
+      val sin = stackalloc[in.sockaddr_in6]()
       !len = sizeof[in.sockaddr_in6].toUInt
 
       if (socket.getsockname(
@@ -90,8 +90,8 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
   }
 
   override def bind(addr: InetAddress, port: Int): Unit = {
-    val hints = stackalloc[addrinfo]
-    val ret = stackalloc[Ptr[addrinfo]]
+    val hints = stackalloc[addrinfo]()
+    val ret = stackalloc[Ptr[addrinfo]]()
     hints.ai_family = socket.AF_UNSPEC
     hints.ai_flags = AI_NUMERICHOST
     hints.ai_socktype = socket.SOCK_STREAM
@@ -133,8 +133,8 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
       tryPollOnAccept()
     }
 
-    val storage = stackalloc[Byte](sizeof[in.sockaddr_in6])
-    val len = stackalloc[socket.socklen_t]
+    val storage: Ptr[Byte] = stackalloc[Byte](sizeof[in.sockaddr_in6])
+    val len = stackalloc[socket.socklen_t]()
     !len = sizeof[in.sockaddr_in6].toUInt
 
     val newFd =
@@ -144,7 +144,7 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
     }
     val family =
       storage.asInstanceOf[Ptr[socket.sockaddr_storage]].ss_family.toInt
-    val ipstr = stackalloc[CChar](in.INET6_ADDRSTRLEN.toULong)
+    val ipstr: Ptr[CChar] = stackalloc[CChar](in.INET6_ADDRSTRLEN.toULong)
 
     if (family == socket.AF_INET) {
       val sa = storage.asInstanceOf[Ptr[in.sockaddr_in]]
@@ -186,8 +186,8 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
     throwIfClosed("connect") // Do not send negative fd.fd to poll()
 
     val inetAddr = address.asInstanceOf[InetSocketAddress]
-    val hints = stackalloc[addrinfo]
-    val ret = stackalloc[Ptr[addrinfo]]
+    val hints = stackalloc[addrinfo]()
+    val ret = stackalloc[Ptr[addrinfo]]()
     hints.ai_family = socket.AF_UNSPEC
     hints.ai_flags = AI_NUMERICHOST | AI_NUMERICSERV
     hints.ai_socktype = socket.SOCK_STREAM
@@ -340,7 +340,7 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
     if (shutInput) {
       0
     } else {
-      val bytesAvailable = stackalloc[CInt]
+      val bytesAvailable = stackalloc[CInt]()
       ioctl(fd.fd, FIONREAD, bytesAvailable.asInstanceOf[Ptr[Byte]])
       !bytesAvailable match {
         case -1 =>
@@ -386,12 +386,12 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
     val optValue = nativeValueFromOption(optID)
 
     val opt = if (optID == SocketOptions.SO_LINGER) {
-      stackalloc[socket.linger].asInstanceOf[Ptr[Byte]]
+      stackalloc[socket.linger]().asInstanceOf[Ptr[Byte]]
     } else {
-      stackalloc[CInt].asInstanceOf[Ptr[Byte]]
+      stackalloc[CInt]().asInstanceOf[Ptr[Byte]]
     }
 
-    val len = stackalloc[socket.socklen_t]
+    val len = stackalloc[socket.socklen_t]()
     !len = if (optID == SocketOptions.SO_LINGER) {
       sizeof[socket.linger].toUInt
     } else {
@@ -453,11 +453,11 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
     val opt = optID match {
       case SocketOptions.TCP_NODELAY | SocketOptions.SO_KEEPALIVE |
           SocketOptions.SO_REUSEADDR | SocketOptions.SO_OOBINLINE =>
-        val ptr = stackalloc[CInt]
+        val ptr = stackalloc[CInt]()
         !ptr = if (value.asInstanceOf[Boolean]) 1 else 0
         ptr.asInstanceOf[Ptr[Byte]]
       case SocketOptions.SO_LINGER =>
-        val ptr = stackalloc[socket.linger]
+        val ptr = stackalloc[socket.linger]()
         val linger = value.asInstanceOf[Int]
         if (linger == -1) {
           ptr.l_onoff = 0
@@ -473,11 +473,11 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
         this.timeout = mseconds
 
         if (isWindows) {
-          val ptr = stackalloc[DWord]
+          val ptr = stackalloc[DWord]()
           !ptr = mseconds.toUInt
           ptr.asInstanceOf[Ptr[Byte]]
         } else {
-          val ptr = stackalloc[timeval]
+          val ptr = stackalloc[timeval]()
 
           ptr.tv_sec = mseconds / 1000
           ptr.tv_usec = (mseconds % 1000) * 1000
@@ -485,7 +485,7 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
           ptr.asInstanceOf[Ptr[Byte]]
         }
       case _ =>
-        val ptr = stackalloc[CInt]
+        val ptr = stackalloc[CInt]()
         !ptr = value.asInstanceOf[Int]
         ptr.asInstanceOf[Ptr[Byte]]
     }

@@ -78,7 +78,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
     Zone { implicit z =>
       if (isWindows)
         checkWindowsAccess(FILE_GENERIC_WRITE) &&
-        fileAttributeIsSet(FILE_ATTRIBUTE_READONLY, checkIsNotSet = true)
+          fileAttributeIsSet(FILE_ATTRIBUTE_READONLY, checkIsNotSet = true)
       else access(toCString(path), unistd.W_OK) == 0
     }
 
@@ -147,9 +147,9 @@ class File(_path: String) extends Serializable with Comparable[File] {
   ): Boolean =
     Zone { implicit z =>
       val filename = toCWideStringUTF16LE(properPath)
-      val securityDescriptorPtr = alloc[Ptr[SecurityDescriptor]]
-      val previousDacl, newDacl = alloc[ACLPtr]
-      val usersGroupSid = alloc[SIDPtr]
+      val securityDescriptorPtr = alloc[Ptr[SecurityDescriptor]]()
+      val previousDacl, newDacl = alloc[ACLPtr]()
+      val usersGroupSid = alloc[SIDPtr]()
 
       val accessMode: AccessMode =
         if (grant) AccessMode.GRANT_ACCESS
@@ -169,7 +169,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
 
       def setupNewAclEntry() = {
         import accctrl.ops._
-        val ea = alloc[ExplicitAccessW]
+        val ea = alloc[ExplicitAccessW]()
         ea.accessPermisions = accessRights
         ea.accessMode = accessMode
         ea.inheritence = NO_PROPAGATE_INHERIT_ACE
@@ -178,7 +178,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
         if (ownerOnly) {
           withUserToken(TOKEN_QUERY) { userToken =>
             withTokenInformation(userToken, TokenInformationClass.TokenUser) {
-              data: Ptr[SidAndAttributes] =>
+              (data: Ptr[SidAndAttributes]) =>
                 ea.trustee.trusteeType = TrusteeType.TRUSTEE_IS_USER
                 ea.trustee.sid = data.sid
             }
@@ -289,7 +289,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
    */
   private def simplifyExistingPath(path: String)(implicit z: Zone): String = {
     if (isWindows) {
-      val resolvedName = alloc[WChar](FileApiExt.MAX_PATH)
+      val resolvedName: Ptr[WChar] = alloc[WChar](FileApiExt.MAX_PATH)
       GetFullPathNameW(
         toCWideStringUTF16LE(properPath),
         FileApiExt.MAX_PATH,
@@ -298,7 +298,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
       )
       fromCWideString(resolvedName, StandardCharsets.UTF_16LE)
     } else {
-      val resolvedName = alloc[Byte](limits.PATH_MAX)
+      val resolvedName: Ptr[Byte] = alloc[Byte](limits.PATH_MAX)
       if (realpath(toCString(path), resolvedName) == null) {
         throw new IOException(
           s"realpath can't resolve: ${fromCString(resolvedName)}"
@@ -403,7 +403,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
         ) {
           case INVALID_HANDLE_VALUE => 0L
           case handle =>
-            val lastModified = stackalloc[WinFileTime]
+            val lastModified = stackalloc[WinFileTime]()
             GetFileTime(
               handle,
               creationTime = null,
@@ -413,7 +413,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
             MinWinBaseApiOps.FileTimeOps.toUnixEpochMillis(!lastModified)
         }
       } else {
-        val buf = alloc[stat.stat]
+        val buf = alloc[stat.stat]()
         if (stat.stat(toCString(path), buf) == 0) {
           buf._8 * 1000L
         } else {
@@ -423,7 +423,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
     }
 
   private def accessMode()(implicit z: Zone): stat.mode_t = {
-    val buf = alloc[stat.stat]
+    val buf = alloc[stat.stat]()
     if (stat.stat(toCString(path), buf) == 0) {
       buf._13
     } else {
@@ -459,7 +459,7 @@ class File(_path: String) extends Serializable with Comparable[File] {
           ) {
             case INVALID_HANDLE_VALUE => false
             case handle =>
-              val lastModified = stackalloc[WinFileTime]
+              val lastModified = stackalloc[WinFileTime]()
               !lastModified =
                 MinWinBaseApiOps.FileTimeOps.fromUnixEpochMillis(time)
               SetFileTime(
@@ -470,9 +470,9 @@ class File(_path: String) extends Serializable with Comparable[File] {
               )
           }
         } else {
-          val statbuf = alloc[stat.stat]
+          val statbuf = alloc[stat.stat]()
           if (stat.stat(toCString(path), statbuf) == 0) {
-            val timebuf = alloc[utime.utimbuf]
+            val timebuf = alloc[utime.utimbuf]()
             timebuf._1 = statbuf._8
             timebuf._2 = time / 1000L
             utime.utime(toCString(path), timebuf) == 0
@@ -516,12 +516,12 @@ class File(_path: String) extends Serializable with Comparable[File] {
       ) {
         case INVALID_HANDLE_VALUE => 0L
         case handle =>
-          val size = stackalloc[windows.LargeInteger]
+          val size = stackalloc[windows.LargeInteger]()
           if (GetFileSizeEx(handle, size)) (!size).toLong
           else 0L
       }
     } else {
-      val buf = alloc[stat.stat]
+      val buf = alloc[stat.stat]()
       if (stat.stat(toCString(path), buf) == 0) {
         buf._6
       } else {
@@ -628,12 +628,12 @@ class File(_path: String) extends Serializable with Comparable[File] {
       access: windows.DWord
   )(implicit zone: Zone): Boolean = {
     // based on this article https://blog.aaronballman.com/2011/08/how-to-check-access-rights/
-    val accessStatus = stackalloc[Boolean]
+    val accessStatus = stackalloc[Boolean]()
 
     def withFileSecurityDescriptor(
         fn: Ptr[SecurityDescriptor] => Unit
     ): Unit = {
-      val securityDescriptorPtr = stackalloc[Ptr[SecurityDescriptor]]
+      val securityDescriptorPtr = stackalloc[Ptr[SecurityDescriptor]]()
       val filename = toCWideStringUTF16LE(properPath)
       val securityInfo =
         OWNER_SECURITY_INFORMATION |
@@ -665,22 +665,22 @@ class File(_path: String) extends Serializable with Comparable[File] {
     else {
       withFileSecurityDescriptor { securityDescriptor =>
         withImpersonatedToken { impersonatedToken =>
-          val genericMapping = stackalloc[GenericMapping]
+          val genericMapping = stackalloc[GenericMapping]()
           genericMapping.genericRead = FILE_GENERIC_READ
           genericMapping.genericWrite = FILE_GENERIC_WRITE
           genericMapping.genericExecute = FILE_GENERIC_EXECUTE
           genericMapping.genericAll = FILE_GENERIC_ALL
 
-          val accessMask = stackalloc[windows.DWord]
+          val accessMask = stackalloc[windows.DWord]()
           !accessMask = access
 
-          val privilegeSetLength = stackalloc[windows.DWord]
+          val privilegeSetLength = stackalloc[windows.DWord]()
           !privilegeSetLength = emptyPriviligesSize.toUInt
 
-          val privilegeSet = stackalloc[Byte](!privilegeSetLength)
+          val privilegeSet: Ptr[Byte] = stackalloc[Byte](!privilegeSetLength)
           memset(privilegeSet, 0, !privilegeSetLength)
 
-          val grantedAcccess = stackalloc[windows.DWord]
+          val grantedAcccess = stackalloc[windows.DWord]()
           !grantedAcccess = 0.toUInt
 
           MapGenericMask(accessMask, genericMapping)
@@ -717,14 +717,14 @@ object File {
     Zone { implicit z =>
       if (isWindows) {
         val buffSize = GetCurrentDirectoryW(0.toUInt, null)
-        val buff = alloc[windows.WChar](buffSize + 1.toUInt)
-        if (GetCurrentDirectoryW(buffSize, buff) == 0) {
+        val buff: Ptr[windows.WChar] = alloc[windows.WChar](buffSize + 1.toUInt)
+        if (GetCurrentDirectoryW(buffSize, buff) == 0.toUInt) {
           throw WindowsException("error in trying to get user directory")
         }
         fromCWideString(buff, StandardCharsets.UTF_16LE)
       } else {
         val buff: CString = alloc[CChar](4096.toUInt)
-        if (getcwd(buff, 4095.toUInt) == 0) {
+        if (getcwd(buff, 4095.toUInt) == 0.toUInt) {
           val errMsg = fromCString(string.strerror(errno.errno))
           throw new IOException(
             s"error in trying to get user directory - $errMsg"
@@ -854,7 +854,7 @@ object File {
 
           // previous path up to last /, plus result of resolving the link.
           val newPathLength = last + linkLength + `1UL`
-          val newPath = alloc[Byte](newPathLength)
+          val newPath: Ptr[Byte] = alloc[Byte](newPathLength)
           strncpy(newPath, path, last)
           strncat(newPath, link, linkLength)
 
@@ -924,7 +924,7 @@ object File {
           flags = finalPathFlags
         )
 
-        if (fileHandle == HandleApiExt.INVALID_HANDLE_VALUE || pathLength == 0)
+        if (fileHandle == HandleApiExt.INVALID_HANDLE_VALUE || pathLength == 0.toUInt)
           null
         else buffer
       }

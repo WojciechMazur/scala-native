@@ -52,6 +52,13 @@ sealed trait NativeConfig {
   /** Map of user defined properties resolved at linktime */
   def linktimeProperties: NativeConfig.LinktimeProperites
 
+  /** Shall the resource files be embedded in the resulting binary file? Allows
+   *  the use of getClass().getResourceAsStream() on the included files. Will
+   *  not embed files with certain extensions, including ".c", ".h", ".scala"
+   *  and ".class".
+   */
+  def embedResources: Boolean
+
   /** Create a new config with given garbage collector. */
   def withGC(value: GC): NativeConfig
 
@@ -99,6 +106,10 @@ sealed trait NativeConfig {
       value: NativeConfig.LinktimeProperites
   ): NativeConfig
 
+  def withEmbedResources(
+      value: Boolean
+  ): NativeConfig
+
   /** Create a new config with support for multithreading */
   def withMultithreadingSupport(enabled: Boolean): NativeConfig
 }
@@ -123,7 +134,8 @@ object NativeConfig {
       linkStubs = false,
       optimize = true,
       multithreadingSupport = false,
-      linktimeProperties = Map.empty
+      linktimeProperties = Map.empty,
+      embedResources = false
     )
 
   private final case class Impl(
@@ -141,7 +153,8 @@ object NativeConfig {
       dump: Boolean,
       optimize: Boolean,
       multithreadingSupport: Boolean,
-      linktimeProperties: LinktimeProperites
+      linktimeProperties: LinktimeProperites,
+      embedResources: Boolean
   ) extends NativeConfig {
 
     def withClang(value: Path): NativeConfig =
@@ -195,6 +208,10 @@ object NativeConfig {
       copy(linktimeProperties = v)
     }
 
+    def withEmbedResources(value: Boolean): NativeConfig = {
+      copy(embedResources = value)
+    }
+
     override def toString: String = {
       val listLinktimeProperties = {
         if (linktimeProperties.isEmpty) ""
@@ -226,6 +243,7 @@ object NativeConfig {
         | - optimize:           $optimize
         | - multithreading      $multithreadingSupport
         | - linktimeProperties: $listLinktimeProperties
+        | - embedResources:     $embedResources
         |)""".stripMargin
     }
   }

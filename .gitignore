@@ -5,7 +5,6 @@ _build/
 *.dot
 *.ppm
 .idea
-_build/
 scripts/.coursier
 scripts/.scalafmt*
 sbt-crossproject/
@@ -23,7 +22,7 @@ bin/
 .cache*
 
 # metals
-/.bloop/
+**/.bloop/
 /.metals/
 /project/**/metals.sbt
 
@@ -35,3 +34,6 @@ bin/
 
 # vim
 *.swp
+
+# Virtual env generated dependecies, for generating docs
+.venv

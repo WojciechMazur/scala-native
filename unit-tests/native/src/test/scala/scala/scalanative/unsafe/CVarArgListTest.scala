@@ -14,10 +14,10 @@ import scalanative.meta.LinktimeInfo.isWindows
 class CVarArgListTest {
   def vatest(cstr: CString, varargs: Seq[CVarArg], output: String): Unit =
     Zone { implicit z =>
-      assumeFalse("Current CVarArgList not complient with Windows", isWindows)
-      val buff = alloc[CChar](1024)
+      val buff: Ptr[CChar] = alloc[CChar](1024)
       stdio.vsprintf(buff, cstr, toCVarArgList(varargs))
-      assertEquals(output, fromCString(buff))
+      val got = fromCString(buff)
+      assertTrue(s"$got != $output", got == output)
     }
 
   @Test def byteValue0(): Unit =

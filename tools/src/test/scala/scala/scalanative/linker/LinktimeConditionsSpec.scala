@@ -3,10 +3,11 @@ package scala.scalanative.linker
 import org.scalatest.matchers.should.Matchers
 import scala.scalanative.OptimizerSpec
 import scala.scalanative.build.{Config, NativeConfig}
-import scala.scalanative.nir.{Global, Sig, Type, Val}
+import scala.scalanative.nir.{Global, Sig, Type, Val, Rt}
 
 class LinktimeConditionsSpec extends OptimizerSpec with Matchers {
-  val entry = "Main$"
+  val entry = "Main"
+  val module = "Main$"
   private val props =
     s"""package scala.scalanative
        |import scala.scalanative.unsafe.{resolvedAtLinktime, resolved}
@@ -109,7 +110,11 @@ class LinktimeConditionsSpec extends OptimizerSpec with Matchers {
             |}""".stripMargin
       )() { (_, _) => () }
     }
-    caught.getMessage shouldEqual "Link-time resolved property must have scala.scalanative.unsafe.resolved as body"
+    assert(
+      caught.getMessage.matches(
+        "Link-time resolved property must have scala.scalanative.*resolved as body"
+      )
+    )
   }
 
   it should "not allow to define property with null rhs" in {
@@ -131,7 +136,11 @@ class LinktimeConditionsSpec extends OptimizerSpec with Matchers {
             |}""".stripMargin
       )() { (_, _) => () }
     }
-    caught.getMessage shouldEqual "Link-time resolved property must have scala.scalanative.unsafe.resolved as body"
+    assert(
+      caught.getMessage.matches(
+        "Link-time resolved property must have scala.scalanative.*resolved as body"
+      )
+    )
   }
 
   it should "not allow to define property resolved from property with null name" in {
@@ -398,8 +407,11 @@ class LinktimeConditionsSpec extends OptimizerSpec with Matchers {
     }
   }
 
-  private def shouldContainAll[T](expected: Iterable[T], given: Iterable[T]) = {
-    val left = given.toSet
+  private def shouldContainAll[T](
+      expected: Iterable[T],
+      actual: Iterable[T]
+  ) = {
+    val left = actual.toSet
     val right = expected.toSet
     assert((left -- right).isEmpty, "underapproximation")
     assert((right -- left).isEmpty, "overapproximation")
@@ -410,19 +422,14 @@ class LinktimeConditionsSpec extends OptimizerSpec with Matchers {
   )(fn: (Method, Result) => T): T = {
     link(entry, sources) { (_, result) =>
       implicit val linkerResult: Result = result
-      val mainSig =
-        Sig.Method(
-          "main",
-          Seq(Type.Array(scalanative.nir.Rt.String), Type.Unit)
-        )
-      val MethodRef(_, mainMethod) = Global.Member(Global.Top(entry), mainSig)
+      val MethodRef(_, mainMethod) = Global.Top(entry).member(Rt.ScalaMainSig)
       fn(mainMethod, result)
     }
   }
 
   private def pathForNumber(n: Int) = {
     Global.Member(
-      owner = Global.Top(entry),
+      owner = Global.Top(module),
       sig = Sig.Method(s"path$n", Seq(Type.Unit))
     )
   }

@@ -42,6 +42,7 @@ class WindowsPath private[windows] (
         }
       case (PathType.Absolute, Some(root))          => root
       case (PathType.DirectoryRelative, Some(root)) => root + "\\"
+      case (PathType.DriveRelative, _)              => "\\"
       case _                                        => ""
     }
     drivePrefix + segments.mkString(seperator)
@@ -95,7 +96,7 @@ class WindowsPath private[windows] (
     new WindowsPath(segments.slice(beginIndex, endIndex))
 
   override def startsWith(other: Path): Boolean =
-    if (fs.provider == other.getFileSystem().provider()) {
+    if (fs.provider() == other.getFileSystem().provider()) {
       val otherLength = other.getNameCount()
       val thisLength = getNameCount()
 
@@ -112,7 +113,7 @@ class WindowsPath private[windows] (
     startsWith(WindowsPathParser(other))
 
   override def endsWith(other: Path): Boolean =
-    if (fs.provider == other.getFileSystem().provider()) {
+    if (fs.provider() == other.getFileSystem().provider()) {
       val otherLength = other.getNameCount()
       val thisLength = getNameCount()
       if (otherLength > thisLength) false
@@ -163,16 +164,19 @@ class WindowsPath private[windows] (
   override def relativize(other: Path): Path = {
     if (isAbsolute() ^ other.isAbsolute()) {
       throw new IllegalArgumentException("'other' is different type of Path")
-    } else if (path.isEmpty()) {
-      other
-    } else if (other.startsWith(this)) {
-      other.subpath(getNameCount(), other.getNameCount())
-    } else if (getParent() == null) {
-      new WindowsPath("../" + other.toString())
     } else {
-      val next = getParent().relativize(other).toString()
-      if (next.isEmpty()) new WindowsPath("..")
-      else new WindowsPath("../" + next)
+      val normThis = new WindowsPath(WindowsPath.normalized(this))
+      if (normThis.toString.isEmpty()) {
+        other
+      } else if (other.startsWith(normThis)) {
+        other.subpath(getNameCount(), other.getNameCount())
+      } else if (normThis.getParent() == null) {
+        new WindowsPath("../" + other.toString())
+      } else {
+        val next = normThis.getParent().relativize(other).toString()
+        if (next.isEmpty()) new WindowsPath("..")
+        else new WindowsPath("../" + next)
+      }
     }
   }
 
@@ -223,7 +227,7 @@ class WindowsPath private[windows] (
     }
 
   override def compareTo(other: Path): Int =
-    if (fs.provider == other.getFileSystem().provider()) {
+    if (fs.provider() == other.getFileSystem().provider()) {
       this.toString().compareTo(other.toString)
     } else {
       throw new ClassCastException()

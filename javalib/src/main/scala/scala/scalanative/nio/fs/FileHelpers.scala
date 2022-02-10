@@ -70,7 +70,7 @@ object FileHelpers {
         null
       } else {
         Zone { implicit z =>
-          var elem = alloc[dirent]
+          var elem = alloc[dirent]()
           var res = 0
           while ({ res = readdir(dir, elem); res == 0 }) {
             val name = fromCString(elem._2.at(0))
@@ -92,7 +92,7 @@ object FileHelpers {
       if (searchPath.length.toUInt > FileApiExt.MAX_PATH)
         throw new IOException("File name to long")
 
-      val fileData = stackalloc[Win32FindDataW]
+      val fileData = stackalloc[Win32FindDataW]()
       val searchHandle =
         FindFirstFileW(toCWideStringUTF16LE(searchPath), fileData)
       if (searchHandle == INVALID_HANDLE_VALUE) {
@@ -175,9 +175,10 @@ object FileHelpers {
       val tmpDir = Option(dir).fold(tempDir)(_.toString)
       val newSuffix = Option(suffix).getOrElse(".tmp")
       var result: File = null
-      do {
+      while ({
         result = genTempFile(prefix, newSuffix, tmpDir)
-      } while (!createNewFile(result.toString, throwOnError))
+        !createNewFile(result.toString, throwOnError)
+      }) ()
       result
     }
 
@@ -203,7 +204,7 @@ object FileHelpers {
 
   lazy val tempDir: String = {
     if (isWindows) {
-      val buffer = stackalloc[WChar](MAX_PATH)
+      val buffer: Ptr[WChar] = stackalloc[WChar](MAX_PATH)
       GetTempPathW(MAX_PATH, buffer)
       fromCWideString(buffer, StandardCharsets.UTF_16LE)
     } else {

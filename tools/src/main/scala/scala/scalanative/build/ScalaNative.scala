@@ -17,10 +17,7 @@ private[scalanative] object ScalaNative {
    */
   def entries(config: Config): Seq[Global] = {
     val mainClass = Global.Top(config.mainClass)
-    val entry =
-      mainClass.member(
-        Sig.Method("main", Seq(Type.Array(Rt.String), Type.Unit))
-      )
+    val entry = mainClass.member(Rt.ScalaMainSig)
     entry +: CodeGen.depends
   }
 
@@ -82,7 +79,9 @@ private[scalanative] object ScalaNative {
             linker.Link(config, linked.entries, optimized)
           }
         } else {
-          linked
+          config.logger.time("Optimizing (skipped)") {
+            linked
+          }
         }
       }
     }

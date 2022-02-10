@@ -7,7 +7,9 @@ object BinaryIncompatibilities {
   type Filters = Seq[ProblemFilter]
   final val Util: Filters = Nil
   final val Nir: Filters = Seq(
-    exclude[DirectMissingMethodProblem]("scala.scalanative.nir.Rt.*")
+    exclude[DirectMissingMethodProblem]("scala.scalanative.nir.Rt.*"),
+    // sealed trait replaced with sealed abstract class, used internally
+    exclude[Problem]("scala.scalanative.nir.Sig$Scope*")
   )
 
   final val NscPlugin = Seq(
@@ -40,6 +42,10 @@ object BinaryIncompatibilities {
     exclude[DirectMissingMethodProblem]("scala.scalanative.regex.*"),
     exclude[DirectMissingMethodProblem]("java.lang._Class.rawty"),
     exclude[DirectMissingMethodProblem]("java.lang._Class.this"),
+    exclude[MissingClassProblem]("scala.scalanative.unsafe.Zone$ZoneImpl*"),
+    exclude[MissingClassProblem]("scala.scalanative.unsafe.package$MacroImpl$"),
+    // Moved to unsafe package, source compatible change
+    exclude[MissingClassProblem]("scala.scalanative.unsafe.extern"),
     // moved to auxlib
     exclude[MissingClassProblem]("scala.runtime.BoxesRunTime*"),
     // moved to javalib
@@ -47,7 +53,9 @@ object BinaryIncompatibilities {
     // package-private
     exclude[MissingClassProblem]("scala.scalanative.runtime.*Shutdown*"),
     exclude[Problem]("scala.scalanative.runtime.ClassInstancesRegistry*"),
-    exclude[Problem]("scala.scalanative.runtime.package*TypeOps*")
+    exclude[Problem]("scala.scalanative.runtime.package*TypeOps*"),
+    // Stub with incorrect signature
+    exclude[Problem]("java.lang._Class.getConstructor")
   )
   final val CLib: Filters = Nil
   final val PosixLib: Filters = Seq(
@@ -59,7 +67,7 @@ object BinaryIncompatibilities {
   )
   final val WindowsLib: Filters = Nil
 
-  final val AuxLib, JavaLib, ScalaLib: Filters = Nil
+  final val AuxLib, JavaLib, ScalaLib, Scala3Lib: Filters = Nil
   final val TestRunner: Filters = Nil
   final val TestInterface: Filters = Nil
   final val TestInterfaceSbtDefs: Filters = Nil
@@ -79,6 +87,7 @@ object BinaryIncompatibilities {
     "auxlib" -> AuxLib,
     "javalib" -> JavaLib,
     "scalalib" -> ScalaLib,
+    "scala3lib" -> Scala3Lib,
     "test-runner" -> TestRunner,
     "test-interface" -> TestInterface,
     "test-interface-sbt-defs" -> TestInterfaceSbtDefs,

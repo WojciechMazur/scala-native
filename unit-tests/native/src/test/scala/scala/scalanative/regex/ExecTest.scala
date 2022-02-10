@@ -117,10 +117,10 @@ class ExecTest {
       if (line.isEmpty)
         fail("%s:%d: unexpected blank line".format(file, lineno))
       val first = line.charAt(0)
-      if (first == '#') break
+      if (first == '#') break()
       if ('A' <= first && first <= 'Z') { // Test name.
         // left for debugging
-        //System.err.println(line)
+        // System.err.println(line)
       } else if (line == "strings") {
         if (input < strings.size)
           fail(
@@ -145,7 +145,7 @@ class ExecTest {
         }
         if (inStrings) {
           strings.add(q)
-          break
+          break()
         }
 
         // Is a regexp.
@@ -159,7 +159,7 @@ class ExecTest {
             // We don't and likely never will support \C; keep going.
             if (e.getMessage
                   .startsWith("Illegal/unsupported escape sequence")) {
-              break
+              break()
             }
             System.err.println(
               "%s:%d: compile %s: %s\n"
@@ -167,7 +167,7 @@ class ExecTest {
             )
             nfail += 1
             if (nfail >= 100) fail("stopping after " + nfail + " errors")
-            break
+            break()
         }
         val full = "\\A(?:" + q + ")\\z"
         try refull = RE2.compile(full)
@@ -183,7 +183,7 @@ class ExecTest {
       } else if (first == '-' || '0' <= first && first <= '9') { // A sequence of match results.
         ncase += 1
         if (re == null) { // Failed to compile: skip results.
-          break
+          break()
         }
         if (input >= strings.size)
           fail("%s:%d: out of sync: no input remaining".format(file, lineno))
@@ -195,7 +195,7 @@ class ExecTest {
           // is a stream of bytes, so it sees 'not word boundary' in the
           // middle of a rune.  But this package only considers whole
           // runes, so it disagrees.  Skip those cases.
-          break
+          break()
         }
         val res = line.split(";")
         if (res.length != 4)
@@ -236,7 +236,7 @@ class ExecTest {
               nfail += 1
               if (nfail >= 100) fail("stopping after " + nfail + " errors")
             }
-            break
+            break()
           }
           regexp.longest = longest
           val b = regexp.match_(text)
@@ -248,7 +248,7 @@ class ExecTest {
             nfail += 1
             if (nfail >= 100)
               fail("stopping after " + nfail + " errors")
-            break
+            break()
           }
 
           i += 1
@@ -379,7 +379,7 @@ class ExecTest {
     var line: String = null
     var lastRegexp = ""
     while ({
-      line = withUnixCompat(r.readLine)
+      line = withUnixCompat(r.readLine())
       line != null
     }) breakable {
       lineno += 1
@@ -397,19 +397,19 @@ class ExecTest {
       //   specification. A specification is five fields separated by one
       //   or more tabs. NULL denotes the empty string and NULL denotes the
       //   0 pointer.
-      if (line.isEmpty || line.charAt(0) == '#') break
+      if (line.isEmpty || line.charAt(0) == '#') break()
       val field = NOTAB.findAll(line, -1)
       var i = 0
       while (i < field.size) {
         if (field.get(i) == "NULL") field.set(i, "")
         if (field.get(i) == "NIL") {
           System.err.println("%s:%d: skip: %s\n".format(file, lineno, line))
-          break
+          break()
         }
 
         i += 1
       }
-      if (field.isEmpty) break
+      if (field.isEmpty) break()
       //   Field 1: the regex(3) flags to apply, one character per
       //   REG_feature flag. The test is skipped if REG_feature is not
       //   supported by the implementation. If the first character is
@@ -473,20 +473,20 @@ class ExecTest {
           // Ignore all the control operators.
           // Just run everything.
           flag = flag.substring(1)
-          if (flag.isEmpty) break
+          if (flag.isEmpty) break()
         case ':' =>
           val i = flag.indexOf(':', 1)
           if (i < 0) {
             System.err.format("skip: %s\n", line)
-            break
+            break()
           }
           flag = flag.substring(1 + i + 1)
 
         case 'C' | 'N' | 'T' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' |
             '8' | '9' =>
           // left for debugging
-          //System.err.println("skip: %s\n".format(line))
-          break
+          // System.err.println("skip: %s\n".format(line))
+          break()
         case _ =>
       }
       // Can check field count now that we've handled the myriad comment
@@ -496,7 +496,7 @@ class ExecTest {
           "%s:%d: too few fields: %s\n".format(file, lineno, line)
         )
         nerr += 1
-        break
+        break()
       }
       // Expand C escapes (a.k.a. Go escapes).
       if (flag.indexOf('$') >= 0) {
@@ -538,7 +538,7 @@ class ExecTest {
               .format(file, lineno, field.get(3))
           )
           nerr += 1
-          break
+          break()
       }
       //   Field 5: optional comment appended to the report.
       // Run test once for each specified capital letter mode that we support.
@@ -554,7 +554,7 @@ class ExecTest {
             // literal
             pattern = RE2.quoteMeta(pattern)
           case _ =>
-            break
+            break()
         }
         if (!_break) {
           if (flag.indexOf('i') >= 0) flags |= RE2.FOLD_CASE
@@ -569,7 +569,7 @@ class ExecTest {
                 )
                 nerr += 1
               }
-              break
+              break()
           }
           if (!shouldCompileMatch(0)) {
             System.err.println(
@@ -577,7 +577,7 @@ class ExecTest {
                 .format(file, lineno, pattern)
             )
             nerr += 1
-            break
+            break()
           }
           val match0 = re.match_(text)
           if (match0 != shouldCompileMatch(1)) {
@@ -586,7 +586,7 @@ class ExecTest {
                 .format(file, lineno, pattern, text, match0, !match0)
             )
             nerr += 1
-            break
+            break()
           }
           var haveArray = re.findSubmatchIndex(text)
           if (haveArray == null)
@@ -606,7 +606,7 @@ class ExecTest {
                 )
             )
             nerr += 1
-            break
+            break()
           }
           // Convert int[] to List<Integer> and truncate to pos.length.
           val have = new ju.ArrayList[Integer]
@@ -621,7 +621,7 @@ class ExecTest {
                 .format(file, lineno, pattern, text, have, pos)
             )
             nerr += 1
-            break
+            break()
           }
         }
       }
@@ -689,7 +689,7 @@ class ExecTest {
   }
 
   private def withUnixCompat(str: String): String = {
-    if (str != null && isWindows) {
+    if (str != null && isWindows()) {
       str.replaceAll("\r", "")
     } else str
   }

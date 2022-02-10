@@ -3,7 +3,10 @@ on:
   pull_request:
   push:
     branches:
-      - master
+      - main
+concurrency:
+  group: linux-${{ github.head_ref }}
+  cancel-in-progress: true
 
 jobs:
   # Compile all sources for given Scala version
@@ -15,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scala: [2.13.6, 2.12.15, 2.11.12]
+        scala: [3.1.1, 2.13.8, 2.12.15, 2.11.12]
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/actions/linux-setup-env
@@ -23,7 +26,7 @@ jobs:
           scala-version: ${{matrix.scala}}
 
       - name: Test tools
-        run: sbt "++ ${{ matrix.scala }} -v" "-no-colors" "-J-Xmx3G" test-tools
+        run: sbt "++ ${{ matrix.scala }} -v" "-no-colors" "-J-Xmx3G" "test-tools ${{ matrix.scala }}"
 
         # Make sure that Scala partest blacklisted tests contain only valid test names
       - name: Setup Ammonite
@@ -32,23 +35,27 @@ jobs:
           ammonite-version: 2.3.8
           scala-version: 2.13
         env:
-          ACTIONS_ALLOW_UNSECURE_COMMANDS: 'true'
+          ACTIONS_ALLOW_UNSECURE_COMMANDS: "true"
 
       - name: Check partest disabled tests list
+        # No partests support for Scala 3
+        if: ${{ !startsWith(matrix.scala, '3.') }}
         run: |
           sbt "++ ${{ matrix.scala }} -v" \
           "-no-colors" \
-          "scalaPartest/fetchScalaSource"
+          "scalaPartest${{env.project-version}}/fetchScalaSource"
           amm scripts/partest-check-files.sc ${{ matrix.scala }}
 
         # Running all partests would take ~2h for each Scala version, run only single test of each kind
         # to make sure that infrastructure works correctly.
       - name: Run subset of partest tests
+        # No partests support for Scala 3
+        if: ${{ !startsWith(matrix.scala, '3.') }}
         run: |
           sbt "++ ${{ matrix.scala }} -v" \
           "-no-colors" \
           "-J-Xmx3G" \
-          "scalaPartestTests/testOnly -- --showDiff neg/abstract.scala pos/abstract.scala run/Course-2002-01.scala"
+          "scalaPartestTests${{env.project-version}}/testOnly -- --showDiff neg/abstract.scala pos/abstract.scala run/Course-2002-01.scala"
 
   # Build testing image that would be used to build and run against different platforms
   # Currently only Linux x64 is tested
@@ -59,7 +66,7 @@ jobs:
       image-name: ${{ steps.build-image.outputs.image-base-name }}
     strategy:
       matrix:
-        arch: [ amd64 ]
+        arch: [amd64]
 
     steps:
       - uses: actions/checkout@v2
@@ -115,13 +122,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scala: [2.13.6, 2.12.15, 2.11.12]
-        build-mode: [ debug , release-fast ]
-        gc: [ boehm, immix, commix ]
+        scala: [3.1.1, 2.13.8, 2.12.15, 2.11.12]
+        build-mode: [debug, release-fast]
+        gc: [boehm, immix, commix]
         # Create holes in grid to lower number of tests.
         # Excluded entries should have low impact on overall project coverage
         exclude:
-          - scala: 2.13.6
+          - scala: 2.13.8
             build-mode: debug
             gc: immix
           - scala: 2.12.15
@@ -155,6 +162,12 @@ jobs:
           - scala: 2.13.5
             build-mode: release-fast
             gc: commix
+          - scala: 2.13.6
+            build-mode: debug
+            gc: commix
+          - scala: 2.13.6
+            build-mode: release-fast
+            gc: immix
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/actions/linux-setup-env
@@ -167,7 +180,7 @@ jobs:
           SCALANATIVE_GC: ${{ matrix.gc }}
           SCALANATIVE_OPTIMIZE: true
           SCALA_VERSION: ${{ matrix.scala}}
-          TEST_COMMAND: test-runtime
+          TEST_COMMAND: "test-runtime ${{ matrix.scala }}"
         run: ./ci-docker/run-test-gha.sh "${{ needs.build-image.outputs.image-name }}-amd64"
 
   # This job is basically copy-paste of test-runtime.
@@ -179,14 +192,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scala: [ 2.13.6, 2.12.15, 2.11.12 ]
-        build-mode: [ debug, release-fast ]
+        scala: [3.1.1, 2.13.8, 2.12.15, 2.11.12]
+        build-mode: [debug, release-fast]
         include:
           - scala: 2.12.13
             build-mode: release-fast
           - scala: 2.13.4
             build-mode: release-fast
           - scala: 2.13.5
+            build-mode: release-fast
+          - scala: 2.13.6
             build-mode: release-fast
     steps:
       - uses: actions/checkout@v2
@@ -200,7 +215,7 @@ jobs:
           SCALANATIVE_GC: immix
           SCALANATIVE_OPTIMIZE: false
           SCALA_VERSION: ${{ matrix.scala}}
-          TEST_COMMAND: test-runtime
+          TEST_COMMAND: "test-runtime ${{ matrix.scala }}"
         run: ./ci-docker/run-test-gha.sh "${{ needs.build-image.outputs.image-name }}-amd64"
 
   test-runtime-lto:
@@ -210,11 +225,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scala: [2.13.6, 2.12.15, 2.11.12]
+        scala: [3.1.1, 2.13.8, 2.12.15, 2.11.12]
         lto: [thin]
         optimize: [true]
         include:
-          - scala: 2.13.6
+          # LTO full fails with 3.1 in the CI - we were not able to reproduce it locally
+          - scala: 2.13.8
             lto: full
             optimize: true
           - scala: 2.12.15
@@ -234,7 +250,7 @@ jobs:
           SCALANATIVE_OPTIMIZE: ${{matrix.optimize}}
           SCALANATIVE_LTO: ${{matrix.lto}}
           SCALA_VERSION: ${{ matrix.scala}}
-          TEST_COMMAND: test-runtime
+          TEST_COMMAND: "test-runtime ${{ matrix.scala }}"
         run: ./ci-docker/run-test-gha.sh "${{ needs.build-image.outputs.image-name }}-amd64"
 
   # This job is basically copy-paste of test-runtime.
@@ -246,7 +262,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scala: [2.12.15]
+        scala: [2.12.15, 3.1.1]
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/actions/linux-setup-env
@@ -259,5 +275,5 @@ jobs:
           SCALANATIVE_GC: immix
           SCALANATIVE_OPTIMIZE: true
           SCALA_VERSION: ${{ matrix.scala}}
-          TEST_COMMAND: test-scripted
+          TEST_COMMAND: "test-scripted ${{matrix.scala}}"
         run: ./ci-docker/run-test-gha.sh "${{ needs.build-image.outputs.image-name }}-amd64"

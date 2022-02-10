@@ -16,7 +16,6 @@ import java.util.Arrays
 import java.util.function.BinaryOperator
 import java.util.function.UnaryOperator
 
-@SerialVersionUID(-6209656149925076980L)
 class AtomicReferenceArray[E <: AnyRef] extends Serializable {
 
   final private var array: Array[E] = null

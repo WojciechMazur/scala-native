@@ -438,7 +438,7 @@ object Files {
       getAttribute(path, "basic:isRegularFile", options).asInstanceOf[Boolean]
     } else
       Zone { implicit z =>
-        val buf = alloc[stat.stat]
+        val buf = alloc[stat.stat]()
         val err =
           if (options.contains(LinkOption.NOFOLLOW_LINKS)) {
             stat.lstat(toCString(path.toFile().getPath()), buf)
@@ -462,7 +462,7 @@ object Files {
       exists & isReparsePoint
     } else {
       val filename = toCString(path.toFile().getPath())
-      val buf = alloc[stat.stat]
+      val buf = alloc[stat.stat]()
       if (stat.lstat(filename, buf) == 0) {
         stat.S_ISLNK(buf._13) == 1
       } else {
@@ -512,7 +512,7 @@ object Files {
       val targetAbs = target.toAbsolutePath().toString
       // We cannot replace directory, it needs to be removed first
       if (replaceExisting && target.toFile().isDirectory()) {
-        //todo delete children
+        // todo delete children
         Files.delete(target)
       }
       if (isWindows) {
@@ -523,8 +523,8 @@ object Files {
         val flags = {
           val replace =
             if (replaceExisting) MOVEFILE_REPLACE_EXISTING else 0.toUInt
-          MOVEFILE_COPY_ALLOWED | //Allow coping betwen volumes
-            MOVEFILE_WRITE_THROUGH | //Block until actually moved
+          MOVEFILE_COPY_ALLOWED | // Allow coping betwen volumes
+            MOVEFILE_WRITE_THROUGH | // Block until actually moved
             replace
         }
         if (!MoveFileExW(sourceCString, targetCString, flags)) {
@@ -622,7 +622,7 @@ object Files {
     val bytes = scala.scalanative.runtime.ByteArray.alloc(len)
 
     if (isWindows) {
-      val bytesRead = stackalloc[DWord]
+      val bytesRead = stackalloc[DWord]()
 
       withFileOpen(
         path.toString,
@@ -726,7 +726,7 @@ object Files {
             access = FILE_GENERIC_READ
           ) { handle =>
             val bufferSize = FileApiExt.MAX_PATH
-            val buffer = alloc[WChar](bufferSize)
+            val buffer: Ptr[WChar] = alloc[WChar](bufferSize)
             val pathSize =
               FileApi.GetFinalPathNameByHandleW(
                 handle,

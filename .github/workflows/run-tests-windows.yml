@@ -3,7 +3,11 @@ on:
   pull_request:
   push:
     branches:
-      - master
+      - main
+concurrency: 
+  group: windows-${{ github.head_ref }}
+  cancel-in-progress: true
+
 
 jobs:
   run-tests:
@@ -13,9 +17,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-2019]
-        scala: [2.13.6, 2.12.15, 2.11.12]
+        scala: [3.1.1, 2.13.8, 2.12.15, 2.11.12]
         gc: [none, boehm, immix, commix]
     steps:
+      # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
+      - name: Setup git config
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v2
       - uses: ./.github/actions/windows-setup-env
         id: setup
@@ -32,14 +39,14 @@ jobs:
           set SCALANATIVE_LIB_DIRS=${{steps.setup.outputs.vcpkg-dir}}\lib&
           set SCALANATIVE &
           sbt ++${{matrix.scala}}
-          sandbox/run
-          testsJVM/test
-          tests/test
-          testsExt/test
-          testsExtJVM/test
-          "scalaPartestTests/testOnly -- --showDiff neg/abstract.scala pos/abstract.scala run/Course-2002-01.scala"
+          sandbox${{env.project-version}}/run
+          testsJVM${{env.project-version}}/test
+          tests${{env.project-version}}/test
+          testsExt${{env.project-version}}/test
+          testsExtJVM${{env.project-version}}/test
+          "scalaPartestTests${{env.project-version}}/testOnly -- --showDiff neg/abstract.scala pos/abstract.scala run/Course-2002-01.scala"
         shell: cmd
-      
+
       - name: Test runtime
         if: matrix.gc != 'none'
         run: >
@@ -48,8 +55,8 @@ jobs:
           set SCALANATIVE_LIB_DIRS=${{steps.setup.outputs.vcpkg-dir}}\lib&
           set SCALANATIVE &
           sbt ++${{matrix.scala}}
-          test-runtime
-          "scalaPartestTests/testOnly -- --showDiff neg/abstract.scala pos/abstract.scala run/Course-2002-01.scala"
+          "test-runtime ${{matrix.scala}}"
+          "scalaPartestTests${{env.project-version}}/testOnly -- --showDiff neg/abstract.scala pos/abstract.scala run/Course-2002-01.scala"
         shell: cmd
 
   run-scripted-tests:
@@ -59,15 +66,18 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-2019]
-        scala: [2.12.15]
+        scala: [2.12.15, 3.1.1]
     steps:
+      # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
+      - name: Setup git config
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v2
       - uses: ./.github/actions/windows-setup-env
         with:
           scala-version: ${{matrix.scala}}
 
       - name: Test scripted
-        run: sbt ++${{matrix.scala}};test-scripted
+        run: sbt "++${{matrix.scala}}" "test-scripted ${{matrix.scala}}"
         shell: cmd
 
   test-runtime-lto:
@@ -76,18 +86,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scala: [2.13.6, 2.12.15, 2.11.12]
+        scala: [3.1.1, 2.13.8, 2.12.15, 2.11.12]
         build-mode: [release-fast]
         lto: [thin]
         optimize: [true]
         include:
-          - scala: 2.13.6
+          - scala: 3.1.1
+            lto: full
+            optimize: true
+          - scala: 2.13.8
             lto: full
             optimize: true
           - scala: 2.12.15
             lto: full
             optimize: false
     steps:
+      # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
+      - name: Setup git config
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v2
       - uses: ./.github/actions/windows-setup-env
         id: setup
@@ -105,6 +121,6 @@ jobs:
           set SCALANATIVE_CI_NO_DEBUG_SYMBOLS=${{matrix.lto == 'full'}}&
           set SCALANATIVE &
           sbt ++${{matrix.scala}}
-          tests/test
-          testsExt/test
+          tests${{env.project-version}}/test
+          testsExt${{env.project-version}}/test
         shell: cmd

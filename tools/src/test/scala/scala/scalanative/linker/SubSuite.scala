@@ -21,13 +21,11 @@ class SubSuite extends ReachabilitySuite {
     }
   """
 
-  val MainClass = "Main$"
-  val entry = Global.Member(
-    Global.Top(MainClass),
-    Sig.Method("main", Seq(Type.Array(Rt.String), Type.Unit))
-  )
+  val MainClass = "Main"
+  val entry: Global.Member = Global.Top(MainClass).member(Rt.ScalaMainSig)
 
-  implicit val linked = link(Seq(entry), Seq(source), MainClass)(x => x)
+  implicit val linked: linker.Result =
+    link(Seq(entry), Seq(source), MainClass)(x => x)
 
   val primitiveTypes = Seq(
     Type.Bool,

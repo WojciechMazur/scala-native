@@ -3,7 +3,7 @@ ARG TARGET_PLATFORM
 FROM dockcross/$TARGET_PLATFORM
 ENV DEFAULT_DOCKCROSS_IMAGE testing-container
 
-RUN apt-get update && apt-get install -y clang lld zip unzip
+RUN apt-get update && apt-get install -y clang lld zip unzip qemu-user-static
 # We cannot easily install dependencies, clone and build zlib locally
 # We might need to do the same for Boehmc GC if we would use it in the future
 # Use default user so you can have acess to /cxx/ cross directory

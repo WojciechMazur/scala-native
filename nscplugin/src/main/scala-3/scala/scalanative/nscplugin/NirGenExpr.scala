@@ -228,7 +228,7 @@ trait NirGenExpr(using Context) {
         for
           (tree, idx) <- allCaptureValues.zipWithIndex
           tpe = tree match {
-            case This(iden) => genType(curClassSym.get)
+            case This(iden) => genType(fun.symbol.owner)
             case _          => genType(tree.tpe)
           }
           name = anonClassName.member(nir.Sig.Field(s"capture$idx"))
@@ -913,14 +913,13 @@ trait NirGenExpr(using Context) {
           case (_: Type.PrimitiveKind, _: Type.PrimitiveKind) =>
             genCoercion(value, fromty, toty)
           case (_, Type.Nothing) =>
-            val runtimeNothing = genType(defn.NothingClass)
             val isNullL, notNullL = fresh()
             val isNull = buf.comp(Comp.Ieq, boxed.ty, boxed, Val.Null, unwind)
             buf.branch(isNull, Next(isNullL), Next(notNullL))
             buf.label(isNullL)
             buf.raise(Val.Null, unwind)
             buf.label(notNullL)
-            buf.as(runtimeNothing, boxed, unwind)
+            buf.as(Rt.RuntimeNothing, boxed, unwind)
             buf.unreachable(unwind)
             buf.label(fresh())
             Val.Zero(Type.Nothing)
@@ -932,7 +931,6 @@ trait NirGenExpr(using Context) {
         report.error("Unkown case genTypeApply: " + funSym, tree.sourcePos)
         Val.Null
       }
-
     }
 
     def genValDef(vd: ValDef): Val = {
@@ -1029,6 +1027,12 @@ trait NirGenExpr(using Context) {
       else if (code == STACKALLOC) genStackalloc(app)
       else if (code == CQUOTE) genCQuoteOp(app)
       else if (code == CLASS_FIELD_RAWPTR) genClassFieldRawPtr(app)
+      else if (code == REFLECT_SELECTABLE_SELECTDYN)
+        // scala.reflect.Selectable.selectDynamic
+        genReflectiveCall(app, isSelectDynamic = true)
+      else if (code == REFLECT_SELECTABLE_APPLYDYN)
+        // scala.reflect.Selectable.applyDynamic
+        genReflectiveCall(app, isSelectDynamic = false)
       else {
         report.error(
           s"Unknown primitive operation: ${sym.fullName}(${fun.symbol.showName})",
@@ -1039,45 +1043,18 @@ trait NirGenExpr(using Context) {
     }
 
     private def genApplyTypeApply(app: Apply): Val = {
-      val Apply(TypeApply(fun, targs), argsp) = app
+      val Apply(tApply @ TypeApply(fun, targs), argsp) = app
       val Select(receiverp, _) = desugarTree(fun)
       given nir.Position = fun.span
 
       val funSym = fun.symbol
-      val fromty = genType(receiverp.tpe)
-      val toty = genType(targs.head.tpe)
-      def boxty = genBoxType(targs.head.tpe)
       val value = genExpr(receiverp)
       def boxed = boxValue(receiverp.tpe, value)(using receiverp.span)
 
-      if (funSym == defn.Any_isInstanceOf) buf.is(boxty, boxed, unwind)
-      else if (funSym == defn.Any_asInstanceOf)
-        (fromty, toty) match {
-          case _ if boxed.ty == boxty =>
-            boxed
-          case (_: Type.PrimitiveKind, _: Type.PrimitiveKind) =>
-            genCoercion(value, fromty, toty)
-          case (_, Type.Nothing) =>
-            val runtimeNothing = genType(defn.NothingClass)
-            val isNullL, notNullL = fresh()
-            val isNull = buf.comp(Comp.Ieq, boxed.ty, boxed, Val.Null, unwind)
-            buf.branch(isNull, Next(isNullL), Next(notNullL))
-            buf.label(isNullL)
-            buf.raise(Val.Null, unwind)
-            buf.label(notNullL)
-            buf.as(runtimeNothing, boxed, unwind)
-            buf.unreachable(unwind)
-            buf.label(fresh())
-            Val.Zero(Type.Nothing)
-          case _ =>
-            given nir.Position = app.span
-            val cast = buf.as(boxty, boxed, unwind)
-            unboxValue(app.tpe, partial = true, cast)
-        }
-      else if (funSym == defn.Object_synchronized)
+      if (funSym == defn.Object_synchronized)
         assert(argsp.size == 1, "synchronized with wrong number of args")
         genSynchronized(ValTree(boxed), argsp.head)
-      else unsupported("Unkown case for genApplyTypeApply: " + funSym)
+      else genTypeApply(tApply)
     }
 
     private def genApplyNew(app: Apply): Val = {
@@ -2101,7 +2078,7 @@ trait NirGenExpr(using Context) {
         case Apply(
               Select(
                 Apply(
-                  _, //Ident(CQuote),
+                  _, // Ident(CQuote),
                   List(
                     Apply(
                       _,
@@ -2188,6 +2165,7 @@ trait NirGenExpr(using Context) {
 
     def toExtern(expectedTy: nir.Type, value: Val)(using nir.Position): Val =
       (expectedTy, value.ty) match {
+        case (Type.Unit, _) => Val.Unit
         case (_, refty: Type.Ref)
             if Type.boxClasses.contains(refty.name)
               && Type.unbox(Type.Ref(refty.name)) == expectedTy =>
@@ -2274,6 +2252,7 @@ trait NirGenExpr(using Context) {
           generatedDefns += genFuncExternForwarder(
             className,
             target.symbol,
+            fn,
             paramTypes
           )
           fnRef
@@ -2316,6 +2295,7 @@ trait NirGenExpr(using Context) {
     private def genFuncExternForwarder(
         funcName: Global,
         funSym: Symbol,
+        funTree: Closure,
         evidences: List[SimpleType]
     )(using nir.Position): Defn = {
       val attrs = Attrs(isExtern = true)
@@ -2357,10 +2337,21 @@ trait NirGenExpr(using Context) {
 
         val params = paramtys.map(ty => Val.Local(fresh(), ty))
         buf.label(fresh(), params)
-
-        val origTypes = if (funSym.isStaticInNIR) origtys else origtys.tail
+        val origTypes =
+          if (funSym.isStaticInNIR || isAdapted) origtys else origtys.tail
         val boxedParams = origTypes.zip(params).map(buf.fromExtern(_, _))
         val argsp = boxedParams.map(ValTree(_))
+
+        // Check number of arguments that would be be used in a call to the function,
+        // it should be equal to the quantity of implicit evidences (without return type evidence)
+        // and arguments passed via closure env.
+        if (argsp.size != evidences.length - 1 + funTree.env.size) {
+          report.error(
+            "Failed to create scalanative.unsafe.CFuncPtr from scala.Function, report this issue to Scala Native team.",
+            funTree.srcPos
+          )
+        }
+
         val res =
           if (funSym.isStaticInNIR)
             buf.genApplyStaticMethod(funSym, NoSymbol, argsp)
@@ -2375,6 +2366,115 @@ trait NirGenExpr(using Context) {
         buf.toSeq
       }
       Defn.Define(attrs, forwarderName, forwarderSig, forwarderBody)
+    }
+
+    private object WrapArray {
+      lazy val isWrapArray: Set[Symbol] = {
+        val names = defn
+          .ScalaValueClasses()
+          .map(sym => nme.wrapXArray(sym.name))
+          .concat(Set(nme.wrapRefArray, nme.genericWrapArray))
+        val symsInPredef = names.map(defn.ScalaPredefModule.requiredMethod(_))
+        val symsInScalaRunTime =
+          names.map(defn.ScalaRuntimeModule.requiredMethod(_))
+        (symsInPredef ++ symsInScalaRunTime).toSet
+      }
+
+      def unapply(tree: Apply): Option[Tree] = tree match {
+        case Apply(wrapArray_?, List(wrapped))
+            if isWrapArray(wrapArray_?.symbol) =>
+          Some(wrapped)
+        case _ =>
+          None
+      }
+    }
+
+    private def genReflectiveCall(
+        tree: Apply,
+        isSelectDynamic: Boolean
+    ): Val = {
+      given nir.Position = tree.span
+      val Apply(fun @ Select(receiver, _), args) = tree
+
+      val selectedValue = genApplyMethod(
+        defnNir.ReflectSelectable_selectedValue,
+        statically = false,
+        genExpr(receiver),
+        Seq()
+      )
+
+      // Extract the method name as a String
+      val methodNameStr = args.head match {
+        case Literal(Constants.Constant(name: String)) => name
+        case _ =>
+          report.error(
+            "The method name given to Selectable.selectDynamic or Selectable.applyDynamic " +
+              "must be a literal string. " +
+              "Other uses are not supported in Scala Native.",
+            args.head.sourcePos
+          )
+          "erroneous"
+      }
+
+      val (formalParamTypeRefs, actualArgs) =
+        if (isSelectDynamic) (Nil, Nil)
+        else
+          args.tail match {
+            // Extract the param type refs and actual args from the 2nd and 3rd argument to applyDynamic
+            case WrapArray(classOfsArray: JavaSeqLiteral) ::
+                WrapArray(actualArgsAnyArray: JavaSeqLiteral) :: Nil =>
+              // Extract nir.Type's from the classOf[_] trees
+              val formalParamTypes = classOfsArray.elems.map {
+                // classOf[tp] -> tp
+                case Literal(const) if const.tag == Constants.ClazzTag =>
+                  genType(const.typeValue)
+
+                // Anything else is invalid
+                case otherTree =>
+                  report.error(
+                    "The java.lang.Class[_] arguments passed to Selectable.applyDynamic must be " +
+                      "literal classOf[T] expressions (typically compiler-generated). " +
+                      "Other uses are not supported in Scala Native.",
+                    otherTree.sourcePos
+                  )
+                  Rt.Object
+              }
+
+              // Gen the actual args, downcasting them to the formal param types
+              val actualArgs =
+                actualArgsAnyArray.elems
+                  .zip(formalParamTypes)
+                  .map { (actualArgAny, formalParamType) =>
+                    val genActualArgAny = genExpr(actualArgAny)
+                    buf.as(
+                      formalParamType,
+                      genActualArgAny,
+                      unwind
+                    )
+                  }
+
+              (formalParamTypes, actualArgs)
+
+            case _ =>
+              report.error(
+                "Passing the varargs of Selectable.applyDynamic with `: _*` " +
+                  "is not supported in Scala Native.",
+                tree.sourcePos
+              )
+              (Nil, Nil)
+          }
+
+      val dynMethod = buf.dynmethod(
+        selectedValue,
+        Sig.Proxy(methodNameStr, formalParamTypeRefs),
+        unwind
+      )
+      buf.call(
+        Type.Function(selectedValue.ty :: formalParamTypeRefs, Rt.Object),
+        dynMethod,
+        selectedValue :: actualArgs,
+        unwind
+      )
     }
 
     private object LinktimeProperty {

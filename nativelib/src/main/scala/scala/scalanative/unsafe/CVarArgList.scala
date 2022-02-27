@@ -39,17 +39,17 @@ object CVarArgList {
   }
 
   // Arm64 specific struct
-  private type CVaList = CStruct5[Ptr[Word], Ptr[Word], Ptr[Word], Int, Int]
+  private type CVaList = CStruct5[Ptr[Long], Ptr[Long], Ptr[Long], Int, Int]
   private implicit class CVaListOps(val ptr: Ptr[CVaList]) extends AnyVal {
-    def stack: Ptr[Word] = ptr._1
-    def grTop: Ptr[Word] = ptr._2
-    def vrTop: Ptr[Word] = ptr._3
+    def stack: Ptr[Long] = ptr._1
+    def grTop: Ptr[Long] = ptr._2
+    def vrTop: Ptr[Long] = ptr._3
     def grOffset: Int = ptr._4
     def vrOffset: Int = ptr._5
 
-    def stack_=(value: Ptr[Word]): Unit = ptr._1 = value
-    def grTop_=(value: Ptr[Word]): Unit = ptr._2 = value
-    def vrTop_=(value: Ptr[Word]): Unit = ptr._3 = value
+    def stack_=(value: Ptr[Long]): Unit = ptr._1 = value
+    def grTop_=(value: Ptr[Long]): Unit = ptr._2 = value
+    def vrTop_=(value: Ptr[Long]): Unit = ptr._3 = value
     def grOffset_=(value: Int): Unit = ptr._4 = value
     def vrOffset_=(value: Int): Unit = ptr._5 = value
   }
@@ -60,7 +60,7 @@ object CVarArgList {
     else 6
   private final val countFPRegisters = 8
   private final val fpRegisterWords =
-    if (PlatformExt.isArm64 && !isWindowsOrMac) 16 / sizeof[Word].toInt
+    if (PlatformExt.isArm64 && !isWindowsOrMac) 16 / sizeof[Size].toInt
     else 2
   private final val registerSaveWords =
     countGPRegisters + countFPRegisters * fpRegisterWords

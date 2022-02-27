@@ -18,7 +18,7 @@ jobs:
       image-name: ${{ steps.build-image.outputs.image-base-name }}
     strategy:
       matrix:
-        arch: [linux-arm64]
+        arch: [linux-arm64, linux-x86]
 
     steps:
       - uses: actions/checkout@v2
@@ -69,7 +69,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [{ name: linux-arm64, emulator: qemu-aarch64-static }]
+        arch:
+          [
+            { name: linux-arm64, emulator: qemu-aarch64-static },
+            { name: linux-x86, emulator: qemu-i386-static },
+          ]
         scala: [2.13.8, 3.1.1]
         build-mode: [releaseFast]
         lto: [thin, none]

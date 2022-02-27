@@ -43,13 +43,8 @@ if ! docker pull $FULL_IMAGE_NAME;then
   fi
 fi
 
-# Make sure mount entrypoints exist
-mkdir -p $HOME/.cache $HOME/.sbt
-
 docker run -i "${FULL_IMAGE_NAME}" java -version
-docker run --mount type=bind,source=$HOME/.cache,target=/home/scala-native/.cache \
-           --mount type=bind,source=$HOME/.sbt,target=/home/scala-native/.sbt \
-           --mount type=bind,source=$PWD,target=/home/scala-native/scala-native \
+docker run --mount type=bind,source=$PWD,target=/home/scala-native/scala-native \
            -e SCALA_VERSION="$SCALA_VERSION" \
            -e TARGET_EMULATOR="${TARGET_EMULATOR}" \
            -e TEST_COMMAND="$TEST_COMMAND" \

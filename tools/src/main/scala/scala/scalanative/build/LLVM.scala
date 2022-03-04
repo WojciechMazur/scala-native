@@ -62,10 +62,10 @@ private[scalanative] object LLVM {
         val compilec =
           Seq(compiler) ++ flto(config) ++ flags ++ target(config) ++
             Seq("-c", inpath, "-o", outpath)
-        if (isLl) println("llcompile " + compilec)
+
         config.logger.running(compilec)
-        val result = Process(compilec, config.workdir.toFile) ! Logger
-          .toProcessLogger(config.logger)
+        val result = Process(compilec, config.workdir.toFile) !
+          Logger.toProcessLogger(config.logger)
         if (result != 0) {
           throw new BuildException(s"Failed to compile ${inpath}")
         }
@@ -123,19 +123,16 @@ private[scalanative] object LLVM {
           }
           Seq("-g") ++ ltoSupport
         } else Seq("-rdynamic")
-      flto(config) ++ platformFlags ++ Seq("-o", outpath.abs) ++
-        target(config)
+      flto(config) ++ platformFlags ++ Seq("-o", outpath.abs) ++ target(config)
     }
     val paths = objectsPaths.map(_.abs)
     val linkCommand: Seq[String] = Seq(config.clangPP.abs) ++
       flags ++ paths ++ links ++ buildLinkOpts(config) ++
-      config.linkingOptions //++ // Allow to override with user config
-        //Seq("-o", "/Users/adpauls/sm/git/scorch/x.out"/*outpath.abs*/)
+      config.linkingOptions // Allow to override with user config
 
     config.logger.time(
       s"Linking native code (${config.compilerConfig.buildTarget}, ${config.gc.name} gc, ${config.LTO.name} lto)"
     ) {
-      println(linkCommand)
       config.logger.running(linkCommand)
       val result = Process(linkCommand, config.workdir.toFile) ! Logger.toProcessLogger(
         config.logger)

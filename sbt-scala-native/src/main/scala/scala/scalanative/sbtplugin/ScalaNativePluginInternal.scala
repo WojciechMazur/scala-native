@@ -139,7 +139,6 @@ object ScalaNativePluginInternal {
         val mainClassOpt = nativeConfig.value.buildTarget match {
           case BuildTarget.Application =>
             selectMainClass.value
-              .map(_ + "$")
               .orElse {
                 throw new MessageOnlyException("No main class detected.")
               }

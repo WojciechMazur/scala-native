@@ -260,8 +260,7 @@ private[codegen] abstract class AbstractCodeGen(
       case _ =>
         unreachable
     }
-    //if (refty.toString.contains("Ptr"))
-      //println(s"deref: ${size} ${refty.className}")
+
     if (!refty.isNullable) {
       (true, "dereferenceable", size)
     } else {
@@ -768,7 +767,7 @@ private[codegen] abstract class AbstractCodeGen(
     call match {
       case Op.Call(ty, Val.Global(pointee, _), args) if lookup(pointee) == ty =>
         val Type.Function(argtys, _) = ty
-        //println(s"pointee: ${pointee}")
+
         touch(pointee)
 
         newline()
@@ -794,11 +793,6 @@ private[codegen] abstract class AbstractCodeGen(
         }
 
       case Op.Call(ty, ptr, args) =>
-        //ptr match {
-        //  case Val.Global(pointee, _) =>
-        //    println(s"pointee2: ${pointee}")
-        //  case _ =>
-        //}
         val Type.Function(_, resty) = ty
 
         val pointee = fresh()

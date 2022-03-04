@@ -58,12 +58,11 @@ private[scalanative] object LLVM {
         val expectionsHandling =
           List("-fexceptions", "-fcxx-exceptions", "-funwind-tables")
         val flags = opt(config) +: "-fvisibility=hidden" +:
-          stdflag ++: platformFlags ++: expectionsHandling ++: target(config) ++: config.compileOptions
+          stdflag ++: platformFlags ++: expectionsHandling ++: buildCompileOpts(config) ++: config.compileOptions
         val compilec =
-          Seq(compiler) ++ flags ++
-            Seq("-c", inpath, "-o", outpath) ++
-            config.compileOptions // Allow to override with user config
-
+          Seq(compiler) ++ flto(config) ++ flags ++ target(config) ++
+            Seq("-c", inpath, "-o", outpath)
+        if (isLl) println("llcompile " + compilec)
         config.logger.running(compilec)
         val result = Process(compilec, config.workdir.toFile) ! Logger
           .toProcessLogger(config.logger)
@@ -123,18 +122,20 @@ private[scalanative] object LLVM {
             case _        => Seq("-fuse-ld=lld", "-Wl,/force:multiple")
           }
           Seq("-g") ++ ltoSupport
-        }else Seq("-rdynamic")
+        } else Seq("-rdynamic")
       flto(config) ++ platformFlags ++ Seq("-o", outpath.abs) ++
-        target(config) ++ buildLinkOpts(config)
+        target(config)
     }
     val paths = objectsPaths.map(_.abs)
     val linkCommand: Seq[String] = Seq(config.clangPP.abs) ++
-      flags ++ paths ++ links ++
-      config.linkingOptions // Allow to override with user config
+      flags ++ paths ++ links ++ buildLinkOpts(config) ++
+      config.linkingOptions //++ // Allow to override with user config
+        //Seq("-o", "/Users/adpauls/sm/git/scorch/x.out"/*outpath.abs*/)
 
     config.logger.time(
       s"Linking native code (${config.compilerConfig.buildTarget}, ${config.gc.name} gc, ${config.LTO.name} lto)"
     ) {
+      println(linkCommand)
       config.logger.running(linkCommand)
       val result = Process(linkCommand, config.workdir.toFile) ! Logger.toProcessLogger(
         config.logger)
@@ -173,6 +174,6 @@ private[scalanative] object LLVM {
   private def buildLinkOpts(config: Config): Seq[String] =
     config.compilerConfig.buildTarget match {
       case BuildTarget.Application    => Nil
-      case BuildTarget.LibraryDynamic => Seq("-shared")
+      case BuildTarget.LibraryDynamic => Seq("-shared", "-fPIC")
     }
 }

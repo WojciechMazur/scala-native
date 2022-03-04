@@ -151,7 +151,7 @@ object ScalaNativePluginInternal {
         val logger = streams.value.log.toLogger
         build.Config.empty
           .withLogger(logger)
-          .withMainClass(mainClass)
+          .withMainClass(mainClassOpt)
           .withClassPath(classpath)
           .withWorkdir(cwd)
           .withCompilerConfig(nativeConfig.value)

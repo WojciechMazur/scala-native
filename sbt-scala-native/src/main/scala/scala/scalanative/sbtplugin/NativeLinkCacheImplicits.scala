@@ -193,7 +193,7 @@ private[sbtplugin] object NativeLinkCacheImplicits {
     )
 
   implicit val configIso =
-    LList.iso[build.Config, Path :*: String :*: Seq[
+    LList.iso[build.Config, Path :*: Option[String] :*: Seq[
       Path
     ] :*: build.NativeConfig :*: LNil](
       { c: build.Config =>

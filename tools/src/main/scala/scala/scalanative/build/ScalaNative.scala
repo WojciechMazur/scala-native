@@ -16,7 +16,7 @@ private[scalanative] object ScalaNative {
   /** Compute all globals that must be reachable based on given configuration.
    */
   def entries(config: Config): Seq[Global] = {
-    config.mainClass.map { mainClass =>
+    config.selectedMainClass.map { mainClass =>
       Global.Top(mainClass).member(Rt.ScalaMainSig)
     }.toSeq ++ CodeGen.depends
   }

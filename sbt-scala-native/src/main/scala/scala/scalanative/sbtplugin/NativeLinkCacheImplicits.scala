@@ -197,7 +197,7 @@ private[sbtplugin] object NativeLinkCacheImplicits {
       Path
     ] :*: build.NativeConfig :*: LNil](
       { c: build.Config =>
-        ("workdir", c.workdir) :*: ("mainClass", c.mainClass) :*: (
+        ("workdir", c.workdir) :*: ("mainClass", c.selectedMainClass) :*: (
           "classPath",
           c.classPath
         ) :*: ("compilerConfig", c.compilerConfig) :*: LNil

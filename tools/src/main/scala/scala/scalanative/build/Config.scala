@@ -14,7 +14,11 @@ sealed trait Config {
   def nativelib: Path
 
   /** Entry point for linking. */
-  def mainClass: Option[String]
+  def mainClass: String
+
+  // Wrapper for mainClass introduced to not break bin-compat until 0.5.x series
+  private[scalanative] def selectedMainClass: Option[String] =
+    Option(mainClass).filter(_.nonEmpty)
 
   /** Sequence of all NIR locations. */
   def classPath: Seq[Path]
@@ -32,6 +36,7 @@ sealed trait Config {
   def withNativelib(value: Path): Config
 
   /** Create new config with given mainClass point. */
+  def withMainClass(value: String): Config
   def withMainClass(value: Option[String]): Config
 
   /** Create a new config with given nir paths. */
@@ -88,7 +93,7 @@ object Config {
   def empty: Config =
     Impl(
       nativelib = Paths.get(""),
-      mainClass = None,
+      mainClass = "",
       classPath = Seq.empty,
       workdir = Paths.get(""),
       logger = Logger.default,
@@ -97,7 +102,7 @@ object Config {
 
   private final case class Impl(
       nativelib: Path,
-      mainClass: Option[String],
+      mainClass: String,
       classPath: Seq[Path],
       workdir: Path,
       logger: Logger,
@@ -106,8 +111,11 @@ object Config {
     def withNativelib(value: Path): Config =
       copy(nativelib = value)
 
-    def withMainClass(value: Option[String]): Config =
+    def withMainClass(value: String): Config =
       copy(mainClass = value)
+
+    override def withMainClass(value: Option[String]): Config =
+      copy(mainClass = value.getOrElse(""))
 
     def withClassPath(value: Seq[Path]): Config =
       copy(classPath = value)

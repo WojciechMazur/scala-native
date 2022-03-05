@@ -58,7 +58,8 @@ private[scalanative] object LLVM {
         val expectionsHandling =
           List("-fexceptions", "-fcxx-exceptions", "-funwind-tables")
         val flags = opt(config) +: "-fvisibility=hidden" +:
-          stdflag ++: platformFlags ++: expectionsHandling ++: buildCompileOpts(config) ++: config.compileOptions
+          stdflag ++: platformFlags ++: expectionsHandling ++:
+          buildCompileOpts(config) ++: config.compileOptions
         val compilec =
           Seq(compiler) ++ flto(config) ++ flags ++ target(config) ++
             Seq("-c", inpath, "-o", outpath)
@@ -134,8 +135,9 @@ private[scalanative] object LLVM {
       s"Linking native code (${config.compilerConfig.buildTarget}, ${config.gc.name} gc, ${config.LTO.name} lto)"
     ) {
       config.logger.running(linkCommand)
-      val result = Process(linkCommand, config.workdir.toFile) ! Logger.toProcessLogger(
-        config.logger)
+      val result =
+        Process(linkCommand, config.workdir.toFile) !
+          Logger.toProcessLogger(config.logger)
       if (result != 0) {
         throw new BuildException(s"Failed to link ${outpath}")
       }

@@ -10,8 +10,6 @@ object BinaryIncompatibilities {
     exclude[DirectMissingMethodProblem]("scala.scalanative.nir.Rt.*"),
     // sealed trait replaced with sealed abstract class, used internally
     exclude[Problem]("scala.scalanative.nir.Sig$Scope*"),
-    // Added new field to case class, Attrs, should be treated as internal
-    exclude[DirectMissingMethodProblem]("scala.scalanative.nir.Attrs.*")
   )
 
   final val NscPlugin = Seq(

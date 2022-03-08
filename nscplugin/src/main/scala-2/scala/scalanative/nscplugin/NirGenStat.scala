@@ -180,10 +180,6 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
         val name = genFieldName(f)
         val pos: nir.Position = f.pos
 
-        if (f.isExported) {
-          reporter.error(f.pos, "Exporting class fields is not allowed")
-        }
-
         buf += Defn.Var(attrs, name, ty, Val.Zero(ty))(pos)
       }
     }
@@ -622,9 +618,7 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
         val owner = curClassSym.get
         val attrs = genMethodAttrs(sym)
         val name = genMethodName(sym)
-        val sig =
-          if (attrs.isExported) genExternMethodSig(sym)
-          else genMethodSig(sym)
+        val sig = genMethodSig(sym)
 
         dd.rhs match {
           case EmptyTree
@@ -653,16 +647,8 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
             None
 
           case rhs if owner.isExternModule =>
-            if (attrs.isExported) {
-              reporter.error(
-                sym.pos,
-                "Method cannot be both declared as extern and exported"
-              )
-              None
-            } else {
-              checkExplicitReturnTypeAnnotation(dd, "extern method")
-              genExternMethod(attrs, name, sig, rhs)
-            }
+            checkExplicitReturnTypeAnnotation(dd, "extern method")
+            genExternMethod(attrs, name, sig, rhs)
 
           case rhs
               if (isScala211 &&
@@ -675,17 +661,10 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
           case _ if sym.hasAnnotation(ResolvedAtLinktimeClass) =>
             genLinktimeResolved(dd, name)
 
-          case rhs if (attrs.isExported && !owner.isScalaModule) =>
-            reporter.error(
-              sym.pos,
-              "Exported methods needs to be statically accessible"
-            )
-            None
           case rhs =>
             scoped(
               curMethodSig := sig
             ) {
-
               val body = genMethodBody(dd, rhs)
               Some(Defn.Define(attrs, name, sig, body))
             }
@@ -805,7 +784,6 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
           case StubClass         => Attr.Stub
           case NoOptimizeClass   => Attr.NoOpt
           case NoSpecializeClass => Attr.NoSpecialize
-          case ExportedClass     => Attr.Exported
         }
 
       Attrs.fromSeq(inlineAttrs ++ annotatedAttrs)
@@ -819,7 +797,7 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       val buf = new ExprBuffer()(fresh)
       val isSynchronized = dd.symbol.hasFlag(SYNCHRONIZED)
       val isStatic = dd.symbol.isStaticInNIR || isImplClass(dd.symbol.owner)
-      val isExtern = dd.symbol.isExternallyKnown
+      val isExtern = dd.symbol.owner.isExternModule
 
       implicit val pos: nir.Position = bodyp.pos
 
@@ -829,9 +807,7 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
           val ty = genType(curClassSym.tpe)
           Val.Local(fresh(), ty)
         case Some(sym) =>
-          val ty =
-            if (dd.symbol.isExported) genExternType(sym.tpe)
-            else genType(sym.tpe)
+          val ty = genType(sym.tpe)
           val param = Val.Local(fresh(), ty)
           curMethodEnv.enter(sym, param)
           param
@@ -839,16 +815,6 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
 
       def genEntry(): Unit = {
         buf.label(fresh(), params)
-        if (dd.symbol.isExported) {
-          paramSyms.zip(params).foreach {
-            case (Some(sym), param) =>
-              val ty = genType(sym.tpe)
-              val value = buf.fromExtern(ty, param)
-              curMethodEnv.enter(sym, value)
-            case _ =>
-              ()
-          }
-        }
       }
 
       def genVars(): Unit = {
@@ -1040,7 +1006,7 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       }
 
       m.isDeferred || m.isConstructor || m.hasAccessBoundary ||
-        m.isExternallyKnown ||
+        m.owner.isExternModule ||
         isOfJLObject
     }
 

@@ -24,7 +24,9 @@ trait ReachabilitySuite extends AnyFunSuite {
     Global.Top("java.io.Serializable")
   )
 
-  def testReachable(label: String)(f: => (String, Global, Seq[Global])) =
+  def testReachable(label: String, includeMainDeps: Boolean = true)(
+      f: => (String, Global, Seq[Global])
+  ) =
     test(label) {
       val (source, entry, expected) = f
       // When running reachability tests disable loading static constructors
@@ -39,7 +41,8 @@ trait ReachabilitySuite extends AnyFunSuite {
       try {
         link(Seq(entry), Seq(source), entry.top.id) { res =>
           val left = res.defns.map(_.name).toSet
-          val right = expected.toSet ++ MainMethodDependencies
+          val extraDeps = if (includeMainDeps) MainMethodDependencies else Nil
+          val right = expected.toSet ++ extraDeps
           assert(res.unavailable.isEmpty, "unavailable")
           assert((left -- right).isEmpty, "underapproximation")
           assert((right -- left).isEmpty, "overapproximation")

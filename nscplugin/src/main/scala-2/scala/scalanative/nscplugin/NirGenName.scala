@@ -99,12 +99,7 @@ trait NirGenName[G <: Global with Singleton] {
     if (sym == String_+) {
       genMethodName(StringConcatMethod)
     } else if (sym.owner.isExternModule) {
-      if (sym.isSetter) {
-        val id = nativeIdOf(sym.getter)
-        owner.member(nir.Sig.Extern(id))
-      } else {
-        owner.member(nir.Sig.Extern(id))
-      }
+      owner.member(genExternSigImpl(sym, id))
     } else if (sym.name == nme.CONSTRUCTOR) {
       owner.member(nir.Sig.Ctor(paramTypes))
     } else {
@@ -112,6 +107,15 @@ trait NirGenName[G <: Global with Singleton] {
       owner.member(nir.Sig.Method(id, paramTypes :+ retType, scope))
     }
   }
+
+  def genExternSig(sym: Symbol): nir.Sig.Extern =
+    genExternSigImpl(sym, nativeIdOf(sym))
+
+  private def genExternSigImpl(sym: Symbol, id: String) =
+    if (sym.isSetter) {
+      val id = nativeIdOf(sym.getter)
+      nir.Sig.Extern(id)
+    } else nir.Sig.Extern(id)
 
   def genStaticMemberName(
       sym: Symbol,

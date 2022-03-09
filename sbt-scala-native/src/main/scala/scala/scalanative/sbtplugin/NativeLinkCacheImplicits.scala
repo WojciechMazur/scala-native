@@ -124,6 +124,19 @@ private[sbtplugin] object NativeLinkCacheImplicits {
     { case (_, mode) :*: LNil => build.Mode(mode) }
   )
 
+  implicit val buildTargetIso = LList.iso[build.BuildTarget, String :*: LNil](
+    { target: build.BuildTarget =>
+      ("buildTarget", target.toString()) :*: LNil
+    },
+    {
+      case (_, target) :*: LNil =>
+        target match {
+          case "Application"    => build.BuildTarget.Application
+          case "LibraryDynamic" => build.BuildTarget.LibraryDynamic
+        }
+    }
+  )
+
   implicit val ltoIso = LList.iso[build.LTO, String :*: LNil](
     { lto: build.LTO => ("lto", lto.toString()) :*: LNil },
     { case (_, str) :*: LNil => build.LTO(str) }
@@ -132,50 +145,43 @@ private[sbtplugin] object NativeLinkCacheImplicits {
   implicit val nativeConfigIso =
     LList.iso[
       build.NativeConfig,
-      build.GC :*: build.Mode :*: Path :*: Path :*: Seq[String] :*: Seq[
-        String
-      ] :*: Option[
-        String
-      ] :*: Boolean :*: build.LTO :*: Boolean :*: Boolean :*: Boolean :*: Boolean :*: build.NativeConfig.LinktimeProperites :*: Boolean :*: LNil
+      build.GC :*: build.Mode :*: build.BuildTarget :*: Path :*: Path :*:
+        Seq[String] :*: Seq[String] :*: Option[String] :*: Boolean :*:
+        build.LTO :*: Boolean :*: Boolean :*: Boolean :*: Boolean :*:
+        build.NativeConfig.LinktimeProperites :*: Boolean :*: LNil
     ](
       { c: build.NativeConfig =>
-        ("gc", c.gc) :*: ("mode", c.mode) :*: ("clang", c.clang) :*: (
-          "clangPP",
-          c.clangPP
-        ) :*: (
-          "linkingOptions",
-          c.linkingOptions
-        ) :*: ("compileOptions", c.compileOptions) :*: (
-          "targetTriple",
-          c.targetTriple
-        ) :*: ("linkStubs", c.linkStubs) :*: ("lto", c.lto) :*: (
-          "check",
-          c.check
-        ) :*: ("checkFatalWarnings", c.checkFatalWarnings) :*: (
-          "dump",
-          c.dump
-        ) :*: ("optimize", c.optimize) :*: (
-          "linktimeProperties",
-          c.linktimeProperties
-        ) :*: ("embedResources", c.embedResources) :*: LNil
+        ("gc", c.gc) :*:
+          ("mode", c.mode) :*:
+          ("buildTarget", c.buildTarget) :*:
+          ("clang", c.clang) :*:
+          ("clangPP", c.clangPP) :*:
+          ("linkingOptions", c.linkingOptions) :*:
+          ("compileOptions", c.compileOptions) :*:
+          ("targetTriple", c.targetTriple) :*:
+          ("linkStubs", c.linkStubs) :*:
+          ("lto", c.lto) :*:
+          ("check", c.check) :*:
+          ("checkFatalWarnings", c.checkFatalWarnings) :*:
+          ("dump", c.dump) :*:
+          ("optimize", c.optimize) :*:
+          ("linktimeProperties", c.linktimeProperties) :*:
+          ("embedResources", c.embedResources) :*:
+          LNil
       },
       {
-        case (_, gc) :*: (_, mode) :*: (_, clang) :*: (_, clangPP) :*: (
-              _,
-              linkingOptions
-            ) :*: (
-              _,
-              compileOptions
-            ) :*: (_, targetTriple) :*: (_, linkStubs) :*: (_, lto) :*: (
-              _,
-              check
-            ) :*: (_, checkFatalWarnings) :*: (_, dump) :*: (_, optimize) :*: (
-              _,
-              linktimeProperties
-            ) :*: (_, embedResources) :*: LNil =>
+        case (_, gc) :*: (_, mode) :*: (_, buildTarget) :*:
+            (_, clang) :*: (_, clangPP) :*:
+            (_, linkingOptions) :*: (_, compileOptions) :*:
+            (_, targetTriple) :*: (_, linkStubs) :*: (_, lto) :*:
+            (_, check) :*: (_, checkFatalWarnings) :*:
+            (_, dump) :*: (_, optimize) :*:
+            (_, linktimeProperties) :*:
+            (_, embedResources) :*: LNil =>
           build.NativeConfig.empty
             .withGC(gc)
             .withMode(mode)
+            .withBuildTarget(buildTarget)
             .withClang(clang)
             .withClangPP(clangPP)
             .withLinkingOptions(linkingOptions)
@@ -197,16 +203,15 @@ private[sbtplugin] object NativeLinkCacheImplicits {
       Path
     ] :*: build.NativeConfig :*: LNil](
       { c: build.Config =>
-        ("workdir", c.workdir) :*: ("mainClass", c.selectedMainClass) :*: (
-          "classPath",
-          c.classPath
-        ) :*: ("compilerConfig", c.compilerConfig) :*: LNil
+        ("workdir", c.workdir) :*:
+          ("mainClass", c.mainClass) :*:
+          ("classPath", c.classPath) :*:
+          ("compilerConfig", c.compilerConfig) :*:
+          LNil
       },
       {
-        case (_, workdir) :*: (_, mainClass) :*: (_, classPath) :*: (
-              _,
-              compilerConfig
-            ) :*: LNil =>
+        case (_, workdir) :*: (_, mainClass) :*: (_, classPath) :*:
+            (_, compilerConfig) :*: LNil =>
           build.Config.empty
             .withMainClass(mainClass)
             .withClassPath(classPath)

@@ -106,6 +106,6 @@ trait ReachabilitySuite extends AnyFunSuite {
     default
       .withWorkdir(outDir)
       .withClassPath(paths.toSeq)
-      .withMainClass(Some(mainClass))
+      .withMainClass(mainClass)
   }
 }

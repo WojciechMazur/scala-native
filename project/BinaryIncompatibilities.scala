@@ -9,7 +9,7 @@ object BinaryIncompatibilities {
   final val Nir: Filters = Seq(
     exclude[DirectMissingMethodProblem]("scala.scalanative.nir.Rt.*"),
     // sealed trait replaced with sealed abstract class, used internally
-    exclude[Problem]("scala.scalanative.nir.Sig$Scope*"),
+    exclude[Problem]("scala.scalanative.nir.Sig$Scope*")
   )
 
   final val NscPlugin = Seq(

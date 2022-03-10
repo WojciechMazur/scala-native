@@ -96,6 +96,9 @@ private[scalanative] object LLVM {
       objectsPaths: Seq[Path],
       outpath: Path
   ): Path = {
+    val linkOutput = new LinkOutput(outpath, config)
+    val finalOutpath = linkOutput.finalPath
+
     val links = {
       val srclinks = linkerResult.links.collect {
         case Link("z") if config.targetsWindows => "zlib"
@@ -124,11 +127,12 @@ private[scalanative] object LLVM {
           }
           Seq("-g") ++ ltoSupport
         } else Seq("-rdynamic")
-      flto(config) ++ platformFlags ++ Seq("-o", outpath.abs) ++ target(config)
+      flto(config) ++ platformFlags ++ Seq("-o", finalOutpath.abs) ++
+        target(config)
     }
     val paths = objectsPaths.map(_.abs)
     val linkCommand: Seq[String] = Seq(config.clangPP.abs) ++
-      flags ++ paths ++ links ++ buildLinkOpts(config) ++
+      flags ++ paths ++ links ++ buildLinkOpts(config, linkOutput) ++
       config.linkingOptions // Allow to override with user config
 
     config.logger.time(
@@ -139,10 +143,10 @@ private[scalanative] object LLVM {
         Process(linkCommand, config.workdir.toFile) !
           Logger.toProcessLogger(config.logger)
       if (result != 0) {
-        throw new BuildException(s"Failed to link ${outpath}")
+        throw new BuildException(s"Failed to link ${finalOutpath}")
       }
     }
-    outpath
+    finalOutpath
   }
 
   private def flto(config: Config): Seq[String] =
@@ -163,6 +167,26 @@ private[scalanative] object LLVM {
       case Mode.ReleaseFast => "-O2"
       case Mode.ReleaseFull => "-O3"
     }
+
+  private class LinkOutput(originalOutPath: Path, config: Config) {
+    val directory = Option(originalOutPath.toAbsolutePath.getParent())
+      .getOrElse(originalOutPath.getRoot())
+    val filename = originalOutPath.getFileName().toString()
+    val baseFilename = filename.lastIndexOf(".") match {
+      case -1  => filename
+      case idx => filename.substring(0, idx)
+    }
+
+    val buildTargetExtension: String = {
+      config.compilerConfig.buildTarget match {
+        case BuildTarget.Application =>
+          if (config.targetsWindows) ".exe" else ".out"
+        case BuildTarget.LibraryDynamic =>
+          if (config.targetsWindows) ".dll" else ".so"
+      }
+    }
+    val finalPath: Path = directory.resolve(baseFilename + buildTargetExtension)
+  }
 
   private def buildCompileOpts(config: Config): Seq[String] =
     config.compilerConfig.buildTarget match {

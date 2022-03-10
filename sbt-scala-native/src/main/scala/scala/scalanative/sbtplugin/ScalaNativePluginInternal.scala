@@ -108,8 +108,12 @@ object ScalaNativePluginInternal {
 
   def scalaNativeConfigSettings(nameSuffix: String): Seq[Setting[_]] = Seq(
     nativeLink / artifactPath := {
-      val ext = if (Platform.isWindows) ".exe" else ""
-      crossTarget.value / s"${moduleName.value}$nameSuffix-out$ext"
+      // Since this is a setting we cannot use native config to create a proper
+      // output name depending on build target,
+      // it would be handled when preparing args for Clang linker.
+      // Becouse of that actual path might differ by extension from artifact path set here
+      val ext = if (Platform.isWindows) ".exe" else ".out"
+      crossTarget.value / s"${moduleName.value}$nameSuffix$ext"
     },
     nativeWorkdir := {
       val workdir = crossTarget.value / s"native$nameSuffix"

@@ -134,7 +134,7 @@ private[scalanative] object LLVM {
     }
     val paths = objectsPaths.map(_.abs)
     val linkCommand: Seq[String] = Seq(config.clangPP.abs) ++
-      flags ++ paths ++ links ++ buildLinkOpts(config, linkOutput) ++
+      flags ++ paths ++ links ++ buildLinkOpts(config) ++
       config.linkingOptions // Allow to override with user config
 
     config.logger.time(

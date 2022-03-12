@@ -200,7 +200,7 @@ private[scalanative] object LLVM {
     config.compilerConfig.buildTarget match {
       case BuildTarget.Application => Nil
       case BuildTarget.LibraryDynamic =>
-        Seq("-shared") ++ optionalPICflag(config)
+        Seq("-shared", "-Wl,-keep_dwarf_unwind") ++ optionalPICflag(config)
     }
 
   private def optionalPICflag(config: Config): Seq[String] =

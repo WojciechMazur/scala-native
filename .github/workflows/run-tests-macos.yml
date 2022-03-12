@@ -40,7 +40,8 @@ jobs:
         run: >
           clang++ scripted-tests/run/build-library/src/main/c/testlib.cpp -S -emit-llvm -o -      
       - name: show-env
-        run: printenv
+        run: ld --help
+
 
   #     - name: Test runtime
   #       run: >

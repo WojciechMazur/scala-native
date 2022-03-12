@@ -39,6 +39,8 @@ jobs:
       - name: compile-ehdeclare
         run: >
           clang++ scripted-tests/run/build-library/src/main/c/testlib.cpp -S -emit-llvm -o -      
+      - name: show-env
+        run: printenv
 
   #     - name: Test runtime
   #       run: >

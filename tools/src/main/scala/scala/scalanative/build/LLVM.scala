@@ -59,7 +59,7 @@ private[scalanative] object LLVM {
           val opt = if (isCpp) List("-fcxx-exceptions") else Nil
           List("-fexceptions", "-funwind-tables") ::: opt
         }
-        val flags = opt(config) +: "-fvisibility=hidden" +:
+        val flags = opt(config) +:
           stdflag ++: platformFlags ++: excepctionsHandling ++:
           buildCompileOpts(config) ++: config.compileOptions
         val compilec =

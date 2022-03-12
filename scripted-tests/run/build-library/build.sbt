@@ -68,7 +68,7 @@ def discover(binaryName: String, envPath: String): Option[Path] = {
 
 def compileAndTest(
     clangPath: Path,
-    libPath: File,
+    libPath: File, 
     sourcePath: File,
     outFile: File
 ): Unit = {
@@ -79,7 +79,7 @@ def compileAndTest(
       "-o",
       outFile.absolutePath,
       s"-L${libPath.absolutePath}",
-      "-ltest", "-Wl,-keep_dwarf_unwind"
+      "-ltest", "-Wl,-keep_dwarf_unwind", "-fcompact-unwind"
     )
 
   val ldPath = sys.env

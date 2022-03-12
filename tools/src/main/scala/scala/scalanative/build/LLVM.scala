@@ -205,6 +205,6 @@ private[scalanative] object LLVM {
 
   private def optionalPICflag(config: Config): Seq[String] =
     if (config.targetsWindows) Nil
-    else Seq("-fPIC")
+    else Seq("-fPIC, -fcompact-unwind")
 
 }

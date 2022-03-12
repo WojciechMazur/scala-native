@@ -79,7 +79,7 @@ def compileAndTest(
       "-o",
       outFile.absolutePath,
       s"-L${libPath.absolutePath}",
-      "-ltest", "-Wl,-keep_dwarf_unwind", "-fcompact-unwind"
+      "-ltest", "-fexceptions", "-fcxx-exceptions"
     )
 
   val ldPath = sys.env

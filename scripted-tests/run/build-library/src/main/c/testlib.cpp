@@ -44,13 +44,13 @@ int main() {
     }
     assert(exceptionCaught);
 
-    exceptionCaught = false;
-    try {
-        fail();
-    } catch (const scalanative::ExceptionWrapper &e) {
-        exceptionCaught = true;
-    }
-    assert(exceptionCaught);
+    // exceptionCaught = false;
+    // try {
+    //     fail();
+    // } catch (const scalanative::ExceptionWrapper &e) {
+    //     exceptionCaught = true;
+    // }
+    // assert(exceptionCaught);
 
     return 0;
 }

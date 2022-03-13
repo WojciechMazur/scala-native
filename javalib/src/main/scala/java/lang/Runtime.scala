@@ -13,7 +13,7 @@ class Runtime private () {
   import Runtime.ProcessBuilderOps
   def availableProcessors(): Int = {
     if (isWindows) {
-      val sysInfo = stackalloc[SystemInfo]
+      val sysInfo = stackalloc[SystemInfo]()
       GetSystemInfo(sysInfo)
       sysInfo.numberOfProcessors.toInt
     } else {

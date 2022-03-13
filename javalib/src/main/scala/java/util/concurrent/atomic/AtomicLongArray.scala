@@ -34,7 +34,7 @@ class AtomicLongArray extends Serializable {
    *  @param length
    *    the length of the array
    */
-  def this(_length: Int) = {
+  def this(length: Int) = {
     this()
     this.array = new Array[Long](length)
   }
@@ -48,14 +48,10 @@ class AtomicLongArray extends Serializable {
    *    if array is null
    */
   def this(array: Array[Long]) = {
-    this(array.size)
-    System.arraycopy(array, 0, inner, 0, _length)
+    this()
+    this.array =  Arrays.copyOf[Long](array, array.length)
   }
 
-  private val inner: Array[Long] = new Array[Long](_length)
-
-  final def length(): Int =
-    inner.length
   /** Returns the length of the array.
    *
    *  @return

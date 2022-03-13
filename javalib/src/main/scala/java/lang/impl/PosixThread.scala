@@ -43,7 +43,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
   }
 
   {
-    val mutexAttr = stackalloc[pthread_mutexattr_t]
+    val mutexAttr = stackalloc[pthread_mutexattr_t]()
     assert(0 == pthread_mutexattr_init(mutexAttr))
     assert(0 == pthread_mutexattr_settype(mutexAttr, PTHREAD_MUTEX_RECURSIVE))
 
@@ -52,8 +52,8 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
   }
 
   def setPriority(priority: CInt): Unit = {
-    val schedParam = stackalloc[sched_param]
-    val policy = stackalloc[CInt]
+    val schedParam = stackalloc[sched_param]()
+    val policy = stackalloc[CInt]()
     pthread_getschedparam(handle, policy, schedParam)
     schedParam.priority = priority
     pthread_setschedparam(handle, !policy, schedParam)
@@ -93,7 +93,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
   }
 
   @inline def tryParkUntil(deadline: scala.Long): Unit = {
-    val deadlineSpec = stackalloc[timespec]
+    val deadlineSpec = stackalloc[timespec]()
     val MillisecondsInSecond = 1000
     deadlineSpec.tv_sec = TimeUnit.MILLISECONDS.toSeconds(deadline)
     deadlineSpec.tv_nsec =
@@ -102,7 +102,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
   }
 
   @inline def tryParkNanos(nanos: scala.Long): Unit = {
-    val deadlineSpec = stackalloc[timespec]
+    val deadlineSpec = stackalloc[timespec]()
 
     val deadline = System.nanoTime() + nanos
     val NanosecondsInSecond = 1000000000
@@ -187,7 +187,7 @@ private[lang] object PosixThread {
 
   def apply(thread: Thread): PosixThread = {
     import GCExt._
-    val id = stackalloc[pthread_t]
+    val id = stackalloc[pthread_t]()
 
     GC_pthread_create(
       thread = id,

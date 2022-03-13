@@ -33,7 +33,7 @@ private[java] case class WindowsThread(handle: Handle, id: UInt, thread: Thread)
     InitializeConditionVariable(isUnparked)
   }
 
-  override protected def onTermination() {
+  override protected def onTermination() = {
     super.onTermination()
     DeleteCriticalSection(threadParkingSection)
     CloseHandle(handle)
@@ -84,7 +84,7 @@ private[java] case class WindowsThread(handle: Handle, id: UInt, thread: Thread)
   @alwaysinline
   def tryParkNanos(nanos: scala.Long): Unit = {
     val NanosecondsInMillisecond = 1000000
-    val deadline = (System.nanoTime + nanos) / NanosecondsInMillisecond
+    val deadline = (System.nanoTime() + nanos) / NanosecondsInMillisecond
     tryParkTimed(deadline)
   }
 
@@ -159,7 +159,7 @@ object WindowsThread {
 
   def apply(thread: Thread): WindowsThread = {
     import GCExt._
-    val id = stackalloc[DWord]
+    val id = stackalloc[DWord]()
     val handle = GC_CreateThread(
       threadAttributes = null,
       stackSize = 0.toUInt, // Default

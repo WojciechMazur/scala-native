@@ -44,13 +44,17 @@ int main() {
     }
     assert(exceptionCaught);
 
-    // exceptionCaught = false;
-    // try {
-    //     fail();
-    // } catch (const scalanative::ExceptionWrapper &e) {
-    //     exceptionCaught = true;
-    // }
-    // assert(exceptionCaught);
+#ifndef __APPLE__
+    // For some unknown reason on macOS our exception wrapper is not being
+    // caught It works fine on Linux and Windows however.
+    exceptionCaught = false;
+    try {
+        fail();
+    } catch (const scalanative::ExceptionWrapper &e) {
+        exceptionCaught = true;
+    }
+    assert(exceptionCaught);
+#endif
 
     return 0;
 }

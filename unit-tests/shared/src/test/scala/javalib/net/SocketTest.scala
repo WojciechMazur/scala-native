@@ -6,6 +6,7 @@ import org.junit.Test
 import org.junit.Assert._
 import org.junit.Assume._
 
+import org.scalanative.testsuite.utils.Platform
 import scalanative.junit.utils.AssertThrows.assertThrows
 
 class SocketTest {
@@ -69,6 +70,12 @@ class SocketTest {
   }
 
   @Test def soTimeout(): Unit = {
+    assumeFalse(
+      "getsockopt return not yet supported error on aarch64-linux-gnu",
+      Platform.isArm64 &&
+        !Platform.executingInJVM &&
+        !(Platform.isWindows || Platform.isMacOs)
+    )
     val s = new Socket()
     try {
       val prevValue = s.getSoTimeout

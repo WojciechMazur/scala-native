@@ -60,8 +60,10 @@ private[scalanative] object LLVM {
             Seq("-DSCALANATIVE_MULTITHREADING_ENABLED")
           else Nil
         }
+        val expectionsHandling =
+          List("-fexceptions", "-fcxx-exceptions", "-funwind-tables")
         val flags = opt(config) +: "-fvisibility=hidden" +:
-          stdflag ++: platformFlags ++: configFlags ++: config.compileOptions
+          stdflag ++: platformFlags ++: configFlags ++: expectionsHandling ++: config.compileOptions
         val compilec =
           Seq(compiler) ++ flto(config) ++ flags ++ target(config) ++
             Seq("-c", inpath, "-o", outpath)
@@ -127,11 +129,7 @@ private[scalanative] object LLVM {
           }
           Seq("-g") ++ ltoSupport
         } else Seq("-rdynamic")
-      flto(config) ++ platformFlags ++ target(config) ++
-        Seq(
-          "-o",
-          outpath.abs
-        )
+      flto(config) ++ platformFlags ++ Seq("-o", outpath.abs) ++ target(config)
     }
     val paths = objectsPaths.map(_.abs)
     val compile = config.clangPP.abs +: (flags ++ paths ++ linkopts)

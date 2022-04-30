@@ -1779,7 +1779,7 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
         case LOAD_OBJECT  => Rt.Object
       }
 
-      buf.load(ty, ptr, unwind, isAtomic = false)(app.pos)
+      buf.load(ty, ptr, unwind, isAtomic = ptrp.symbol.isVolatile)(app.pos)
     }
 
     def genRawPtrStoreOp(app: Apply, code: Int): Val = {

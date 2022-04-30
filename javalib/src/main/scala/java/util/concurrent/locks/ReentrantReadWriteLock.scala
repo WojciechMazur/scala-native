@@ -134,7 +134,7 @@ object ReentrantReadWriteLock {
         if (w + exclusiveCount(acquires) > MAX_COUNT)
           throw new Error("Maximum lock count exceeded")
         setState(c + acquires)
-        true
+        return true
       }
       if (writerShouldBlock() || !state.compareAndSet(c, c + acquires))
         return false
@@ -241,7 +241,7 @@ object ReentrantReadWriteLock {
             rh.count += 1
             cacheHoldCounter = rh
           }
-          1
+          return 1
         }
       }
       // for the compiler
@@ -288,7 +288,7 @@ object ReentrantReadWriteLock {
               readHolds.set(rh)
             rh.count += 1
           }
-          true
+          return true
         }
       }
       // for the compiler

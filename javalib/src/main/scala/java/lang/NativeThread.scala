@@ -153,7 +153,7 @@ object NativeThread {
   }
 
   def threadRoutine: ThreadStartRoutine = {
-    CFuncPtr1.fromScalaFunction { arg: PtrAny =>
+    CFuncPtr1.fromScalaFunction { (arg: PtrAny) =>
       val thread = castRawPtrToObject(toRawPtr(arg))
         .asInstanceOf[Thread]
 

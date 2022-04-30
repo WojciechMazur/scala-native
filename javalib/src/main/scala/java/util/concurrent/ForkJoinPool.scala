@@ -693,7 +693,8 @@ import scala.scalanative.runtime.ObjectArray
  *  resources have been exhausted.
  *
  *  @since 1.7
- *    @author Doug Lea
+ *  @author
+ *    Doug Lea
  */
 class ForkJoinPool(
     parallelism: Int,
@@ -1112,11 +1113,12 @@ class ForkJoinPool(
         src == 0
       }
 
-      do {
+      while ({
         r ^= r << 13
         r ^= r >>> 17
         r ^= r << 5 // xorshift
-      } while (tryScan() || tryAwaitWork())
+        tryScan() || tryAwaitWork()
+      }) ()
     }
   }
 
@@ -1161,7 +1163,7 @@ class ForkJoinPool(
         q.base.set(nextBase)
         w.source.set(src)
         if (src != prevSrc && next != null) {
-          signalWork() //propagate
+          signalWork() // propagate
         }
         w.topLevelExec(t, q)
         return src
@@ -1464,10 +1466,10 @@ class ForkJoinPool(
               s = task.status.get()
               if (s <= 0) return s
               else if ((q.source.get() & SMASK) != sq || q.base.get() != b) {
-                scan = true //inconsistent
+                scan = true // inconsistent
               } else if (t == null) {
                 val shouldScan = a(nextBase & (cap - 1)) != null ||
-                  q.top != b //lagging
+                  q.top != b // lagging
                 scan |= shouldScan
               } else if (isEligable) {
                 if (WorkQueue.casSlotToNull(a, k, t)) {
@@ -2000,11 +2002,13 @@ class ForkJoinPool(
    *  @throws RejectedExecutionException
    *    if the task cannot be scheduled for execution
    */
-  override def execute(task: Runnable): Unit = externalSubmit {
-    task match {
+  override def execute(task: Runnable): Unit = {
+    // Scala3 compiler has problems with type intererenfe when passed to externalSubmit directlly
+    val taskToUse: ForkJoinTask[_] = task match {
       case task: ForkJoinTask[_] => task
       case _                     => new ForkJoinTask.RunnableExecuteAction(task)
     }
+    externalSubmit(taskToUse)
   }
 
   /** Submits a ForkJoinTask for execution.
@@ -2047,11 +2051,12 @@ class ForkJoinPool(
    *  @throws RejectedExecutionException
    *    if the task cannot be scheduled for execution
    */
-  override def submit(task: Runnable): ForkJoinTask[_] = externalSubmit {
-    task match {
+  override def submit(task: Runnable): ForkJoinTask[_] = {
+    val taskToUse = task match {
       case task: ForkJoinTask[_] => task
-      case _                     => new ForkJoinTask.AdaptedRunnableAction(task)
+      case _ => new ForkJoinTask.AdaptedRunnableAction(task): ForkJoinTask[_]
     }
+    externalSubmit(taskToUse)
   }
 
   /** @throws NullPointerException

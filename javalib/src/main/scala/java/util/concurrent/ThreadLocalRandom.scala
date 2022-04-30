@@ -46,7 +46,8 @@ import java.util.stream.StreamSupport
  *  set to {@code true}.
  *
  *  @since 1.7
- *    @author Doug Lea
+ *  @author
+ *    Doug Lea
  */
 @SerialVersionUID(-5851777807851030925L)
 object ThreadLocalRandom {
@@ -97,7 +98,7 @@ object ThreadLocalRandom {
    *  the standard divide-by-two approach. The long and double versions of this
    *  class are identical except for types.
    */
-  final private class RandomIntsSpliterator private[concurrent] (
+  final private class RandomIntsSpliterator(
       var index: Long,
       fence: Long,
       origin: Int,
@@ -157,7 +158,7 @@ object ThreadLocalRandom {
 
   /** Spliterator for long streams.
    */
-  final private class RandomLongsSpliterator private[concurrent] (
+  final private class RandomLongsSpliterator(
       var index: Long,
       fence: Long,
       origin: Long,
@@ -216,7 +217,7 @@ object ThreadLocalRandom {
 
   /** Spliterator for double streams.
    */
-  final private class RandomDoublesSpliterator private[concurrent] (
+  final private class RandomDoublesSpliterator(
       var index: Long,
       fence: Long,
       origin: Double,
@@ -300,9 +301,9 @@ object ThreadLocalRandom {
       r ^= r << 5
     } else {
       r = mix32(seeder.getAndAdd(SEEDER_INCREMENT))
-      if (r == 0) r = 1 //avoid zero
+      if (r == 0) r = 1 // avoid zero
     }
-    //U.putInt(t, SECONDARY, r)
+    // U.putInt(t, SECONDARY, r)
     t.threadLocalRandomSecondarySeed = r
     r
   }
@@ -374,7 +375,8 @@ object ThreadLocalRandom {
 @SerialVersionUID(-5851777807851030925L)
 class ThreadLocalRandom private ()
 /** Constructor used only for static singleton
- */ extends Random {
+ */
+    extends Random {
 
   /** Field used only during singleton initialization. True when constructor
    *  completes.
@@ -682,12 +684,13 @@ class ThreadLocalRandom private ()
     var v1 = .0
     var v2 = .0
     var s = .0
-    do {
+    while ({
       v1 = 2 * nextDouble() - 1 // between -1 and 1
 
       v2 = 2 * nextDouble() - 1
       s = v1 * v1 + v2 * v2
-    } while ({ s >= 1 || s == 0 })
+      s >= 1 || s == 0
+    }) ()
 
     val multiplier = Math.sqrt(-2 * Math.log(s) / s)
     ThreadLocalRandom.nextLocalGaussian.set(

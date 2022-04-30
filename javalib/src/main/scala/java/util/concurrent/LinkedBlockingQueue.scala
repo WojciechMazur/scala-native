@@ -24,12 +24,12 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
 
   /** Head of linked list. Invariant: head.item == null
    */
-  //transient
+  // transient
   private var head: Node[E] = new Node[E](null.asInstanceOf[E])
 
   /** Tail of linked list. Invariant: last.next == null
    */
-  //transient
+  // transient
   private var last: Node[E] = new Node[E](null.asInstanceOf[E])
 
   /** Lock held by take, poll, etc */
@@ -349,7 +349,7 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
     }
   }
 
-  override def toArray[T](a: Array[T]): Array[T] = {
+  override def toArray[T <: AnyRef](a: Array[T]): Array[T] = {
     fullyLock()
     try {
       val size: Int = count.get()
@@ -516,7 +516,7 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
       }
     }
 
-    do {
+    while ({
       fullyLock()
       try {
         if (es == null) {
@@ -537,7 +537,8 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
         val e = es(i).asInstanceOf[E]
         action.accept(e)
       }
-    } while (n > 0 && p != null)
+      n > 0 && p != null
+    }) ()
   }
 
   override def removeIf(filter: Predicate[_ >: E]): Boolean = {
@@ -591,7 +592,7 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
     var ancestor = head
     var n = 0
 
-    do {
+    while ({
       // 1. Extract batch of up to 64 elements while holding the lock.
       fullyLock()
       @tailrec
@@ -647,7 +648,8 @@ class LinkedBlockingQueue[E](private final val capacity: Int)
           }
         } finally fullyUnlock()
       }
-    } while (n > 0 && p != null)
+      n > 0 && p != null
+    }) ()
     removed
   }
 

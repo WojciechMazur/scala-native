@@ -1843,7 +1843,7 @@ trait NirGenExpr(using Context) {
         case LOAD_RAW_PTR => nir.Type.Ptr
         case LOAD_OBJECT  => Rt.Object
       }
-      buf.load(ty, ptr, unwind)
+      buf.load(ty, ptr, unwind, isAtomic = ptrp.symbol.isVolatile)
     }
 
     private def genRawPtrStoreOp(app: Apply, code: Int): Val = {
@@ -1865,7 +1865,7 @@ trait NirGenExpr(using Context) {
         case STORE_RAW_PTR => nir.Type.Ptr
         case STORE_OBJECT  => Rt.Object
       }
-      buf.store(ty, ptr, value, unwind)
+      buf.store(ty, ptr, value, unwind, isAtomic = ptrp.symbol.isVolatile)
     }
 
     private def genRawPtrElemOp(app: Apply, code: Int): Val = {
@@ -2118,7 +2118,7 @@ trait NirGenExpr(using Context) {
 
       val name = Val.Global(genName(sym), Type.Ptr)
 
-      fromExtern(ty, buf.load(externTy, name, unwind))
+      fromExtern(ty, buf.load(externTy, name, unwind, isAtomic = sym.isVolatile))
     }
 
     def genStoreExtern(externTy: nir.Type, sym: Symbol, value: Val)(using
@@ -2128,7 +2128,7 @@ trait NirGenExpr(using Context) {
       val name = Val.Global(genName(sym), Type.Ptr)
       val externValue = toExtern(externTy, value)
 
-      buf.store(externTy, name, externValue, unwind)
+      buf.store(externTy, name, externValue, unwind, isAtomic = sym.isVolatile)
     }
 
     def toExtern(expectedTy: nir.Type, value: Val)(using nir.Position): Val =

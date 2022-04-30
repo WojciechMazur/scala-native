@@ -423,23 +423,25 @@ trait NirGenStat(using Context) {
 
   def validateExternCtor(rhs: Tree): Unit = {
     val Block(_ +: init, _) = rhs
-    val externs = init.map {
+    val externs = init.flatMap {
       case Assign(ref: RefTree, Apply(extern, Seq()))
           if extern.symbol == defnNir.UnsafePackage_extern =>
-        ref.symbol
+        Some(ref.symbol)
       case _ =>
         report.error(
           "extern objects may only contain extern fields and methods",
           rhs.sourcePos
         )
+        None
     }.toSet
-    for {
-      f <- curClassSym.get.info.decls.toList if f.isField
+    for
+      f <- curClassSym.get.info.decls.toList if f.isField && !f.is(Module)
       if !externs.contains(f)
-    } report.error(
-      "extern objects may only contain extern fields",
-      f.sourcePos
-    )
+    do
+      report.error(
+        "extern objects may only contain extern fields",
+        f.sourcePos
+      )
   }
 
   // Static forwarders -------------------------------------------------------

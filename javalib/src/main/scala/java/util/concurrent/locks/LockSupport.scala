@@ -15,7 +15,6 @@ import java.util.concurrent.TimeUnit
 import scala.scalanative.posix
 import scala.scalanative.posix.errno.ETIMEDOUT
 import scala.scalanative.libc.string
-import java.lang.Thread.State._
 import java.lang.impl._
 
 object LockSupport {

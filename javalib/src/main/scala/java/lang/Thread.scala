@@ -181,7 +181,7 @@ class Thread private[lang] (
     // this method is not implemented
     throw new NoSuchMethodError()
 
-  //synchronized
+  // synchronized
   final def join(): Unit = {
     while (isAlive()) wait()
   }
@@ -262,14 +262,13 @@ class Thread private[lang] (
 
   def getState(): State = {
     import NativeThread.State._
-    import State._
     nativeThread.state match {
-      case Terminated            => TERMINATED
-      case WaitingWithTimeout    => TIMED_WAITING
-      case Waiting | Parked      => WAITING
-      case WaitingOnMonitorEnter => BLOCKED
-      case Running               => RUNNABLE
-      case New                   => NEW
+      case Terminated            => State.TERMINATED
+      case WaitingWithTimeout    => State.TIMED_WAITING
+      case Waiting | Parked      => State.WAITING
+      case WaitingOnMonitorEnter => State.BLOCKED
+      case Running               => State.RUNNABLE
+      case New                   => State.NEW
     }
   }
 
@@ -313,6 +312,9 @@ class Thread private[lang] (
 }
 
 object Thread {
+  type State = ThreadState
+  lazy val State = ThreadState
+
   // Thread Local Storage
   @extern
   object TLS {
@@ -358,26 +360,6 @@ object Thread {
   final val MAX_PRIORITY: Int = 10
   final val MIN_PRIORITY: Int = 1
   final val NORM_PRIORITY: Int = 5
-
-  sealed class State(name: String, ordinal: Int)
-      extends Enum[State](name, ordinal)
-  object State {
-    final val NEW: State = new State("NEW", 0)
-    final val RUNNABLE: State = new State("RUNNABLE", 1)
-    final val BLOCKED: State = new State("BLOCKED", 2)
-    final val WAITING: State = new State("WAITING", 3)
-    final val TIMED_WAITING: State = new State("TIMED_WAITING", 4)
-    final val TERMINATED: State = new State("TERMINATED", 5)
-
-    private[this] val cachedValues =
-      Array(NEW, RUNNABLE, BLOCKED, WAITING, TIMED_WAITING, TERMINATED)
-    def values(): Array[State] = cachedValues.clone()
-    def valueOf(name: String): State = {
-      cachedValues.find(_.name() == name).getOrElse {
-        throw new IllegalArgumentException("No enum const Thread.State." + name)
-      }
-    }
-  }
 
   def onSpinWait(): Unit = NativeThread.Intrinsics.yieldProcessor()
 

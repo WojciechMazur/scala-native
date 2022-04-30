@@ -52,7 +52,7 @@ import scala.annotation.tailrec
  *  class Worker implements Runnable { private final CountDownLatch startSignal;
  *  private final CountDownLatch doneSignal; Worker(CountDownLatch startSignal,
  *  CountDownLatch doneSignal) { this.startSignal = startSignal; this.doneSignal
- *  = doneSignal; } public void run() { try { startSignal.await(); doWork();
+ *  \= doneSignal; } public void run() { try { startSignal.await(); doWork();
  *  doneSignal.countDown(); } catch (InterruptedException ex) {} // return; }
  *
  *  void doWork() { ... } }}</pre>
@@ -86,7 +86,8 @@ import scala.annotation.tailrec
  *  in another thread.
  *
  *  @since 1.5
- *    @author Doug Lea
+ *  @author
+ *    Doug Lea
  */
 object CountDownLatch {
 
@@ -94,8 +95,7 @@ object CountDownLatch {
    *  count.
    */
   @SerialVersionUID(4982264981922014374L)
-  final private class Sync private[concurrent] (val count: Int)
-      extends AbstractQueuedSynchronizer {
+  final private class Sync(val count: Int) extends AbstractQueuedSynchronizer {
     setState(count)
 
     private[concurrent] def getCount() = getState()
@@ -120,7 +120,7 @@ object CountDownLatch {
   }
 }
 
-class CountDownLatch(sync: CountDownLatch.Sync) {
+class CountDownLatch private (sync: CountDownLatch.Sync) {
   def this(count: Int) = {
     this(sync = {
       if (count < 0) throw new IllegalArgumentException("count < 0")

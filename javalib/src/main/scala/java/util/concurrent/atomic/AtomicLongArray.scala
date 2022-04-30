@@ -15,6 +15,7 @@ import scala.scalanative.runtime.MemoryLayout
 
 import java.util.function.LongBinaryOperator
 import java.util.function.LongUnaryOperator
+import java.util.Arrays
 import scala.scalanative.runtime.LongArray
 
 @SerialVersionUID(-2308431214976778248L)
@@ -49,7 +50,7 @@ class AtomicLongArray extends Serializable {
    */
   def this(array: Array[Long]) = {
     this()
-    this.array =  Arrays.copyOf[Long](array, array.length)
+    this.array = Arrays.copyOf(array, array.length)
   }
 
   /** Returns the length of the array.

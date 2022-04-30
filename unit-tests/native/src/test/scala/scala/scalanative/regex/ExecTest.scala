@@ -111,7 +111,7 @@ class ExecTest {
     }) breakable {
       lineno += 1
       // Compat for Windows
-      if (isWindows) {
+      if (isWindows()) {
         line = line.replaceAll("\r", "")
       }
       if (line.isEmpty)
@@ -384,7 +384,7 @@ class ExecTest {
     }) breakable {
       lineno += 1
       // Compat for Windows
-      if (isWindows) {
+      if (isWindows()) {
         line = line.replaceAll("\r", "")
       }
       // if (line.isEmpty()) {

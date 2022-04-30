@@ -105,7 +105,8 @@ object BoxesRunTime {
   def equalsNumNum(xn: Number, yn: Number): Boolean = {
     val xcode = typeCode(xn)
     val ycode = typeCode(yn)
-    ((if (ycode > xcode) ycode else xcode): @switch) match {
+    val toMatch = if (ycode > xcode) ycode else xcode
+    (toMatch: @switch) match {
       case INT    => xn.intValue == yn.intValue
       case LONG   => xn.longValue == yn.longValue
       case FLOAT  => xn.floatValue == yn.floatValue
@@ -136,7 +137,7 @@ object BoxesRunTime {
       case LONG   => xn.longValue == ch
       case FLOAT  => xn.floatValue == ch
       case DOUBLE => xn.doubleValue == ch
-      case _      => xn == yc
+      case _      => xn == ch.toInt
     }
   }
 }

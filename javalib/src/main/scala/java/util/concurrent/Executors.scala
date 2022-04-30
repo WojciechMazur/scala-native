@@ -33,7 +33,8 @@ import scala.scalanative.annotation.alwaysinline
  *  {@code Callable}. </ul>
  *
  *  @since 1.5
- *    @author Doug Lea
+ *  @author
+ *    Doug Lea
  */
 object Executors {
 
@@ -515,7 +516,7 @@ object Executors {
 
   /** A callable that runs given task and returns given result.
    */
-  final private class RunnableAdapter[T] private[concurrent] (
+  final private class RunnableAdapter[T](
       val task: Runnable,
       val result: T
   ) extends Callable[T] {
@@ -530,7 +531,7 @@ object Executors {
 
   /** A callable that runs under established access control settings.
    */
-  final private class PrivilegedCallable[T] private[concurrent] (
+  final private class PrivilegedCallable[T](
       val task: Callable[T]
   ) extends Callable[T] {
     final private[concurrent] val acc: AccessControlContext =
@@ -556,10 +557,9 @@ object Executors {
   /** A callable that runs under established access control settings and current
    *  ClassLoader.
    */
-  final private class PrivilegedCallableUsingCurrentClassLoader[
-      T
-  ] private[concurrent] (val task: Callable[T])
-      extends Callable[T] {
+  final private class PrivilegedCallableUsingCurrentClassLoader[T](
+      val task: Callable[T]
+  ) extends Callable[T] {
     final private[concurrent] var acc: AccessControlContext =
       AccessController.getContext()
     final private[concurrent] var ccl: ClassLoader =
@@ -567,24 +567,25 @@ object Executors {
 
     @throws[Exception]
     override def call(): T = {
-      try return AccessController.doPrivileged(
-        new PrivilegedExceptionAction[T]() {
-          @throws[Exception]
-          override def run(): T = {
-            val t: Thread = Thread.currentThread()
-            val cl: ClassLoader = t.getContextClassLoader()
-            if (ccl eq cl) { return task.call() }
-            else {
-              t.setContextClassLoader(ccl)
-              try return task.call()
-              finally {
-                t.setContextClassLoader(cl)
+      try
+        AccessController.doPrivileged(
+          new PrivilegedExceptionAction[T]() {
+            @throws[Exception]
+            override def run(): T = {
+              val t: Thread = Thread.currentThread()
+              val cl: ClassLoader = t.getContextClassLoader()
+              if (ccl eq cl) { return task.call() }
+              else {
+                t.setContextClassLoader(ccl)
+                try return task.call()
+                finally {
+                  t.setContextClassLoader(cl)
+                }
               }
             }
-          }
-        },
-        acc
-      )
+          },
+          acc
+        )
       catch {
         case e: PrivilegedActionException =>
           throw e.getException
@@ -600,9 +601,8 @@ object Executors {
   private object DefaultThreadFactory {
     private val poolNumber: AtomicInteger = new AtomicInteger(1)
   }
-  private class DefaultThreadFactory private[concurrent] ()
-      extends ThreadFactory {
-    //Originally SecurityManager threadGroup was tried first
+  private class DefaultThreadFactory() extends ThreadFactory {
+    // Originally SecurityManager threadGroup was tried first
     final private val group: ThreadGroup =
       Thread.currentThread().getThreadGroup()
 
@@ -623,7 +623,7 @@ object Executors {
 
   /** Thread factory capturing access control context and class loader.
    */
-  private class PrivilegedThreadFactory private[concurrent] ()
+  private class PrivilegedThreadFactory()
       extends Executors.DefaultThreadFactory {
     final private[concurrent] val acc: AccessControlContext =
       AccessController.getContext()
@@ -650,7 +650,7 @@ object Executors {
   /** A wrapper class that exposes only the ExecutorService methods of an
    *  ExecutorService implementation.
    */
-  private class DelegatedExecutorService private[concurrent] (
+  private class DelegatedExecutorService(
       val executor: ExecutorService
   ) extends ExecutorService {
 
@@ -750,7 +750,7 @@ object Executors {
       }
     }
   }
-  private class FinalizableDelegatedExecutorService private[concurrent] (
+  private class FinalizableDelegatedExecutorService(
       executor: ExecutorService
   ) extends Executors.DelegatedExecutorService(executor) {
     override protected def finalize(): Unit = { super.shutdown() }
@@ -759,7 +759,7 @@ object Executors {
   /** A wrapper class that exposes only the ScheduledExecutorService methods of
    *  a ScheduledExecutorService implementation.
    */
-  private class DelegatedScheduledExecutorService private[concurrent] (
+  private class DelegatedScheduledExecutorService(
       e: ScheduledExecutorService
   ) extends Executors.DelegatedExecutorService(e)
       with ScheduledExecutorService {
@@ -795,6 +795,6 @@ object Executors {
     }
   }
 }
+
+// Cannot instantiate.
 class Executors private ()
-/** Cannot instantiate.
- */ {}

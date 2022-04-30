@@ -1,6 +1,6 @@
 package scala.scalanative.testinterface.signalhandling
 
-import scala.scalanative.meta.LinktimeInfo.isWindows
+import scala.scalanative.meta.LinktimeInfo._
 import scala.scalanative.libc.stdlib._
 import scala.scalanative.libc.signal._
 import scala.scalanative.libc.string._
@@ -153,7 +153,10 @@ private[testinterface] object SignalConfig {
       setHandler(SIGSYS)
       setHandler(SIGTRAP)
       setHandler(SIGVTALRM)
-      setHandler(SIGXCPU)
+      // When multithreading enabled and using Boehm GC
+      if (isMultithreadingEnabled && !isWeakReferenceSupported) {
+        setHandler(SIGXCPU)
+      }
       setHandler(SIGXFSZ)
     }
   }

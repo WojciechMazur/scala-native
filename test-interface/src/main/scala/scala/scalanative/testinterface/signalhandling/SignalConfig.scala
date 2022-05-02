@@ -154,7 +154,7 @@ private[testinterface] object SignalConfig {
       setHandler(SIGTRAP)
       setHandler(SIGVTALRM)
       // When multithreading enabled and using Boehm GC
-      if (isMultithreadingEnabled && !isWeakReferenceSupported) {
+      if (!isMultithreadingEnabled) {
         setHandler(SIGXCPU)
       }
       setHandler(SIGXFSZ)

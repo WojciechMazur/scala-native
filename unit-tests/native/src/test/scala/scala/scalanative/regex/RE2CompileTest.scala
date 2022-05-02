@@ -50,8 +50,7 @@ class RE2CompileTest {
   )
 
   @Test def compile(): Unit = {
-    for (Array(input, rawExpectedError) <- testData) {
-      val expectedError = rawExpectedError
+    for (Array(input, expectedError) <- testData) {
       try {
         RE2.compile(input)
         if (expectedError != null)

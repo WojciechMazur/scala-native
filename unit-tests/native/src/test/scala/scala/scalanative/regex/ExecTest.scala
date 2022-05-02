@@ -110,10 +110,6 @@ class ExecTest {
       line != null
     }) breakable {
       lineno += 1
-      // Compat for Windows
-      if (isWindows()) {
-        line = line.replaceAll("\r", "")
-      }
       if (line.isEmpty)
         fail("%s:%d: unexpected blank line".format(file, lineno))
       val first = line.charAt(0)
@@ -312,8 +308,8 @@ class ExecTest {
     n = 0
     j = 0
     while (j <= len) {
-      if (j == len || res
-            .charAt(j) == ' ') { // Process a single pair.  - means no submatch.
+      // Process a single pair.  - means no submatch.
+      if (j == len || res.charAt(j) == ' ') {
         val pair = res.substring(i, j)
         if (pair == "-") {
           out({
@@ -383,10 +379,6 @@ class ExecTest {
       line != null
     }) breakable {
       lineno += 1
-      // Compat for Windows
-      if (isWindows()) {
-        line = line.replaceAll("\r", "")
-      }
       // if (line.isEmpty()) {
       //   fail(String.format("%s:%d: unexpected blank line", file, lineno));
       // }
@@ -532,7 +524,6 @@ class ExecTest {
       try pos = parseFowlerResult(field.get(3), shouldCompileMatch)
       catch {
         case NonFatal(e) =>
-          println(e.getMessage())
           System.err.println(
             "%s:%d: cannot parse result %s\n"
               .format(file, lineno, field.get(3))
@@ -657,8 +648,8 @@ class ExecTest {
       shouldCompileMatch(0) = true
       shouldCompileMatch(1) = false
       return Collections.emptyList[Integer]
-    } else if ('A' <= s.charAt(0) && s
-          .charAt(0) <= 'Z') { // All the other error codes are compile errors.
+    } else if ('A' <= s.charAt(0) && s.charAt(0) <= 'Z') {
+      // All the other error codes are compile errors.
       shouldCompileMatch(0) = false
       return Collections.emptyList[Integer]
     }
@@ -668,9 +659,8 @@ class ExecTest {
     while (!s.isEmpty) {
       var end = ')'
       if ((result.size % 2) == 0) {
-        if (s.charAt(0) != '(') {
+        if (s.charAt(0) != '(')
           throw new RuntimeException("parse error: missing '('")
-        }
         s = s.substring(1)
         end = ','
       }

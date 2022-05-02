@@ -241,7 +241,7 @@ object Generate {
               name.member(Sig.Generated("instance"))
             val instanceVal =
               Val.StructValue(Seq(moduleTyVal))
-            val instanceDefn = Defn.Const(
+            val instanceDefn = Defn.Var(
               Attrs.None,
               instanceName,
               Type.StructValue(Seq(Type.Ptr)),

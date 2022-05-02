@@ -1569,27 +1569,61 @@ trait NirGenExpr(using Context) {
     def genSynchronized(
         receiverp: Tree
     )(bodyGen: ExprBuffer => Val)(using nir.Position): Val = {
-      val monitor =
-        genApplyModuleMethod(
-          defnNir.RuntimePackageClass,
-          defnNir.RuntimePackage_getMonitor,
-          Seq(receiverp)
-        )
-      val enter = genApplyMethod(
-        defnNir.RuntimeMonitor_enter,
-        statically = true,
-        monitor,
-        Seq()
+      // Here we wrap the synchronized call into the try-finally block
+      // to ensure that monitor would be released even in case of the exception
+      // or in case of non-local returns
+      val nested = new ExprBuffer()
+      val normaln = fresh()
+      val handler = fresh()
+      val mergen = fresh()
+
+      // val monitor$ = scalanative.runtime.`package`.getMonitor(receiver)
+      val getMonitor = SyntheticValDef(
+        name = NameKinds.UniqueName.fresh(termName("monitor")),
+        rhs = Apply(ref(defnNir.RuntimePackage_getMonitorR), List(receiverp))
       )
-      val ret = bodyGen(this)
-      val exit = genApplyMethod(
-        defnNir.RuntimeMonitor_exit,
-        statically = true,
-        monitor,
-        Seq()
+      val monitorRef = Ident(getMonitor.namedType.withPrefix(NoPrefix))
+      genExpr(
+        Block(
+          List(
+            getMonitor,
+            // monitor$.enter()
+            Apply(Select(monitorRef, defnNir.RuntimeMonitor_enterR), Nil)
+          ),
+          EmptyTree
+        )
       )
 
-      ret
+      // synchronized block
+      val retty = {
+        scoped(curUnwindHandler := Some(handler)) {
+          nested.label(normaln)
+          val res = bodyGen(nested)
+          nested.jump(mergen, Seq(res))
+          res.ty
+        }
+      }
+
+      // dummy exception handler,
+      // monitor$.exit() call would be added to it in genTryFinally transformer
+      locally {
+        val excv = Val.Local(fresh(), Rt.Object)
+        nested.label(handler, Seq(excv))
+        nested.raise(excv, unwind)
+        nested.jump(mergen, Seq(Val.Zero(retty)))
+      }
+
+      // Append try/catch instructions to the outher instruction buffer.
+      buf.jump(Next(normaln))
+      buf ++= genTryFinally(
+        // monitor$.exit()
+        Apply(Select(monitorRef, defnNir.RuntimeMonitor_exitR), Nil),
+        nested.toSeq
+      )
+      val mergev = Val.Local(fresh(), retty)
+      buf.label(mergen, Seq(mergev))
+      buf.toSeq.map(_.show).foreach(println)
+      mergev
     }
 
     private def genThrow(tree: Tree, args: List[Tree]): Val = {
@@ -2118,7 +2152,10 @@ trait NirGenExpr(using Context) {
 
       val name = Val.Global(genName(sym), Type.Ptr)
 
-      fromExtern(ty, buf.load(externTy, name, unwind, isAtomic = sym.isVolatile))
+      fromExtern(
+        ty,
+        buf.load(externTy, name, unwind, isAtomic = sym.isVolatile)
+      )
     }
 
     def genStoreExtern(externTy: nir.Type, sym: Symbol, value: Val)(using

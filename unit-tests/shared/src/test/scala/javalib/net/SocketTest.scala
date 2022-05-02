@@ -59,11 +59,11 @@ class SocketTest {
     val s = new Socket()
     try {
       s.setSoLinger(true, 100)
-      assertEquals(100, s.getSoLinger)
+      assertEquals(s.getSoLinger, 100)
       s.setSoLinger(false, 50000000)
-      assertEquals(-1, s.getSoLinger)
+      assertEquals(s.getSoLinger, -1)
       s.setSoLinger(true, 0)
-      assertEquals(0, s.getSoLinger)
+      assertEquals(s.getSoLinger, 0)
     } finally {
       s.close()
     }

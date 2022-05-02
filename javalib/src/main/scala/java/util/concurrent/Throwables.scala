@@ -1,6 +1,6 @@
 package java.util.concurrent
 
-class ExecutionException(message: String = "", cause: Throwable = null)
+class ExecutionException(message: String, cause: Throwable)
     extends Exception(message, cause) {
 
   protected def this() = this(null, null)

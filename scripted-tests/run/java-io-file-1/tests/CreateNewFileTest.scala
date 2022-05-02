@@ -4,9 +4,9 @@ object CreateNewFileTest {
   import Files._
 
   def main(args: Array[String]): Unit = {
-    assert(!willBeCreatedFile.exists(), "not exists before")
-    assert(willBeCreatedFile.createNewFile(), "was created")
-    assert(willBeCreatedFile.exists(), "exists after")
+    assert(!willBeCreatedFile.exists())
+    assert(willBeCreatedFile.createNewFile())
+    assert(willBeCreatedFile.exists())
 
     val exceptionThrown =
       try {
@@ -15,7 +15,7 @@ object CreateNewFileTest {
         case _: IOException => true
       }
 
-    assert(exceptionThrown, "exceptionThrown")
+    assert(exceptionThrown)
 
   }
 }

@@ -187,7 +187,7 @@ class Throwable protected (
   def printStackTrace(pw: java.io.PrintWriter): Unit =
     printStackTrace(pw.println(_: String))
 
-  private def printStackTrace(println: String => Unit): Unit = synchronized {
+  private def printStackTrace(println: String => Unit): Unit = {
     val trace = getStackTrace()
 
     // Print current stack trace

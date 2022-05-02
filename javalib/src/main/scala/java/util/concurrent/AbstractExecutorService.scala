@@ -165,7 +165,7 @@ abstract class AbstractExecutorService() extends ExecutorService {
           }
         }
       }
-      if (ee == null) ee = new ExecutionException()
+      if (ee == null) ee = new ExecutionException(null)
       throw ee
     } finally {
       val it = futures.iterator()

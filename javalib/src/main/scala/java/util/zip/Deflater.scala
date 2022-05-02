@@ -10,7 +10,6 @@ import zlib._
 
 // Ported from Apache Harmony
 class Deflater(private var compressLevel: Int, noHeader: Boolean) {
-
   def this(compressLevel: Int) = this(compressLevel, noHeader = false)
   def this() = this(Deflater.DEFAULT_COMPRESSION)
 

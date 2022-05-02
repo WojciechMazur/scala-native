@@ -1,6 +1,5 @@
-import java.nio.charset.StandardCharsets
 import java.net.ServerSocket
-import java.io._
+import java.io.{PrintWriter, BufferedReader, InputStreamReader, File}
 import java.nio.file.{Files, Paths}
 
 import scala.concurrent.Future
@@ -30,19 +29,9 @@ launchServer := {
   Files.write(portFile, echoServer.getLocalPort.toString.getBytes)
   val f = Future {
     val clientSocket = echoServer.accept
-    val out = new PrintWriter(
-      new OutputStreamWriter(
-        clientSocket.getOutputStream,
-        StandardCharsets.UTF_8
-      ),
-      true
-    )
-    val in = new BufferedReader(
-      new InputStreamReader(
-        clientSocket.getInputStream,
-        StandardCharsets.UTF_8
-      )
-    )
+    val out = new PrintWriter(clientSocket.getOutputStream, true)
+    val in =
+      new BufferedReader(new InputStreamReader(clientSocket.getInputStream))
 
     var line = in.readLine
     while (line != null) {

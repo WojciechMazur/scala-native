@@ -41,6 +41,10 @@ class ThreadLocal[T] {
   }
 
   def values(current: Thread): Values = current.localValues
+
+  protected[lang] def childValue[T](parentValue: T) = {
+    throw new UnsupportedOperationException()
+  }
 }
 
 object ThreadLocal {

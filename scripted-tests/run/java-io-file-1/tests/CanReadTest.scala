@@ -18,7 +18,6 @@ object CanReadTest {
       "unreadableDirectory.canRead()"
     )(onUnix = false, onWindows = true)
     assert(!nonexistentDirectory.canRead())
-
   }
 
 }

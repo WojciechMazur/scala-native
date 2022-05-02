@@ -6,10 +6,7 @@ object CanWriteTest {
     assert(!emptyNameFile.canWrite())
 
     assert(writableFile.canWrite())
-    assert(
-      !unwritableFile.canWrite(),
-      "!unwritableFile.canWrite()"
-    )
+    assert(!unwritableFile.canWrite())
     assert(!nonexistentFile.canWrite())
 
     assert(writableDirectory.canWrite())

@@ -4,7 +4,7 @@ import scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
 import monitor._
 
-class Monitor(basicMonitor: BasicMonitor) {
+final class Monitor(basicMonitor: BasicMonitor) {
 
   @alwaysinline def _notify(): Unit = basicMonitor._notify()
   @alwaysinline def _notifyAll(): Unit = basicMonitor._notifyAll()

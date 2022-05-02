@@ -41,11 +41,14 @@ final case class BasicMonitor(lockWordRef: Ptr[Word]) extends AnyVal {
         (witnessed.lockStatus: @switch) match {
           case LockStatus.Locked =>
             val isSelfLocked = threadId == witnessed.threadId
-            def belowRecursionLimit =
-              witnessed.recursionCount < ThinMonitorMaxRecursion
-            if (isSelfLocked && belowRecursionLimit) {
+            if (isSelfLocked) {
+              if (witnessed.recursionCount < ThinMonitorMaxRecursion) {
+                !lockWordRef = witnessed.withIncreasedRecursion()
+              } else {
+                inflate()
+                lockInflated(!lockWordRef)
+              }
               // No need for atomic operation since we already obtain the lock
-              !lockWordRef = witnessed.withIncreasedRecursion()
             } else lockAndInflate(threadId)
 
           case LockStatus.Inflated => lockInflated(witnessed)
@@ -69,7 +72,8 @@ final case class BasicMonitor(lockWordRef: Ptr[Word]) extends AnyVal {
       case LockStatus.Inflated =>
         current.getObjectMonitor.exit()
 
-      case _ => ??? // should not happen
+      case LockStatus.Unlocked => ()
+      case _                   => ??? // should not happen
     }
   }
 
@@ -80,6 +84,7 @@ final case class BasicMonitor(lockWordRef: Ptr[Word]) extends AnyVal {
     else ()
   }
 
+  @alwaysinline
   private def tryLockPreviouslyUnlocked(threadId: Long) =
     atomic
       .compareExchangeStrong(
@@ -107,12 +112,12 @@ final case class BasicMonitor(lockWordRef: Ptr[Word]) extends AnyVal {
     val (needsInflating, current) = waitForOwnership()
 
     // Check if other thread has not inflated lock already
-    if (!needsInflating) lockInflated(current)
-    else {
-      val objectMonitor = new ObjectMonitor()
-      objectMonitor.enter()
+    if (needsInflating) inflate()
+    lockInflated(current)
+  }
 
-      !lockWordRef = LockStatus.Inflated.withMonitorAssigned(objectMonitor)
-    }
+  private def inflate(): Unit = {
+    val objectMonitor = new ObjectMonitor()
+    !lockWordRef = LockStatus.Inflated.withMonitorAssigned(objectMonitor)
   }
 }

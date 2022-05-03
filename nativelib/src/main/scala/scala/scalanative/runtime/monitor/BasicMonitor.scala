@@ -112,8 +112,11 @@ final case class BasicMonitor(lockWordRef: Ptr[Word]) extends AnyVal {
     val (needsInflating, current) = waitForOwnership()
 
     // Check if other thread has not inflated lock already
-    if (needsInflating) inflate()
-    lockInflated(current)
+    if (!needsInflating) lockInflated(current)
+    else {
+      inflate()
+      lockInflated(!lockWordRef)
+    }
   }
 
   private def inflate(): Unit = {

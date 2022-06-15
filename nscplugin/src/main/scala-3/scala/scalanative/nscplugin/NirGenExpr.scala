@@ -1622,7 +1622,7 @@ trait NirGenExpr(using Context) {
       )
       val mergev = Val.Local(fresh(), retty)
       buf.label(mergen, Seq(mergev))
-      buf.toSeq.map(_.show).foreach(println)
+      // buf.toSeq.map(_.show).foreach(println)
       mergev
     }
 

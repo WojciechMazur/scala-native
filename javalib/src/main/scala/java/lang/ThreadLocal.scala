@@ -77,9 +77,14 @@ object ThreadLocal {
     def getMask(): Int = mask
 
     private def cleanUp(): Unit = {
+      // If we rehashed, we needn't clean up (clean up happens as
+      // a side effect).
       if (rehash()) return
+      // No live entries == nothing to clean.
       if (size == 0) return
 
+      // Clean log(table.length) entries picking up where we left off
+      // last time.
       var index: Int = clean
       val table: Array[Object] = this.table
       var counter = table.length
@@ -88,6 +93,9 @@ object ThreadLocal {
 
       while (counter > 0) {
         continue = false
+        if(index > table.size){
+          println(s"Cleanup $index / ${table.size}")
+        }
         val k: Object = table(index)
 
         if (k == Tombstone || k == null) continue = true
@@ -118,16 +126,23 @@ object ThreadLocal {
         case capacity                      => capacity
       }
 
-      val oldTable: Array[Object] = table
+      val oldTable: Array[Object] = this.table
+      // Allocate new table.
       this.table = new Array[Object](newCapacity)
+      this.clean = 0
+      // We won't have any tombstones after this.
+      this.tombstones = 0
 
-      tombstones = 0
-
+      // If we have no live entries, we can quit here.
       if (size == 0) return true
 
+      // Move over entries.
       var i: Int = oldTable.length - 2
       var continue: scala.Boolean = false
       while (i >= 0) {
+        if(i > oldTable.length){
+          println(s"rehash - $i / ${oldTable.length}")
+        }
         continue = false
         val k: Object = oldTable(i)
         if (k == null || k == Tombstone) continue = true
@@ -146,10 +161,16 @@ object ThreadLocal {
       true
     }
 
+    /**
+     * Adds an entry during rehashing. Compared to put(), this method
+     * doesn't have to clean up, check for existing entries, account for
+     * tombstones, etc.
+     */
     def add(key: ThreadLocal[_], value: Object): Unit = {
       var index: Int = key.hash & mask
       while (true) {
         val k: Object = table(index)
+        System.out.println(s"add - $index/${table.length} - $key - $value")
         if (k == null) {
           table(index) = key.reference
           table(index + 1) = value
@@ -167,6 +188,9 @@ object ThreadLocal {
 
       var index: Int = key.hash & mask
       while (true) {
+        if(index > table.length || firstTombstone > table.length){
+          println(s"Index $index, firstTombstone: ${firstTombstone}, tableLen: ${table.length}")
+        }
         val k: Object = table(index)
 
         if (k == key.reference) {
@@ -269,7 +293,7 @@ object ThreadLocal {
         index = next(index)
       }
       // For the compiler
-      null.asInstanceOf[Object]
+      null: Object
     }
 
     def remove(key: ThreadLocal[_]): Unit = {
@@ -299,7 +323,7 @@ object ThreadLocal {
 
   object Values {
 
-    private final val InitialCapacity = 16
+    private final val InitialCapacity = 1024
     private final val InitialSize = InitialCapacity << 1
 
     private case object Tombstone

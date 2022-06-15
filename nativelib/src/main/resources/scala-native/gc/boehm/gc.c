@@ -2,7 +2,8 @@
 #define GC_THREADS
 #endif
 
-#include <gc.h>
+#include <gc/gc.h>
+#include "../shared/ScalaNativeGC.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -45,3 +46,5 @@ void *scalanative_alloc_atomic(void *info, size_t size) {
 void scalanative_collect() { GC_gcollect(); }
 
 void scalanative_register_weak_reference_handler(void *handler) {}
+
+INLINE void* scalanative_gc_switch_mutator_thread_state(void* newState){}

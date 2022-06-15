@@ -35,4 +35,18 @@ object GC {
   def init(): Unit = extern
   @name("scalanative_register_weak_reference_handler")
   def registerWeakReferenceHandler(handler: Ptr[Byte]): Unit = extern
+
+  @extern
+  object MutatorThread {
+    type State = Int
+    @name("scalanative_gc_switch_mutator_thread_state")
+    def switchState(newState: State): State = extern
+
+    object State {
+      final val Running      = 0
+      final val WaitingForGC = 1
+      final val InSafeZone   = 2
+    }
+  }
+
 }

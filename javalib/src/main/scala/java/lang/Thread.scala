@@ -19,18 +19,18 @@ class Thread private[lang] (
 ) extends Runnable {
   private val threadId = getNextThreadId()
 
-  private[lang] var alive = false
-  private[lang] var started = false
-  private var daemon = false
-  private var interruptedState = false
+  @volatile private[lang] var alive = false
+  @volatile private[lang] var started = false
+  @volatile private var daemon = false
+  @volatile private var interruptedState = false
 
-  private var name: String = s"Thread-$threadId"
-  private var priority: Int = Thread.NORM_PRIORITY
+  @volatile private var name: String = s"Thread-$threadId"
+  @volatile private var priority: Int = Thread.NORM_PRIORITY
 
-  private[lang] var contextClassLoader: ClassLoader = _
+  @volatile private[lang] var contextClassLoader: ClassLoader = _
 
   // Uncaught exception handler for this thread
-  private var exceptionHandler: Thread.UncaughtExceptionHandler = _
+  @volatile private var exceptionHandler: Thread.UncaughtExceptionHandler = _
 
   // ThreadLocal values : local and inheritable
   private[java] lazy val localValues: ThreadLocal.Values =
@@ -127,15 +127,11 @@ class Thread private[lang] (
 
   final def getThreadGroup(): ThreadGroup = group
 
-  def getContextClassLoader(): ClassLoader =
-    lock.synchronized {
-      contextClassLoader
-    }
+  def getContextClassLoader(): ClassLoader = contextClassLoader
 
-  def setContextClassLoader(classLoader: ClassLoader): Unit =
-    lock.synchronized {
-      contextClassLoader = classLoader
-    }
+  def setContextClassLoader(classLoader: ClassLoader): Unit = {
+    contextClassLoader = classLoader
+  }
 
   def getUncaughtExceptionHandler(): Thread.UncaughtExceptionHandler = {
     if (exceptionHandler != null)
@@ -147,16 +143,13 @@ class Thread private[lang] (
     exceptionHandler = eh
   }
 
-  final def isAlive(): scala.Boolean = lock.synchronized(alive)
-
+  final def isAlive(): scala.Boolean = alive
   final def isDaemon(): scala.Boolean = daemon
 
   final def setDaemon(daemon: scala.Boolean): Unit = {
-    lock.synchronized {
-      if (isAlive())
-        throw new IllegalThreadStateException()
-      this.daemon = daemon
-    }
+    if (isAlive())
+      throw new IllegalThreadStateException()
+    this.daemon = daemon
   }
 
   def isInterrupted(): scala.Boolean = interruptedState
@@ -186,7 +179,7 @@ class Thread private[lang] (
     while (isAlive()) wait()
   }
 
-  final def join(ml: scala.Long): Unit = lock.synchronized {
+  final def join(ml: scala.Long): Unit = {
     var millis: scala.Long = ml
     if (millis == 0)
       join()
@@ -202,7 +195,7 @@ class Thread private[lang] (
     }
   }
 
-  final def join(ml: scala.Long, n: Int): Unit = lock.synchronized {
+  final def join(ml: scala.Long, n: Int): Unit = {
     var nanos: Int = n
     var millis: scala.Long = ml
     if (millis < 0 || nanos < 0 || nanos > 999999)
@@ -237,8 +230,7 @@ class Thread private[lang] (
     }
   }
 
-  def start(): Unit = {
-    lock.synchronized {
+  def start(): Unit = synchronized {
       if (started) {
         throw new IllegalThreadStateException(
           "This thread was already started!"
@@ -257,7 +249,6 @@ class Thread private[lang] (
         }
       }
       nativeThread.state = NativeThread.State.Running
-    }
   }
 
   def getState(): State = {
@@ -279,10 +270,8 @@ class Thread private[lang] (
   final def stop(throwable: Throwable): Unit = {
     if (throwable == null)
       throw new NullPointerException("The argument is null!")
-    lock.synchronized {
-      if (isAlive() && started) {
-        nativeThread.stop()
-      }
+    if (isAlive() && started) {
+      nativeThread.stop()
     }
   }
 
@@ -314,6 +303,26 @@ class Thread private[lang] (
 object Thread {
   type State = ThreadState
   lazy val State = ThreadState
+  // sealed class State(name: String, ordinal: Int)
+  //     extends Enum[State](name, ordinal)
+
+  // object State {
+  //   final val NEW: State = new State("NEW", 0)
+  //   final val RUNNABLE: State = new State("RUNNABLE", 1)
+  //   final val BLOCKED: State = new State("BLOCKED", 2)
+  //   final val WAITING: State = new State("WAITING", 3)
+  //   final val TIMED_WAITING: State = new State("TIMED_WAITING", 4)
+  //   final val TERMINATED: State = new State("TERMINATED", 5)
+
+  //   private[this] val cachedValues =
+  //     Array(NEW, RUNNABLE, BLOCKED, WAITING, TIMED_WAITING, TERMINATED)
+  //   def values(): Array[State] = cachedValues.clone()
+  //   def valueOf(name: String): State = {
+  //     cachedValues.find(_.name() == name).getOrElse {
+  //       throw new IllegalArgumentException("No enum const Thread.State." + name)
+  //     }
+  //   }
+  // }
 
   // Thread Local Storage
   @extern

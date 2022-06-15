@@ -136,6 +136,7 @@ object Lower {
           ScopedVar.scoped(
             unwindHandler := newUnwindHandler(unwind)(inst.pos)
           ) {
+            genPollGC(buf)(inst.pos)
             genThrow(buf, v)(inst.pos)
           }
 
@@ -148,6 +149,7 @@ object Lower {
 
         case inst @ Inst.Ret(v) =>
           implicit val pos: Position = inst.pos
+          genPollGC(buf)
           buf += Inst.Ret(genVal(buf, v))
 
         case inst @ Inst.Jump(next) =>
@@ -498,10 +500,43 @@ object Lower {
       buf.let(n, Op.Comp(comp, ty, left, right), unwind)
     }
 
+    private def genPollGC(buf: Buffer)(implicit pos: Position): Unit = {
+      import scalanative.build.GC._
+      val multithreadingEnabled = meta.config.multithreadingSupport
+      val supportedGC = meta.config.gc match {
+        case Immix | Commix | None => true
+        case _                     => false
+      }
+      val shallGeneratate = multithreadingEnabled && supportedGC
+      if (shallGeneratate) {
+        val handler = if (unwindHandler.isInitialized) unwind else Next.None
+        buf.call(Type.Function(Nil, Type.Unit), gcYieldpoint, Nil, handler)
+      }
+    }
+
     def genCallOp(buf: Buffer, n: Local, op: Op.Call)(implicit
         pos: Position
     ): Unit = {
+      def switchGCSafeZone(value: Val) = buf.call(
+        Type.Function(Seq(Type.Int), Type.Int),
+        GcSwitchMutatorState,
+        Seq(value),
+        if (unwindHandler.isInitialized) unwind else Next.None
+      )
+
       val Op.Call(ty, ptr, args) = op
+      val previousGCState = ptr match {
+        case Val.Global(Global.Member(_, sig), _) if sig.isExtern =>
+          sig.mangle match {
+            case "C16scalanative_init" => None
+            case sym if sym.contains("scalanative_atomic_") => None
+            case sym if sym.contains("scalanative_alloc") => None
+            case _ =>
+              Some(switchGCSafeZone(Val.Int(2)))
+              // None
+          }
+        case _ => None
+      }
       buf.let(
         n,
         Op.Call(
@@ -511,6 +546,10 @@ object Lower {
         ),
         unwind
       )
+      previousGCState.foreach{prev => 
+        genPollGC(buf)
+        switchGCSafeZone(Val.Int(0))
+      }
     }
 
     def genMethodOp(buf: Buffer, n: Local, op: Op.Method)(implicit
@@ -1412,6 +1451,22 @@ object Lower {
   val throwNoSuchMethodVal =
     Val.Global(throwNoSuchMethod, Type.Ptr)
 
+  val gcIsCollecting =
+    Val.Global(extern("scalanative_gc_isCollecting"), Type.Ptr)
+  val gcPollSlowpath = Val.Global(
+    extern("scalanative_gc_waitUntilCollected"),
+    Type.Function(Nil, Type.Unit)
+  )
+
+  val gcYieldpoint = Val.Global(
+    extern("scalanative_yieldpoint"),
+    Type.Function(Nil, Type.Unit)
+  )
+  val GcSwitchMutatorState = Val.Global(
+    extern("scalanative_gc_switch_mutator_thread_state"),
+    Type.Function(Seq(Type.Int), Type.Int)
+  )
+
   val RuntimeNull = Type.Ref(Global.Top("scala.runtime.Null$"))
   val RuntimeNothing = Type.Ref(Global.Top("scala.runtime.Nothing$"))
 
@@ -1422,6 +1477,18 @@ object Lower {
     buf += Defn.Declare(Attrs.None, largeAllocName, allocSig)
     buf += Defn.Declare(Attrs.None, dyndispatchName, dyndispatchSig)
     buf += Defn.Declare(Attrs.None, throwName, throwSig)
+    buf += Defn.Var(Attrs.None, gcIsCollecting.name, Type.Bool, Val.False)
+    buf += Defn.Declare(
+      Attrs.None,
+      gcPollSlowpath.name,
+      Type.Function(Nil, Type.Unit)
+    )
+    buf += Defn.Declare(
+      Attrs.None,
+      gcYieldpoint.name,
+      Type.Function(Nil, Type.Unit)
+    )
+    buf += Defn.Declare(Attrs.None, GcSwitchMutatorState.name, GcSwitchMutatorState.valty)
     buf.toSeq
   }
 

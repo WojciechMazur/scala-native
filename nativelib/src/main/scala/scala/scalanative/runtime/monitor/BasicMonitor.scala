@@ -121,6 +121,8 @@ final case class BasicMonitor(lockWordRef: Ptr[Word]) extends AnyVal {
 
   private def inflate(): Unit = {
     val objectMonitor = new ObjectMonitor()
+    val prev = !lockWordRef
     !lockWordRef = LockStatus.Inflated.withMonitorAssigned(objectMonitor)
+    println(s"Inflated monitor: $objectMonitor - $prev -> ${!lockWordRef}")
   }
 }

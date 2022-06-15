@@ -13,6 +13,7 @@
 #include "MemoryMap.h"
 #include <time.h>
 #include "WeakRefStack.h"
+#include "MultithreadingSupport.h"
 
 void Heap_exitWithOutOfMemory() {
     fprintf(stderr, "Out of heap space\n");
@@ -141,11 +142,6 @@ void Heap_Init(Heap *heap, size_t minHeapSize, size_t maxHeapSize) {
 
     BlockAllocator_Init(&blockAllocator, blockMetaStart, initialBlockCount);
     Bytemap_Init(bytemap, heapStart, maxHeapSize);
-    Allocator_Init(&allocator, &blockAllocator, bytemap, blockMetaStart,
-                   heapStart);
-
-    LargeAllocator_Init(&largeAllocator, &blockAllocator, bytemap,
-                        blockMetaStart, heapStart);
     char *statsFile = Settings_StatsFileName();
     if (statsFile != NULL) {
         heap->stats = malloc(sizeof(Stats));
@@ -158,12 +154,11 @@ void Heap_Init(Heap *heap, size_t minHeapSize, size_t maxHeapSize) {
  * trigger a collection of both the small and the large heap.
  */
 word_t *Heap_AllocLarge(Heap *heap, uint32_t size) {
-
+    LargeAllocator *largeAllocator = &currentMutatorThread->largeAllocator;
     assert(size % ALLOCATION_ALIGNMENT == 0);
     assert(size >= MIN_BLOCK_SIZE);
-
     // Request an object from the `LargeAllocator`
-    Object *object = LargeAllocator_GetBlock(&largeAllocator, size);
+    Object *object = LargeAllocator_GetBlock(largeAllocator, size);
     // If the object is not NULL, update it's metadata and return it
     if (object != NULL) {
         return (word_t *)object;
@@ -173,7 +168,7 @@ word_t *Heap_AllocLarge(Heap *heap, uint32_t size) {
 
         // After collection, try to alloc again, if it fails, grow the heap by
         // at least the size of the object we want to alloc
-        object = LargeAllocator_GetBlock(&largeAllocator, size);
+        object = LargeAllocator_GetBlock(largeAllocator, size);
         if (object != NULL) {
             assert(Heap_IsWordInHeap(heap, (word_t *)object));
             return (word_t *)object;
@@ -182,7 +177,7 @@ word_t *Heap_AllocLarge(Heap *heap, uint32_t size) {
             uint32_t pow2increment = 1ULL << MathUtils_Log2Ceil(increment);
             Heap_Grow(heap, pow2increment);
 
-            object = LargeAllocator_GetBlock(&largeAllocator, size);
+            object = LargeAllocator_GetBlock(largeAllocator, size);
             assert(object != NULL);
             assert(Heap_IsWordInHeap(heap, (word_t *)object));
             return (word_t *)object;
@@ -191,14 +186,16 @@ word_t *Heap_AllocLarge(Heap *heap, uint32_t size) {
 }
 
 NOINLINE word_t *Heap_allocSmallSlow(Heap *heap, uint32_t size) {
+    Allocator *allocator = &currentMutatorThread->allocator;
+
     Object *object;
-    object = (Object *)Allocator_Alloc(&allocator, size);
+    object = (Object *)Allocator_Alloc(allocator, size);
 
     if (object != NULL)
         goto done;
 
     Heap_Collect(heap, &stack);
-    object = (Object *)Allocator_Alloc(&allocator, size);
+    object = (Object *)Allocator_Alloc(allocator, size);
 
     if (object != NULL)
         goto done;
@@ -206,34 +203,36 @@ NOINLINE word_t *Heap_allocSmallSlow(Heap *heap, uint32_t size) {
     // A small object can always fit in a single free block
     // because it is no larger than 8K while the block is 32K.
     Heap_Grow(heap, 1);
-    object = (Object *)Allocator_Alloc(&allocator, size);
+    object = (Object *)Allocator_Alloc(allocator, size);
 
 done:
     assert(Heap_IsWordInHeap(heap, (word_t *)object));
     assert(object != NULL);
-    ObjectMeta *objectMeta = Bytemap_Get(allocator.bytemap, (word_t *)object);
+    ObjectMeta *objectMeta = Bytemap_Get(allocator->bytemap, (word_t *)object);
     ObjectMeta_SetAllocated(objectMeta);
     return (word_t *)object;
 }
 
 INLINE word_t *Heap_AllocSmall(Heap *heap, uint32_t size) {
+    Allocator *allocator = &currentMutatorThread->allocator;
+
     assert(size % ALLOCATION_ALIGNMENT == 0);
     assert(size < MIN_BLOCK_SIZE);
 
-    word_t *start = allocator.cursor;
+    word_t *start = allocator->cursor;
     word_t *end = (word_t *)((uint8_t *)start + size);
 
     // Checks if the end of the block overlaps with the limit
-    if (end >= allocator.limit) {
+    if (end >= allocator->limit) {
         return Heap_allocSmallSlow(heap, size);
     }
 
-    allocator.cursor = end;
+    allocator->cursor = end;
 
     memset(start, 0, size);
 
     Object *object = (Object *)start;
-    ObjectMeta *objectMeta = Bytemap_Get(allocator.bytemap, (word_t *)object);
+    ObjectMeta *objectMeta = Bytemap_Get(allocator->bytemap, (word_t *)object);
     ObjectMeta_SetAllocated(objectMeta);
 
     __builtin_prefetch(object + 36, 0, 3);
@@ -252,31 +251,48 @@ word_t *Heap_Alloc(Heap *heap, uint32_t objectSize) {
     }
 }
 
+void onAlreadyCollect() {
+    // printf("Already collecting, skip in %lu\n", pthread_self());
+}
+
 void Heap_Collect(Heap *heap, Stack *stack) {
-    uint64_t start_ns, nullify_start_ns, sweep_start_ns, end_ns;
-    Stats *stats = heap->stats;
-#ifdef DEBUG_PRINT
-    printf("\nCollect\n");
-    fflush(stdout);
+    // printf("Wants to collect %lu\n", pthread_self());
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
+    bool alreadyCollecting = scalanative_gc_onCollectStart();
+    if (!alreadyCollecting) {
 #endif
-    if (stats != NULL) {
-        start_ns = scalanative_nano_time();
+        uint64_t start_ns, nullify_start_ns, sweep_start_ns, end_ns;
+        Stats *stats = heap->stats;
+#ifdef DEBUG_PRINT
+        printf("\nCollect\n");
+        fflush(stdout);
+#endif
+        if (stats != NULL) {
+            start_ns = scalanative_nano_time();
+        }
+        Marker_MarkRoots(heap, stack);
+        if (stats != NULL) {
+            nullify_start_ns = scalanative_nano_time();
+        }
+        WeakRefStack_Nullify(heap);
+        if (stats != NULL) {
+            sweep_start_ns = scalanative_nano_time();
+        }
+        Heap_Recycle(heap);
+        if (stats != NULL) {
+            end_ns = scalanative_nano_time();
+            Stats_RecordCollection(stats, start_ns, nullify_start_ns,
+                                   sweep_start_ns, end_ns);
+        }
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
+        Safepoint_disarm(currentMutatorThread->safepoint);
+        WeakRefStack_CallHandlers(heap);
+        scalanative_gc_onCollectEnd();
+    } else {
+        onAlreadyCollect();
+        scalanative_gc_waitUntilCollected();
     }
-    Marker_MarkRoots(heap, stack);
-    if (stats != NULL) {
-        nullify_start_ns = scalanative_nano_time();
-    }
-    WeakRefStack_Nullify(heap);
-    if (stats != NULL) {
-        sweep_start_ns = scalanative_nano_time();
-    }
-    Heap_Recycle(heap);
-    if (stats != NULL) {
-        end_ns = scalanative_nano_time();
-        Stats_RecordCollection(stats, start_ns, nullify_start_ns,
-                               sweep_start_ns, end_ns);
-    }
-    WeakRefStack_CallHandlers(heap);
+#endif
 #ifdef DEBUG_PRINT
     printf("End collect\n");
     fflush(stdout);
@@ -286,7 +302,12 @@ void Heap_Collect(Heap *heap, Stack *stack) {
 bool Heap_shouldGrow(Heap *heap) {
     uint32_t freeBlockCount = blockAllocator.freeBlockCount;
     uint32_t blockCount = heap->blockCount;
-    uint32_t recycledBlockCount = allocator.recycledBlockCount;
+    uint32_t recycledBlockCount = 0;
+    MutatorThreads_foreach(mutatorThreads, node) {
+        // printf("Recycled from %p -> %d\n", node->value,
+        // node->value->allocator.recycledBlockCount);
+        recycledBlockCount += node->value->allocator.recycledBlockCount;
+    }
     uint32_t unavailableBlockCount =
         blockCount - (freeBlockCount + recycledBlockCount);
 
@@ -303,8 +324,11 @@ bool Heap_shouldGrow(Heap *heap) {
 }
 
 void Heap_Recycle(Heap *heap) {
-    Allocator_Clear(&allocator);
-    LargeAllocator_Clear(&largeAllocator);
+    MutatorThreads_foreach(mutatorThreads, node) {
+        MutatorThread *thread = node->value;
+        Allocator_Clear(&thread->allocator);
+        LargeAllocator_Clear(&thread->largeAllocator);
+    }
     BlockAllocator_Clear(&blockAllocator);
 
     BlockMeta *current = (BlockMeta *)heap->blockMetaStart;
@@ -315,10 +339,11 @@ void Heap_Recycle(Heap *heap) {
         int size = 1;
         assert(!BlockMeta_IsSuperblockMiddle(current));
         if (BlockMeta_IsSimpleBlock(current)) {
-            Block_Recycle(&allocator, current, currentBlockStart, lineMetas);
+            Block_Recycle(current, currentBlockStart, lineMetas);
         } else if (BlockMeta_IsSuperblockStart(current)) {
             size = BlockMeta_SuperblockSize(current);
-            LargeAllocator_Sweep(&largeAllocator, current, currentBlockStart);
+            LargeAllocator_Sweep((LargeAllocator *)current->owner, current,
+                                 currentBlockStart);
         } else {
             assert(BlockMeta_IsFree(current));
             BlockAllocator_AddFreeBlocks(&blockAllocator, current, 1);
@@ -347,10 +372,13 @@ void Heap_Recycle(Heap *heap) {
         }
     }
     BlockAllocator_SweepDone(&blockAllocator);
-    if (!Allocator_CanInitCursors(&allocator)) {
-        Heap_exitWithOutOfMemory();
+    MutatorThreads_foreach(mutatorThreads, node) {
+        MutatorThread *thread = node->value;
+        if (!Allocator_CanInitCursors(&thread->allocator)) {
+            Heap_exitWithOutOfMemory();
+        }
+        Allocator_InitCursors(&thread->allocator);
     }
-    Allocator_InitCursors(&allocator);
 }
 
 void Heap_Grow(Heap *heap, uint32_t incrementInBlocks) {

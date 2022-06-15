@@ -52,16 +52,23 @@ static inline void Marker_markField(Heap *heap, Stack *stack, Field_t field) {
     }
 }
 
+void onInflatedMonitor(){
+    int x = 10;
+}
+
 void Marker_Mark(Heap *heap, Stack *stack) {
     Bytemap *bytemap = heap->bytemap;
     while (!Stack_IsEmpty(stack)) {
         Object *object = Stack_Pop(stack);
         Field_t rttiLock = object->rtti->rt.lockWord;
         Field_t objectLock = object->lockWord;
+
         if (Field_isInflatedLock(rttiLock)) {
             Marker_markField(heap, stack, Field_allignedLockRef(rttiLock));
         }
         if (Field_isInflatedLock(objectLock)) {
+            printf("Got inflated monitor: %p - %p\n", Field_allignedLockRef(objectLock), objectLock);
+            onInflatedMonitor();
             Marker_markField(heap, stack, Field_allignedLockRef(objectLock));
         }
         if (Object_IsArray(object)) {
@@ -98,17 +105,28 @@ void Marker_markProgramStack(Heap *heap, Stack *stack) {
     jmp_buf regs;
     setjmp(regs);
     word_t *dummy;
-
-    word_t **current = &dummy;
-    word_t **stackBottom = __stack_bottom;
-
-    while (current <= stackBottom) {
-
-        word_t *stackObject = *current;
-        if (Heap_IsWordInHeap(heap, stackObject)) {
-            Marker_markConservative(heap, stack, stackObject);
+    currentMutatorThread->stackTop = &dummy;
+    MutatorThreads_foreach(mutatorThreads, node) {
+        MutatorThread *thread = node->value;
+        word_t **stackBottom = thread->stackBottom;
+        assert(thread->stackTop != NULL);
+        word_t **current = thread->stackTop;
+        ptrdiff_t stackSize = stackBottom - current;
+        if(current == NULL) stackSize = 0L;
+        // printf("Mark thread %p, state %d bottom: %p, top: %p, size: %td\n", thread, thread->state, stackBottom, current, stackSize);
+        if(current == NULL) continue;
+        assert(current != NULL);
+        if (current) {
+            // printf("Mark stack %d, bottom=%p, top=%p\n", i, stackBottom,
+            //        current);
+            while (current <= stackBottom) {
+                word_t *stackObject = *current;
+                if (Heap_IsWordInHeap(heap, stackObject)) {
+                    Marker_markConservative(heap, stack, stackObject);
+                }
+                current += 1;
+            }
         }
-        current += 1;
     }
 }
 

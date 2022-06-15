@@ -604,7 +604,6 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       val sym = tree.symbol
       val owner = sym.owner
       implicit val pos: nir.Position = tree.pos
-
       if (sym.isModule) {
         genModule(sym)
       } else if (sym.isStaticMember) {

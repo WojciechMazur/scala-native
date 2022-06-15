@@ -5,7 +5,6 @@
 #include "State.h"
 #include <stdbool.h>
 
-extern word_t *__modules;
 bool visited = false;
 void (*handlerFn)() = NULL;
 
@@ -39,5 +38,7 @@ void WeakRefStack_CallHandlers(Heap *heap) {
         visited = false;
 
         handlerFn();
+        printf("WeakRefStack_CallHandlers %p - done\n", handlerFn);
     }
+
 }

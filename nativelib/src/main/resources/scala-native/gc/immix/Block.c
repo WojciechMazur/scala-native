@@ -6,30 +6,31 @@
 #include "Log.h"
 #include "Allocator.h"
 #include "Marker.h"
+#include "State.h"
 
-INLINE void Block_recycleUnmarkedBlock(Allocator *allocator,
-                                       BlockMeta *blockMeta,
+INLINE void Block_recycleUnmarkedBlock(BlockMeta *blockMeta,
                                        word_t *blockStart) {
     memset(blockMeta, 0, sizeof(BlockMeta));
     // does not unmark in LineMetas because those are ignored by the allocator
-    BlockAllocator_AddFreeBlocks(allocator->blockAllocator, blockMeta, 1);
-    ObjectMeta_ClearBlockAt(Bytemap_Get(allocator->bytemap, blockStart));
+    BlockAllocator_AddFreeBlocks(&blockAllocator, blockMeta, 1);
+    ObjectMeta_ClearBlockAt(Bytemap_Get(heap.bytemap, blockStart));
 }
 
 /**
  * recycles a block and adds it to the allocator
  */
-void Block_Recycle(Allocator *allocator, BlockMeta *blockMeta,
+void Block_Recycle(BlockMeta *blockMeta,
                    word_t *blockStart, LineMeta *lineMetas) {
 
     // If the block is not marked, it means that it's completely free
     if (!BlockMeta_IsMarked(blockMeta)) {
-        Block_recycleUnmarkedBlock(allocator, blockMeta, blockStart);
+        blockMeta->owner = NULL;
+        Block_recycleUnmarkedBlock(blockMeta, blockStart);
     } else {
         // If the block is marked, we need to recycle line by line
         assert(BlockMeta_IsMarked(blockMeta));
         BlockMeta_Unmark(blockMeta);
-        Bytemap *bytemap = allocator->bytemap;
+        Bytemap *bytemap = heap.bytemap;
 
         // start at line zero, keep separate pointers into all affected data
         // structures
@@ -88,6 +89,11 @@ void Block_Recycle(Allocator *allocator, BlockMeta *blockMeta,
             }
         }
         // If there is no recyclable line, the block is unavailable
+        Allocator* allocator = (Allocator*)blockMeta->owner;
+        if(allocator == NULL){
+            printf("Block: %p, isFree %d, isMarked %d, isSimple %d, isSuperblockStart %d, isSuperblockMid %d\n",blockMeta, BlockMeta_IsFree(blockMeta), BlockMeta_IsMarked(blockMeta), BlockMeta_IsSimpleBlock(blockMeta), BlockMeta_IsSuperblockStart(blockMeta), BlockMeta_IsSuperblockMiddle(blockMeta));
+        }
+        assert(allocator != NULL);
         if (lastRecyclable != NULL) {
             lastRecyclable->next = LAST_HOLE;
             BlockList_AddLast(&allocator->recycledBlocks, blockMeta);

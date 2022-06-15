@@ -32,6 +32,7 @@ typedef struct {
         } superblock;
     } block;
     int32_t nextBlock;
+    void* owner;
 } BlockMeta;
 
 #define sizeof_field(s, m) (sizeof((((s *)0)->m)))

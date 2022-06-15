@@ -1,21 +1,22 @@
 #include <stdlib.h>
 #include "Allocator.h"
 #include "Block.h"
+#include "State.h"
 #include <stdio.h>
 #include <memory.h>
+#include <assert.h>
+#include <pthread.h>
 
 bool Allocator_getNextLine(Allocator *allocator);
 bool Allocator_newBlock(Allocator *allocator);
 
-void Allocator_Init(Allocator *allocator, BlockAllocator *blockAllocator,
-                    Bytemap *bytemap, word_t *blockMetaStart,
-                    word_t *heapStart) {
-    allocator->blockMetaStart = blockMetaStart;
-    allocator->blockAllocator = blockAllocator;
-    allocator->bytemap = bytemap;
-    allocator->heapStart = heapStart;
+void Allocator_Init(Allocator *allocator) {
+    allocator->blockMetaStart = heap.blockMetaStart;
+    allocator->blockAllocator = &blockAllocator;
+    allocator->bytemap = heap.bytemap;
+    allocator->heapStart = heap.heapStart;
 
-    BlockList_Init(&allocator->recycledBlocks, blockMetaStart);
+    BlockList_Init(&allocator->recycledBlocks, heap.blockMetaStart);
 
     allocator->recycledBlockCount = 0;
 
@@ -37,15 +38,23 @@ bool Allocator_CanInitCursors(Allocator *allocator) {
 }
 
 void Allocator_InitCursors(Allocator *allocator) {
-
     // Init cursor
     bool didInit = Allocator_newBlock(allocator);
+    if(!didInit){
+        Heap_Collect(&heap, &stack);
+        didInit = Allocator_newBlock(allocator);
+    }
     assert(didInit);
 
     // Init large cursor
     BlockMeta *largeBlock =
         BlockAllocator_GetFreeBlock(allocator->blockAllocator);
+    if(largeBlock == NULL){
+        Heap_Collect(&heap, &stack);
+        largeBlock = BlockAllocator_GetFreeBlock(allocator->blockAllocator);
+    }
     assert(largeBlock != NULL);
+    largeBlock->owner = allocator;
     allocator->largeBlock = largeBlock;
     word_t *largeBlockStart = BlockMeta_GetBlockStart(
         allocator->blockMetaStart, allocator->heapStart, largeBlock);
@@ -74,6 +83,7 @@ word_t *Allocator_overflowAllocation(Allocator *allocator, size_t size) {
         if (block == NULL) {
             return NULL;
         }
+        block->owner = allocator;
         allocator->largeBlock = block;
         word_t *blockStart = BlockMeta_GetBlockStart(
             allocator->blockMetaStart, allocator->heapStart, block);
@@ -96,7 +106,7 @@ word_t *Allocator_overflowAllocation(Allocator *allocator, size_t size) {
 INLINE word_t *Allocator_Alloc(Allocator *allocator, size_t size) {
     word_t *start = allocator->cursor;
     word_t *end = (word_t *)((uint8_t *)start + size);
-
+    assert((Allocator*)allocator->block->owner == allocator);
     // Checks if the end of the block overlaps with the limit
     if (end > allocator->limit) {
         // If it overlaps but the block to allocate is a `medium` sized block,
@@ -139,7 +149,7 @@ bool Allocator_getNextLine(Allocator *allocator) {
     BlockMeta_SetFirstFreeLine(block, lineMeta->next);
     uint16_t size = lineMeta->size;
     allocator->limit = line + (size * WORDS_IN_LINE);
-    assert(allocator->limit <= Block_GetBlockEnd(blockStart));
+    assert(allocator->limit <= Block_GetBlockEnd(blockStart)); // TODO, failed
 
     return true;
 }
@@ -153,6 +163,7 @@ bool Allocator_newBlock(Allocator *allocator) {
     word_t *blockStart;
 
     if (block != NULL) {
+        assert(block->owner == allocator);
         blockStart = BlockMeta_GetBlockStart(allocator->blockMetaStart,
                                              allocator->heapStart, block);
 
@@ -172,6 +183,7 @@ bool Allocator_newBlock(Allocator *allocator) {
         if (block == NULL) {
             return false;
         }
+        block->owner = allocator;
         blockStart = BlockMeta_GetBlockStart(allocator->blockMetaStart,
                                              allocator->heapStart, block);
 
@@ -181,6 +193,8 @@ bool Allocator_newBlock(Allocator *allocator) {
     }
 
     allocator->block = block;
+    assert(block->owner == NULL || block->owner == allocator);
+    block->owner = allocator;
     allocator->blockStart = blockStart;
 
     return true;

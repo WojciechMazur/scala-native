@@ -22,6 +22,7 @@ import scala.scalanative.libc.signal.{SIGUSR1 => _, _}
 import scala.scalanative.posix
 import scala.scalanative.runtime.ByteArray
 import scala.scalanative.libc.string.strerror
+import scala.scalanative.runtime.GC.MutatorThread
 
 private[java] case class PosixThread(handle: pthread_t, thread: Thread)
     extends NativeThread {
@@ -59,7 +60,13 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
     pthread_setschedparam(handle, !policy, schedParam)
   }
 
-  def resume(): Unit = {
+  def withGCSafeZone[T](fn: => T) = {
+    val prev = MutatorThread.switchState(MutatorThread.State.InSafeZone)
+    try fn
+    finally MutatorThread.switchState(prev)
+  }
+
+  def resume(): Unit = withGCSafeZone{
     pthread_mutex_lock(lock)
     while (state == NativeThread.State.Waiting) {
       state = NativeThread.State.Running
@@ -68,7 +75,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
     pthread_mutex_unlock(lock)
   }
 
-  def suspend(): Unit = {
+  def suspend(): Unit = withGCSafeZone {
     pthread_mutex_lock(lock)
     state = NativeThread.State.Waiting
     while (state == NativeThread.State.Waiting) {
@@ -82,7 +89,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
     case err => throw new RuntimeException("Failed to stop thread")
   }
 
-  @inline def tryPark(): Unit = {
+  @inline def tryPark(): Unit = withGCSafeZone {
     pthread_cond_wait(condition, lock) match {
       case 0 => ()
       case errno =>
@@ -124,7 +131,9 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
 
   private final val TimeoutCode = ETIMEDOUT
 
-  @inline private def waitForThreadUnparking(deadline: Ptr[timespec]): Unit = {
+  @inline private def waitForThreadUnparking(
+      deadline: Ptr[timespec]
+  ): Unit = withGCSafeZone {
     while (state == NativeThread.State.Parked) {
       pthread_cond_timedwait(condition, lock, deadline) match {
         case 0 | TimeoutCode =>
@@ -152,7 +161,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
       }
     }
 
-    checkResult(pthread_mutex_lock(lock), "lock")
+    checkResult(withGCSafeZone(pthread_mutex_lock(lock)), "lock")
     try {
       fn
     } finally {

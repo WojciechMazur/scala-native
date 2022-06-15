@@ -52,8 +52,7 @@ private[scalanative] object LLVM {
           } else Seq("-std=gnu11")
         }
         val platformFlags = {
-          if (config.targetsWindows) Seq("-g")
-          else Nil
+          Seq("-g")
         }
         val configFlags = {
           if (config.compilerConfig.multithreadingSupport)
@@ -62,7 +61,7 @@ private[scalanative] object LLVM {
         }
         val expectionsHandling =
           List("-fexceptions", "-fcxx-exceptions", "-funwind-tables")
-        val flags = opt(config) +: "-fvisibility=hidden" +:
+        val flags = opt(config) +: "-fvisibility=hidden" +: "-UNDEBUG" +:
           stdflag ++: platformFlags ++: configFlags ++: expectionsHandling ++: config.compileOptions
         val compilec =
           Seq(compiler) ++ flto(config) ++ flags ++ target(config) ++
@@ -128,7 +127,7 @@ private[scalanative] object LLVM {
             case _        => Seq("-fuse-ld=lld", "-Wl,/force:multiple")
           }
           Seq("-g") ++ ltoSupport
-        } else Seq("-rdynamic")
+        } else Seq("-rdynamic", "-g")
       flto(config) ++ platformFlags ++ Seq("-o", outpath.abs) ++ target(config)
     }
     val paths = objectsPaths.map(_.abs)

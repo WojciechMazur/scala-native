@@ -4,8 +4,9 @@ package codegen
 import scala.collection.mutable
 import scalanative.nir._
 import scalanative.linker.{Trait, Class}
+import scala.scalanative.build.NativeConfig
 
-class Metadata(val linked: linker.Result, proxies: Seq[Defn]) {
+class Metadata(val linked: linker.Result, val config: NativeConfig, proxies: Seq[Defn]) {
   val rtti = mutable.Map.empty[linker.Info, RuntimeTypeInformation]
   val vtable = mutable.Map.empty[linker.Class, VirtualTable]
   val layout = mutable.Map.empty[linker.Class, FieldLayout]

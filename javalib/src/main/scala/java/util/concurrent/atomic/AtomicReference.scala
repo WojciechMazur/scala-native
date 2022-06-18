@@ -10,31 +10,24 @@ import scala.annotation.tailrec
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
 import scala.scalanative.unsafe.atomic.memory_order._
-import scala.scalanative.runtime.Intrinsics.{elemRawPtr, castObjectToRawPtr}
-import scala.scalanative.runtime.{fromRawPtr, MemoryLayout}
+import scala.scalanative.runtime.{fromRawPtr, Intrinsics}
 import java.util.function.BinaryOperator
 import java.util.function.UnaryOperator
-import scala.scalanative.runtime.Intrinsics
 
 @SerialVersionUID(-1848883965231344442L)
-class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
+class AtomicReference[V <: AnyRef](@volatile private var value: V) extends Serializable {
   def this() = {
     this(null.asInstanceOf[V])
   }
 
   assert(valueRef.load() == value, "Value reference does not match field")
 
-  // Pointer to field containing underlying Integer.
-  // This class should not define any other values to ensure that underlying field
-  // would always be placed at first slot of fields layout.
+  // Pointer to field containing underlying V.
   @alwaysinline
   private[concurrent] def valueRef: CAtomicRef[V] =
-    new CAtomicRef[V]({
-      // Assumess object fields are stored in memory directly after Ptr[Rtti]
-      fromRawPtr(
-        elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset)
-      )
-    })
+    new CAtomicRef[V](
+      fromRawPtr(Intrinsics.classFieldRawPtr(this, "value"))
+    )
 
   /** Returns the current value, with memory effects as specified by {@link
    *  VarHandle#getVolatile}.
@@ -42,7 +35,7 @@ class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
    *  @return
    *    the current value
    */
-  final def get(): V = valueRef.load()
+  final def get(): V = value
 
   /** Sets the value to {@code newValue}, with memory effects as specified by
    *  {@link VarHandle#setVolatile}.
@@ -50,7 +43,7 @@ class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
    *  @param newValue
    *    the new value
    */
-  final def set(newValue: V): Unit = valueRef.store(newValue)
+  final def set(newValue: V): Unit = value = newValue
 
   /** Sets the value to {@code newValue}, with memory effects as specified by
    *  {@link VarHandle#setRelease}.
@@ -64,7 +57,7 @@ class AtomicReference[V <: AnyRef](private var value: V) extends Serializable {
   }
 
   /** Atomically sets the value to {@code newValue} if the current value {@code
-   *  == expectedValue}, with memory effects as specified by {@link
+   *  \== expectedValue}, with memory effects as specified by {@link
    *  VarHandle#compareAndSet}.
    *
    *  @param expectedValue

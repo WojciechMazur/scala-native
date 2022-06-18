@@ -10,8 +10,7 @@ import scala.annotation.tailrec
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
 import scala.scalanative.unsafe.atomic.memory_order._
-import scala.scalanative.runtime.Intrinsics.{elemRawPtr, castObjectToRawPtr}
-import scala.scalanative.runtime.{fromRawPtr, MemoryLayout}
+import scala.scalanative.runtime.{fromRawPtr, Intrinsics}
 
 object AtomicStampedReference {
   private[concurrent] case class StampedReference[V <: AnyRef](
@@ -30,16 +29,11 @@ class AtomicStampedReference[V <: AnyRef] private (
     this(StampedReference(initialRef, initialStamp))
   }
 
-  // Pointer to field containing underlying Integer.
-  // This class should not define any other values to ensure that underlying field
-  // would always be placed at first slot of fields layout.
+  // Pointer to field containing underlying StampedReference.
   @alwaysinline
   private[concurrent] def valueRef: CAtomicRef[StampedReference[V]] = {
     new CAtomicRef(
-      // Assumess object fields are stored in memory directly after Ptr[Rtti]
-      fromRawPtr(
-        elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset)
-      )
+      fromRawPtr(Intrinsics.classFieldRawPtr(this, "value"))
     )
   }
 

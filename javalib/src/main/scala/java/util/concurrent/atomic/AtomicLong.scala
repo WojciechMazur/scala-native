@@ -11,8 +11,7 @@ import scala.annotation.tailrec
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
 import scala.scalanative.unsafe.atomic.memory_order._
-import scala.scalanative.runtime.Intrinsics.{elemRawPtr, castObjectToRawPtr}
-import scala.scalanative.runtime.{fromRawPtr, MemoryLayout}
+import scala.scalanative.runtime.{fromRawPtr, Intrinsics}
 import java.util.function.LongBinaryOperator
 import java.util.function.LongUnaryOperator
 
@@ -21,15 +20,10 @@ class AtomicLong(private[this] var value: Long)
     extends Number
     with Serializable {
 
-  // Pointer to field containing underlying Integer.
-  // This class should not define any other values to ensure that underlying field
-  // would always be placed at first slot of fields layout.
+  // Pointer to field containing underlying Long.
   @alwaysinline
   private[concurrent] def valueRef: CAtomicLong = new CAtomicLong(
-    // Assumess object fields are stored in memory directly after Ptr[Rtti]
-    fromRawPtr(
-      elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset)
-    )
+    fromRawPtr(Intrinsics.classFieldRawPtr(this, "value"))
   )
 
   def this() = {
@@ -76,7 +70,7 @@ class AtomicLong(private[this] var value: Long)
   }
 
   /** Atomically sets the value to {@code newValue} if the current value {@code
-   *  == expectedValue}, with memory effects as specified by {@link VarHandle#
+   *  \== expectedValue}, with memory effects as specified by {@link VarHandle#
    *  compareAndSet}.
    *
    *  @param expectedValue

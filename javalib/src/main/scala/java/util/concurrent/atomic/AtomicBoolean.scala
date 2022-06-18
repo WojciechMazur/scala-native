@@ -11,21 +11,16 @@ import scala.language.implicitConversions
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
 import scala.scalanative.unsafe.atomic.memory_order._
-import scala.scalanative.runtime.Intrinsics.{elemRawPtr, castObjectToRawPtr}
 import scala.scalanative.runtime.{fromRawPtr, MemoryLayout}
+import scala.scalanative.runtime.Intrinsics
 
 @SerialVersionUID(4654671469794556979L)
 class AtomicBoolean private (private var value: Byte) extends Serializable {
 
-  // Pointer to field containing underlying Integer.
-  // This class should not define any other values to ensure that underlying field
-  // would always be placed at first slot of fields layout.
+  // Pointer to field containing underlying Byte.
   @alwaysinline
   private[concurrent] def valueRef: CAtomicByte = new CAtomicByte(
-    // Assumess object fields are stored in memory directly after Ptr[Rtti]
-    fromRawPtr(
-      elemRawPtr(castObjectToRawPtr(this), MemoryLayout.Object.FieldsOffset)
-    )
+    fromRawPtr(Intrinsics.classFieldRawPtr(this, "value"))
   )
 
   def this() = {

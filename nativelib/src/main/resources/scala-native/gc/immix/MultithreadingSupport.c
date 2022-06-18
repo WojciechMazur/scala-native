@@ -8,6 +8,7 @@
 #include <sys/mman.h>
 #include <sys/time.h>
 #include <time.h>
+#include <setjmp.h>
 
 #include "State.h"
 #include "ThreadUtil.h"
@@ -44,32 +45,40 @@ void onDefaultAction(int signal) {
     return defaultAction.sa_handler(signal);
 }
 
-thread_local bool inSafepointPollRetry = false;
-
-void onRetry(){
+_Atomic(MutatorThread *) synchronizationRetryThread = NULL;
+void onRetry() {
     int x = 42;
+    printf("--  Retry safepoint in %p\n", synchronizationRetryThread);
 }
-
 void MutatorThread_synchronizationHandler(int signal) {
     MutatorThread *currentThread = currentMutatorThread;
     switch (signal) {
     case SIGSEGV:
         // printf("Got seg fault,  wantsToCollect=%d thread=%lu\n",
         //        atomic_load(&scalanative_gc_wantsToCollect), pthread_self());
-        if(collectingThread == currentThread) break;
+        if (collectingThread == currentThread)
+            break;
         if (!atomic_load(&scalanative_gc_wantsToCollect)) {
-            // Retry once safepoint on unexpected signal
-            // If we manage to get access safepoint this time we're already
-            // after the GC
-            if (!inSafepointPollRetry) {
-                inSafepointPollRetry = true;
-                printf("--Retry safepoint\n");
+            // Check if we're handling a late signal
+            // If synchronizationRetryThread contains current thread it means
+            // that yieldpoint is still armed If we manage to access
+            // scalantive_yieldpoint without trigerring signal handler it means
+            // we were handling a late signal which can be ignored
+            if (synchronizationRetryThread == currentThread) {
+                onDefaultAction(signal);
+                synchronizationRetryThread = NULL;
+                defaultAction.sa_handler(signal);
+            } else {
+                MutatorThread *expected = NULL;
+                onRetry();
+                while (!atomic_compare_exchange_strong(
+                    &synchronizationRetryThread, &expected, currentThread)) {
+                };
                 onRetry();
                 scalanative_yieldpoint();
-                inSafepointPollRetry = false;
-                return;
+                synchronizationRetryThread = NULL;
             }
-            return onDefaultAction(signal);
+            return;
         }
 
         scalanative_gc_waitUntilCollected();
@@ -82,11 +91,14 @@ void MutatorThread_synchronizationHandler(int signal) {
     }
 }
 
-void scalanative_yieldpoint() { 
-    int8_t pollResult = *currentMutatorThread->safepoint; 
+void scalanative_yieldpoint() {
+    int8_t pollResult = *currentMutatorThread->safepoint;
 }
 
 void scalanative_gc_waitUntilCollected() {
+    // Dumps registers into 'regs' which is on stack
+    jmp_buf regs;
+    setjmp(regs);
     word_t *dummy;
     currentMutatorThread->stackTop = &dummy;
     MutatorThreadState prevState = MutatorThread_switchState(
@@ -95,70 +107,45 @@ void scalanative_gc_waitUntilCollected() {
         pthread_cond_wait(&canContinueExecution, &selfLock);
     }
     MutatorThread_switchState(currentMutatorThread, prevState);
-    // printf("Switched state after sync of %lu to %d\n", pthread_self(),
-    // prevState);
 }
 
 bool scalanative_gc_onCollectStart() {
-    // printf("Set wantsToCollect: true\n");
     bool alreadyCollects =
         atomic_exchange(&scalanative_gc_wantsToCollect, true);
-    // printf("Set wantsToCollect: true - done, prev %d:\n", alreadyCollects);
 
-    if (alreadyCollects) {
-        // printf("Skipping collect in %lu\n", pthread_self());
-        return true;
-    }
-    // printf("Perform collect in %lu\n", pthread_self());
+    if (alreadyCollects) return true;
     collectingThread = currentMutatorThread;
     MutatorThreadState prevState = MutatorThread_switchState(
         currentMutatorThread, MutatorThreadState_Synchronized);
-    struct timeval start, end;
-    gettimeofday(&start, NULL);
-    MutatorThreads_foreach(mutatorThreads, node){
+    // Don't allow for registration of any new threads;
+    MutatorThreads_lock();
+    MutatorThreads_foreach(mutatorThreads, node) {
         Safepoint_arm(node->value->safepoint);
     }
-    // printf("poolTrap armed\n");
 
     int activeThreads;
-    int logged = 0;
     do {
         activeThreads = 0;
         MutatorThreads_foreach(mutatorThreads, node) {
             if (node->value->state == MutatorThreadState_Working) {
-                printf("\tActive thread %p, state: %d\n", node->value, node->value->state);
                 activeThreads++;
             }
         }
-        // if (logged == 0) {
-        printf("Active threads %d\n", activeThreads);
-        //     logged = 1;
-        // }
         if (activeThreads > 0) {
             usleep(1000);
         }
     } while (activeThreads > 0);
-    gettimeofday(&end, NULL);
-    // printf("Stoping threads took %ld microsecons\n",
-    //        end.tv_usec - start.tv_usec);
     return false;
 }
 
 void scalanative_gc_onCollectEnd() {
-    MutatorThreads_foreach(mutatorThreads, node){
-        if(node->value != collectingThread){
-            if(node->value->safepoint != NULL){
-                Safepoint_disarm(node->value->safepoint);
-            }
-        }
+    MutatorThreads_foreach(mutatorThreads, node) {
+        assert(node->value->safepoint != NULL);
+        Safepoint_disarm(node->value->safepoint);
     }
     collectingThread = NULL;
-    printf("Pool traps disarmed\n");
-    // printf("Set wantsToCollect: false\n");
     atomic_store(&scalanative_gc_wantsToCollect, false);
-    // printf("Set wantsToCollect: false - done\n");
-    // atomic_signal_fence(memory_order_seq_cst);
-
+    MutatorThreads_unlock();
     MutatorThread_switchState(currentMutatorThread, MutatorThreadState_Working);
 
     pthread_cond_broadcast(&canContinueExecution);

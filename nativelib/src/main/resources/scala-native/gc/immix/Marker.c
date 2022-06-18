@@ -8,25 +8,56 @@
 #include "headers/ObjectHeader.h"
 #include "Block.h"
 #include "WeakRefStack.h"
+#include <stdatomic.h>
 
 extern word_t *__modules;
 extern int __modules_size;
-extern word_t **__stack_bottom;
 
 #define LAST_FIELD_OFFSET -1
 
+static inline void Marker_markField(Heap *heap, Stack *stack, Field_t field);
+static inline void Marker_markLockWords(Heap *heap, Stack *stack,
+                                        Object *object);
+                                        
 void Marker_markObject(Heap *heap, Stack *stack, Bytemap *bytemap,
                        Object *object, ObjectMeta *objectMeta) {
     assert(ObjectMeta_IsAllocated(objectMeta));
+    assert(object->rtti != NULL);
 
     if (Object_IsWeakReference(object)) {
         // Added to the WeakReference stack for additional later visit
         Stack_Push(&weakRefStack, object);
     }
 
+    Marker_markLockWords(heap, stack, object);
+
     assert(Object_Size(object) != 0);
     Object_Mark(heap, object, objectMeta);
     Stack_Push(stack, object);
+}
+
+static inline void Marker_markLockWords(Heap *heap, Stack *stack,
+                                        Object *object) {
+    Field_t rttiLock = object->rtti->rt.lockWord;
+    if (Field_isInflatedLock(rttiLock)) {
+        Marker_markField(heap, stack, Field_allignedLockRef(rttiLock));
+    }
+
+    Field_t objectLock = object->lockWord;
+    if (Field_isInflatedLock(objectLock)) {
+        Field_t field = Field_allignedLockRef(objectLock);
+        Marker_markField(heap, stack, field);
+    }
+}
+
+static inline void Marker_markField(Heap *heap, Stack *stack, Field_t field) {
+    if (Heap_IsWordInHeap(heap, field)) {
+        ObjectMeta *fieldMeta = Bytemap_Get(heap->bytemap, field);
+        if (ObjectMeta_IsAllocated(fieldMeta)) {
+            Marker_markObject(heap, stack, heap->bytemap, (Object *)field,
+                              fieldMeta);
+        }
+    }
 }
 
 void Marker_markConservative(Heap *heap, Stack *stack, word_t *address) {
@@ -42,35 +73,10 @@ void Marker_markConservative(Heap *heap, Stack *stack, word_t *address) {
     }
 }
 
-static inline void Marker_markField(Heap *heap, Stack *stack, Field_t field) {
-    if (Heap_IsWordInHeap(heap, field)) {
-        ObjectMeta *fieldMeta = Bytemap_Get(heap->bytemap, field);
-        if (ObjectMeta_IsAllocated(fieldMeta)) {
-            Marker_markObject(heap, stack, heap->bytemap, (Object *)field,
-                              fieldMeta);
-        }
-    }
-}
-
-void onInflatedMonitor(){
-    int x = 10;
-}
-
 void Marker_Mark(Heap *heap, Stack *stack) {
     Bytemap *bytemap = heap->bytemap;
     while (!Stack_IsEmpty(stack)) {
         Object *object = Stack_Pop(stack);
-        Field_t rttiLock = object->rtti->rt.lockWord;
-        Field_t objectLock = object->lockWord;
-
-        if (Field_isInflatedLock(rttiLock)) {
-            Marker_markField(heap, stack, Field_allignedLockRef(rttiLock));
-        }
-        if (Field_isInflatedLock(objectLock)) {
-            printf("Got inflated monitor: %p - %p\n", Field_allignedLockRef(objectLock), objectLock);
-            onInflatedMonitor();
-            Marker_markField(heap, stack, Field_allignedLockRef(objectLock));
-        }
         if (Object_IsArray(object)) {
             if (object->rtti->rt.id == __object_array_id) {
                 ArrayHeader *arrayHeader = (ArrayHeader *)object;
@@ -86,15 +92,7 @@ void Marker_Mark(Heap *heap, Stack *stack) {
             for (int i = 0; ptr_map[i] != LAST_FIELD_OFFSET; i++) {
                 if (Object_IsReferantOfWeakReference(object, ptr_map[i]))
                     continue;
-
-                Field_t field = object->fields[ptr_map[i]];
-                if (Heap_IsWordInHeap(heap, field)) {
-                    ObjectMeta *fieldMeta = Bytemap_Get(bytemap, field);
-                    if (ObjectMeta_IsAllocated(fieldMeta)) {
-                        Marker_markObject(heap, stack, bytemap, (Object *)field,
-                                          fieldMeta);
-                    }
-                }
+                Marker_markField(heap, stack, object->fields[ptr_map[i]]);
             }
         }
     }
@@ -112,20 +110,13 @@ void Marker_markProgramStack(Heap *heap, Stack *stack) {
         assert(thread->stackTop != NULL);
         word_t **current = thread->stackTop;
         ptrdiff_t stackSize = stackBottom - current;
-        if(current == NULL) stackSize = 0L;
-        // printf("Mark thread %p, state %d bottom: %p, top: %p, size: %td\n", thread, thread->state, stackBottom, current, stackSize);
-        if(current == NULL) continue;
         assert(current != NULL);
-        if (current) {
-            // printf("Mark stack %d, bottom=%p, top=%p\n", i, stackBottom,
-            //        current);
-            while (current <= stackBottom) {
-                word_t *stackObject = *current;
-                if (Heap_IsWordInHeap(heap, stackObject)) {
-                    Marker_markConservative(heap, stack, stackObject);
-                }
-                current += 1;
+        while (current <= stackBottom) {
+            word_t *stackObject = *current;
+            if (Heap_IsWordInHeap(heap, stackObject)) {
+                Marker_markConservative(heap, stack, stackObject);
             }
+            current += 1;
         }
     }
 }
@@ -137,11 +128,14 @@ void Marker_markModules(Heap *heap, Stack *stack) {
     for (int i = 0; i < nb_modules; i++) {
         Object *object = (Object *)modules[i];
         Marker_markField(heap, stack, (Field_t)object);
+        if (object != NULL) {
+            Marker_markLockWords(heap, stack, object);
+        }
     }
 }
 
 void Marker_MarkRoots(Heap *heap, Stack *stack) {
-
+    atomic_thread_fence(memory_order_seq_cst);
     Marker_markProgramStack(heap, stack);
 
     Marker_markModules(heap, stack);

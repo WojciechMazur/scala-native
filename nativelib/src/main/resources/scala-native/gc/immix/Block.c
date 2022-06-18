@@ -63,6 +63,7 @@ void Block_Recycle(BlockMeta *blockMeta,
                 } else {
                     // Update the last recyclable line to point to the current
                     // one
+                    assert(lineIndex >= 0);
                     lastRecyclable->next = lineIndex;
                 }
                 ObjectMeta_ClearLineAt(bytemapCursor);
@@ -90,9 +91,6 @@ void Block_Recycle(BlockMeta *blockMeta,
         }
         // If there is no recyclable line, the block is unavailable
         Allocator* allocator = (Allocator*)blockMeta->owner;
-        if(allocator == NULL){
-            printf("Block: %p, isFree %d, isMarked %d, isSimple %d, isSuperblockStart %d, isSuperblockMid %d\n",blockMeta, BlockMeta_IsFree(blockMeta), BlockMeta_IsMarked(blockMeta), BlockMeta_IsSimpleBlock(blockMeta), BlockMeta_IsSuperblockStart(blockMeta), BlockMeta_IsSuperblockMiddle(blockMeta));
-        }
         assert(allocator != NULL);
         if (lastRecyclable != NULL) {
             lastRecyclable->next = LAST_HOLE;

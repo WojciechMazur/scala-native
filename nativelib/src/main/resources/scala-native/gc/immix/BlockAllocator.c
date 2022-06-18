@@ -34,21 +34,18 @@ BlockAllocator_pollSuperblock(BlockAllocator *blockAllocator, int first) {
     mutex_lock(&allocationLock);
 
     int maxNonEmptyIndex = blockAllocator->maxNonEmptyIndex;
-    // printf("BlockAllocator_pollSuperblock, first %d, min %d, max %d\n", first, blockAllocator->minNonEmptyIndex, maxNonEmptyIndex);
     for (int i = first; i <= maxNonEmptyIndex; i++) {
         BlockMeta *superblock =
             BlockList_Poll(&blockAllocator->freeSuperblocks[i]);
         if (superblock != NULL) {
             assert(BlockMeta_SuperblockSize(superblock) > 0);
             mutex_unlock(&allocationLock);
-            // printf("BlockAllocator_pollSuperBlock %p by %lu\n", superblock, pthread_self());
             return superblock;
         } else {
             blockAllocator->minNonEmptyIndex = i + 1;
         }
     }
     mutex_unlock(&allocationLock);
-    // printf("BlockAllocator_pollSuperBlock not found, NULL by %lu\n", pthread_self());
     return NULL;
 }
 
@@ -56,7 +53,6 @@ NOINLINE BlockMeta *
 BlockAllocator_getFreeBlockSlow(BlockAllocator *blockAllocator) {
     BlockMeta *superblock = BlockAllocator_pollSuperblock(
         blockAllocator, blockAllocator->minNonEmptyIndex);
-    // printf("BlockAllocator_getFreeBlockSlow, superblock: %p\n", superblock);
     if (superblock != NULL) {
         blockAllocator->smallestSuperblock.cursor = superblock + 1;
         blockAllocator->smallestSuperblock.limit =
@@ -66,7 +62,6 @@ BlockAllocator_getFreeBlockSlow(BlockAllocator *blockAllocator) {
         BlockMeta_SetFlag(superblock, block_simple);
         return superblock;
     } else {
-        // printf("superblock %p\n", superblock);
         return NULL;
     }
 }
@@ -77,7 +72,6 @@ INLINE BlockMeta *BlockAllocator_GetFreeBlock(BlockAllocator *blockAllocator) {
         blockAllocator->smallestSuperblock.limit) {
         BlockMeta *ret = BlockAllocator_getFreeBlockSlow(blockAllocator);
         mutex_unlock(&allocationLock);
-        //// printf("BlockAllocator_GetFreeBlock %p by %p\n", ret, pthread_self());
         assert(ret == NULL || ret->owner == NULL);
         return ret;
     }
@@ -85,7 +79,6 @@ INLINE BlockMeta *BlockAllocator_GetFreeBlock(BlockAllocator *blockAllocator) {
     BlockMeta_SetFlag(block, block_simple);
     blockAllocator->smallestSuperblock.cursor++;
     mutex_unlock(&allocationLock);
-    //// printf("BlockAllocator_GetFreeBlock %p by %p\n", block, pthread_self());
 
     // not decrementing freeBlockCount, because it is only used after sweep
     assert(block == NULL || block->owner == NULL);
@@ -110,7 +103,6 @@ BlockMeta *BlockAllocator_GetFreeSuperblock(BlockAllocator *blockAllocator,
         superblock = BlockAllocator_pollSuperblock(blockAllocator, first);
         if (superblock == NULL) {
             mutex_unlock(&allocationLock);
-            //// printf("BlockAllocator_GetSuperBlock NULL by %p\n", pthread_self());
             return NULL;
         }
         if (BlockMeta_SuperblockSize(superblock) > size) {
@@ -128,7 +120,6 @@ BlockMeta *BlockAllocator_GetFreeSuperblock(BlockAllocator *blockAllocator,
         BlockMeta_SetFlag(current, block_superblock_middle);
     }
     mutex_unlock(&allocationLock);
-    //// printf("BlockAllocator_GetSuperBlock %p by %p\n", superblock, pthread_self());
 
     // not decrementing freeBlockCount, because it is only used after sweep
     return superblock;

@@ -14,21 +14,14 @@ void Safepoint_init(safepoint_ref *ref) {
     }
 }
 
-void onFailure(safepoint_ref ref){
-    printf("Failed to arm %p\n", ref);
-}
-
 void Safepoint_arm(safepoint_ref ref) {
-    // printf("Arm safepoint %p\n", ref);
     if (mprotect((void *)ref, sizeof(safepoint_t), PROT_NONE)) {
         perror("Failed to enable GC collect trap\n");
-        onFailure(ref);
         exit(errno);
     }
 }
 
 void Safepoint_disarm(safepoint_ref ref) {
-    // printf("Disarm safepoint %p\n", ref);
     if (mprotect((void *)ref, sizeof(safepoint_t), PROT_READ)) {
         perror("Failed to disable GC safepoint trap\n");
         exit(errno);

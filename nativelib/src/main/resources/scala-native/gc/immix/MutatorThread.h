@@ -5,6 +5,7 @@
 #include "LargeAllocator.h"
 #include "State.h"
 #include "Safepoint.h"
+#include <setjmp.h>
 
 #ifndef MUTATOR_THREAD_H
 #define MUTATOR_THREAD_H
@@ -41,24 +42,22 @@ void MutatorThread_delete(MutatorThread *self);
 
 INLINE static MutatorThreadState MutatorThread_switchState(MutatorThread *self, MutatorThreadState newState){
     MutatorThreadState prev = self->state;
-    // printf("Switch state %p, from %d to %d\n", self, prev, newState);
     self->state = newState;
     if(newState == MutatorThreadState_InSafeZone){
+        // Dumps registers into 'regs' which is on stack
+        jmp_buf regs;
+        setjmp(regs);
         word_t *dummy;
         self->stackTop = &dummy;
     }
     return prev;
 }
 
-// INLINE MutatorThreadState MutatorThread_TLS_setState(MutatorThreadState newState){
-//     MutatorThreadState previous = currentMutatorThread->state;
-//     currentMutatorThread->state = newState;
-//     return previous;
-// }
-
 void MutatorThreads_init();
 void MutatorThreads_add(MutatorThread *node);
 void MutatorThreads_remove(MutatorThread *node);
+void MutatorThreads_lock();
+void MutatorThreads_unlock();
 
 #define MutatorThreads_foreach(list, node)                                     \
     for (MutatorThreads node = list; node != NULL; node = node->next)

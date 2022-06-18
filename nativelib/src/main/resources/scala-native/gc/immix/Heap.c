@@ -256,7 +256,6 @@ void onAlreadyCollect() {
 }
 
 void Heap_Collect(Heap *heap, Stack *stack) {
-    // printf("Wants to collect %lu\n", pthread_self());
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
     bool alreadyCollecting = scalanative_gc_onCollectStart();
     if (!alreadyCollecting) {
@@ -285,18 +284,22 @@ void Heap_Collect(Heap *heap, Stack *stack) {
                                    sweep_start_ns, end_ns);
         }
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
-        Safepoint_disarm(currentMutatorThread->safepoint);
-        WeakRefStack_CallHandlers(heap);
+        // Skip calling WeakRef handlers on thread which is being initialized
+        // If the current block is set to null it means it failed to allocate memory
+        // for allocator and forced GC
+        if(currentMutatorThread->allocator.block != NULL){
+            Safepoint_disarm(currentMutatorThread->safepoint);
+            WeakRefStack_CallHandlers(heap);
+        }
         scalanative_gc_onCollectEnd();
+        // printf("End collect\n\n");
+        // fflush(stdout);
     } else {
         onAlreadyCollect();
         scalanative_gc_waitUntilCollected();
     }
 #endif
-#ifdef DEBUG_PRINT
-    printf("End collect\n");
-    fflush(stdout);
-#endif
+
 }
 
 bool Heap_shouldGrow(Heap *heap) {

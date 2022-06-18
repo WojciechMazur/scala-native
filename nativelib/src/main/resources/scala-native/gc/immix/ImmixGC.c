@@ -56,7 +56,6 @@ INLINE void *scalanative_alloc_small(void *info, size_t size) {
 
 INLINE void *scalanative_alloc_large(void *info, size_t size) {
     size = MathUtils_RoundToNextMultiple(size, ALLOCATION_ALIGNMENT);
-    printf("AllocLarge %zu\n", size);
     void **alloc = (void **)Heap_AllocLarge(&heap, size);
     *alloc = info;
     return (void *)alloc;
@@ -67,9 +66,7 @@ INLINE void *scalanative_alloc_atomic(void *info, size_t size) {
 }
 
 INLINE void scalanative_collect() {
-    // printf("Starting GC\n");
     Heap_Collect(&heap, &stack); 
-    // printf("Finished GC\n");
 }
 
 INLINE MutatorThreadState scalanative_gc_switch_mutator_thread_state(MutatorThreadState newState){

@@ -36,9 +36,7 @@ void WeakRefStack_SetHandler(void *handler) { handlerFn = handler; }
 void WeakRefStack_CallHandlers(Heap *heap) {
     if (visited && handlerFn != NULL) {
         visited = false;
-
         handlerFn();
-        printf("WeakRefStack_CallHandlers %p - done\n", handlerFn);
     }
 
 }

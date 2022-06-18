@@ -16,7 +16,7 @@ class Metadata(val linked: linker.Result, val config: NativeConfig, proxies: Seq
 
   val classes = initClassIdsAndRanges()
   val traits = initTraitIds()
-  val moduleArray = new ModuleArray(this)
+  val moduleArray = new ModuleArray(this)(linked)
   val dispatchTable = new TraitDispatchTable(this)
   val hasTraitTables = new HasTraitTables(this)
 

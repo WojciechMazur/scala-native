@@ -240,11 +240,11 @@ object Generate {
             val instanceName =
               name.member(Sig.Generated("instance"))
             val instanceVal =
-              Val.StructValue(Seq(moduleTyVal))
+              Val.StructValue(Seq(moduleTyVal, Val.Null))
             val instanceDefn = Defn.Var(
               Attrs.None,
               instanceName,
-              Type.StructValue(Seq(Type.Ptr)),
+              Type.StructValue(FieldLayout.ObjectHeader),
               instanceVal
             )
 

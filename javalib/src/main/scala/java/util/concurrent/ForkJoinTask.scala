@@ -355,7 +355,7 @@ abstract class ForkJoinTask[V] private[concurrent] ()
     val uncompensate = {
       queue match {
         case Some(q) if currentPool != null =>
-          val canHelp = !timed || (currentPool.mode.get() & SMASK) == 0
+          val canHelp = !timed || (currentPool.mode & SMASK) == 0
           if (canHelp) {
             if (this.isInstanceOf[CountedCompleter[_]]) {
               s = currentPool.helpComplete(this, q, isInternal)
@@ -395,7 +395,7 @@ abstract class ForkJoinTask[V] private[concurrent] ()
         s >= 0
       }) {
         def checkShouldFail() = {
-          fail = pool != null && pool.mode.get() < 0
+          fail = pool != null && pool.mode < 0
           fail
         }
 

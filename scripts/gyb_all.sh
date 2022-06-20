@@ -5,7 +5,7 @@ set -e
 scalanativeUnsafe=nativelib/src/main/scala/scala/scalanative/unsafe
 scalanativeRuntime=nativelib/src/main/scala/scala/scalanative/runtime
 
-function gyb {
+function gyb() {
   file=$1
   if [ ${file: -4} == ".gyb" ]; then
     scripts/gyb.py --line-directive '' -o "${file%.gyb}" "$file"
@@ -19,6 +19,8 @@ gyb $scalanativeUnsafe/Tag.scala.gyb
 gyb $scalanativeUnsafe/Nat.scala.gyb
 gyb $scalanativeUnsafe/CStruct.scala.gyb
 gyb $scalanativeUnsafe/CFuncPtr.scala.gyb
+gyb $scalanativeUnsafe/CAtomic.scala.gyb
+gyb nativelib/src/main/resources/scala-native/atomic.c.gyb
 
 gyb $scalanativeRuntime/Arrays.scala.gyb
 gyb $scalanativeRuntime/Boxes.scala.gyb

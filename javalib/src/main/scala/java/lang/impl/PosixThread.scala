@@ -63,7 +63,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
   def withGCSafeZone[T](fn: => T) = {
     val prev = MutatorThread.switchState(MutatorThread.State.InSafeZone)
     try fn
-    finally MutatorThread.switchState(prev)
+    finally MutatorThread.switchState(MutatorThread.State.Running)
   }
 
   def resume(): Unit = withGCSafeZone{

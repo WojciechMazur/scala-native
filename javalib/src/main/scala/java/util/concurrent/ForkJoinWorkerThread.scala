@@ -128,15 +128,14 @@ class ForkJoinWorkerThread private[concurrent] (
     val w = workQueue;
     if (p != null && w != null) { // skip on failed initialization
       try {
-        p.registerWorker(w);
-        onStart();
-        p.runWorker(w);
+        p.registerWorker(w)
+        onStart()
+        p.runWorker(w)
       } catch {
         case ex: Throwable => exception = ex
       } finally {
-        try {
-          onTermination(exception);
-        } catch {
+        try onTermination(exception)
+        catch {
           case ex: Throwable =>
             if (exception == null)
               exception = ex;

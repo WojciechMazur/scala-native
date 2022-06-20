@@ -522,14 +522,18 @@ class ThreadLocalRandom private ()
       throw new IllegalArgumentException(ThreadLocalRandom.BAD_BOUND)
     var r = ThreadLocalRandom.mix32(nextSeed())
     val m = bound - 1
-    if ((bound & m) == 0) r &= m
-    else {
+    if ((bound & m) == 0) // power of two
+      r &= m
+    else { // reject over-represented candidates
       var u = r >>> 1
-      r = u & bound
-      while ((u + m - r) < 0) {
+      while ({
+        r = u % bound
+        (u + m - r) < 0
+      }) {
         u = ThreadLocalRandom.mix32(nextSeed()) >>> 1
       }
     }
+    assert(r < bound, s"r:$r < bound: $bound")
     r
   }
 

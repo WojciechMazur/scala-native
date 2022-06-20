@@ -1275,41 +1275,48 @@ class ForkJoinPool(
   /** Returns true if can start terminating if enabled, or already terminated
    */
   private[concurrent] final def canStop(): Boolean = {
+    var md = mode.get()
+    def isStoped() = {
+      // recheck mode on false return
+      md = mode.get()
+      (md & STOP) != 0
+    }
+
     @tailrec
     def loop(oldSum: Long): Boolean = {
       val qs = queues
-      val md = mode.get()
-      val isStoped = (mode.get() & STOP) != 0
-      if (qs == null || isStoped)
+      if (qs == null || isStoped())
         return true
 
       val c = ctl.get()
-      if ((md & SMASK) + (c >> RC_SHIFT) > 0)
-        return isStoped
+      if (((md & SMASK) + (c >> RC_SHIFT).toInt) > 0) 
+        return isStoped()
 
-      var shouldRecheck = false
-
-      @tailrec
-      def checkSum(acc: Int, i: Int): Int = {
-        if (i >= qs.length) acc
-        else {
-          val q = qs(i)
-          val a = if (q != null) q.array else null
-          val cap = if (a != null) a.length else 0
-          val s = if (q != null) q.top else 0
-
-          if (a.length > 0 && (s != q.base.get() ||
-                a((cap - 1) & s) != null ||
-                q.source.get() != 0)) {
-            shouldRecheck = true
-            acc
-          } else checkSum(acc + (i << 32) ^ s, i + 2)
+      import scala.util.control.Breaks._
+      var hasBreaked = false
+      var checkSum = c
+      // non-local return would break tail-rec
+      breakable {
+        for {
+          i <- 1 until qs.length by 2
+          q = qs(i) if q != null
+          a = q.array if a != null
+          cap = a.length if cap > 0
+          s = q.top
+        } {
+          if (s != q.base ||
+              a((cap - 1) & s) != null ||
+              q.source != 0) {
+            println(s"hasBreaked in loop $i $q - $cap - $s")
+            hasBreaked = true
+            break()
+          } else checkSum += (i.toLong << 32) ^ s
         }
       }
 
-      val sum = checkSum(acc = 0, i = 0)
-      if (oldSum == sum && queues == qs) true
-      else loop(sum)
+      if (hasBreaked)    isStoped()
+      else if (oldSum == checkSum && queues == qs) true
+      else loop(checkSum)
     }
     loop(0L)
   }
@@ -1885,73 +1892,61 @@ class ForkJoinPool(
    *    true if terminating or terminated
    */
   private def tryTerminate(now: Boolean, enable: Boolean): Boolean = {
-    @tailrec
-    def loop(rescan: Boolean): Boolean = {
-      // repeat until no changes
-      var changed: Boolean = false
-
-      @tailrec
-      def pollTasks(): Unit = {
-        pollScan(false) match {
-          case null => ()
-          case t =>
-            changed = true
-            ForkJoinTask.cancelIgnoringExceptions(t) // help cancel
-            pollTasks()
-        }
+    // try to set SHUTDOWN, then STOP, then help terminate
+    var md: Int = mode.get()
+    if ((md & SHUTDOWN) == 0) {
+      if (!enable) return false
+      md = getAndBitwiseOrMode(SHUTDOWN)
+    }
+    if ((md & STOP) == 0) {
+      if (!now && !canStop()) {
+        println("cannot stop")
+        return false
       }
-      pollTasks()
+      md = getAndBitwiseOrMode(STOP)
+    }
+    if ((md & TERMINATED) == 0) {
+    // help cancel tasks
+      while ({
+        val t = pollScan(false)
+        t != null && {
+          ForkJoinTask.cancelIgnoringExceptions(t)
+          true
+        }
+      }) ()
 
+      // unblock other workers
       val qs = queues
-      if (qs != null && qs.nonEmpty) {
-        // unblock other workers
+      val n = if (qs != null) qs.length else 0
+      if (n > 0) {
         for {
-          j <- qs.indices.tail.by(2)
-          q <- Option(qs(j))
+          j <- 1 until n by 2
+          q = qs(j) if q != null
           thread <- q.owner if !thread.isInterrupted()
         } {
-          changed = true
-          try {
-            thread.interrupt()
-          } catch {
-            case _: Throwable => ()
+          try thread.interrupt()
+          catch {
+            case ignore: Throwable => ()
           }
         }
       }
 
-      // ReentrantLock lock Condition cond // signal when no workers
-      val md = mode.get()
-      if ((md & TERMINATED) == 0 &&
-          (md & SMASK) + (ctl.get() >>> TC_SHIFT).toShort <= 0 &&
+      // signal when no workers
+      if ((md & SMASK) + (ctl.get() >>> TC_SHIFT).toShort <= 0 &&
           (getAndBitwiseOrMode(TERMINATED) & TERMINATED) == 0) {
-        registrationLock match {
-          case null => ()
-          case lock =>
-            lock.lock()
-            val cond = termination
-            if (cond != null)
-              cond.signalAll()
-            lock.unlock()
+        println(s"terminated set in $this")
+        val lock = registrationLock
+        if (lock != null) {
+          lock.lock()
+          val cond = termination
+          if (cond != null) cond.signalAll()
+          lock.unlock()
         }
+      } else {
+        println("not set terminated")
       }
-
-      if (changed) loop(rescan = true)
-      else if (rescan) loop(rescan = false)
-      else true
     }
-
-    val md = mode.get()
-    // try to set SHUTDOWN, then STOP, then help terminate
-    if ((md & SHUTDOWN) == 0) {
-      if (!enable)
-        return false
-      getAndBitwiseOrMode(SHUTDOWN)
-    } else if ((md & STOP) == 0) {
-      if (!now && !canStop())
-        return false
-      getAndBitwiseOrMode(STOP)
-    }
-    loop(rescan = true)
+    true
   }
 
   // Exported methods
@@ -2260,11 +2255,9 @@ class ForkJoinPool(
    *  @return
    *    the number of active threads
    */
-  @stub()
   def getActiveThreadCount(): Int = {
-    ???
-    // int r = (mode & SMASK) + (int)(ctl >> RC_SHIFT)
-    // return (r <= 0) ? 0 : r // suppress momentarily negative values
+    val r = (mode.get() & SMASK) + (ctl.get() >> RC_SHIFT).toInt
+    r.max(0) // suppress momentarily negative values
   }
 
   /** Returns {@code true} if all worker threads are currently idle. An idle
@@ -2289,18 +2282,16 @@ class ForkJoinPool(
    *  @return
    *    the number of steals
    */
-  @stub()
   def getStealCount(): Long = {
-    ???
-    // long count = stealCount
-    // WorkQueue[] qs WorkQueue q
-    // if ((qs = queues) != null) {
-    //     for (int i = 1 i < qs.length i += 2) {
-    //         if ((q = qs[i]) != null)
-    //             count += (long)q.nsteals & 0xffffffffL
-    //     }
-    // }
-    // return count
+    var count = stealCount.get()
+    val qs = queues
+    if (queues != null) {
+      for {
+        i <- 1 until qs.length by 2
+        q = qs(i) if q != null
+      } count += q.nsteals & 0xffffffffL
+    }
+    count
   }
 
   /** Returns an estimate of the total number of tasks currently held in queues
@@ -2312,19 +2303,17 @@ class ForkJoinPool(
    *  @return
    *    the number of queued tasks
    */
-  @stub()
   def getQueuedTaskCount(): Long = {
-    ???
-    // VarHandle.acquireFence()
-    // WorkQueue[] qs WorkQueue q
-    // int count = 0
-    // if ((qs = queues) != null) {
-    //     for (int i = 1 i < qs.length i += 2) {
-    //         if ((q = qs[i]) != null)
-    //             count += q.queueSize()
-    //     }
-    // }
-    // return count
+    VarHandle.acquireFence()
+    var count = 0
+    val qs = queues
+    if (qs != null) {
+      for {
+        i <- 1 until qs.length by 2
+        q = qs(i) if q != null
+      } count += q.queueSize()
+    }
+    count
   }
 
   /** Returns an estimate of the number of tasks submitted to this pool that
@@ -2334,19 +2323,17 @@ class ForkJoinPool(
    *  @return
    *    the number of queued submissions
    */
-  @stub()
   def getQueuedSubmissionCount(): Int = {
-    ???
-    // VarHandle.acquireFence()
-    // WorkQueue[] qs WorkQueue q
-    // int count = 0
-    // if ((qs = queues) != null) {
-    //     for (int i = 0 i < qs.length i += 2) {
-    //         if ((q = qs[i]) != null)
-    //             count += q.queueSize()
-    //     }
-    // }
-    // return count
+    VarHandle.acquireFence()
+    var count = 0
+    val qs = queues
+    if (qs != null) {
+      for {
+        i <- 0 until qs.length by 2
+        q = qs(i) if q != null
+      } count += q.queueSize()
+    }
+    count
   }
 
   /** Returns {@code true} if there are any tasks submitted to this pool that
@@ -2355,18 +2342,17 @@ class ForkJoinPool(
    *  @return
    *    {@code true} if there are any queued submissions
    */
-  @stub()
   def hasQueuedSubmissions(): Boolean = {
-    ???
-    // VarHandle.acquireFence()
-    // WorkQueue[] qs WorkQueue q
-    // if ((qs = queues) != null) {
-    //     for (int i = 0 i < qs.length i += 2) {
-    //         if ((q = qs[i]) != null && !q.isEmpty())
-    //             return true
-    //     }
-    // }
-    // return false
+
+    VarHandle.acquireFence()
+    val qs = queues
+    if (qs != null) {
+      for {
+        i <- 0 until qs.length by 2
+        q = qs(i) if q != null
+      } if (!q.isEmpty()) return true
+    }
+    false
   }
 
   /** Removes and returns the next unexecuted submission if one is available.
@@ -2477,10 +2463,8 @@ class ForkJoinPool(
    *    threads because it does not hold {@link
    *    java.lang.RuntimePermission}{@code ("modifyThread")}
    */
-  @stub()
   def shutdown(): Unit = {
-    if (this != common)
-      tryTerminate(false, true)
+    if (this != common) tryTerminate(false, true)
   }
 
   /** Possibly attempts to cancel and/or stop all tasks, and reject all
@@ -2499,7 +2483,6 @@ class ForkJoinPool(
    *    threads because it does not hold {@link
    *    java.lang.RuntimePermission}{@code ("modifyThread")}
    */
-  @stub()
   def shutdownNow(): List[Runnable] = {
     if (this != common)
       tryTerminate(true, true)
@@ -2558,35 +2541,45 @@ class ForkJoinPool(
    *    if interrupted while waiting
    */
   @throws[InterruptedException]
-  @stub()
   def awaitTermination(timeout: Long, unit: TimeUnit): Boolean = {
-    ???
-    // ReentrantLock lock Condition cond
-    // long nanos = unit.toNanos(timeout)
-    // boolean terminated = false
-    // if (this == common) {
-    //     Thread t ForkJoinWorkerThread wt int q
-    //     if ((t = Thread.currentThread()) instanceof ForkJoinWorkerThread &&
-    //         (wt = (ForkJoinWorkerThread)t).pool == this)
-    //         q = helpQuiescePool(wt.workQueue, nanos, true)
-    //     else
-    //         q = externalHelpQuiescePool(nanos, true)
-    //     if (q < 0)
-    //         throw new InterruptedException()
-    // }
-    // else if (!(terminated = ((mode & TERMINATED) != 0)) &&
-    //          (lock = registrationLock) != null) {
-    //     lock.lock()
-    //     try {
-    //         if ((cond = termination) == null)
-    //             termination = cond = lock.newCondition()
-    //         while (!(terminated = ((mode & TERMINATED) != 0)) && nanos > 0L)
-    //             nanos = cond.awaitNanos(nanos)
-    //     } finally {
-    //         lock.unlock()
-    //     }
-    // }
-    // return terminated
+    var nanos = unit.toNanos(timeout)
+    var terminated = false
+    if (this == common) {
+      val q = Thread.currentThread() match {
+        case worker: ForkJoinWorkerThread if worker.pool == this =>
+          helpQuiescePool(worker.workQueue, nanos, true)
+        case _ =>
+          externalHelpQuiescePool(nanos, true)
+      }
+      if (q < 0) throw new InterruptedException()
+    } else {
+      def isTerminated() = (mode.get() & TERMINATED) != 0
+      terminated = isTerminated()
+      println(s"awaitTermination $this")
+      println(terminated)
+      val lock = registrationLock
+      if (!terminated && lock != null) {
+        lock.lock()
+        try {
+          val cond = termination match {
+            case null =>
+              println("new cond")
+              val cond = lock.newCondition()
+              termination = cond
+              cond
+            case cond => cond
+          }
+          while ({
+            terminated = isTerminated()
+            !terminated && nanos > 0L
+          }) {
+            println(s"awaitNanos $nanos")
+            nanos = cond.awaitNanos(nanos)
+          }
+        } finally lock.unlock()
+      }
+    }
+    terminated
   }
 
   /** If called by a ForkJoinTask operating in this pool, equivalent in effect
@@ -3190,7 +3183,7 @@ object ForkJoinPool {
     final def queueSize(): Int = {
       VarHandle.acquireFence() // ensure fresh reads by external callers
       val n = top - base.get()
-      if (n < 0) 0 else n // ignore transient negative
+      n.max(0) // ignore transient negative
     }
 
     /** Provides a more conservative estimate of whether this queue has any

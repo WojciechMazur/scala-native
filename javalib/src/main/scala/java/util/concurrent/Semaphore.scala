@@ -97,7 +97,8 @@ import scala.annotation.tailrec
  *  another thread.
  *
  *  @since 1.5
- *    @author Doug Lea
+ *  @author
+ *    Doug Lea
  */
 object Semaphore {
 

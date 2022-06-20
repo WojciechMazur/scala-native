@@ -486,7 +486,7 @@ class AtomicIntegerArray extends Serializable {
 
   /** Atomically sets the element at index {@code i} to {@code newValue} if the
    *  element's current value, referred to as the <em>witness value</em>, {@code
-   *  == expectedValue}, with memory effects as specified by {@link
+   *  \== expectedValue}, with memory effects as specified by {@link
    *  VarHandle#compareAndExchange}.
    *
    *  @param i
@@ -510,7 +510,7 @@ class AtomicIntegerArray extends Serializable {
 
   /** Atomically sets the element at index {@code i} to {@code newValue} if the
    *  element's current value, referred to as the <em>witness value</em>, {@code
-   *  == expectedValue}, with memory effects as specified by {@link
+   *  \== expectedValue}, with memory effects as specified by {@link
    *  VarHandle#compareAndExchangeAcquire}.
    *
    *  @param i
@@ -536,7 +536,7 @@ class AtomicIntegerArray extends Serializable {
 
   /** Atomically sets the element at index {@code i} to {@code newValue} if the
    *  element's current value, referred to as the <em>witness value</em>, {@code
-   *  == expectedValue}, with memory effects as specified by {@link
+   *  \== expectedValue}, with memory effects as specified by {@link
    *  VarHandle#compareAndExchangeRelease}.
    *
    *  @param i

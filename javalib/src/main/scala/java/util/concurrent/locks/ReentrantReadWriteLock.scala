@@ -94,17 +94,17 @@ object ReentrantReadWriteLock {
 
     import Sync._
 
-    //transient
+    // transient
     private var readHolds: ThreadLocalHoldCounter =
       new ThreadLocalHoldCounter()
 
-    //transient
+    // transient
     private var cacheHoldCounter: HoldCounter = _
 
-    //transient
+    // transient
     private var firstReader: Thread = _
 
-    //transient
+    // transient
     private var firstReaderHoldCount: Int = _
 
     setState(getState())

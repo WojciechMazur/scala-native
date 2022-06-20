@@ -528,12 +528,12 @@ object Lower {
       val previousGCState = ptr match {
         case Val.Global(Global.Member(_, sig), _) if sig.isExtern =>
           sig.mangle match {
-            case "C16scalanative_init" => None
+            case "C16scalanative_init"                      => None
             case sym if sym.contains("scalanative_atomic_") => None
-            case sym if sym.contains("scalanative_alloc") => None
+            case sym if sym.contains("scalanative_alloc")   => None
             case _ =>
               Some(switchGCSafeZone(Val.Int(2)))
-              // None
+            // None
           }
         case _ => None
       }
@@ -546,7 +546,7 @@ object Lower {
         ),
         unwind
       )
-      previousGCState.foreach{prev => 
+      previousGCState.foreach { prev =>
         genPollGC(buf)
         switchGCSafeZone(Val.Int(0))
       }
@@ -1488,7 +1488,11 @@ object Lower {
       gcYieldpoint.name,
       Type.Function(Nil, Type.Unit)
     )
-    buf += Defn.Declare(Attrs.None, GcSwitchMutatorState.name, GcSwitchMutatorState.valty)
+    buf += Defn.Declare(
+      Attrs.None,
+      GcSwitchMutatorState.name,
+      GcSwitchMutatorState.valty
+    )
     buf.toSeq
   }
 

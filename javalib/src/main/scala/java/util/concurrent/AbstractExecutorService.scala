@@ -30,7 +30,8 @@ import java.lang
  *  }}</pre>
  *
  *  @since 1.5
- *    @author Doug Lea
+ *  @author
+ *    Doug Lea
  */
 abstract class AbstractExecutorService() extends ExecutorService {
 

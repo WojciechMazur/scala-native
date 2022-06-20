@@ -231,24 +231,24 @@ class Thread private[lang] (
   }
 
   def start(): Unit = synchronized {
-      if (started) {
-        throw new IllegalThreadStateException(
-          "This thread was already started!"
-        )
-      }
-      group.add(this)
+    if (started) {
+      throw new IllegalThreadStateException(
+        "This thread was already started!"
+      )
+    }
+    group.add(this)
 
-      nativeThread = NativeThread(this)
+    nativeThread = NativeThread(this)
 
-      while (!started) {
-        try {
-          Thread.onSpinWait()
-        } catch {
-          case e: InterruptedException =>
-            Thread.currentThread().interrupt()
-        }
+    while (!started) {
+      try {
+        Thread.onSpinWait()
+      } catch {
+        case e: InterruptedException =>
+          Thread.currentThread().interrupt()
       }
-      nativeThread.state = NativeThread.State.Running
+    }
+    nativeThread.state = NativeThread.State.Running
   }
 
   def getState(): State = {

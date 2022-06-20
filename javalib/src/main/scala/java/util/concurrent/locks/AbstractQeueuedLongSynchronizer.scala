@@ -211,7 +211,8 @@ import java.util.concurrent.atomic.{AtomicReference, AtomicInteger, AtomicLong}
  *  sync.acquireSharedInterruptibly(1); } }}</pre>
  *
  *  @since 1.5
- *    @author Doug Lea
+ *  @author
+ *    Doug Lea
  */
 @SerialVersionUID(7373984972572414692L)
 object AbstractQueuedLongSynchronizer { // Node status bits, also used as argument and return values
@@ -538,7 +539,7 @@ abstract class AbstractQueuedLongSynchronizer protected ()
           if (s == null) tail.get() != q
           else s.prev.get() != q || s.status.get() < 0
         if (isIncosisient) break()
-        if (q.status.get() < 0) { //canceled
+        if (q.status.get() < 0) { // canceled
           val casNode =
             if (s == null) tail.compareAndSet(q, p)
             else s.prev.compareAndSet(q, p)

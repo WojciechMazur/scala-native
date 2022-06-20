@@ -7,15 +7,15 @@ object SysInfoApi {
   import MinWinBaseApi._
 
   type SystemInfo = CStruct10[
-    DWord, //oemId
+    DWord, // oemId
     DWord, // pagesSize
-    Ptr[Byte], //minimum application address
+    Ptr[Byte], // minimum application address
     Ptr[Byte], // max application address
     Ptr[DWord], // active processors mask
     DWord, // number of processors
     DWord, // processor type
-    DWord, //allocation granularity
-    Word, //processor level
+    DWord, // allocation granularity
+    Word, // processor level
     Word // processor revision
   ]
 

@@ -14,7 +14,8 @@ package java.util.concurrent
  *  @see
  *    Executor
  *  @since 1.6
- *    @author Doug Lea
+ *  @author
+ *    Doug Lea
  *  @param <V>
  *    The result type returned by this Future's {@code get} method
  */

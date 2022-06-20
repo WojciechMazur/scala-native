@@ -157,7 +157,8 @@ import java.util.concurrent.atomic.{AtomicReference, AtomicInteger}
  *  relied on during execution itself.
  *
  *  @since 1.7
- *    @author Doug Lea
+ *  @author
+ *    Doug Lea
  */
 @SerialVersionUID(-7721805057305804111L)
 abstract class ForkJoinTask[V] private[concurrent] ()

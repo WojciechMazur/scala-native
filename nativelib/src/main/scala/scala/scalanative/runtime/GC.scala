@@ -43,9 +43,9 @@ object GC {
     def switchState(newState: State): State = extern
 
     object State {
-      final val Running      = 0
+      final val Running = 0
       final val WaitingForGC = 1
-      final val InSafeZone   = 2
+      final val InSafeZone = 2
     }
   }
 

@@ -17,7 +17,7 @@ package java.util.concurrent;
  *
  *  <pre> {@code static class SortTask extends RecursiveAction { final long[]
  *  array; final int lo, hi; SortTask(long[] array, int lo, int hi) { this.array
- *  = array; this.lo = lo; this.hi = hi; } SortTask(long[] array) { this(array,
+ *  \= array; this.lo = lo; this.hi = hi; } SortTask(long[] array) { this(array,
  *  0, array.length); } protected void compute() { if (hi - lo < THRESHOLD)
  *  sortSequentially(lo, hi); else { int mid = (lo + hi) >>> 1; invokeAll(new
  *  SortTask(array, lo, mid), new SortTask(array, mid, hi)); merge(lo, mid, hi);
@@ -48,7 +48,7 @@ package java.util.concurrent;
  *  unstolen tasks rather than further subdividing.
  *
  *  <pre> {@code double sumOfSquares(ForkJoinPool pool, double[] array) { int n
- *  = array.length; Applyer a = new Applyer(array, 0, n, null); pool.invoke(a);
+ *  \= array.length; Applyer a = new Applyer(array, 0, n, null); pool.invoke(a);
  *  return a.result; }
  *
  *  class Applyer extends RecursiveAction { final double[] array; final int lo,
@@ -68,7 +68,8 @@ package java.util.concurrent;
  *  sum; } }}</pre>
  *
  *  @since 1.7
- *    @author Doug Lea
+ *  @author
+ *    Doug Lea
  */
 @SerialVersionUID(5232453952276485070L)
 abstract class RecursiveAction() extends ForkJoinTask[Unit] {

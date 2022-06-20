@@ -165,10 +165,10 @@ import scala.annotation.tailrec
  *  void compute() { // similar to ForEach version 3 int l = lo, h = hi; while
  *  (result.get() == null && h >= l) { if (h - l >= 2) { int mid = (l + h) >>>
  *  1; addToPendingCount(1); new Searcher(this, array, result, mid, h).fork(); h
- *  = mid; } else { E x = array[l]; if (matches(x) && result.compareAndSet(null,
- *  x)) quietlyCompleteRoot(); // root task is now joinable break; } }
- *  tryComplete(); // normally complete whether or not found } boolean matches(E
- *  e) { ... } // return true if found
+ *  \= mid; } else { E x = array[l]; if (matches(x) &&
+ *  result.compareAndSet(null, x)) quietlyCompleteRoot(); // root task is now
+ *  joinable break; } } tryComplete(); // normally complete whether or not found
+ *  } boolean matches(E e) { ... } // return true if found
  *
  *  public static <E> E search(E[] array) { return new Searcher<E>(null, array,
  *  new AtomicReference<E>(), 0, array.length).invoke(); } }}</pre>
@@ -241,7 +241,7 @@ import scala.annotation.tailrec
  *  MyReducer<E> reducer, int lo, int hi, MapReducer<E> next) { super(p);
  *  this.array = array; this.mapper = mapper; this.reducer = reducer; this.lo =
  *  lo; this.hi = hi; this.next = next; } public void compute() { int l = lo, h
- *  = hi; while (h - l >= 2) { int mid = (l + h) >>> 1; addToPendingCount(1);
+ *  \= hi; while (h - l >= 2) { int mid = (l + h) >>> 1; addToPendingCount(1);
  *  (forks = new MapReducer(this, array, mapper, reducer, mid, h,
  *  forks)).fork(); h = mid; } if (h > l) result = mapper.apply(array[l]); //
  *  process completions by reducing along and advancing subtask links for
@@ -268,7 +268,8 @@ import scala.annotation.tailrec
  *  BodyBuilder(p, ...).fork();}</pre>
  *
  *  @since 1.8
- *    @author Doug Lea
+ *  @author
+ *    Doug Lea
  */
 @SerialVersionUID(5232453752276485070L)
 abstract class CountedCompleter[T](

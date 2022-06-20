@@ -66,7 +66,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
     finally MutatorThread.switchState(MutatorThread.State.Running)
   }
 
-  def resume(): Unit = withGCSafeZone{
+  def resume(): Unit = withGCSafeZone {
     pthread_mutex_lock(lock)
     while (state == NativeThread.State.Waiting) {
       state = NativeThread.State.Running

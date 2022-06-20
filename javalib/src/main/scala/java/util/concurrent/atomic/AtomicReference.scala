@@ -15,7 +15,8 @@ import java.util.function.BinaryOperator
 import java.util.function.UnaryOperator
 
 @SerialVersionUID(-1848883965231344442L)
-class AtomicReference[V <: AnyRef](@volatile private var value: V) extends Serializable {
+class AtomicReference[V <: AnyRef](@volatile private var value: V)
+    extends Serializable {
   def this() = {
     this(null.asInstanceOf[V])
   }

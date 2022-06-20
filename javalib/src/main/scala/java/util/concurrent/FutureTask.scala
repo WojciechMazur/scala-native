@@ -31,7 +31,8 @@ import scala.annotation.tailrec
  *  classes.
  *
  *  @since 1.5
- *    @author Doug Lea
+ *  @author
+ *    Doug Lea
  *  @param <V>
  *    The result type returned by this FutureTask's {@code get} methods
  */
@@ -387,7 +388,7 @@ class FutureTask[V] private () extends RunnableFuture[V] {
         else if (pred != null) {
           pred.next = s
           if (pred.thread == null) { // check for race
-            true //retry
+            true // retry
           } else tryRemove(q, pred)
         } else if (!atomicWaiters.compareAndSet(q, s)) true // retry
         else tryRemove(s, pred)

@@ -115,15 +115,15 @@ class AtomicMarkableReference[V <: AnyRef](
     val current = valueRef.load()
 
     (expectedReference eq current.reference) &&
-    expectedMark == current.mark && {
-      ((newReference eq current.reference) && newMark == current.mark) ||
-      valueRef
-        .compareExchangeStrong(
-          current,
-          MarkableReference(newReference, newMark)
-        )
-        ._1
-    }
+      expectedMark == current.mark && {
+        ((newReference eq current.reference) && newMark == current.mark) ||
+        valueRef
+          .compareExchangeStrong(
+            current,
+            MarkableReference(newReference, newMark)
+          )
+          ._1
+      }
   }
 
   /** Unconditionally sets the value of both the reference and mark.

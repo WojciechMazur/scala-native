@@ -18,7 +18,8 @@ package java.util.concurrent
  *  simple implementation, that sets the created thread context to known values
  *  before returning it.
  *  @since 1.5
- *    @author Doug Lea
+ *  @author
+ *    Doug Lea
  */
 trait ThreadFactory {
 

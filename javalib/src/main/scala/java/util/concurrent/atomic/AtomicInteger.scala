@@ -71,7 +71,7 @@ class AtomicInteger(private[this] var value: Int)
   }
 
   /** Atomically sets the value to {@code newValue} if the current value {@code
-   *  == expectedValue}, with memory effects as specified by {@link VarHandle#
+   *  \== expectedValue}, with memory effects as specified by {@link VarHandle#
    *  compareAndSet}.
    *
    *  @param expectedValue

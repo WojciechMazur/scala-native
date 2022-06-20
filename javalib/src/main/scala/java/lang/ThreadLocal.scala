@@ -93,7 +93,7 @@ object ThreadLocal {
 
       while (counter > 0) {
         continue = false
-        if(index > table.size){
+        if (index > table.size) {
           println(s"Cleanup $index / ${table.size}")
         }
         val k: Object = table(index)
@@ -140,7 +140,7 @@ object ThreadLocal {
       var i: Int = oldTable.length - 2
       var continue: scala.Boolean = false
       while (i >= 0) {
-        if(i > oldTable.length){
+        if (i > oldTable.length) {
           println(s"rehash - $i / ${oldTable.length}")
         }
         continue = false
@@ -161,10 +161,9 @@ object ThreadLocal {
       true
     }
 
-    /**
-     * Adds an entry during rehashing. Compared to put(), this method
-     * doesn't have to clean up, check for existing entries, account for
-     * tombstones, etc.
+    /** Adds an entry during rehashing. Compared to put(), this method doesn't
+     *  have to clean up, check for existing entries, account for tombstones,
+     *  etc.
      */
     def add(key: ThreadLocal[_], value: Object): Unit = {
       var index: Int = key.hash & mask
@@ -188,8 +187,10 @@ object ThreadLocal {
 
       var index: Int = key.hash & mask
       while (true) {
-        if(index > table.length || firstTombstone > table.length){
-          println(s"Index $index, firstTombstone: ${firstTombstone}, tableLen: ${table.length}")
+        if (index > table.length || firstTombstone > table.length) {
+          println(
+            s"Index $index, firstTombstone: ${firstTombstone}, tableLen: ${table.length}"
+          )
         }
         val k: Object = table(index)
 

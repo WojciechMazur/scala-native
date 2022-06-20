@@ -29,7 +29,8 @@ import java.security.PrivilegedAction;
  *  use it} in a {@code ForkJoinPool}.
  *
  *  @since 1.7
- *    @author Doug Lea
+ *  @author
+ *    Doug Lea
  */
 class ForkJoinWorkerThread private[concurrent] (
     group: ThreadGroup,

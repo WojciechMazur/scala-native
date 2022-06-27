@@ -1332,7 +1332,6 @@ class ForkJoinPool(
           if (s != q.base ||
               a((cap - 1) & s) != null ||
               q.source != 0) {
-            println(s"hasBreaked in loop $i $q - $cap - $s")
             hasBreaked = true
             break()
           } else checkSum += (i.toLong << 32) ^ s
@@ -1922,10 +1921,7 @@ class ForkJoinPool(
       md = getAndBitwiseOrMode(SHUTDOWN)
     }
     if ((md & STOP) == 0) {
-      if (!now && !canStop()) {
-        println("cannot stop")
-        return false
-      }
+      if (!now && !canStop()) return false
       md = getAndBitwiseOrMode(STOP)
     }
     if ((md & TERMINATED) == 0) {
@@ -1957,7 +1953,6 @@ class ForkJoinPool(
       // signal when no workers
       if ((md & SMASK) + (ctl >>> TC_SHIFT).toShort <= 0 &&
           (getAndBitwiseOrMode(TERMINATED) & TERMINATED) == 0) {
-        println(s"terminated set in $this")
         val lock = registrationLock
         if (lock != null) {
           lock.lock()
@@ -1965,8 +1960,6 @@ class ForkJoinPool(
           if (cond != null) cond.signalAll()
           lock.unlock()
         }
-      } else {
-        println("not set terminated")
       }
     }
     true
@@ -2578,15 +2571,12 @@ class ForkJoinPool(
     } else {
       def isTerminated() = (mode & TERMINATED) != 0
       terminated = isTerminated()
-      println(s"awaitTermination $this")
-      println(terminated)
       val lock = registrationLock
       if (!terminated && lock != null) {
         lock.lock()
         try {
           val cond = termination match {
             case null =>
-              println("new cond")
               val cond = lock.newCondition()
               termination = cond
               cond
@@ -2595,10 +2585,7 @@ class ForkJoinPool(
           while ({
             terminated = isTerminated()
             !terminated && nanos > 0L
-          }) {
-            println(s"awaitNanos $nanos")
-            nanos = cond.awaitNanos(nanos)
-          }
+          }) nanos = cond.awaitNanos(nanos)
         } finally lock.unlock()
       }
     }

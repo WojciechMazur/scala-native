@@ -40,39 +40,19 @@
 //  *      JSR166TestCase
 //  */
 
-package javalib.util.concurrent
+package org.scalanative.testsuite.javalib.util.concurrent
 
-import java.util.concurrent.TimeUnit.MILLISECONDS;
-import java.util.concurrent.TimeUnit.MINUTES;
-import java.util.concurrent.TimeUnit.NANOSECONDS;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-// // import java.util.ArrayList;
-// // import java.util.Arrays;
-// // import java.util.Collection;
-// // import java.util.Collections;
-// // import java.util.Date;
-// // import java.util.Deque;
-// // import java.util.Enumeration;
-// // import java.util.HashSet;
-// // import java.util.Iterator;
-// // import java.util.List;
-// // import java.util.NoSuchElementException;
-// // import java.util.PropertyPermission;
-// // import java.util.Set;
+import java.util.concurrent.TimeUnit._
+import java.io._
+import java.util._
 import java.util.concurrent._
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
-// import junit.framework.Test;
-// import junit.framework.TestCase;
-// import junit.framework.TestResult;
-// import junit.framework.TestSuite;
-import org.junit.Assert
+import org.junit.Assert._
+import scala.scalanative.junit.utils.AssertThrows.assertThrows
+
 import scala.util.Using
 
 /** Base class for JSR166 Junit TCK tests. Defines some constants, utility
@@ -258,8 +238,7 @@ trait JSR166Test {
    *  testcase will fail.
    */
   def threadFail(reason: String): Unit = {
-    println(s"ThreadFail: $reason")
-    try Assert.fail(reason)
+    try fail(reason)
     catch {
       case fail: AssertionError =>
         threadRecordFailure(fail)
@@ -267,33 +246,31 @@ trait JSR166Test {
     }
   }
 
-//     /**
-//      * Just like assertTrue(b), but additionally recording (using
-//      * threadRecordFailure) any AssertionError thrown, so that the
-//      * current testcase will fail.
-//      */
-//     public void threadAssertTrue(boolean b) {
-//         try {
-//             assertTrue(b);
-//         } catch (AssertionError fail) {
-//             threadRecordFailure(fail);
-//             throw fail;
-//         }
-//     }
+  /** Just like assertTrue(b), but additionally recording (using
+   *  threadRecordFailure) any AssertionError thrown, so that the current
+   *  testcase will fail.
+   */
+  def threadAssertTrue(pred: => Boolean): Unit = {
+    try assertTrue(pred)
+    catch {
+      case fail: AssertionError =>
+        threadRecordFailure(fail)
+        throw fail
+    }
+  }
 
-//     /**
-//      * Just like assertFalse(b), but additionally recording (using
-//      * threadRecordFailure) any AssertionError thrown, so that the
-//      * current testcase will fail.
-//      */
-//     public void threadAssertFalse(boolean b) {
-//         try {
-//             assertFalse(b);
-//         } catch (AssertionError fail) {
-//             threadRecordFailure(fail);
-//             throw fail;
-//         }
-//     }
+  /** Just like assertFalse(b), but additionally recording (using
+   *  threadRecordFailure) any AssertionError thrown, so that the current
+   *  testcase will fail.
+   */
+  def threadAssertFalse(pred: => Boolean): Unit = {
+    try assertFalse(pred)
+    catch {
+      case fail: AssertionError =>
+        threadRecordFailure(fail)
+        throw fail
+    }
+  }
 
 //     /**
 //      * Just like assertNull(x), but additionally recording (using
@@ -382,67 +359,64 @@ trait JSR166Test {
 
   /** Allows use of try-with-resources with per-test thread pools.
    */
-  class PoolCleaner(pool: ExecutorService) extends AutoCloseable {
-    def close(): Unit = 
-      // println(s"closing pool $pool")
-      joinPool(pool)
+  class PoolCleaner(val pool: ExecutorService) extends AutoCloseable {
+    def close(): Unit = joinPool(pool)
   }
 
-//     /**
-//      * An extension of PoolCleaner that has an action to release the pool.
-//      */
-//     class PoolCleanerWithReleaser extends PoolCleaner {
-//         private final Runnable releaser;
-//         public PoolCleanerWithReleaser(ExecutorService pool, Runnable releaser) {
-//             super(pool);
-//             this.releaser = releaser;
-//         }
-//         public void close() {
-//             try {
-//                 releaser.run();
-//             } finally {
-//                 super.close();
-//             }
-//         }
-//     }
+  /** An extension of PoolCleaner that has an action to release the pool.
+   */
+  class PoolCleanerWithReleaser(pool: ExecutorService, releaser: Runnable)
+      extends PoolCleaner(pool) {
+    override def close(): Unit = {
+      try releaser.run()
+      finally super.close()
+    }
+  }
+
+  // def usingPoolCleaner[Executor <: ExecutorService, T](
+  //     pool: Executor
+  // )(fn: Executor => T): T = {
+  //   scala.util
+  //     .Using(cleaner(pool)) { cleaner =>
+  //       fn(pool)
+  //     }
+  //     .fold(
+  //       t => { throw new AssertionError(s"Pool cleanup failed: $t", t) },
+  //       // Assert.fail(s"Pool cleanup failed: $t"); null.asInstanceOf[T] },
+  //       identity
+  //     )
+  // }
 
   def usingPoolCleaner[Executor <: ExecutorService, T](
-      pool: Executor
+      pool: Executor,
+      wrapper: Executor => PoolCleaner = cleaner(_: ExecutorService)
   )(fn: Executor => T): T = {
     scala.util
-      .Using(cleaner(pool)) { cleaner =>
-        fn(pool)
-      }
+      .Using(wrapper(pool)) { cleaner => fn(pool) }
       .fold(
-        t => { throw new AssertionError(s"Pool cleanup failed: $t", t)},
-        //Assert.fail(s"Pool cleanup failed: $t"); null.asInstanceOf[T] },
+        t => { fail(s"Pool cleanup failed: $t"); null.asInstanceOf[T] },
         identity
       )
   }
+
   def cleaner(pool: ExecutorService): PoolCleaner = new PoolCleaner(pool)
+  def cleaner(pool: ExecutorService, releaser: Runnable) =
+    new PoolCleanerWithReleaser(pool, releaser)
+  def cleaner(pool: ExecutorService, latch: CountDownLatch) =
+    new PoolCleanerWithReleaser(pool, releaser(latch))
+  def cleaner(pool: ExecutorService, flag: AtomicBoolean) =
+    new PoolCleanerWithReleaser(pool, releaser(flag))
 
-//     PoolCleaner cleaner(ExecutorService pool, Runnable releaser) {
-//         return new PoolCleanerWithReleaser(pool, releaser);
-//     }
+  def releaser(latch: CountDownLatch) = new Runnable() {
+    def run(): Unit = while ({
+      latch.countDown()
+      latch.getCount() > 0
+    }) ()
+  }
 
-//     PoolCleaner cleaner(ExecutorService pool, CountDownLatch latch) {
-//         return new PoolCleanerWithReleaser(pool, releaser(latch));
-//     }
-
-//     Runnable releaser(final CountDownLatch latch) {
-//         return new Runnable() { public void run() {
-//             do { latch.countDown(); }
-//             while (latch.getCount() > 0);
-//         }};
-//     }
-
-//     PoolCleaner cleaner(ExecutorService pool, AtomicBoolean flag) {
-//         return new PoolCleanerWithReleaser(pool, releaser(flag));
-//     }
-
-//     Runnable releaser(final AtomicBoolean flag) {
-//         return new Runnable() { public void run() { flag.set(true); }};
-//     }
+  def releaser(flag: AtomicBoolean) = new Runnable() {
+    def run(): Unit = flag.set(true)
+  }
 
   /** Waits out termination of a thread pool or fails doing so.
    */
@@ -455,11 +429,9 @@ trait JSR166Test {
             s"ExecutorService $pool did not terminate in a timely manner"
           )
         finally {
-          println(s"Forcing shutdown $pool")
           // last resort, for the benefit of subsequent tests
           pool.shutdownNow()
           val res = pool.awaitTermination(MEDIUM_DELAY_MS, MILLISECONDS)
-          println(s"Forced: $res")
         }
       }
     } catch {
@@ -468,8 +440,6 @@ trait JSR166Test {
         ()
       case fail: InterruptedException =>
         threadFail("Unexpected InterruptedException")
-    } finally{
-      println(s"join pool $pool done")
     }
 
 //     /**
@@ -739,38 +709,26 @@ trait JSR166Test {
 //         return newStartedThread(checkedRunnable(action));
 //     }
 
-//     /**
-//      * Waits for the specified time (in milliseconds) for the thread
-//      * to terminate (using {@link Thread#join(long)}), else interrupts
-//      * the thread (in the hope that it may terminate later) and fails.
-//      */
-//     void awaitTermination(Thread thread, long timeoutMillis) {
-//         try {
-//             thread.join(timeoutMillis);
-//         } catch (InterruptedException fail) {
-//             threadUnexpectedException(fail);
-//         }
-//         if (thread.getState() != Thread.State.TERMINATED) {
-//             String detail = String.format(
-//                     "timed out waiting for thread to terminate, thread=%s, state=%s" ,
-//                     thread, thread.getState());
-//             try {
-//                 threadFail(detail);
-//             } finally {
-//                 // Interrupt thread __after__ having reported its stack trace
-//                 thread.interrupt();
-//             }
-//         }
-//     }
-
-//     /**
-//      * Waits for LONG_DELAY_MS milliseconds for the thread to
-//      * terminate (using {@link Thread#join(long)}), else interrupts
-//      * the thread (in the hope that it may terminate later) and fails.
-//      */
-//     void awaitTermination(Thread t) {
-//         awaitTermination(t, LONG_DELAY_MS);
-//     }
+  /** Waits for the specified time (in milliseconds) for the thread to terminate
+   *  (using {@link Thread#join(long)}), else interrupts the thread (in the hope
+   *  that it may terminate later) and fails.
+   */
+  def awaitTermination(thread: Thread, timeoutMillis: Long = LONG_DELAY_MS) = {
+    try thread.join(timeoutMillis)
+    catch {
+      case fail: InterruptedException => threadUnexpectedException(fail)
+    }
+    if (thread.getState() != Thread.State.TERMINATED) {
+      try
+        threadFail(
+          s"timed out waiting for thread to terminate, thread=$thread, state=${thread.getState()}"
+        )
+      finally {
+        // Interrupt thread __after__ having reported its stack trace
+        thread.interrupt()
+      }
+    }
+  }
 
   // Some convenient Runnable classes
 
@@ -814,51 +772,47 @@ trait JSR166Test {
 //         }
 //     }
 
-//     public abstract class CheckedInterruptedRunnable implements Runnable {
-//         protected abstract void realRun() throws Throwable;
+  abstract class CheckedInterruptedRunnable extends Runnable {
+    protected def realRun(): Unit
 
-//         public final void run() {
-//             try {
-//                 realRun();
-//             } catch (InterruptedException success) {
-//                 threadAssertFalse(Thread.interrupted());
-//                 return;
-//             } catch (Throwable fail) {
-//                 threadUnexpectedException(fail);
-//             }
-//             threadShouldThrow("InterruptedException");
-//         }
-//     }
+    final def run(): Unit = {
+      try
+        assertThrows(classOf[InterruptedException], realRun())
+      catch {
+        case success: InterruptedException =>
+          threadAssertFalse(Thread.interrupted())
+        case fail: Throwable => threadUnexpectedException(fail)
+      }
 
-//     public abstract class CheckedCallable<T> implements Callable<T> {
-//         protected abstract T realCall() throws Throwable;
+    }
+  }
 
-//         public final T call() {
-//             try {
-//                 return realCall();
-//             } catch (Throwable fail) {
-//                 threadUnexpectedException(fail);
-//             }
-//             throw new AssertionError("unreached");
-//         }
-//     }
+  abstract class CheckedCallable[T] extends Callable[T] {
+    protected def realCall(): T
+    final def call(): T = {
+      try return realCall()
+      catch {
+        case fail: Throwable =>
+          threadUnexpectedException(fail)
+          null.asInstanceOf[T]
+      }
+      throw new AssertionError("unreached");
+    }
+  }
 
-//     public static class NoOpRunnable implements Runnable {
-//         public void run() {}
-//     }
+  class NoOpRunnable extends Runnable {
+    def run() = ()
+  }
 
 //     public static class NoOpCallable implements Callable {
 //         public Object call() { return Boolean.TRUE; }
 //     }
 
-//     public static final String TEST_STRING = "a test string";
+  final val TEST_STRING = "a test string";
 
-//     public static class StringTask implements Callable<String> {
-//         final String value;
-//         public StringTask() { this(TEST_STRING); }
-//         public StringTask(String value) { this.value = value; }
-//         public String call() { return value; }
-//     }
+  class StringTask(value: String = TEST_STRING) extends Callable[String] {
+    def call() = value
+  }
 
 //     public Callable<String> latchAwaitingStringTask(final CountDownLatch latch) {
 //         return new CheckedCallable<String>() {
@@ -877,23 +831,23 @@ trait JSR166Test {
 //             }};
 //     }
 
-//     class LatchAwaiter extends CheckedRunnable {
-//         static final int NEW = 0;
-//         static final int RUNNING = 1;
-//         static final int DONE = 2;
-//         final CountDownLatch latch;
-//         int state = NEW;
-//         LatchAwaiter(CountDownLatch latch) { this.latch = latch; }
-//         public void realRun() throws InterruptedException {
-//             state = 1;
-//             await(latch);
-//             state = 2;
-//         }
-//     }
+  object LatchAwaiter {
+    final val NEW = 0
+    final val RUNNING = 1
+    final val DONE = 2
+  }
+  class LatchAwaiter(latch: CountDownLatch) extends CheckedRunnable {
+    import LatchAwaiter._
+    private var state = NEW
+    @throws[InterruptedException]
+    def realRun(): Unit = {
+      state = 1
+      await(latch)
+      state = 2
+    }
+  }
 
-//     public LatchAwaiter awaiter(CountDownLatch latch) {
-//         return new LatchAwaiter(latch);
-//     }
+  def awaiter(latch: CountDownLatch) = new LatchAwaiter(latch)
 
   def await(latch: CountDownLatch, timeoutMillis: Long = LONG_DELAY_MS) = {
     util
@@ -903,7 +857,7 @@ trait JSR166Test {
       .fold(
         threadUnexpectedException(_), {
           if (_)
-            Assert.fail(
+            fail(
               s"timed out waiting for CountDownLatch for ${timeoutMillis / 1000} sec"
             )
         }

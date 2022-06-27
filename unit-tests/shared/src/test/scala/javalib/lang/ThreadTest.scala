@@ -77,4 +77,48 @@ class ThreadTest {
     val elapsedNanos = System.nanoTime() - start
     assertTrue("Slept for less then expected", elapsedNanos >= sleepForNanos)
   }
+
+  // Ported from JSR-166
+  class MyHandler extends Thread.UncaughtExceptionHandler {
+    override def uncaughtException(t: Thread, e: Throwable) = {
+      e.printStackTrace()
+    }
+  }
+
+  /** getUncaughtExceptionHandler returns ThreadGroup unless set, otherwise
+   *  returning value of last setUncaughtExceptionHandler.
+   */
+  def testGetAndSetUncaughtExceptionHandler(): Unit = {
+    // these must be done all at once to avoid state
+    // dependencies across tests
+    val current = Thread.currentThread()
+    val tg = current.getThreadGroup()
+    val eh = new MyHandler()
+    assertSame(tg, current.getUncaughtExceptionHandler())
+    current.setUncaughtExceptionHandler(eh)
+    try assertSame(eh, current.getUncaughtExceptionHandler())
+    finally current.setUncaughtExceptionHandler(null)
+    assertSame(tg, current.getUncaughtExceptionHandler())
+  }
+
+  /** getDefaultUncaughtExceptionHandler returns value of last
+   *  setDefaultUncaughtExceptionHandler.
+   */
+  def testGetAndSetDefaultUncaughtExceptionHandler(): Unit = {
+    assertNull(Thread.getDefaultUncaughtExceptionHandler())
+    // failure due to SecurityException is OK.
+    // Would be nice to explicitly test both ways, but cannot yet.
+    val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+    val eh = new MyHandler()
+    try {
+      Thread.setDefaultUncaughtExceptionHandler(eh)
+      try assertSame(eh, Thread.getDefaultUncaughtExceptionHandler())
+      finally Thread.setDefaultUncaughtExceptionHandler(defaultHandler)
+    } catch {
+      case ok: SecurityException =>
+        assertNotNull(System.getSecurityManager())
+    }
+    assertSame(defaultHandler, Thread.getDefaultUncaughtExceptionHandler())
+  }
+
 }

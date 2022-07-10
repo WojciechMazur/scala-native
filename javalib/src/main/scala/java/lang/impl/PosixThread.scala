@@ -109,13 +109,17 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
   }
 
   @inline def tryParkNanos(nanos: scala.Long): Unit = {
-    val deadlineSpec = stackalloc[timespec]()
-
-    val deadline = System.nanoTime() + nanos
     val NanosecondsInSecond = 1000000000
-    deadlineSpec.tv_sec = deadline / NanosecondsInSecond
-    deadlineSpec.tv_nsec = deadline % NanosecondsInSecond
-    waitForThreadUnparking(deadlineSpec)
+    val deadline = stackalloc[timespec]()
+    // CLOCK_REALTIME instead of CLOCK_MONOTONIC is used only becouse deadline
+    // in tryParkUnitl would be always epoch time (System.currentTimeMillis)
+
+    clock_gettime(CLOCK_REALTIME, deadline)
+    val nextNanos = deadline.tv_nsec + nanos
+    deadline.tv_nsec = nextNanos % NanosecondsInSecond
+    deadline.tv_sec = deadline.tv_sec + (nextNanos / NanosecondsInSecond)
+    waitForThreadUnparking(deadline)
+
   }
 
   @inline def tryUnpark(): Unit = {
@@ -162,11 +166,8 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
     }
 
     checkResult(withGCSafeZone(pthread_mutex_lock(lock)), "lock")
-    try {
-      fn
-    } finally {
-      checkResult(pthread_mutex_unlock(lock), "unlock")
-    }
+    try fn
+    finally checkResult(pthread_mutex_unlock(lock), "unlock")
   }
 }
 

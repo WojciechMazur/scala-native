@@ -34,7 +34,19 @@ object time {
   @name("scalanative_asctime_r")
   def asctime_r(time_ptr: Ptr[tm], buf: Ptr[CChar]): CString = extern
 
+  @name("scalanative_clock_realtime")
+  def CLOCK_REALTIME: clockid_t = extern
+  @name("scalanative_clock_monotonic")
+  def CLOCK_MONOTONIC: clockid_t = extern
+  @name("scalanative_clock_process_cputime_id")
+  def CLOCK_PROCESS_CPUTIME_ID: clockid_t = extern
+  @name("scalanative_clock_thread_cputime_id")
+  def CLOCK_THREAD_CPUTIME_ID: clockid_t = extern
+
   def clock(): clock_t = extern
+  def clock_gettime(cid: clockid_t, spec: Ptr[timespec]): Int = extern
+
+
   def ctime(time: Ptr[time_t]): CString = extern
   def ctime_r(time: Ptr[time_t], buf: Ptr[CChar]): CString = extern
   def difftime(time_end: CLong, time_beg: CLong): CDouble = extern

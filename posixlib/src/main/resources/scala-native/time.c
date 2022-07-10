@@ -116,6 +116,15 @@ size_t scalanative_strftime(char *buf, size_t maxsize, const char *format,
     return strftime(buf, maxsize, format, &tm);
 }
 
+clockid_t scalanative_clock_realtime() { return CLOCK_REALTIME; }
+clockid_t scalanative_clock_monotonic() { return CLOCK_MONOTONIC; }
+clockid_t scalanative_clock_process_cputime_id() {
+    return CLOCK_PROCESS_CPUTIME_ID;
+}
+clockid_t scalanative_clock_thread_cputime_id() {
+    return CLOCK_THREAD_CPUTIME_ID;
+}
+
 // XSI
 char *scalanative_strptime(const char *s, const char *format,
                            struct scalanative_tm *scala_tm) {

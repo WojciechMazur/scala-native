@@ -181,16 +181,18 @@ class Thread private[lang] (
 
   final def join(ml: scala.Long): Unit = {
     var millis: scala.Long = ml
-    if (millis == 0)
-      join()
+    if (millis < 0)
+      throw new IllegalArgumentException("timeout value is negative")
+    if (millis == 0) join()
     else {
-      val end: scala.Long = System.currentTimeMillis() + millis
-      var continue: scala.Boolean = true
-      while (isAlive() && continue) {
-        wait(millis)
-        millis = end - System.currentTimeMillis()
-        if (millis <= 0)
-          continue = false
+      val callingThread = Thread.currentThread()
+      synchronized {
+        val end: scala.Long = System.currentTimeMillis() + millis
+        var continue: scala.Boolean = true
+        while (isAlive() && millis > 0) {
+          wait(millis)
+          millis = end - System.currentTimeMillis()
+        }
       }
     }
   }

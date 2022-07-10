@@ -134,6 +134,16 @@ object pthread {
       pshared: CInt
   ): CInt = extern
 
+  def pthread_condattr_getclock(
+      attr: Ptr[pthread_condattr_t],
+      clockId: clockid_t
+  ): Int = extern
+  
+  def pthread_condattr_setclock(
+      attr: Ptr[pthread_condattr_t],
+      clockId: clockid_t
+  ): Int = extern
+
   def pthread_create(
       thread: Ptr[pthread_t],
       attr: Ptr[pthread_attr_t],

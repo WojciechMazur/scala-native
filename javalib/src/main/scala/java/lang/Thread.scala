@@ -2,12 +2,16 @@ package java.lang
 
 import java.util
 import java.lang.Thread._
-import scala.scalanative.unsafe._
 import java.util.concurrent.atomic.{AtomicReference, AtomicLong}
-import scala.annotation.tailrec
 import java.util.concurrent.locks.LockSupport
-import scala.scalanative.meta.LinktimeInfo.isWindows
 import java.lang.impl._
+
+import scala.annotation.tailrec
+
+import scala.scalanative.unsafe._
+import scala.scalanative.runtime.NativeThread
+import scala.scalanative.meta.LinktimeInfo.{isWindows, isMultithreadingEnabled}
+import scala.annotation.switch
 
 // Ported from Harmony
 
@@ -19,8 +23,6 @@ class Thread private[lang] (
 ) extends Runnable {
   private val threadId = getNextThreadId()
 
-  @volatile private[lang] var alive = false
-  @volatile private[lang] var started = false
   @volatile private var daemon = false
   @volatile private var interruptedState = false
 
@@ -42,7 +44,7 @@ class Thread private[lang] (
   private[java] val parkBlocker: AtomicReference[Object] =
     new AtomicReference[Object]()
 
-  private[java] var nativeThread: NativeThread = _
+  @volatile private[java] var nativeThread: NativeThread = _
 
   // constructors
   def this(
@@ -120,7 +122,7 @@ class Thread private[lang] (
       throw new IllegalArgumentException("Wrong Thread priority value")
     }
     this.priority = priority
-    if (started) {
+    if (isStarted) {
       nativeThread.setPriority(priority)
     }
   }
@@ -143,7 +145,18 @@ class Thread private[lang] (
     exceptionHandler = eh
   }
 
-  final def isAlive(): scala.Boolean = alive
+  final def isAlive(): scala.Boolean =
+    nativeThread != null && {
+      (nativeThread.state.state: @switch) match {
+        case NativeThread.State.New        => false
+        case NativeThread.State.Terminated => false
+        case _                             => true
+      }
+    }
+  private def isStarted =
+    nativeThread != null &&
+      nativeThread.state.state != NativeThread.State.New
+
   final def isDaemon(): scala.Boolean = daemon
 
   final def setDaemon(daemon: scala.Boolean): Unit = {
@@ -156,9 +169,9 @@ class Thread private[lang] (
 
   def interrupt(): Unit = {
     lock.synchronized {
-      if (started) interruptedState = true
+      if (isStarted) interruptedState = true
     }
-    if (nativeThread.state == NativeThread.State.Parked) {
+    if (nativeThread.state.is(NativeThread.State.Parked)) {
       LockSupport.unpark(this)
     }
   }
@@ -174,8 +187,7 @@ class Thread private[lang] (
     // this method is not implemented
     throw new NoSuchMethodError()
 
-  // synchronized
-  final def join(): Unit = {
+  final def join(): Unit = synchronized {
     while (isAlive()) wait()
   }
 
@@ -220,7 +232,7 @@ class Thread private[lang] (
 
   @deprecated("Deprecated for removal", "1.7")
   final def resume(): Unit = {
-    if (started) nativeThread.resume()
+    if (isStarted) nativeThread.resume()
   }
 
   def run(): Unit = {
@@ -230,37 +242,26 @@ class Thread private[lang] (
   }
 
   def start(): Unit = synchronized {
-    if (started) {
+    if (isStarted) {
       throw new IllegalThreadStateException(
         "This thread was already started!"
       )
     }
     group.add(this)
 
-    nativeThread = NativeThread(this)
-
-    while (!started) {
-      try {
-        Thread.onSpinWait()
-      } catch {
-        case e: InterruptedException =>
-          Thread.currentThread().interrupt()
-      }
-    }
-    nativeThread.state = NativeThread.State.Running
-  }
-
-  def getState(): State = {
-    import NativeThread.State._
-    nativeThread.state match {
-      case Terminated            => State.TERMINATED
-      case WaitingWithTimeout    => State.TIMED_WAITING
-      case Waiting | Parked      => State.WAITING
-      case WaitingOnMonitorEnter => State.BLOCKED
-      case Running               => State.RUNNABLE
-      case New                   => State.NEW
+    nativeThread = if (isMultithreadingEnabled) {
+      if (isWindows) new impl.WindowsThread(this, isMainThread = false)
+      else new impl.PosixThread(this, isMainThread = false)
+    } else
+      throw new UnsupportedOperationException(
+        "Cannot start threads with disabled multithreading support"
+      )
+    while (nativeThread.state == NativeThread.State.New) {
+      Thread.onSpinWait()
     }
   }
+
+  def getState(): State = nativeThread.state.toThreadState()
 
   @deprecated("Deprecated for removal", "1.7")
   final def stop(): Unit = stop(new ThreadDeath())
@@ -269,14 +270,14 @@ class Thread private[lang] (
   final def stop(throwable: Throwable): Unit = {
     if (throwable == null)
       throw new NullPointerException("The argument is null!")
-    if (isAlive() && started) {
+    if (isStarted && isAlive()) {
       nativeThread.stop()
     }
   }
 
   @deprecated("Deprecated for removal", "1.7")
   final def suspend(): Unit = {
-    if (started) {
+    if (isStarted) {
       nativeThread.suspend()
     }
   }
@@ -297,40 +298,35 @@ class Thread private[lang] (
       System.gc()
   }
 
+  // Called from NativeThreads on termination
+  private[lang] def onTermination(): Unit = {
+    this.getThreadGroup().remove(this)
+  }
+
 }
 
 object Thread {
-  type State = ThreadState
-  lazy val State = ThreadState
-  // sealed class State(name: String, ordinal: Int)
-  //     extends Enum[State](name, ordinal)
+  // type State = ThreadState
+  // lazy val State = ThreadState
+  sealed case class State(name: String, ordinal: Int)
+  // extends Enum[State](name, ordinal)
 
-  // object State {
-  //   final val NEW: State = new State("NEW", 0)
-  //   final val RUNNABLE: State = new State("RUNNABLE", 1)
-  //   final val BLOCKED: State = new State("BLOCKED", 2)
-  //   final val WAITING: State = new State("WAITING", 3)
-  //   final val TIMED_WAITING: State = new State("TIMED_WAITING", 4)
-  //   final val TERMINATED: State = new State("TERMINATED", 5)
+  object State {
+    final val NEW: State = new State("NEW", 0)
+    final val RUNNABLE: State = new State("RUNNABLE", 1)
+    final val BLOCKED: State = new State("BLOCKED", 2)
+    final val WAITING: State = new State("WAITING", 3)
+    final val TIMED_WAITING: State = new State("TIMED_WAITING", 4)
+    final val TERMINATED: State = new State("TERMINATED", 5)
 
-  //   private[this] val cachedValues =
-  //     Array(NEW, RUNNABLE, BLOCKED, WAITING, TIMED_WAITING, TERMINATED)
-  //   def values(): Array[State] = cachedValues.clone()
-  //   def valueOf(name: String): State = {
-  //     cachedValues.find(_.name() == name).getOrElse {
-  //       throw new IllegalArgumentException("No enum const Thread.State." + name)
-  //     }
-  //   }
-  // }
-
-  // Thread Local Storage
-  @extern
-  object TLS {
-    @name("scalanative_set_currentThread")
-    def currentThread_=(thread: Thread): Unit = extern
-
-    @name("scalanative_currentThread")
-    def currentThread: Thread = extern
+    private[this] val cachedValues =
+      Array(NEW, RUNNABLE, BLOCKED, WAITING, TIMED_WAITING, TERMINATED)
+    def values(): Array[State] = cachedValues.clone()
+    def valueOf(name: String): State = {
+      cachedValues.find(_.name == name).getOrElse {
+        throw new IllegalArgumentException("No enum const Thread.State." + name)
+      }
+    }
   }
 
   object MainThread
@@ -343,7 +339,6 @@ object Thread {
     import scala.scalanative.meta.LinktimeInfo.isWindows
     import scala.scalanative.unsigned._
     setName("main")
-    TLS.currentThread = this
     trait MainThreadOverrides {
       self: NativeThread =>
       override def setPriority(priority: CInt): Unit = ()
@@ -354,9 +349,12 @@ object Thread {
     }
     nativeThread = {
       if (isWindows)
-        new impl.WindowsThread(null, -1.toUInt, this) with MainThreadOverrides
-      else new impl.PosixThread(null, this) with MainThreadOverrides
+        new impl.WindowsThread(this, isMainThread = true)
+          with MainThreadOverrides
+      else
+        new impl.PosixThread(this, isMainThread = true) with MainThreadOverrides
     }
+    NativeThread.TLS.currentThread = this.nativeThread
   }
 
   import scala.collection.mutable
@@ -392,11 +390,11 @@ object Thread {
 
   def activeCount(): Int = currentThread().getThreadGroup().activeCount()
 
-  def currentThread(): Thread =
-    TLS.currentThread match {
-      case null   => MainThread
-      case thread => thread
-    }
+  def currentThread(): Thread = {
+    val nativeThread = NativeThread.TLS.currentThread
+    if (nativeThread != null) nativeThread.thread
+    else MainThread
+  }
 
   def dumpStack(): Unit = {
     System.err.println("Stack trace")

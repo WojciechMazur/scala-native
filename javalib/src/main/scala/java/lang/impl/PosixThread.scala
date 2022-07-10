@@ -5,9 +5,12 @@ import java.util.concurrent.TimeUnit
 import scala.annotation._
 import scala.scalanative.annotation._
 import scala.scalanative.unsafe._
+import scala.scalanative.runtime.NativeThread
+import scala.scalanative.runtime.ByteArray
+import scala.scalanative.runtime.GC.MutatorThread
+import scala.scalanative.runtime.{Intrinsics, fromRawPtr, toRawPtr}
 import scala.scalanative.unsigned._
 import scala.scalanative.unsafe.CFuncPtr1.fromScalaFunction
-import scala.scalanative.runtime.{Intrinsics, fromRawPtr, toRawPtr}
 import scala.scalanative.posix.sys.types._
 import scala.scalanative.posix.time._
 import scala.scalanative.posix.timeOps._
@@ -20,37 +23,62 @@ import scala.scalanative.posix.errno.{ETIMEDOUT, EINTR}
 import scala.scalanative.libc.errno
 import scala.scalanative.libc.signal.{SIGUSR1 => _, _}
 import scala.scalanative.posix
-import scala.scalanative.runtime.ByteArray
 import scala.scalanative.libc.string.strerror
-import scala.scalanative.runtime.GC.MutatorThread
 
-private[java] case class PosixThread(handle: pthread_t, thread: Thread)
-    extends NativeThread {
+private[java] class PosixThread(
+    val thread: Thread,
+    isMainThread: Boolean = false
+) extends NativeThread {
+
   import PosixThread._
-
   private[this] val nativeArray = new Array[scala.Byte](InnerBufferSize)
     .asInstanceOf[ByteArray]
 
   private[java] val lock: Ptr[pthread_mutex_t] = {
-    nativeArray
+    val lock = nativeArray
       .at(LockOffset)
       .asInstanceOf[Ptr[pthread_mutex_t]]
-  }
 
-  private[java] val condition: Ptr[pthread_cond_t] = {
-    nativeArray
-      .at(ConditionOffset)
-      .asInstanceOf[Ptr[pthread_cond_t]]
-  }
-
-  {
     val mutexAttr = stackalloc[pthread_mutexattr_t]()
     assert(0 == pthread_mutexattr_init(mutexAttr))
     assert(0 == pthread_mutexattr_settype(mutexAttr, PTHREAD_MUTEX_RECURSIVE))
-
     assert(0 == pthread_mutex_init(lock, mutexAttr))
-    assert(0 == pthread_cond_init(condition, null))
+    lock
   }
+
+  private[java] val condition: Ptr[pthread_cond_t] = {
+    val condition = nativeArray
+      .at(ConditionOffset)
+      .asInstanceOf[Ptr[pthread_cond_t]]
+    val conditionAttr = stackalloc[pthread_condattr_t]()
+    assert(0 == pthread_condattr_init(conditionAttr))
+    assert(0 == pthread_condattr_setclock(conditionAttr, CLOCK_REALTIME))
+    assert(0 == pthread_cond_init(condition, conditionAttr))
+    condition
+  }
+
+  import GCExt._
+  private[this] val handle: pthread_t = {
+    if (isMainThread) 0.toULong
+    else {
+      val handle = stackalloc[pthread_t]()
+      val args: NativeThread.ThreadRoutineArgs = (this, thread)
+      GC_pthread_create(
+        thread = handle,
+        attr = null: Ptr[pthread_attr_t],
+        startroutine = NativeThread.threadRoutine,
+        args = NativeThread.threadRoutineArgs(args)
+      ) match {
+        case 0 => !handle
+        case status =>
+          throw new RuntimeException(
+            "Failed to create new thread, pthread error " + status
+          )
+      }
+    }
+  }
+
+  override protected def onTermination(): Unit = this.thread.onTermination()
 
   def setPriority(priority: CInt): Unit = {
     val schedParam = stackalloc[sched_param]()
@@ -68,7 +96,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
 
   def resume(): Unit = withGCSafeZone {
     pthread_mutex_lock(lock)
-    while (state == NativeThread.State.Waiting) {
+    while (state.is(NativeThread.State.Waiting)) {
       state = NativeThread.State.Running
       pthread_cond_signal(condition)
     }
@@ -78,7 +106,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
   def suspend(): Unit = withGCSafeZone {
     pthread_mutex_lock(lock)
     state = NativeThread.State.Waiting
-    while (state == NativeThread.State.Waiting) {
+    while (state.is(NativeThread.State.Waiting)) {
       pthread_cond_wait(condition, lock)
     }
     pthread_mutex_unlock(lock)
@@ -138,10 +166,11 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
   @inline private def waitForThreadUnparking(
       deadline: Ptr[timespec]
   ): Unit = withGCSafeZone {
-    while (state == NativeThread.State.Parked) {
+    while (state.is(NativeThread.State.Parked)) {
       pthread_cond_timedwait(condition, lock, deadline) match {
         case 0 | TimeoutCode =>
           state = NativeThread.State.Running
+
         case errno =>
           val errorMsg = fromCString(strerror(errno))
           throw new RuntimeException(
@@ -164,7 +193,6 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
           )
       }
     }
-
     checkResult(withGCSafeZone(pthread_mutex_lock(lock)), "lock")
     try fn
     finally checkResult(pthread_mutex_unlock(lock), "unlock")
@@ -194,25 +222,6 @@ private[lang] object PosixThread {
 
   private final val InnerBufferSize =
     (pthread_mutex_t_size + pthread_cond_t_size).toInt
-
-  def apply(thread: Thread): PosixThread = {
-    import GCExt._
-    val id = stackalloc[pthread_t]()
-
-    GC_pthread_create(
-      thread = id,
-      attr = null: Ptr[pthread_attr_t],
-      startroutine = NativeThread.threadRoutine,
-      args = NativeThread.threadRoutineArgs(thread)
-    ) match {
-      case 0 => ()
-      case status =>
-        throw new RuntimeException(
-          "Failed to create new thread, pthread error " + status
-        )
-    }
-    new PosixThread(!id, thread)
-  }
 
   def sleep(millis: scala.Long, nanos: scala.Int): Unit = {
     @tailrec

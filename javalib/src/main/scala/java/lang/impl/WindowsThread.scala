@@ -2,7 +2,6 @@ package java.lang.impl
 
 import scala.scalanative.annotation._
 import scala.scalanative.unsafe._
-import scala.scalanative.runtime.NativeThread
 import scala.scalanative.unsigned._
 import scala.scalanative.runtime.{fromRawPtr, toRawPtr, Intrinsics, ByteArray}
 import scala.scalanative.windows._
@@ -13,31 +12,9 @@ import scala.scalanative.windows.SynchApi._
 import scala.scalanative.windows.WinBaseApi._
 import scala.annotation.tailrec
 
-private[java] class WindowsThread(val thread: Thread, isMainThread: Boolean = false)
+private[java] case class WindowsThread(handle: Handle, id: UInt, thread: Thread)
     extends NativeThread {
   import WindowsThread._
-  import GCExt._
-  private[this] val (id, handle): (UInt, Handle) = {
-    if (isMainThread) (0.toUInt, fromRawPtr(Intrinsics.castIntToRawPtr(0)))
-    else {
-      val id = stackalloc[DWord]()
-      val args: NativeThread.ThreadRoutineArgs = (this, thread)
-      val handle = GC_CreateThread(
-        threadAttributes = null,
-        stackSize = 0.toUInt, // Default
-        startRoutine = NativeThread.threadRoutine,
-        routineArg = NativeThread.threadRoutineArgs(args),
-        creationFlags = 0.toUInt, // Default, run immediately,
-        threadId = id
-      )
-      if (handle == null) {
-        throw new RuntimeException(
-          s"Failed to create new thread, errCode=${GetLastError()}"
-        )
-      }
-      (!id, handle)
-    }
-  }
 
   private[this] val internalBuffer = new Array[scala.Byte](InnerBufferSize)
     .asInstanceOf[ByteArray]
@@ -58,7 +35,6 @@ private[java] class WindowsThread(val thread: Thread, isMainThread: Boolean = fa
 
   override protected def onTermination() = {
     super.onTermination()
-    this.thread.onTermination()
     DeleteCriticalSection(threadParkingSection)
     CloseHandle(handle)
   }
@@ -180,6 +156,26 @@ object WindowsThread {
 
   private final val ThreadParkingSectionOffset = 0
   private final val IsUnparkedConditionOffset = SizeOfCriticalSection.toInt
+
+  def apply(thread: Thread): WindowsThread = {
+    import GCExt._
+    val id = stackalloc[DWord]()
+    val handle = GC_CreateThread(
+      threadAttributes = null,
+      stackSize = 0.toUInt, // Default
+      startRoutine = NativeThread.threadRoutine,
+      routineArg = NativeThread.threadRoutineArgs(thread),
+      creationFlags = 0.toUInt, // Default, run immediately,
+      threadId = id
+    )
+
+    if (handle == null) {
+      throw new RuntimeException(
+        s"Failed to create new thread, errCode=${GetLastError()}"
+      )
+    }
+    new WindowsThread(handle, !id, thread)
+  }
 
   def sleep(millis: scala.Long, nanos: scala.Int): Unit = {
     // No support for nanos sleep on Windows,

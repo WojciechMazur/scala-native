@@ -572,14 +572,14 @@ abstract class CountedCompleter[T](
       if (ForkJoinTask.isExceptionalStatus(current.trySetThrown(ex)) &&
           current.onExceptionalCompletion(ex, prev)) {
         val next = current.completer
-        if (next != null && next.status.get() >= 0)
+        if (next != null && next.status >= 0)
           loop(current = next, prev = current)
         else ()
       }
     }
 
     loop(current = this, prev = this)
-    status.get()
+    status
   }
 
   /** Implements execution conventions for CountedCompleters.

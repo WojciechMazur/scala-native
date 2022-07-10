@@ -113,11 +113,7 @@ class ForkJoinWorkerThread private[concurrent] (
    *    the exception causing this thread to abort due to an unrecoverable
    *    error, or {@code null} if completed normally
    */
-  protected def onTermination(exception: Throwable): Unit = {
-    if (exception != null) {
-      exception.printStackTrace()
-    }
-  }
+  protected def onTermination(exception: Throwable): Unit = ()
 
   /** This method is required to be public, but should never be called
    *  explicitly. It performs the main run loop to execute {@link

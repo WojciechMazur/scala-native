@@ -1297,6 +1297,24 @@ class ForkJoinPool(
 
   // Utilities used by ForkJoinTask
 
+  /** Returns true if all workers are busy, possibly creating one if allowed
+   */
+  private[concurrent] final def isSaturated(): Boolean = {
+    val maxTotal = bounds >>> SWIDTH
+    @tailrec
+    def loop(): Boolean = {
+      val c = (ctl & ~UNSIGNALLED).toInt
+      if (c != 0) false
+      else if ((c >>> TC_SHIFT).toShort >= maxTotal) true
+      else {
+        val nc = ((c + TC_UNIT) & TC_MASK) | (c & ~TC_MASK)
+        if (compareAndSetCtl(c, nc)) !createWorker()
+        else loop()
+      }
+    }
+    loop()
+  }
+
   /** Returns true if can start terminating if enabled, or already terminated
    */
   private[concurrent] final def canStop(): Boolean = {
@@ -1423,8 +1441,7 @@ class ForkJoinPool(
    */
   private[concurrent] final def helpJoin(
       task: ForkJoinTask[_],
-      w: WorkQueue,
-      canHelp: Boolean
+      w: WorkQueue
   ): Int = {
     var s = 0
     if (task != null && w != null) {
@@ -1433,7 +1450,7 @@ class ForkJoinPool(
       var scan = true
       var c = 0L
       while (true) {
-        s = task.status.get()
+        s = task.status
         if (s < 0) return s
         else if ({ scan = !scan; scan }) { // previous scan was empty
           if (mode < 0)
@@ -1452,63 +1469,55 @@ class ForkJoinPool(
               return s // block
             }
           }
-        } else if (canHelp) {
+        } else {
           val qs = queues
           val n = if (qs != null) qs.length else 0
           val m = n - 1
-          var r = wid + 2
+          var r = wid
           breakable {
-            for {
-              _ <- n until 0 by -2
-              j = r & m
-              _ = r += 2
-              q = qs(j) if q != null
-              a = q.array if a != null
-              cap = a.length if cap > 0
-              b = q.base
-              nextBase = b + 1
-              k = (cap - 1) & b
-              sq = q.source & SMASK
-              t = WorkQueue.getSlot(a, k)
-            } {
-              def isEligable = {
-                @tailrec
-                def checkQueueSourceIsEligable(
-                    queueId: Int,
-                    recursiveChecks: Int
-                ): Boolean = {
-                  queueId == wid || {
-                    qs(queueId) match {
-                      case null                      => false
-                      case _ if recursiveChecks == 0 => false
-                      case nextQueue =>
-                        checkQueueSourceIsEligable(
-                          nextQueue.source & SMASK,
-                          recursiveChecks - 1
-                        )
+            for (_ <- n until 0 by -2) {
+              r += 2
+              val j = r & m
+              val q = qs(j)
+              val a = if (q != null) q.array else null
+              val cap = if (a != null) a.length else 0
+              if (cap > 0) {
+                val b = q.base
+                val nextBase = b + 1
+                val k = (cap - 1) & b
+                val sq = q.source & SMASK
+                val t = WorkQueue.getSlot(a, k)
+                val eligible =
+                  sq == wid || {
+                    val x = qs(sq & m)
+                    x != null && { // indirect
+                      val sx = x.source & SMASK
+                      sx == wid || {
+                        val y = qs(sx & m)
+                        y != null && // 2-indirect
+                          (y.source & SMASK) == wid
+                      }
                     }
                   }
-                }
-                checkQueueSourceIsEligable(sq, 2)
-              }
 
-              s = task.status.get()
-              if (s <= 0) return s
-              else if ((q.source & SMASK) != sq || q.base != b) {
-                scan = true // inconsistent
-              } else if (t == null) {
-                val shouldScan = a(nextBase & (cap - 1)) != null ||
-                  q.top != b // lagging
-                scan |= shouldScan
-              } else if (isEligable) {
-                if (WorkQueue.casSlotToNull(a, k, t)) {
-                  q.base = nextBase
-                  w.source = j | SRC
-                  t.doExec()
-                  w.source = wSrc
+                s = task.status
+                if (s <= 0) return s
+                else if ((q.source & SMASK) != sq || q.base != b) {
+                  scan = true // inconsistent
+                } else if (t == null) {
+                  val shouldScan = a(nextBase & (cap - 1)) != null ||
+                    q.top != b // lagging
+                  scan |= shouldScan
+                } else if (eligible) {
+                  if (WorkQueue.casSlotToNull(a, k, t)) {
+                    q.base = nextBase
+                    w.source = j | SRC
+                    t.doExec()
+                    w.source = wSrc
+                  }
+                  scan = true
+                  break()
                 }
-                scan = true
-                break()
               }
             }
           }
@@ -1546,7 +1555,7 @@ class ForkJoinPool(
           s = w.helpComplete(task, owned, 0)
           if (s < 0) return s
           else locals = false
-        } else if ({ s = task.status.get(); s < 0 }) return s
+        } else if ({ s = task.status; s < 0 }) return s
         else if ({ scan = !scan; scan }) {
           val prevCtl = c
           c = ctl
@@ -1578,7 +1587,7 @@ class ForkJoinPool(
               case completer: CountedCompleter[_] => checkEligable(completer)
               case _                              => false
             }
-            s = task.status.get()
+            s = task.status
             if (s < 0) return s
             else if (q.base != b)
               scan = true // inconsistent
@@ -1675,90 +1684,111 @@ class ForkJoinPool(
    *  @return
    *    positive if quiescent, negative if interrupted, else 0
    */
-  @stub()
   private[concurrent] final def helpQuiescePool(
       w: WorkQueue,
       nanos: Long,
       interruptible: Boolean
   ): Int = {
-    ???
-    //     if (w == null)
-    //         return 0
-    //     long startTime = System.nanoTime(), parkTime = 0L
-    //     int prevSrc = w.source, wsrc = prevSrc, cfg = w.config, r = cfg + 1
-    //     for (boolean active = true, locals = true) {
-    //         boolean busy = false, scan = false
-    //         if (locals) {  // run local tasks before (re)polling
-    //             locals = false
-    //             for (ForkJoinTask[_] u (u = w.nextLocalTask(cfg)) != null)
-    //                 u.doExec()
-    //         }
-    //         WorkQueue[] qs = queues
-    //         int n = (qs == null) ? 0 : qs.length
-    //         for (int i = n i > 0 --i, ++r) {
-    //             int j, b, cap WorkQueue q Array[ForkJoinTask[_]]()  a
-    //             if ((q = qs[j = (n - 1) & r]) != null && q != w &&
-    //                 (a = q.array) != null && (cap = a.length) > 0) {
-    //                 int k = (cap - 1) & (b = q.base)
-    //                 int nextBase = b + 1, src = j | SRC
-    //                 ForkJoinTask[_] t = WorkQueue.getSlot(a, k)
-    //                 if (q.base != b)
-    //                     busy = scan = true
-    //                 else if (t != null) {
-    //                     busy = scan = true
-    //                     if (!active) {    // increment before taking
-    //                         active = true
-    //                         getAndAddCtl(RC_UNIT)
-    //                     }
-    //                     if (WorkQueue.casSlotToNull(a, k, t)) {
-    //                         q.base = nextBase
-    //                         w.source = src
-    //                         t.doExec()
-    //                         w.source = wsrc = prevSrc
-    //                         locals = true
-    //                     }
-    //                     break()
-    //                 }
-    //                 else if (!busy) {
-    //                     if (q.top != b || a[nextBase & (cap - 1)] != null)
-    //                         busy = scan = true
-    //                     else if (q.source != QUIET && q.phase >= 0)
-    //                         busy = true
-    //                 }
-    //             }
-    //         }
-    //         VarHandle.acquireFence()
-    //         if (!scan && queues == qs) {
-    //             boolean interrupted
-    //             if (!busy) {
-    //                 w.source = prevSrc
-    //                 if (!active)
-    //                     getAndAddCtl(RC_UNIT)
-    //                 return 1
-    //             }
-    //             if (wsrc != QUIET)
-    //                 w.source = wsrc = QUIET
-    //             if (active) {                 // decrement
-    //                 active = false
-    //                 parkTime = 0L
-    //                 getAndAddCtl(RC_MASK & -RC_UNIT)
-    //             }
-    //             else if (parkTime == 0L) {
-    //                 parkTime = 1L << 10 // initially about 1 usec
-    //                 Thread.yield()
-    //             }
-    //             else if ((interrupted = interruptible && Thread.interrupted()) ||
-    //                      System.nanoTime() - startTime > nanos) {
-    //                 getAndAddCtl(RC_UNIT)
-    //                 return interrupted ? -1 : 0
-    //             }
-    //             else {
-    //                 LockSupport.parkNanos(this, parkTime)
-    //                 if (parkTime < nanos >>> 8 && parkTime < 1L << 20)
-    //                     parkTime <<= 1  // max sleep approx 1 sec or 1% nanos
-    //             }
-    //         }
-    //     }
+    if (w == null) return 0
+    val startTime = System.nanoTime()
+    var parkTime = 0L
+    val prevSrc = w.source
+    var wsrc = prevSrc
+    val cfg = w.config
+    var r = cfg + 1
+    var active = true
+    var locals = true
+    while (true) {
+      var busy = false
+      var scan = false
+      if (locals) { // run local tasks before (re)polling
+        locals = false
+        var u = null: ForkJoinTask[_]
+        while ({
+          u = w.nextLocalTask(cfg)
+          u != null
+        }) { u.doExec() }
+      }
+      val qs = queues
+      val n = if (qs == null) 0 else qs.length
+      import scala.util.control.Breaks._
+      breakable {
+        for (i <- n until 0 by -1) {
+          // int j, b, cap WorkQueue q Array[ForkJoinTask[_]]()  a
+          val j = (n - 1 & r)
+          val q = qs(j)
+          val a = if (q != null) q.array else null
+          val cap = if (a != null) a.length else 0
+          if (q != w && cap > 0) {
+            val b = q.base
+            val k = (cap - 1) & b
+            val nextBase = b + 1
+            val src = j | SRC
+            val t = WorkQueue.getSlot(a, k)
+            if (q.base != b) {
+              busy = true
+              scan = true
+            } else if (t != null) {
+              busy = true
+              scan = true
+              if (!active) {
+                // increment before taking
+                active = true
+                getAndAddCtl(RC_UNIT)
+              }
+              if (WorkQueue.casSlotToNull(a, k, t)) {
+                q.base = nextBase
+                w.source = src
+                t.doExec()
+                w.source = prevSrc
+                wsrc = prevSrc
+                locals = true
+              }
+              break()
+            } else if (!busy) {
+              if (q.top != b || a(nextBase & (cap - 1)) != null) {
+                busy = true
+                scan = true
+              } else if (q.source != QUIET && q.phase >= 0)
+                busy = true
+            }
+          }
+          r += 1
+        }
+      }
+      VarHandle.acquireFence()
+      if (!scan && queues == qs) {
+        if (!busy) {
+          w.source = prevSrc
+          if (!active)
+            getAndAddCtl(RC_UNIT)
+          return 1
+        }
+        if (wsrc != QUIET) {
+          w.source = QUIET
+          wsrc = QUIET
+        }
+        if (active) { // decrement
+          active = false
+          parkTime = 0L
+          getAndAddCtl(RC_MASK & -RC_UNIT)
+        } else if (parkTime == 0L) {
+          parkTime = 1L << 10 // initially about 1 usec
+          Thread.`yield`()
+        } else {
+          val interrupted = interruptible && Thread.interrupted()
+          if (interrupted || System.nanoTime() - startTime > nanos) {
+            getAndAddCtl(RC_UNIT)
+            return if (interrupted) -1 else 0
+          } else {
+            LockSupport.parkNanos(this, parkTime)
+            if (parkTime < (nanos >>> 8) && parkTime < (1L << 20))
+              parkTime <<= 1 // max sleep approx 1 sec or 1% nanos
+          }
+        }
+      }
+    }
+    throw new IllegalStateException("unaccessible")
   }
 
   /** Helps quiesce from external caller until done, interrupted, or timeout
@@ -1770,34 +1800,33 @@ class ForkJoinPool(
    *  @return
    *    positive if quiescent, negative if interrupted, else 0
    */
-  @stub()
   private[concurrent] final def externalHelpQuiescePool(
       nanos: Long,
       interruptible: Boolean
   ): Int = {
-    ???
-    // for (long startTime = System.nanoTime(), parkTime = 0L) {
-    //     ForkJoinTask[_] t
-    //     if ((t = pollScan(false)) != null) {
-    //         t.doExec()
-    //         parkTime = 0L
-    //     }
-    //     else if (canStop())
-    //         return 1
-    //     else if (parkTime == 0L) {
-    //         parkTime = 1L << 10
-    //         Thread.yield()
-    //     }
-    //     else if ((System.nanoTime() - startTime) > nanos)
-    //         return 0
-    //     else if (interruptible && Thread.interrupted())
-    //         return -1
-    //     else {
-    //         LockSupport.parkNanos(this, parkTime)
-    //         if (parkTime < nanos >>> 8 && parkTime < 1L << 20)
-    //             parkTime <<= 1
-    //     }
-    // }
+    val startTime = System.nanoTime()
+    var parkTime = 0L
+    while (true) {
+      val t = pollScan(false)
+      if (t != null) {
+        t.doExec()
+        parkTime = 0L
+      } else if (canStop())
+        return 1
+      else if (parkTime == 0L) {
+        parkTime = 1L << 10
+        Thread.`yield`()
+      } else if ((System.nanoTime() - startTime) > nanos)
+        return 0
+      else if (interruptible && Thread.interrupted())
+        return -1
+      else {
+        LockSupport.parkNanos(this, parkTime)
+        if (parkTime < (nanos >>> 8) && parkTime < (1L << 20))
+          parkTime <<= 1
+      }
+    }
+    throw new IllegalStateException("Unaccessible")
   }
 
   /** Gets and removes a local or stolen task for the given worker.
@@ -1805,14 +1834,13 @@ class ForkJoinPool(
    *  @return
    *    a task, if available
    */
-  @stub()
-  private[concurrent] final def nextTaskFor(w: WorkQueue): ForkJoinTask[_] = {
-    ???
-    // ForkJoinTask[_] t
-    // if (w == null || (t = w.nextLocalTask(w.config)) == null)
-    //     t = pollScan(false)
-    // return t
-  }
+  private[concurrent] final def nextTaskFor(w: WorkQueue): ForkJoinTask[_] =
+    if (w == null) pollScan(false)
+    else
+      w.nextLocalTask(w.config) match {
+        case null => pollScan(false)
+        case t    => t
+      }
 
   // External operations
 
@@ -1990,7 +2018,7 @@ class ForkJoinPool(
    */
   def invoke[T](task: ForkJoinTask[T]): T = {
     externalSubmit(task)
-    task.joinForPoolInvoke(this)
+    task.join()
   }
 
   /** Arranges for (asynchronous) execution of the given task.
@@ -2075,125 +2103,116 @@ class ForkJoinPool(
    *  @throws RejectedExecutionException
    *    {@inheritDoc}
    */
-  @stub()
   override def invokeAll[T](
       tasks: Collection[_ <: Callable[T]]
   ): List[Future[T]] = {
-    ???
-    // ArrayList<Future<T>> futures = new ArrayList<>(tasks.size())
-    // try {
-    //     for (Callable[T] t : tasks) {
-    //         ForkJoinTask[T] f =
-    //             new ForkJoinTask.AdaptedInterruptibleCallable[T](t)
-    //         futures.add(f)
-    //         externalSubmit(f)
-    //     }
-    //     for (int i = futures.size() - 1 i >= 0 --i)
-    //         ((ForkJoinTask<?>)futures.get(i)).awaitPoolInvoke(this)
-    //     return futures
-    // } catch (Throwable t) {
-    //     for (Future<T> e : futures)
-    //         ForkJoinTask.cancelIgnoringExceptions(e)
-    //     throw t
-    // }
+    val futures = new ArrayList[Future[T]](tasks.size())
+    try {
+      tasks.forEach { t =>
+        val f = new ForkJoinTask.AdaptedInterruptibleCallable[T](t)
+        futures.add(f)
+        externalSubmit(f)
+      }
+      for (i <- futures.size() - 1 to 0 by -1) {
+        futures.get(i).asInstanceOf[ForkJoinTask[_]].quietlyJoin()
+      }
+      futures
+    } catch {
+      case t: Throwable =>
+        futures.forEach(ForkJoinTask.cancelIgnoringExceptions(_))
+        throw t
+    }
   }
 
   @throws[InterruptedException]
-  @stub()
   override def invokeAll[T](
       tasks: Collection[_ <: Callable[T]],
       timeout: Long,
       unit: TimeUnit
   ): List[Future[T]] = {
-    ???
-    // long nanos = unit.toNanos(timeout)
-    // ArrayList<Future<T>> futures = new ArrayList<>(tasks.size())
-    // try {
-    //     for (Callable[T] t : tasks) {
-    //         ForkJoinTask[T] f =
-    //             new ForkJoinTask.AdaptedInterruptibleCallable[T](t)
-    //         futures.add(f)
-    //         externalSubmit(f)
-    //     }
-    //     long startTime = System.nanoTime(), ns = nanos
-    //     boolean timedOut = (ns < 0L)
-    //     for (int i = futures.size() - 1 i >= 0 --i) {
-    //         Future<T> f = futures.get(i)
-    //         if (!f.isDone()) {
-    //             if (timedOut)
-    //                 ForkJoinTask.cancelIgnoringExceptions(f)
-    //             else {
-    //                 ((ForkJoinTask[T])f).awaitPoolInvoke(this, ns)
-    //                 if ((ns = nanos - (System.nanoTime() - startTime)) < 0L)
-    //                     timedOut = true
-    //             }
-    //         }
-    //     }
-    //     return futures
-    // } catch (Throwable t) {
-    //     for (Future<T> e : futures)
-    //         ForkJoinTask.cancelIgnoringExceptions(e)
-    //     throw t
-    // }
+    val nanos = unit.toNanos(timeout)
+    val futures = new ArrayList[Future[T]](tasks.size())
+    try {
+      tasks.forEach { t =>
+        val f = new ForkJoinTask.AdaptedInterruptibleCallable[T](t)
+        futures.add(f)
+        externalSubmit(f)
+      }
+      val startTime = System.nanoTime()
+      var ns = nanos
+      def timedOut = ns < 0L
+      for (i <- futures.size() - 1 to 0 by -1) {
+        val f = futures.get(i)
+        if (!f.isDone()) {
+          if (timedOut)
+            ForkJoinTask.cancelIgnoringExceptions(f)
+          else {
+            try f.get(ns, TimeUnit.NANOSECONDS)
+            catch {
+              case _: CancellationException | _: TimeoutException |
+                  _: ExecutionException =>
+                ()
+            }
+            ns = nanos - (System.nanoTime() - startTime)
+          }
+        }
+      }
+      futures
+    } catch {
+      case t: Throwable =>
+        futures.forEach(ForkJoinTask.cancelIgnoringExceptions(_))
+        throw t
+    }
   }
+
   @throws[InterruptedException]
   @throws[ExecutionException]
-  @stub()
   override def invokeAny[T](tasks: Collection[_ <: Callable[T]]): T = {
-    ???
-    // int n = tasks.size()
-    // if (n <= 0)
-    //     throw new IllegalArgumentException()
-    // InvokeAnyRoot<T> root = new InvokeAnyRoot<T>(n, this)
-    // ArrayList<InvokeAnyTask<T>> fs = new ArrayList<>(n)
-    // try {
-    //     for (Callable[T] c : tasks) {
-    //         if (c == null)
-    //             throw new NullPointerException()
-    //         InvokeAnyTask<T> f = new InvokeAnyTask<T>(root, c)
-    //         fs.add(f)
-    //         externalSubmit(f)
-    //         if (root.isDone())
-    //             break()
-    //     }
-    //     return root.getForPoolInvoke(this)
-    // } finally {
-    //     for (InvokeAnyTask<T> f : fs)
-    //         ForkJoinTask.cancelIgnoringExceptions(f)
-    // }
+    if (tasks.isEmpty()) throw new IllegalArgumentException()
+    val n = tasks.size()
+    val root = new InvokeAnyRoot[T](n, this)
+    val fs = new ArrayList[InvokeAnyTask[T]](n)
+    breakable {
+      tasks.forEach {
+        case null => throw new NullPointerException()
+        case c =>
+          val f = new InvokeAnyTask[T](root, c)
+          fs.add(f)
+          if (isSaturated()) f.doExec()
+          else externalSubmit(f)
+          if (root.isDone()) break()
+      }
+    }
+    try root.get()
+    finally fs.forEach(ForkJoinTask.cancelIgnoringExceptions(_))
   }
 
   @throws[InterruptedException]
   @throws[ExecutionException]
   @throws[TimeoutException]
-  @stub()
   override def invokeAny[T](
       tasks: Collection[_ <: Callable[T]],
       timeout: Long,
       unit: TimeUnit
   ): T = {
-    ???
-    // long nanos = unit.toNanos(timeout)
-    // int n = tasks.size()
-    // if (n <= 0)
-    //     throw new IllegalArgumentException()
-    // InvokeAnyRoot<T> root = new InvokeAnyRoot<T>(n, this)
-    // ArrayList<InvokeAnyTask<T>> fs = new ArrayList<>(n)
-    // try {
-    //     for (Callable[T] c : tasks) {
-    //         if (c == null)
-    //             throw new NullPointerException()
-    //         InvokeAnyTask<T> f = new InvokeAnyTask<T>(root, c)
-    //         fs.add(f)
-    //         externalSubmit(f)
-    //         if (root.isDone())
-    //             break()
-    //     }
-    //     return root.getForPoolInvoke(this, nanos)
-    // } finally {
-    //     for (InvokeAnyTask<T> f : fs)
-    //         ForkJoinTask.cancelIgnoringExceptions(f)
-    // }
+    val nanos = unit.toNanos(timeout)
+    if (tasks.isEmpty()) throw new IllegalArgumentException()
+    val n = tasks.size()
+    val root = new InvokeAnyRoot[T](n, this)
+    val fs = new ArrayList[InvokeAnyTask[T]](n)
+    breakable {
+      tasks.forEach {
+        case null => throw new NullPointerException()
+        case c =>
+          val f = new InvokeAnyTask(root, c)
+          fs.add(f)
+          if (isSaturated()) f.doExec()
+          else externalSubmit(f)
+          if (root.isDone()) break()
+      }
+    }
+    try root.get(nanos, TimeUnit.NANOSECONDS)
+    finally fs.forEach(ForkJoinTask.cancelIgnoringExceptions(_))
   }
 
   /** Returns the factory used for constructing new workers.
@@ -2398,15 +2417,20 @@ class ForkJoinPool(
    *  @return
    *    the number of elements transferred
    */
-  @stub()
-  protected def drainTasksTo[T](c: Collection[_ <: ForkJoinTask[T]]): Int = {
-    ???
-    // int count = 0
-    // for (ForkJoinTask[_] t (t = pollScan(false)) != null ) {
-    //     c.add(t)
-    //     ++count
-    // }
-    // return count
+  protected def drainTasksTo(c: Collection[_ >: ForkJoinTask[_]]): Int = {
+    var count = 0
+    while ({
+      val t = pollScan(false)
+      t match {
+        case null => false
+        case t =>
+          c.add(t)
+          true
+      }
+    }) {
+      count += 1
+    }
+    count
   }
 
   /** Returns a string identifying this pool, as well as its state, including
@@ -2778,7 +2802,7 @@ object ForkJoinPool {
    *  potential initialization circularities as well as to simplify generated
    *  code.
    */
-  private lazy val common: ForkJoinPool = {
+  private[concurrent] lazy val common: ForkJoinPool = {
     val parallelism = Option(
       System.getProperty("java.util.concurrent.ForkJoinPool.common.parallelism")
     ).flatMap { stringValue =>
@@ -2957,23 +2981,29 @@ object ForkJoinPool {
    *  threads, that are known to have zero queued tasks, so compensate by a
    *  factor of (#idle/#active) threads.
    */
-  @stub()
   private[concurrent] def getSurplusQueuedTaskCount(): Int = {
-    ???
     // Thread t ForkJoinWorkerThread wt ForkJoinPool pool WorkQueue q
-    // if (((t = Thread.currentThread()) instanceof ForkJoinWorkerThread) &&
-    //     (pool = (wt = (ForkJoinWorkerThread)t).pool) != null &&
-    //     (q = wt.workQueue) != null) {
-    //     int p = pool.mode & SMASK
-    //     int a = p + (int)(pool.ctl >> RC_SHIFT)
-    //     int n = q.top - q.base
-    //     return n - (a > (p >>>= 1) ? 0 :
-    //                 a > (p >>>= 1) ? 1 :
-    //                 a > (p >>>= 1) ? 2 :
-    //                 a > (p >>>= 1) ? 4 :
-    //                 8)
-    // }
-    // return 0
+    Thread.currentThread() match {
+      case wt: ForkJoinWorkerThread =>
+        val pool = wt.pool
+        val q = wt.workQueue
+        if (pool != null && q != null) {
+          var p = pool.mode & SMASK
+          def pShiftRight() = {
+            p >>>= 1
+            p
+          }
+          val a = p + (pool.ctl >> RC_SHIFT).toInt
+          val n = q.top - q.base
+          if (a > pShiftRight()) 0
+          else if (a > pShiftRight()) 1
+          else if (a > pShiftRight()) 2
+          else if (a > pShiftRight()) 4
+          else 8
+        } else 0
+
+      case _ => 0
+    }
   }
 
   // helper method for commonPool constructor
@@ -3006,75 +3036,64 @@ object ForkJoinPool {
   }
 
   // Task to hold results from InvokeAnyTasks
-  // private[concurrent] final class InvokeAnyRoot[E] extends ForkJoinTask[E] {
-  //     private static final long serialVersionUID = 2838392045355241008L
-  //     @SuppressWarnings("serial") // Conditionally serializable
-  //     volatile E result
-  //     final AtomicInteger count  // in case all throw
-  //     final ForkJoinPool pool    // to check shutdown while collecting
-  //     InvokeAnyRoot(int n, ForkJoinPool p) {
-  //         pool = p
-  //         count = new AtomicInteger(n)
-  //     }
-  //     final void tryComplete(Callable<E> c) { // called by InvokeAnyTasks
-  //         Throwable ex = null
-  //         boolean failed
-  //         if (c == null || Thread.interrupted() ||
-  //             (pool != null && pool.mode < 0))
-  //             failed = true
-  //         else if (isDone())
-  //             failed = false
-  //         else {
-  //             try {
-  //                 complete(c.call())
-  //                 failed = false
-  //             } catch (Throwable tx) {
-  //                 ex = tx
-  //                 failed = true
-  //             }
-  //         }
-  //         if ((pool != null && pool.mode < 0) ||
-  //             (failed && count.getAndDecrement() <= 1))
-  //             trySetThrown(ex != null ? ex : new CancellationException())
-  //     }
-  //     public final boolean exec()         { return false } // never forked
-  //     public final E getRawResult()       { return result }
-  //     public final void setRawResult(E v) { result = v }
-  // }
+  @SerialVersionUID(2838392045355241008L)
+  private[concurrent] final class InvokeAnyRoot[E](
+      n: Int,
+      pool: ForkJoinPool
+  ) extends ForkJoinTask[E] {
+    @volatile var result: E = _
+    final val count = new AtomicInteger(n) // in case all throw
+    final def tryComplete(c: Callable[E]): Unit = { // called by InvokeAnyTasks
+      var ex: Throwable = null
+      var failed = false
+      if (c == null || Thread.interrupted() || (pool != null && pool.mode < 0))
+        failed = true
+      else if (isDone()) ()
+      else
+        try complete(c.call())
+        catch {
+          case tx: Throwable =>
+            ex = tx
+            failed = true
+        }
+
+      if ((pool != null && pool.mode < 0) ||
+          (failed && count.getAndDecrement() <= 1))
+        trySetThrown(if (ex != null) ex else new CancellationException())
+    }
+    final def exec(): Boolean = false // never forked
+    final def getRawResult(): E = result
+    final def setRawResult(v: E): Unit = { result = v }
+  }
 
   // Variant of AdaptedInterruptibleCallable with results in InvokeAnyRoot
-  // private[concurrent] final class InvokeAnyTask[E] extends ForkJoinTask[E] {
-  //     private static final long serialVersionUID = 2838392045355241008L
-  //     final InvokeAnyRoot<E> root
-  //     @SuppressWarnings("serial") // Conditionally serializable
-  //     final Callable<E> callable
-  //     transient volatile Thread runner
-  //     InvokeAnyTask(InvokeAnyRoot<E> root, Callable<E> callable) {
-  //         this.root = root
-  //         this.callable = callable
-  //     }
-  //     public final boolean exec() {
-  //         Thread.interrupted()
-  //         runner = Thread.currentThread()
-  //         root.tryComplete(callable)
-  //         runner = null
-  //         Thread.interrupted()
-  //         return true
-  //     }
-  //     public final boolean cancel(boolean mayInterruptIfRunning) {
-  //         Thread t
-  //         boolean stat = super.cancel(false)
-  //         if (mayInterruptIfRunning && (t = runner) != null) {
-  //             try {
-  //                 t.interrupt()
-  //             } catch (Throwable ignore) {
-  //             }
-  //         }
-  //         return stat
-  //     }
-  //     public final void setRawResult(E v) {} // unused
-  //     public final E getRawResult()       { return null }
-  // }
+  @SerialVersionUID(2838392045355241008L)
+  private[concurrent] final class InvokeAnyTask[E](
+      root: InvokeAnyRoot[E],
+      callable: Callable[E]
+  ) extends ForkJoinTask[E] {
+    @volatile var runner: Thread = _
+    final def exec(): Boolean = {
+      Thread.interrupted()
+      runner = Thread.currentThread()
+      root.tryComplete(callable)
+      runner = null
+      Thread.interrupted()
+      true
+    }
+    final override def cancel(mayInterruptIfRunning: Boolean): Boolean = {
+      val stat = super.cancel(false)
+      if (mayInterruptIfRunning) runner match {
+        case null => ()
+        case t =>
+          try t.interrupt()
+          catch { case ignore: Throwable => () }
+      }
+      stat
+    }
+    final def setRawResult(v: E): Unit = () // unused
+    final def getRawResult(): E = null.asInstanceOf[E]
+  }
 
   /** Returns the targeted parallelism level of the common pool.
    *
@@ -3474,13 +3493,15 @@ object ForkJoinPool {
 
     /** Returns next task, if one exists, in order specified by mode.
      */
-    @stub()
     final def peek(): ForkJoinTask[_] = {
-      ???
-      // VarHandle.acquireFence()
+      VarHandle.acquireFence()
       // int cap Array[ForkJoinTask[_]]()  a
-      // return ((a = array) != null && (cap = a.length) > 0) ?
-      //     a[(cap - 1) & ((config & FIFO) != 0 ? base : top - 1)] : null
+      val a = array
+      val cap = if (a != null) a.length else 0
+      if (cap > 0) {
+        val mask = if ((config & FIFO) != 0) base else top - 1
+        a((cap - 1) & mask)
+      } else null: ForkJoinTask[_]
     }
 
     // specialized execution methods
@@ -3529,7 +3550,7 @@ object ForkJoinPool {
         limit: Int
     ): Int = {
       def loop(currentLimit: Int): Int = {
-        val status = task.status.get()
+        val status = task.status
         val p = top
         val s = p - 1
         val a = array

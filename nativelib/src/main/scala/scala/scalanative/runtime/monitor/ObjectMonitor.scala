@@ -18,7 +18,12 @@ private[runtime] class ObjectMonitor {
   private val lock = new ReentrantLock(true)
   private val condition = lock.newCondition()
 
-  def enter(): Unit = lock.lock()
+  def enter(): Unit = if (!lock.tryLock()) {
+    val thread = NativeThread.current
+    thread.state = NativeThread.State.Blocked
+    try lock.lock()
+    finally thread.state = NativeThread.State.Running
+  }
   def exit(): Unit = lock.unlock()
 
   def _notify(): Unit = {
@@ -31,11 +36,16 @@ private[runtime] class ObjectMonitor {
     condition.signalAll()
   }
 
-  @alwaysinline def _wait(): Unit = _wait(0L, 0)
+  @alwaysinline def _wait(): Unit = {
+    checkOwnership()
+    val thread = NativeThread.current
+    condition.await()
+    if (Thread.interrupted()) throw new InterruptedException()
+  }
+
   @alwaysinline def _wait(timeoutMillis: Long): Unit = _wait(timeoutMillis, 0)
   def _wait(timeoutMillis: Long, nanos: Int): Unit = {
     checkOwnership()
-
     if (nanos < 0 || nanos > 999999) {
       throw new IllegalArgumentException(
         "nanosecond timeout value out of range"

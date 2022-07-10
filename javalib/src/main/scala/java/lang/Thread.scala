@@ -200,18 +200,15 @@ class Thread private[lang] (
     var millis: scala.Long = ml
     if (millis < 0 || nanos < 0 || nanos > 999999)
       throw new IllegalArgumentException()
-    else if (millis == 0 && nanos == 0)
-      join()
+    if (millis == 0 && nanos == 0) join()
     else {
-      val end: scala.Long = System.nanoTime() + 1000000 * millis + nanos.toLong
-      var rest: scala.Long = 0L
-      var continue: scala.Boolean = true
-      while (isAlive() && continue) {
-        wait(millis, nanos)
-        rest = end - System.nanoTime()
-        if (rest <= 0)
-          continue = false
-        if (continue) {
+      val callingThread = Thread.currentThread()
+      synchronized {
+        val end = System.nanoTime() + 1000000 * millis + nanos.toLong
+        var rest = 0L
+        var continue = true
+        while (isAlive() && { rest = end - System.nanoTime(); rest > 0 }) {
+          wait(millis, nanos)
           nanos = (rest % 1000000).toInt
           millis = rest / 1000000
         }
@@ -412,7 +409,9 @@ object Thread {
 
   def holdsLock(obj: Object): scala.Boolean = ???
 
-  def `yield`(): Unit = NativeThread.`yield`()
+  def `yield`(): Unit =
+    if (isWindows) WindowsThread.yieldThread()
+    else PosixThread.yieldThread()
 
   def getAllStackTraces(): java.util.Map[Thread, Array[StackTraceElement]] = {
     var parent: ThreadGroup =
@@ -463,8 +462,13 @@ object Thread {
       throw new IllegalArgumentException("nanos value out of range")
     }
 
-    if (isWindows) WindowsThread.sleep(millis, nanos)
-    else PosixThread.sleep(millis, nanos)
+    val nativeThread = Thread.currentThread().nativeThread
+    nativeThread.state = NativeThread.State.Waiting
+    try {
+      if (isWindows) WindowsThread.sleep(millis, nanos)
+      else PosixThread.sleep(millis, nanos)
+    } finally nativeThread.state = NativeThread.State.Running
+
   }
 
   def sleep(millis: scala.Long): Unit = sleep(millis, 0)

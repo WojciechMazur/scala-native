@@ -125,19 +125,17 @@ import scala.util.Using
  */
 trait JSR166Test {
   import JSR166Test._
-//     /**
-//      * Returns a random element from given choices.
-//      */
-//     <T> T chooseRandomly(List<T> choices) {
-//         return choices.get(ThreadLocalRandom.current().nextInt(choices.size()));
-//     }
 
-//     /**
-//      * Returns a random element from given choices.
-//      */
-//     <T> T chooseRandomly(T... choices) {
-//         return choices[ThreadLocalRandom.current().nextInt(choices.length)];
-//     }
+  /** Returns a random element from given choices.
+   */
+  def chooseRandomly[T](choices: List[T]): T =
+    choices.get(ThreadLocalRandom.current().nextInt(choices.size()));
+
+  /** Returns a random element from given choices.
+   */
+  def chooseRandomly[T](choices: Array[T]): T = {
+    choices(ThreadLocalRandom.current().nextInt(choices.length))
+  }
 
 //     /**
 //      * Returns the shortest timed delay. This can be scaled up for
@@ -147,14 +145,13 @@ trait JSR166Test {
 //      */
   protected def getShortDelay(): Long = SHORT_DELAY_MS
 
-//     /**
-//      * Returns a new Date instance representing a time at least
-//      * delayMillis milliseconds in the future.
-//      */
-//     Date delayedDate(long delayMillis) {
-//         // Add 1 because currentTimeMillis is known to round into the past.
-//         return new Date(System.currentTimeMillis() + delayMillis + 1);
-//     }
+  /** Returns a new Date instance representing a time at least delayMillis
+   *  milliseconds in the future.
+   */
+  def delayedDate(delayMillis: Long): Date = {
+    // Add 1 because currentTimeMillis is known to round into the past.
+    new Date(System.currentTimeMillis() + delayMillis + 1)
+  }
 
   /** The first exception encountered if any threadAssertXXX method fails.
    */
@@ -316,6 +313,12 @@ trait JSR166Test {
 //         }
 //     }
 
+  /** Fails with message "should throw exception".
+   */
+  def shouldThrow(exceptionName: String = "exception"): Unit = fail(
+    s"Should throw $exceptionName"
+  )
+
 //     /**
 //      * Just like assertSame(x, y), but additionally recording (using
 //      * threadRecordFailure) any AssertionError thrown, so that the
@@ -349,7 +352,7 @@ trait JSR166Test {
    */
   def threadUnexpectedException(t: Throwable): Unit = {
     threadRecordFailure(t)
-    t.printStackTrace()
+    // t.printStackTrace()
     t match {
       case t: RuntimeException => throw t
       case t: Error            => throw t
@@ -373,20 +376,6 @@ trait JSR166Test {
     }
   }
 
-  // def usingPoolCleaner[Executor <: ExecutorService, T](
-  //     pool: Executor
-  // )(fn: Executor => T): T = {
-  //   scala.util
-  //     .Using(cleaner(pool)) { cleaner =>
-  //       fn(pool)
-  //     }
-  //     .fold(
-  //       t => { throw new AssertionError(s"Pool cleanup failed: $t", t) },
-  //       // Assert.fail(s"Pool cleanup failed: $t"); null.asInstanceOf[T] },
-  //       identity
-  //     )
-  // }
-
   def usingPoolCleaner[Executor <: ExecutorService, T](
       pool: Executor,
       wrapper: Executor => PoolCleaner = cleaner(_: ExecutorService)
@@ -394,7 +383,11 @@ trait JSR166Test {
     scala.util
       .Using(wrapper(pool)) { cleaner => fn(pool) }
       .fold(
-        t => { fail(s"Pool cleanup failed: $t"); null.asInstanceOf[T] },
+        t => {
+          throw new AssertionError("usingPoolClaner", t)
+          fail(s"Pool cleanup failed: $t")
+          null.asInstanceOf[T]
+        },
         identity
       )
   }
@@ -442,12 +435,11 @@ trait JSR166Test {
         threadFail("Unexpected InterruptedException")
     }
 
-//     /**
-//      * Like Runnable, but with the freedom to throw anything.
-//      * junit folks had the same idea:
-//      * http://junit.org/junit5/docs/snapshot/api/org/junit/gen5/api/Executable.html
-//      */
-//     interface Action { public void run() throws Throwable; }
+  /** Like Runnable, but with the freedom to throw anything. junit folks had the
+   *  same idea:
+   *  http://junit.org/junit5/docs/snapshot/api/org/junit/gen5/api/Executable.html
+   */
+  trait Action { def run(): Unit }
 
 //     /**
 //      * Runs all the given actions in parallel, failing if any fail.
@@ -472,25 +464,24 @@ trait JSR166Test {
 //         }
 //     }
 
-//     /**
-//      * Checks that thread eventually enters the expected blocked thread state.
-//      */
-//     void assertThreadBlocks(Thread thread, Thread.State expected) {
-//         // always sleep at least 1 ms, with high probability avoiding
-//         // transitory states
-//         for (long retries = LONG_DELAY_MS * 3 / 4; retries-->0; ) {
-//             try { delay(1); }
-//             catch (InterruptedException fail) {
-//                 throw new AssertionError("Unexpected InterruptedException", fail);
-//             }
-//             Thread.State s = thread.getState();
-//             if (s == expected)
-//                 return;
-//             else if (s == Thread.State.TERMINATED)
-//                 fail("Unexpected thread termination");
-//         }
-//         fail("timed out waiting for thread to enter thread state " + expected);
-//     }
+  /** Checks that thread eventually enters the expected blocked thread state.
+   */
+  def assertThreadBlocks(thread: Thread, expected: Thread.State): Unit = {
+    // always sleep at least 1 ms, with high probability avoiding
+    // transitory states
+    for (retries <- LONG_DELAY_MS * 3 / 4 until 0 by -1) {
+      try delay(1)
+      catch {
+        case fail: InterruptedException =>
+          throw new AssertionError("Unexpected InterruptedException", fail);
+      }
+      val s = thread.getState()
+      if (s == expected) return ()
+      else if (s == Thread.State.TERMINATED)
+        fail("Unexpected thread termination");
+    }
+    fail("timed out waiting for thread to enter thread state " + expected);
+  }
 
 //     /**
 //      * Returns the thread's blocker's class name, if any, else null.
@@ -597,80 +588,75 @@ trait JSR166Test {
 //         runWithPermissions(r);
 //     }
 
-//     /**
-//      * Spin-waits up to the specified number of milliseconds for the given
-//      * thread to enter a wait state: BLOCKED, WAITING, or TIMED_WAITING.
-//      * @param waitingForGodot if non-null, an additional condition to satisfy
-//      */
-//     void waitForThreadToEnterWaitState(Thread thread, long timeoutMillis,
-//                                        Callable<Boolean> waitingForGodot) {
-//         for (long startTime = 0L;;) {
-//             switch (thread.getState()) {
-//             default: break;
-//             case BLOCKED: case WAITING: case TIMED_WAITING:
-//                 try {
-//                     if (waitingForGodot == null || waitingForGodot.call())
-//                         return;
-//                 } catch (Throwable fail) { threadUnexpectedException(fail); }
-//                 break;
-//             case TERMINATED:
-//                 fail("Unexpected thread termination");
-//             }
+  /** Spin-waits up to the specified number of milliseconds for the given thread
+   *  to enter a wait state: BLOCKED, WAITING, or TIMED_WAITING.
+   *  @param waitingForGodot
+   *    if non-null, an additional condition to satisfy
+   */
+  def waitForThreadToEnterWaitState(
+      thread: Thread,
+      timeoutMillis: Long,
+      waitingForGodot: Callable[Boolean]
+  ): Unit = {
+    lazy val startTime = System.nanoTime()
+    import Thread.State._
+    while (true) {
+      thread.getState() match {
+        case BLOCKED | WAITING | TIMED_WAITING =>
+          try {
+            if (waitingForGodot == null || waitingForGodot.call()) return ()
+          } catch { case fail: Throwable => threadUnexpectedException(fail) }
+        case TERMINATED =>
+          fail("Unexpected thread termination");
+        case _ => ()
+      }
+      if (millisElapsedSince(startTime) > timeoutMillis) {
+        assertTrue(thread.isAlive());
+        if (waitingForGodot == null
+            || thread.getState() == Thread.State.RUNNABLE)
+          fail("timed out waiting for thread to enter wait state");
+        else
+          fail(
+            s"timed out waiting for condition, thread state=${thread.getState()}"
+          );
+      }
+      Thread.`yield`();
+    }
+  }
 
-//             if (startTime == 0L)
-//                 startTime = System.nanoTime();
-//             else if (millisElapsedSince(startTime) > timeoutMillis) {
-//                 assertTrue(thread.isAlive());
-//                 if (waitingForGodot == null
-//                     || thread.getState() == Thread.State.RUNNABLE)
-//                     fail("timed out waiting for thread to enter wait state");
-//                 else
-//                     fail("timed out waiting for condition, thread state="
-//                          + thread.getState());
-//             }
-//             Thread.yield();
-//         }
-//     }
+  /** Spin-waits up to the specified number of milliseconds for the given thread
+   *  to enter a wait state: BLOCKED, WAITING, or TIMED_WAITING.
+   */
+  def waitForThreadToEnterWaitState(thread: Thread, timeoutMillis: Long): Unit =
+    waitForThreadToEnterWaitState(thread, timeoutMillis, null);
 
-//     /**
-//      * Spin-waits up to the specified number of milliseconds for the given
-//      * thread to enter a wait state: BLOCKED, WAITING, or TIMED_WAITING.
-//      */
-//     void waitForThreadToEnterWaitState(Thread thread, long timeoutMillis) {
-//         waitForThreadToEnterWaitState(thread, timeoutMillis, null);
-//     }
+  /** Spin-waits up to LONG_DELAY_MS milliseconds for the given thread to enter
+   *  a wait state: BLOCKED, WAITING, or TIMED_WAITING.
+   */
+  def waitForThreadToEnterWaitState(thread: Thread): Unit =
+    waitForThreadToEnterWaitState(thread, LONG_DELAY_MS, null);
 
-//     /**
-//      * Spin-waits up to LONG_DELAY_MS milliseconds for the given thread to
-//      * enter a wait state: BLOCKED, WAITING, or TIMED_WAITING.
-//      */
-//     void waitForThreadToEnterWaitState(Thread thread) {
-//         waitForThreadToEnterWaitState(thread, LONG_DELAY_MS, null);
-//     }
+  /** Spin-waits up to LONG_DELAY_MS milliseconds for the given thread to enter
+   *  a wait state: BLOCKED, WAITING, or TIMED_WAITING, and additionally satisfy
+   *  the given condition.
+   */
+  def waitForThreadToEnterWaitState(
+      thread: Thread,
+      waitingForGodot: Callable[Boolean]
+  ): Unit =
+    waitForThreadToEnterWaitState(thread, LONG_DELAY_MS, waitingForGodot);
 
-//     /**
-//      * Spin-waits up to LONG_DELAY_MS milliseconds for the given thread to
-//      * enter a wait state: BLOCKED, WAITING, or TIMED_WAITING,
-//      * and additionally satisfy the given condition.
-//      */
-//     void waitForThreadToEnterWaitState(Thread thread,
-//                                        Callable<Boolean> waitingForGodot) {
-//         waitForThreadToEnterWaitState(thread, LONG_DELAY_MS, waitingForGodot);
-//     }
-
-//     /**
-//      * Spin-waits up to LONG_DELAY_MS milliseconds for the current thread to
-//      * be interrupted.  Clears the interrupt status before returning.
-//      */
-//     void awaitInterrupted() {
-//         for (long startTime = 0L; !Thread.interrupted(); ) {
-//             if (startTime == 0L)
-//                 startTime = System.nanoTime();
-//             else if (millisElapsedSince(startTime) > LONG_DELAY_MS)
-//                 fail("timed out waiting for thread interrupt");
-//             Thread.yield();
-//         }
-//     }
+  /** Spin-waits up to LONG_DELAY_MS milliseconds for the current thread to be
+   *  interrupted. Clears the interrupt status before returning.
+   */
+  def awaitInterrupted(): Unit = {
+    lazy val startTime = System.nanoTime()
+    while (!Thread.interrupted()) {
+      if (millisElapsedSince(startTime) > LONG_DELAY_MS)
+        fail("timed out waiting for thread interrupt");
+      Thread.`yield`();
+    }
+  }
 
 //     /**
 //      * Checks that timed f.get() returns the expected value, and does not
@@ -691,15 +677,14 @@ trait JSR166Test {
 //         checkTimedGet(f, expectedValue, LONG_DELAY_MS);
 //     }
 
-//     /**
-//      * Returns a new started daemon Thread running the given runnable.
-//      */
-//     Thread newStartedThread(Runnable runnable) {
-//         Thread t = new Thread(runnable);
-//         t.setDaemon(true);
-//         t.start();
-//         return t;
-//     }
+  /** Returns a new started daemon Thread running the given runnable.
+   */
+  def newStartedThread(runnable: Runnable): Thread = {
+    val t = new Thread(runnable)
+    t.setDaemon(true);
+    t.start();
+    t;
+  }
 
 //     /**
 //      * Returns a new started daemon Thread running the given action,
@@ -714,19 +699,19 @@ trait JSR166Test {
    *  that it may terminate later) and fails.
    */
   def awaitTermination(thread: Thread, timeoutMillis: Long = LONG_DELAY_MS) = {
+    // println(s"wait termination $thread, state=${thread.getState()}, timeout: ${timeoutMillis}ms")
     try thread.join(timeoutMillis)
     catch {
       case fail: InterruptedException => threadUnexpectedException(fail)
     }
+    println("force termination")
     if (thread.getState() != Thread.State.TERMINATED) {
       try
         threadFail(
           s"timed out waiting for thread to terminate, thread=$thread, state=${thread.getState()}"
         )
-      finally {
-        // Interrupt thread __after__ having reported its stack trace
-        thread.interrupt()
-      }
+      // Interrupt thread __after__ having reported its stack trace
+      finally thread.interrupt()
     }
   }
 
@@ -808,21 +793,22 @@ trait JSR166Test {
 //         public Object call() { return Boolean.TRUE; }
 //     }
 
-  final val TEST_STRING = "a test string";
+  final val TEST_STRING = "a test string"
 
   class StringTask(value: String = TEST_STRING) extends Callable[String] {
     def call() = value
   }
 
-//     public Callable<String> latchAwaitingStringTask(final CountDownLatch latch) {
-//         return new CheckedCallable<String>() {
-//             protected String realCall() {
-//                 try {
-//                     latch.await();
-//                 } catch (InterruptedException quittingTime) {}
-//                 return TEST_STRING;
-//             }};
-//     }
+  def latchAwaitingStringTask(latch: CountDownLatch): Callable[String] =
+    new CheckedCallable[String] {
+      override protected def realCall(): String = {
+        try latch.await()
+        catch {
+          case quittingTime: InterruptedException => ()
+        }
+        TEST_STRING
+      }
+    }
 
 //     public Runnable countDowner(final CountDownLatch latch) {
 //         return new CheckedRunnable() {
@@ -903,9 +889,9 @@ trait JSR166Test {
 // //         }
 // //     }
 
-//     public static class NPETask implements Callable<String> {
-//         public String call() { throw new NullPointerException(); }
-//     }
+  class NPETask extends Callable[String] {
+    override def call(): String = throw new NullPointerException()
+  }
 
 //     public Runnable possiblyInterruptedRunnable(final long timeoutMillis) {
 //         return new CheckedRunnable() {
@@ -951,21 +937,20 @@ trait JSR166Test {
 //         }
 //     }
 
-//     /**
-//      * Analog of CheckedCallable for RecursiveTask
-//      */
-//     public abstract class CheckedRecursiveTask<T> extends RecursiveTask<T> {
-//         protected abstract T realCompute() throws Throwable;
-
-//         @Override protected final T compute() {
-//             try {
-//                 return realCompute();
-//             } catch (Throwable fail) {
-//                 threadUnexpectedException(fail);
-//             }
-//             throw new AssertionError("unreached");
-//         }
-//     }
+  /** Analog of CheckedCallable for RecursiveTask
+   */
+  abstract class CheckedRecursiveTask[T] extends RecursiveTask[T] {
+    protected def realCompute(): T
+    override final protected def compute(): T = {
+      try {
+        return realCompute()
+      } catch {
+        case fail: Throwable =>
+          threadUnexpectedException(fail)
+      }
+      throw new AssertionError("unreached")
+    }
+  }
 
 //     /**
 //      * For use as RejectedExecutionHandler in constructors
@@ -1026,42 +1011,49 @@ trait JSR166Test {
 //         assertFalse(Arrays.equals(serialBytes(x), serialBytes(y)));
 //     }
 
-//     byte[] serialBytes(Object o) {
-//         try {
-//             ByteArrayOutputStream bos = new ByteArrayOutputStream();
-//             ObjectOutputStream oos = new ObjectOutputStream(bos);
-//             oos.writeObject(o);
-//             oos.flush();
-//             oos.close();
-//             return bos.toByteArray();
-//         } catch (Throwable fail) {
-//             threadUnexpectedException(fail);
-//             return new byte[0];
-//         }
-//     }
+  def serialBytes(o: Object): Array[Byte] = {
+    try {
+      val bos = new ByteArrayOutputStream();
+      val oos = new ObjectOutputStream(bos);
+      oos.writeObject(o);
+      oos.flush();
+      oos.close();
+      bos.toByteArray();
+    } catch {
+      case fail: Throwable =>
+        threadUnexpectedException(fail);
+        Array.empty
+    }
+  }
 
-//     void assertImmutable(Object o) {
-//         if (o instanceof Collection) {
-//             assertThrows(
-//                 UnsupportedOperationException.class,
-//                 () -> ((Collection) o).add(null));
-//         }
-//     }
+  def assertImmutable(o: Object): Unit = {
+    o match {
+      case c: Collection[Any] @unchecked =>
+        assertThrows(
+          classOf[UnsupportedOperationException],
+          () => c.add(null: Any)
+        )
+      case _ => ()
+    }
+  }
 
-//     @SuppressWarnings("unchecked")
-//     <T> T serialClone(T o) {
-//         T clone = null;
-//         try {
-//             ObjectInputStream ois = new ObjectInputStream
-//                 (new ByteArrayInputStream(serialBytes(o)));
-//             clone = (T) ois.readObject();
-//         } catch (Throwable fail) {
-//             threadUnexpectedException(fail);
-//         }
-//         if (o == clone) assertImmutable(o);
-//         else assertSame(o.getClass(), clone.getClass());
-//         return clone;
-//     }
+  def serialClone[T <: AnyRef](o: T): T = {
+    val clone =
+      try {
+        val ois = new ObjectInputStream(
+          new ByteArrayInputStream(serialBytes(o))
+        )
+        ois.readObject().asInstanceOf[T]
+      } catch {
+        case fail: Throwable =>
+          threadUnexpectedException(fail);
+          null.asInstanceOf[T]
+      }
+    if (o == clone) assertImmutable(o);
+    else assertSame(o.getClass(), clone.getClass());
+
+    clone;
+  }
 
 //     /**
 //      * A version of serialClone that leaves error handling (for
@@ -1813,14 +1805,11 @@ object JSR166Test {
     (() => timeout, () => expired, () => timeUnit)
   }
 
-//      /**
-//       * Returns a random boolean; a "coin flip".
-//       */
-//      static boolean randomBoolean() {
-//          return ThreadLocalRandom.current().nextBoolean();
-//      }
+  /** Returns a random boolean; a "coin flip".
+   */
+  def randomBoolean(): Boolean = ThreadLocalRandom.current().nextBoolean();
 
-  private final val TIMEOUT_DELAY_MS = (12.0 * Math.cbrt(delayFactor)).toLong
+  private final lazy val TIMEOUT_DELAY_MS = (12.0 * Math.cbrt(delayFactor)).toLong
 
   /** Returns a timeout in milliseconds to be used in tests that verify that
    *  operations block or time out. We want this to be longer than the OS
@@ -1829,24 +1818,23 @@ object JSR166Test {
    */
   def timeoutMillis(): Long = TIMEOUT_DELAY_MS
 
-//      /**
-//      * Delays, via Thread.sleep, for the given millisecond delay, but
-//      * if the sleep is shorter than specified, may re-sleep or yield
-//      * until time elapses.  Ensures that the given time, as measured
-//      * by System.nanoTime(), has elapsed.
-//      */
-//     static void delay(long millis) throws InterruptedException {
-//         long nanos = millis * (1000 * 1000);
-//         final long wakeupTime = System.nanoTime() + nanos;
-//         do {
-//             if (millis > 0L)
-//                 Thread.sleep(millis);
-//             else // too short to sleep
-//                 Thread.yield();
-//             nanos = wakeupTime - System.nanoTime();
-//             millis = nanos / (1000 * 1000);
-//         } while (nanos >= 0L);
-//     }
+  /** Delays, via Thread.sleep, for the given millisecond delay, but if the
+   *  sleep is shorter than specified, may re-sleep or yield until time elapses.
+   *  Ensures that the given time, as measured by System.nanoTime(), has
+   *  elapsed.
+   */
+  def delay(ms: Long) = {
+    var millis = ms
+    var nanos = millis * (1000 * 1000);
+    var wakeupTime = System.nanoTime() + nanos;
+    while ({
+      if (millis > 0L) Thread.sleep(millis);
+      else Thread.`yield`() // too short to sleep
+      nanos = wakeupTime - System.nanoTime();
+      millis = nanos / (1000 * 1000);
+      nanos >= 0L
+    }) ()
+  }
 
 //     /** Returns true if thread info might be useful in a thread dump. */
 //        static boolean threadOfInterest(ThreadInfo info) {

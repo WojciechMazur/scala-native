@@ -136,7 +136,7 @@ object ReentrantReadWriteLock {
         setState(c + acquires)
         return true
       }
-      if (writerShouldBlock() || !state.compareAndSet(c, c + acquires))
+      if (writerShouldBlock() || !compareAndSetState(c, c + acquires))
         return false
       setExclusiveOwnerThread(current)
       true
@@ -163,7 +163,7 @@ object ReentrantReadWriteLock {
       while (true) {
         val c: Int = getState()
         val nextc: Int = c - SHARED_UNIT
-        if (state.compareAndSet(c, nextc))
+        if (compareAndSetState(c, nextc))
           return nextc == 0
       }
       // for the compiler
@@ -181,7 +181,7 @@ object ReentrantReadWriteLock {
       if (exclusiveCount(c) != 0 && getExclusiveOwnerThread() != current)
         return -1
       val r: Int = sharedCount(c)
-      if (!readerShouldBlock() && r < MAX_COUNT && state.compareAndSet(
+      if (!readerShouldBlock() && r < MAX_COUNT && compareAndSetState(
             c,
             c + SHARED_UNIT
           )) {
@@ -225,7 +225,7 @@ object ReentrantReadWriteLock {
         }
         if (sharedCount(c) == MAX_COUNT)
           throw new Error("Maximum lock count exceeded")
-        if (state.compareAndSet(c, c + SHARED_UNIT)) {
+        if (compareAndSetState(c, c + SHARED_UNIT)) {
           if (sharedCount(c) == 0) {
             firstReader = current
             firstReaderHoldCount = 1
@@ -258,7 +258,7 @@ object ReentrantReadWriteLock {
         if (w == MAX_COUNT)
           throw new Error("Maximum lock count exceeded")
       }
-      if (!state.compareAndSet(c, c + 1))
+      if (!compareAndSetState(c, c + 1))
         return false
       setExclusiveOwnerThread(current)
       true
@@ -273,7 +273,7 @@ object ReentrantReadWriteLock {
         val r: Int = sharedCount(c)
         if (r == MAX_COUNT)
           throw new Error("Maximum lock count exceeded")
-        if (state.compareAndSet(c, c + SHARED_UNIT)) {
+        if (compareAndSetState(c, c + SHARED_UNIT)) {
           if (r == 0) {
             firstReader = current
             firstReaderHoldCount = 1

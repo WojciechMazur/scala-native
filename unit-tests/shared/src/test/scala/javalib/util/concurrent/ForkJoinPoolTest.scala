@@ -35,7 +35,7 @@ object ForkJoinPoolTest {
     final val calls = new AtomicInteger(0)
     override def newThread(p: ForkJoinPool): ForkJoinWorkerThread = {
       if (calls.incrementAndGet() > 1) null
-      return new FailingFJWSubclass(p)
+      else new FailingFJWSubclass(p)
     }
   }
 
@@ -130,232 +130,234 @@ class ForkJoinPoolTest extends JSR166Test {
    *  async mode policies, no active threads or tasks, and quiescent running
    *  state.
    */
-  @Test def testDefaultInitialState(): Unit = {
-    usingPoolCleaner(new ForkJoinPool(1)) { p =>
-      assertSame(
-        ForkJoinPool.defaultForkJoinWorkerThreadFactory,
-        p.getFactory()
-      )
-      assertFalse(p.getAsyncMode())
-      assertEquals(0, p.getActiveThreadCount())
-      assertEquals(0, p.getStealCount())
-      assertEquals(0, p.getQueuedTaskCount())
-      assertEquals(0, p.getQueuedSubmissionCount())
-      assertFalse(p.hasQueuedSubmissions())
-      assertFalse(p.isShutdown())
-      assertFalse(p.isTerminating())
-      assertFalse(p.isTerminated())
-    }
-  }
+  // @Test def testDefaultInitialState(): Unit = {
+  //   usingPoolCleaner(new ForkJoinPool(1)) { p =>
+  //     assertSame(
+  //       ForkJoinPool.defaultForkJoinWorkerThreadFactory,
+  //       p.getFactory()
+  //     )
+  //     assertFalse(p.getAsyncMode())
+  //     assertEquals(0, p.getActiveThreadCount())
+  //     assertEquals(0, p.getStealCount())
+  //     assertEquals(0, p.getQueuedTaskCount())
+  //     assertEquals(0, p.getQueuedSubmissionCount())
+  //     assertFalse(p.hasQueuedSubmissions())
+  //     assertFalse(p.isShutdown())
+  //     assertFalse(p.isTerminating())
+  //     assertFalse(p.isTerminated())
+  //   }
+  // }
 
-  /** Constructor throws if size argument is less than zero
-   */
-  @Test def testConstructor1(): Unit = assertThrows(
-    classOf[IllegalArgumentException],
-    new ForkJoinPool(-1)
-  )
+  // /** Constructor throws if size argument is less than zero
+  //  */
+  // @Test def testConstructor1(): Unit = assertThrows(
+  //   classOf[IllegalArgumentException],
+  //   new ForkJoinPool(-1)
+  // )
 
-  /** Constructor throws if factory argument is null
-   */
-  @Test def testConstructor2(): Unit = assertThrows(
-    classOf[NullPointerException],
-    new ForkJoinPool(1, null, null, false)
-  )
+  // /** Constructor throws if factory argument is null
+  //  */
+  // @Test def testConstructor2(): Unit = assertThrows(
+  //   classOf[NullPointerException],
+  //   new ForkJoinPool(1, null, null, false)
+  // )
 
-  /** getParallelism returns size set in constructor
-   */
-  @Test def testGetParallelism(): Unit = {
-    usingPoolCleaner(new ForkJoinPool(1)) { p =>
-      assertEquals(1, p.getParallelism())
-    }
-  }
+  // /** getParallelism returns size set in constructor
+  //  */
+  // @Test def testGetParallelism(): Unit = {
+  //   usingPoolCleaner(new ForkJoinPool(1)) { p =>
+  //     assertEquals(1, p.getParallelism())
+  //   }
+  // }
 
-  /** getPoolSize returns number of started workers.
-   */
-  @Test def testGetPoolSize(): Unit = {
-    val taskStarted = new CountDownLatch(1)
-    val done = new CountDownLatch(1)
-    val p = usingPoolCleaner(new ForkJoinPool(1)) { p =>
-      assertEquals(0, p.getActiveThreadCount())
-      val task: CheckedRunnable = () => {
-        taskStarted.countDown()
-        assertEquals(1, p.getPoolSize())
-        assertEquals(1, p.getActiveThreadCount())
-        await(done)
-      }
-      val future = p.submit(task)
-      await(taskStarted)
-      assertEquals(1, p.getPoolSize())
-      assertEquals(1, p.getActiveThreadCount())
-      done.countDown()
-      p
-    }
-    assertEquals(0, p.getPoolSize())
-    assertEquals(0, p.getActiveThreadCount())
-  }
+  // /** getPoolSize returns number of started workers.
+  //  */
+  // @Test def testGetPoolSize(): Unit = {
+  //   val taskStarted = new CountDownLatch(1)
+  //   val done = new CountDownLatch(1)
+  //   val p = usingPoolCleaner(new ForkJoinPool(1)) { p =>
+  //     assertEquals(0, p.getActiveThreadCount())
+  //     val task: CheckedRunnable = () => {
+  //       taskStarted.countDown()
+  //       assertEquals(1, p.getPoolSize())
+  //       assertEquals(1, p.getActiveThreadCount())
+  //       await(done)
+  //     }
+  //     val future = p.submit(task)
+  //     await(taskStarted)
+  //     assertEquals(1, p.getPoolSize())
+  //     assertEquals(1, p.getActiveThreadCount())
+  //     done.countDown()
+  //     p
+  //   }
+  //   assertEquals(0, p.getPoolSize())
+  //   assertEquals(0, p.getActiveThreadCount())
+  // }
 
-  // awaitTermination on a non-shutdown pool times out
-  @Test def testAwaitTerminationTimesOut(): Unit = {
-    usingPoolCleaner(new ForkJoinPool(1)) { p =>
-      assertFalse(p.isTerminated())
-      assertFalse(p.awaitTermination(java.lang.Long.MIN_VALUE, NANOSECONDS))
-      assertFalse(p.awaitTermination(java.lang.Long.MIN_VALUE, MILLISECONDS))
-      assertFalse(p.awaitTermination(-1L, NANOSECONDS))
-      assertFalse(p.awaitTermination(-1L, MILLISECONDS))
-      assertFalse(p.awaitTermination(randomExpiredTimeout(), randomTimeUnit()))
+  // // awaitTermination on a non-shutdown pool times out
+  // @Test def testAwaitTerminationTimesOut(): Unit = {
+  //   usingPoolCleaner(new ForkJoinPool(1)) { p =>
+  //     assertFalse(p.isTerminated())
+  //     assertFalse(p.awaitTermination(java.lang.Long.MIN_VALUE, NANOSECONDS))
+  //     assertFalse(p.awaitTermination(java.lang.Long.MIN_VALUE, MILLISECONDS))
+  //     assertFalse(p.awaitTermination(-1L, NANOSECONDS))
+  //     assertFalse(p.awaitTermination(-1L, MILLISECONDS))
+  //     assertFalse(p.awaitTermination(randomExpiredTimeout(), randomTimeUnit()))
 
-      locally {
-        val timeoutNanos = 999999L
-        val startTime = System.nanoTime()
-        assertFalse(p.awaitTermination(timeoutNanos, NANOSECONDS))
-        assertTrue(System.nanoTime() - startTime >= timeoutNanos)
-        assertFalse(p.isTerminated())
-      }
-      locally {
-        val startTime = System.nanoTime()
-        val timeoutMillis = JSR166Test.timeoutMillis()
-        assertFalse(p.awaitTermination(timeoutMillis, MILLISECONDS))
-        assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
-      }
-      assertFalse(p.isTerminated())
-      p.shutdown()
-      assertTrue(p.awaitTermination(LONG_DELAY_MS, MILLISECONDS))
-      assertTrue(p.isTerminated())
-    }
-  }
+  //     locally {
+  //       val timeoutNanos = 999999L
+  //       val startTime = System.nanoTime()
+  //       assertFalse(p.awaitTermination(timeoutNanos, NANOSECONDS))
+  //       assertTrue(System.nanoTime() - startTime >= timeoutNanos)
+  //       assertFalse(p.isTerminated())
+  //     }
+  //     locally {
+  //       val startTime = System.nanoTime()
+  //       val timeoutMillis = JSR166Test.timeoutMillis()
+  //       assertFalse(p.awaitTermination(timeoutMillis, MILLISECONDS))
+  //       assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+  //     }
+  //     assertFalse(p.isTerminated())
+  //     p.shutdown()
+  //     assertTrue(p.awaitTermination(LONG_DELAY_MS, MILLISECONDS))
+  //     assertTrue(p.isTerminated())
+  //   }
+  // }
 
-  /** setUncaughtExceptionHandler changes handler for uncaught exceptions.
-   *
-   *  Additionally tests: Overriding ForkJoinWorkerThread.onStart performs its
-   *  defined action
-   */
-  @Test def testSetUncaughtExceptionHandler(): Unit = {
-    val uehInvoked = new CountDownLatch(1)
-    val ueh: Thread.UncaughtExceptionHandler = (t: Thread, e: Throwable) => {
-      threadAssertTrue(e.isInstanceOf[MyError])
-      threadAssertTrue(t.isInstanceOf[FailingFJWSubclass])
-      uehInvoked.countDown()
-    }
-    usingPoolCleaner(
-      new ForkJoinPool(1, new FailingThreadFactory(), ueh, false)
-    ) { p =>
-      assertSame(ueh, p.getUncaughtExceptionHandler())
-      try {
-        p.execute(new FibTask(8))
-        await(uehInvoked)
-      } finally p.shutdownNow() // failure might have prevented processing task
-    }
-  }
+  // /** setUncaughtExceptionHandler changes handler for uncaught exceptions.
+  //  *
+  //  *  Additionally tests: Overriding ForkJoinWorkerThread.onStart performs its
+  //  *  defined action
+  //  */
+  // @Test def testSetUncaughtExceptionHandler(): Unit = {
+  //   val uehInvoked = new CountDownLatch(1)
+  //   val ueh: Thread.UncaughtExceptionHandler = (t: Thread, e: Throwable) => {
+  //     println("handling ex: " + e)
+  //     threadAssertTrue(e.isInstanceOf[MyError])
+  //     println(t)
+  //     threadAssertTrue(t.isInstanceOf[FailingFJWSubclass])
+  //     uehInvoked.countDown()
+  //   }
+  //   usingPoolCleaner(
+  //     new ForkJoinPool(1, new FailingThreadFactory(), ueh, false)
+  //   ) { p =>
+  //     assertSame(ueh, p.getUncaughtExceptionHandler())
+  //     try {
+  //       p.execute(new FibTask(8))
+  //       await(uehInvoked)
+  //     } finally p.shutdownNow() // failure might have prevented processing task
+  //   }
+  // }
 
-  /** After invoking a single task, isQuiescent eventually becomes true, at
-   *  which time queues are empty, threads are not active, the task has
-   *  completed successfully, and construction parameters continue to hold
-   */
-  @Test def testIsQuiescent(): Unit = usingPoolCleaner(new ForkJoinPool(2)) {
-    p =>
-      assertTrue(p.isQuiescent())
-      val startTime = System.nanoTime()
-      val f = new FibTask(20)
-      p.invoke(f)
-      assertSame(
-        ForkJoinPool.defaultForkJoinWorkerThreadFactory,
-        p.getFactory()
-      )
-      while (!p.isQuiescent()) {
-        if (millisElapsedSince(startTime) > LONG_DELAY_MS)
-          throw new AssertionError("timed out")
-        assertFalse(p.getAsyncMode())
-        assertFalse(p.isShutdown())
-        assertFalse(p.isTerminating())
-        assertFalse(p.isTerminated())
-        Thread.`yield`()
-      }
+  // /** After invoking a single task, isQuiescent eventually becomes true, at
+  //  *  which time queues are empty, threads are not active, the task has
+  //  *  completed successfully, and construction parameters continue to hold
+  //  */
+  // @Test def testIsQuiescent(): Unit = usingPoolCleaner(new ForkJoinPool(2)) {
+  //   p =>
+  //     assertTrue(p.isQuiescent())
+  //     val startTime = System.nanoTime()
+  //     val f = new FibTask(20)
+  //     p.invoke(f)
+  //     assertSame(
+  //       ForkJoinPool.defaultForkJoinWorkerThreadFactory,
+  //       p.getFactory()
+  //     )
+  //     while (!p.isQuiescent()) {
+  //       if (millisElapsedSince(startTime) > LONG_DELAY_MS)
+  //         throw new AssertionError("timed out")
+  //       assertFalse(p.getAsyncMode())
+  //       assertFalse(p.isShutdown())
+  //       assertFalse(p.isTerminating())
+  //       assertFalse(p.isTerminated())
+  //       Thread.`yield`()
+  //     }
 
-      assertTrue(p.isQuiescent())
-      assertFalse(p.getAsyncMode())
-      assertEquals(0, p.getQueuedTaskCount())
-      assertEquals(0, p.getQueuedSubmissionCount())
-      assertFalse(p.hasQueuedSubmissions())
-      while (p.getActiveThreadCount() != 0
-          && millisElapsedSince(startTime) < LONG_DELAY_MS) {
-        Thread.`yield`()
-      }
-      assertFalse(p.isShutdown())
-      assertFalse(p.isTerminating())
-      assertFalse(p.isTerminated())
-      assertTrue(f.isDone())
-      assertEquals(6765, f.get())
-      assertTrue(millisElapsedSince(startTime) < LONG_DELAY_MS)
-  }
+  //     assertTrue(p.isQuiescent())
+  //     assertFalse(p.getAsyncMode())
+  //     assertEquals(0, p.getQueuedTaskCount())
+  //     assertEquals(0, p.getQueuedSubmissionCount())
+  //     assertFalse(p.hasQueuedSubmissions())
+  //     while (p.getActiveThreadCount() != 0
+  //         && millisElapsedSince(startTime) < LONG_DELAY_MS) {
+  //       Thread.`yield`()
+  //     }
+  //     assertFalse(p.isShutdown())
+  //     assertFalse(p.isTerminating())
+  //     assertFalse(p.isTerminated())
+  //     assertTrue(f.isDone())
+  //     assertEquals(6765, f.get())
+  //     assertTrue(millisElapsedSince(startTime) < LONG_DELAY_MS)
+  // }
 
-  /** Completed submit(ForkJoinTask) returns result
-   */
-  @Test def testSubmitForkJoinTask(): Unit =
-    usingPoolCleaner(new ForkJoinPool(1)) { p =>
-      val f = p.submit(new FibTask(8))
-      assertEquals(21, f.get())
-    }
+  // /** Completed submit(ForkJoinTask) returns result
+  //  */
+  // @Test def testSubmitForkJoinTask(): Unit =
+  //   usingPoolCleaner(new ForkJoinPool(1)) { p =>
+  //     val f = p.submit(new FibTask(8))
+  //     assertEquals(21, f.get())
+  //   }
 
-  /** A task submitted after shutdown is rejected
-   */
-  @Test def testSubmitAfterShutdown(): Unit =
-    usingPoolCleaner(new ForkJoinPool(1)) { p =>
-      p.shutdown()
-      assertTrue(p.isShutdown())
-      assertThrows(
-        classOf[RejectedExecutionException],
-        p.submit(new FibTask(8))
-      )
-    }
+  // /** A task submitted after shutdown is rejected
+  //  */
+  // @Test def testSubmitAfterShutdown(): Unit =
+  //   usingPoolCleaner(new ForkJoinPool(1)) { p =>
+  //     p.shutdown()
+  //     assertTrue(p.isShutdown())
+  //     assertThrows(
+  //       classOf[RejectedExecutionException],
+  //       p.submit(new FibTask(8))
+  //     )
+  //   }
 
-  /** Pool maintains parallelism when using ManagedBlocker
-   */
-  @Test def testBlockingForkJoinTask(): Unit =
-    usingPoolCleaner(new ForkJoinPool(4)) { p =>
-      val lock = new ReentrantLock()
-      val locker = new ManagedLocker(lock)
-      val f = new LockingFibTask(20, locker, lock)
-      p.execute(f)
-      assertEquals(6765, f.get())
-    }
+  // /** Pool maintains parallelism when using ManagedBlocker
+  //  */
+  // @Test def testBlockingForkJoinTask(): Unit =
+  //   usingPoolCleaner(new ForkJoinPool(4)) { p =>
+  //     val lock = new ReentrantLock()
+  //     val locker = new ManagedLocker(lock)
+  //     val f = new LockingFibTask(20, locker, lock)
+  //     p.execute(f)
+  //     assertEquals(6765, f.get())
+  //   }
 
-  /** pollSubmission returns unexecuted submitted task, if present
-   */
-  @Test def testPollSubmission(): Unit =
-    usingPoolCleaner(new SubFJP()) { p =>
-      val done = new CountDownLatch(1)
-      val a = p.submit(awaiter(done))
-      val b = p.submit(awaiter(done))
-      val c = p.submit(awaiter(done))
-      val r = p.pollSubmission()
-      assertTrue(r == a || r == b || r == c)
-      assertFalse(r.isDone())
-      done.countDown()
-    }
+  // /** pollSubmission returns unexecuted submitted task, if present
+  //  */
+  // @Test def testPollSubmission(): Unit =
+  //   usingPoolCleaner(new SubFJP()) { p =>
+  //     val done = new CountDownLatch(1)
+  //     val a = p.submit(awaiter(done))
+  //     val b = p.submit(awaiter(done))
+  //     val c = p.submit(awaiter(done))
+  //     val r = p.pollSubmission()
+  //     assertTrue(r == a || r == b || r == c)
+  //     assertFalse(r.isDone())
+  //     done.countDown()
+  //   }
 
-  /** drainTasksTo transfers unexecuted submitted tasks, if present
-   */
-  @Test def testDrainTasksTo(): Unit = usingPoolCleaner(new SubFJP()) { p =>
-    val done = new CountDownLatch(1)
-    val a = p.submit(awaiter(done))
-    val b = p.submit(awaiter(done))
-    val c = p.submit(awaiter(done))
-    val al = new ArrayList[ForkJoinTask[_]]()
-    p.drainTasks(al)
-    assertTrue(al.size() > 0)
-    al.forEach { r =>
-      assertTrue(r == a || r == b || r == c)
-      assertFalse(r.isDone())
-    }
-    done.countDown()
-  }
+  // /** drainTasksTo transfers unexecuted submitted tasks, if present
+  //  */
+  // @Test def testDrainTasksTo(): Unit = usingPoolCleaner(new SubFJP()) { p =>
+  //   val done = new CountDownLatch(1)
+  //   val a = p.submit(awaiter(done))
+  //   val b = p.submit(awaiter(done))
+  //   val c = p.submit(awaiter(done))
+  //   val al = new ArrayList[ForkJoinTask[_]]()
+  //   p.drainTasks(al)
+  //   assertTrue("was empty",al.size() > 0)
+  //   al.forEach { r =>
+  //     assertTrue(r == a || r == b || r == c)
+  //     assertFalse(r.isDone())
+  //   }
+  //   done.countDown()
+  // }
 
   // FJ Versions of AbstractExecutorService tests
 
   /** execute(runnable) runs it to completion
    */
   @Test def testExecuteRunnable(): Unit =
-    usingPoolCleaner(new ForkJoinPool(1)) { e: ExecutorService =>
+    usingPoolCleaner(new ForkJoinPool(1)) { (e: ExecutorService) =>
       val done = new AtomicBoolean(false)
       val future = e.submit(new CheckedRunnable {
         override def realRun() = done.set(true)
@@ -370,17 +372,17 @@ class ForkJoinPoolTest extends JSR166Test {
   /** Completed submit(callable) returns result
    */
   @Test def testSubmitCallable(): Unit = usingPoolCleaner(new ForkJoinPool(1)) {
-    e: ExecutorService =>
+    (e: ExecutorService) =>
       val future = e.submit(new StringTask())
-      assertSame(TEST_STRING, future.get())
+      assertEquals(TEST_STRING, future.get())
       assertTrue(future.isDone())
       assertFalse(future.isCancelled())
   }
 
   /** Completed submit(runnable) returns successfully
    */
-  @Test def testSubmitRunnable(): Unit = usingPoolCleaner(new ForkJoinPool(1)) {
-    e: ExecutorService =>
+  @Test def     testSubmitRunnable(): Unit = usingPoolCleaner(new ForkJoinPool(1)) {
+    (e: ExecutorService) =>
       val future = e.submit(new NoOpRunnable())
       assertNull(future.get())
       assertTrue(future.isDone())
@@ -390,7 +392,7 @@ class ForkJoinPoolTest extends JSR166Test {
   /** Completed submit(runnable, result) returns result
    */
   @Test def testSubmitRunnable2(): Unit =
-    usingPoolCleaner(new ForkJoinPool(1)) { e: ExecutorService =>
+    usingPoolCleaner(new ForkJoinPool(1)) { (e: ExecutorService) =>
       val future = e.submit(new NoOpRunnable(), TEST_STRING)
       assertSame(TEST_STRING, future.get())
       assertTrue(future.isDone())
@@ -403,14 +405,14 @@ class ForkJoinPoolTest extends JSR166Test {
   // @Test def testSubmitFailedPrivilegedExceptionAction(): Unit = ()
 
   @Test def testExecuteNullRunnable(): Unit =
-    usingPoolCleaner(new ForkJoinPool(1)) { e: ExecutorService =>
+    usingPoolCleaner(new ForkJoinPool(1)) { (e: ExecutorService) =>
       assertThrows(classOf[NullPointerException], e.submit(null: Runnable))
     }
 
   /** submit(null callable) throws NullPointerException
    */
   @Test def testSubmitNullCallable(): Unit =
-    usingPoolCleaner(new ForkJoinPool(1)) { e: ExecutorService =>
+    usingPoolCleaner(new ForkJoinPool(1)) { (e: ExecutorService) =>
       assertThrows(classOf[NullPointerException], e.submit(null: Callable[_]))
     }
 
@@ -476,352 +478,253 @@ class ForkJoinPoolTest extends JSR166Test {
       )
   }
 
-  /** invokeAny(c) throws NullPointerException if c has a single null element
-   */
-  @throws[Throwable]
-  @Test def testInvokeAny3(): Unit = usingPoolCleaner(new ForkJoinPool(1)) {
-    (e: ExecutorService) =>
-      val l = new ArrayList[Callable[String]]()
-      l.add(null)
-      assertThrows(classOf[NullPointerException], e.invokeAny(l))
-  }
+  // /** invokeAny(c) throws NullPointerException if c has a single null element
+  //  */
+  // @throws[Throwable]
+  // @Test def testInvokeAny3(): Unit = usingPoolCleaner(new ForkJoinPool(1)) {
+  //   (e: ExecutorService) =>
+  //     val l = new ArrayList[Callable[String]]()
+  //     l.add(null)
+  //     assertThrows(classOf[NullPointerException], e.invokeAny(l))
+  // }
 
-//   // /**
-//   //  * invokeAny(c) throws NullPointerException if c has null elements
-//   //  */
-//   // @throws[Throwable]
-// // @Test def testInvokeAny4(): Unit = {
-//   //     CountDownLatch latch = new CountDownLatch(1)
-//   //     ExecutorService e = new ForkJoinPool(1)
-//   //     try (PoolCleaner cleaner = cleaner(e)) {
-//   //         List<Callable<String>> l = new ArrayList<>()
-//   //         l.add(latchAwaitingStringTask(latch))
-//   //         l.add(null)
-//   //         try {
-//   //             e.invokeAny(l)
-//   //             shouldThrow()
-//   //         } catch (NullPointerException success) {}
-//   //         latch.countDown()
-//   //     }
-//   // }
+  // /** invokeAny(c) throws NullPointerException if c has null elements
+  //  */
+  // @Test def testInvokeAny4(): Unit = {
+  //   usingPoolCleaner(new ForkJoinPool(1)) { (e: ExecutorService) =>
+  //     val latch = new CountDownLatch(1)
+  //     val l = new ArrayList[Callable[String]]()
+  //     l.add(latchAwaitingStringTask(latch))
+  //     l.add(null)
+  //     assertThrows(
+  //       classOf[NullPointerException],
+  //       e.invokeAny(l)
+  //     )
+  //     latch.countDown()
+  //   }
+  // }
 
-//   // /**
-//   //  * invokeAny(c) throws ExecutionException if no task in c completes
-//   //  */
-//   // @throws[Throwable]
-// // @Test def testInvokeAny5(): Unit = {
-//   //     ExecutorService e = new ForkJoinPool(1)
-//   //     try (PoolCleaner cleaner = cleaner(e)) {
-//   //         List<Callable<String>> l = new ArrayList<>()
-//   //         l.add(new NPETask())
-//   //         try {
-//   //             e.invokeAny(l)
-//   //             shouldThrow()
-//   //         } catch (ExecutionException success) {
-//   //             assertTrue(success.getCause() instanceof NullPointerException)
-//   //         }
-//   //     }
-//   // }
+  // @Test def testInvokeAny5(): Unit = {
+  //   usingPoolCleaner(new ForkJoinPool(1)) { (e: ExecutorService) =>
+  //     val l = new ArrayList[Callable[String]]()
+  //     l.add(new NPETask())
+  //     assertThrowsAnd(
+  //       classOf[ExecutionException],
+  //       e.invokeAny(l)
+  //     ) { _.getCause().isInstanceOf[NullPointerException] }
+  //   }
+  // }
 
-//   // /**
-//   //  * invokeAny(c) returns result of some task in c if at least one completes
-//   //  */
-//   // @throws[Throwable]
-// // @Test def testInvokeAny6(): Unit = {
-//   //     ExecutorService e = new ForkJoinPool(1)
-//   //     try (PoolCleaner cleaner = cleaner(e)) {
-//   //         List<Callable<String>> l = new ArrayList<>()
-//   //         l.add(new StringTask())
-//   //         l.add(new StringTask())
-//   //         String result = e.invokeAny(l)
-//   //         assertSame(TEST_STRING, result)
-//   //     }
-//   // }
+  // /** invokeAny(c) returns result of some task in c if at least one completes
+  //  */
+  // @Test def testInvokeAny6(): Unit = usingPoolCleaner(new ForkJoinPool(1)) {
+  //   (e: ExecutorService) =>
+  //     val l = new ArrayList[Callable[String]]()
+  //     l.add(new StringTask())
+  //     l.add(new StringTask())
+  //     val result = e.invokeAny(l)
+  //     assertSame(TEST_STRING, result)
+  // }
 
-//   // /**
-//   //  * invokeAll(null) throws NullPointerException
-//   //  */
-//   // @throws[Throwable]
-// // @Test def testInvokeAll1(): Unit = {
-//   //     ExecutorService e = new ForkJoinPool(1)
-//   //     try (PoolCleaner cleaner = cleaner(e)) {
-//   //         try {
-//   //             e.invokeAll(null)
-//   //             shouldThrow()
-//   //         } catch (NullPointerException success) {}
-//   //     }
-//   // }
+  // /** invokeAll(null) throws NullPointerException
+  //  */
+  // @Test def testInvokeAll1(): Unit = usingPoolCleaner(new ForkJoinPool(1)) {
+  //   (e: ExecutorService) =>
+  //     assertThrows(classOf[NullPointerException], e.invokeAll(null))
+  // }
 
-//   // /**
-//   //  * invokeAll(empty collection) returns empty list
-//   //  */
-//   // @throws[InterruptedException]
-// // @Test def testInvokeAll2(): Unit = {
-//   //     ExecutorService e = new ForkJoinPool(1)
-//   //     final Collection<Callable<String>> emptyCollection
-//   //         = Collections.emptyList()
-//   //     try (PoolCleaner cleaner = cleaner(e)) {
-//   //         List<Future<String>> r = e.invokeAll(emptyCollection)
-//   //         assertTrue(r.isEmpty())
-//   //     }
-//   // }
+  // /** invokeAll(empty collection) returns empty list
+  //  */
+  // @Test def testInvokeAll2(): Unit = usingPoolCleaner(new ForkJoinPool(1)) {
+  //   (e: ExecutorService) =>
+  //     val emptyCollection = Collections.emptyList[Callable[String]]()
+  //     val r = e.invokeAll(emptyCollection)
+  //     assertTrue(r.isEmpty())
+  // }
 
-//   // /**
-//   //  * invokeAll(c) throws NullPointerException if c has null elements
-//   //  */
-//   // @throws[InterruptedException]
-// // @Test def testInvokeAll3(): Unit = {
-//   //     ExecutorService e = new ForkJoinPool(1)
-//   //     try (PoolCleaner cleaner = cleaner(e)) {
-//   //         List<Callable<String>> l = new ArrayList<>()
-//   //         l.add(new StringTask())
-//   //         l.add(null)
-//   //         try {
-//   //             e.invokeAll(l)
-//   //             shouldThrow()
-//   //         } catch (NullPointerException success) {}
-//   //     }
-//   // }
+  // /** invokeAll(c) throws NullPointerException if c has null elements
+  //  */
+  // @throws[InterruptedException]
+  // @Test def testInvokeAll3(): Unit = usingPoolCleaner(new ForkJoinPool(1)) {
+  //   (e: ExecutorService) =>
+  //     val l = new ArrayList[Callable[String]]()
+  //     l.add(new StringTask())
+  //     l.add(null)
+  //     assertThrows(classOf[NullPointerException], e.invokeAll(l))
+  // }
 
-//   // /**
-//   //  * get of returned element of invokeAll(c) throws
-//   //  * ExecutionException on failed task
-//   //  */
-//   // @throws[Throwable]
-// // @Test def testInvokeAll4(): Unit = {
-//   //     ExecutorService e = new ForkJoinPool(1)
-//   //     try (PoolCleaner cleaner = cleaner(e)) {
-//   //         List<Callable<String>> l = new ArrayList<>()
-//   //         l.add(new NPETask())
-//   //         List<Future<String>> futures = e.invokeAll(l)
-//   //         assertEquals(1, futures.size())
-//   //         try {
-//   //             futures.get(0).get()
-//   //             shouldThrow()
-//   //         } catch (ExecutionException success) {
-//   //             assertTrue(success.getCause() instanceof NullPointerException)
-//   //         }
-//   //     }
-//   // }
+  // /** get of returned element of invokeAll(c) throws ExecutionException on
+  //  *  failed task
+  //  */
+  // @Test def testInvokeAll4(): Unit =
+  //   usingPoolCleaner(new ForkJoinPool(1)) { (e: ExecutorService) =>
+  //     val l = new ArrayList[Callable[String]]()
+  //     l.add(new NPETask())
+  //     val futures = e.invokeAll(l)
+  //     assertEquals(1, futures.size())
+  //     assertThrowsAnd(classOf[ExecutionException], futures.get(0).get())(
+  //       _.getCause().isInstanceOf[NullPointerException]
+  //     )
+  //   }
 
-//   // /**
-//   //  * invokeAll(c) returns results of all completed tasks in c
-//   //  */
-//   // @throws[Throwable]
-// // @Test def testInvokeAll5(): Unit = {
-//   //     ExecutorService e = new ForkJoinPool(1)
-//   //     try (PoolCleaner cleaner = cleaner(e)) {
-//   //         List<Callable<String>> l = new ArrayList<>()
-//   //         l.add(new StringTask())
-//   //         l.add(new StringTask())
-//   //         List<Future<String>> futures = e.invokeAll(l)
-//   //         assertEquals(2, futures.size())
-//   //         for (Future<String> future : futures)
-//   //             assertSame(TEST_STRING, future.get())
-//   //     }
-//   // }
+  // /** invokeAll(c) returns results of all completed tasks in c
+  //  */
+  // @Test def testInvokeAll5(): Unit = usingPoolCleaner(new ForkJoinPool(1)) {
+  //   (e: ExecutorService) =>
+  //     val l = new ArrayList[Callable[String]]()
+  //     l.add(new StringTask())
+  //     l.add(new StringTask())
+  //     val futures = e.invokeAll(l)
+  //     assertEquals(2, futures.size())
+  //     futures.forEach(f => assertSame(TEST_STRING, f.get()))
+  // }
 
-//   // /**
-//   //  * timed invokeAny(null) throws NullPointerException
-//   //  */
-//   // @throws[Throwable]
-// // @Test def testTimedInvokeAny1(): Unit = {
-//   //     ExecutorService e = new ForkJoinPool(1)
-//   //     try (PoolCleaner cleaner = cleaner(e)) {
-//   //         try {
-//   //             e.invokeAny(null, randomTimeout(), randomTimeUnit())
-//   //             shouldThrow()
-//   //         } catch (NullPointerException success) {}
-//   //     }
-//   // }
+  // /** timed invokeAny(null) throws NullPointerException
+  //  */
+  // @Test def testTimedInvokeAny1(): Unit =
+  //   usingPoolCleaner(new ForkJoinPool(1)) { (e: ExecutorService) =>
+  //     assertThrows(
+  //       classOf[NullPointerException],
+  //       e.invokeAny(null, randomTimeout(), randomTimeUnit())
+  //     )
+  //   }
 
-//   // /**
-//   //  * timed invokeAny(null time unit) throws NullPointerException
-//   //  */
-//   // @throws[Throwable]
-// // @Test def testTimedInvokeAnyNullTimeUnit(): Unit = {
-//   //     ExecutorService e = new ForkJoinPool(1)
-//   //     try (PoolCleaner cleaner = cleaner(e)) {
-//   //         List<Callable<String>> l = new ArrayList<>()
-//   //         l.add(new StringTask())
-//   //         try {
-//   //             e.invokeAny(l, randomTimeout(), null)
-//   //             shouldThrow()
-//   //         } catch (NullPointerException success) {}
-//   //     }
-//   // }
+  // /** timed invokeAny(null time unit) throws NullPointerException
+  //  */
+  // @Test def testTimedInvokeAnyNullTimeUnit(): Unit =
+  //   usingPoolCleaner(new ForkJoinPool(1)) { (e: ExecutorService) =>
+  //     val l = new ArrayList[Callable[String]]()
+  //     l.add(new StringTask())
+  //     assertThrows(
+  //       classOf[NullPointerException],
+  //       e.invokeAny(l, randomTimeout(), null)
+  //     )
+  //   }
 
-//   // /**
-//   //  * timed invokeAny(empty collection) throws IllegalArgumentException
-//   //  */
-//   // @throws[Throwable]
-// // @Test def testTimedInvokeAny2(): Unit = {
-//   //     ExecutorService e = new ForkJoinPool(1)
-//   //     try (PoolCleaner cleaner = cleaner(e)) {
-//   //         try {
-//   //             e.invokeAny(new ArrayList<Callable<String>>(),
-//   //                         randomTimeout(), randomTimeUnit())
-//   //             shouldThrow()
-//   //         } catch (IllegalArgumentException success) {}
-//   //     }
-//   // }
+  // /** timed invokeAny(empty collection) throws IllegalArgumentException
+  //  */
+  // @Test def testTimedInvokeAny2(): Unit = {
+  //   usingPoolCleaner(new ForkJoinPool(1)) { (e: ExecutorService) =>
+  //     assertThrows(
+  //       classOf[IllegalArgumentException],
+  //       e.invokeAny(new ArrayList(), randomTimeout(), randomTimeUnit())
+  //     )
+  //   }
+  // }
 
-//   // /**
-//   //  * timed invokeAny(c) throws NullPointerException if c has null elements
-//   //  */
-//   // @throws[Throwable]
-// // @Test def testTimedInvokeAny3(): Unit = {
-//   //     CountDownLatch latch = new CountDownLatch(1)
-//   //     ExecutorService e = new ForkJoinPool(1)
-//   //     try (PoolCleaner cleaner = cleaner(e)) {
-//   //         List<Callable<String>> l = new ArrayList<>()
-//   //         l.add(latchAwaitingStringTask(latch))
-//   //         l.add(null)
-//   //         try {
-//   //             e.invokeAny(l, randomTimeout(), randomTimeUnit())
-//   //             shouldThrow()
-//   //         } catch (NullPointerException success) {}
-//   //         latch.countDown()
-//   //     }
-//   // }
+  // /** timed invokeAny(c) throws NullPointerException if c has null elements
+  //  */
+  // @Test def testTimedInvokeAny3(): Unit =
+  //   usingPoolCleaner(new ForkJoinPool(1)) { (e: ExecutorService) =>
+  //     val latch = new CountDownLatch(1)
+  //     val l = new ArrayList[Callable[String]]()
+  //     l.add(latchAwaitingStringTask(latch))
+  //     l.add(null)
+  //     assertThrows(
+  //       classOf[NullPointerException],
+  //       e.invokeAny(l, randomTimeout(), randomTimeUnit())
+  //     )
+  //     latch.countDown()
+  //   }
 
-//   // /**
-//   //  * timed invokeAny(c) throws ExecutionException if no task completes
-//   //  */
-//   // @throws[Throwable]
-// // @Test def testTimedInvokeAny4(): Unit = {
-//   //     ExecutorService e = new ForkJoinPool(1)
-//   //     try (PoolCleaner cleaner = cleaner(e)) {
-//   //         long startTime = System.nanoTime()
-//   //         List<Callable<String>> l = new ArrayList<>()
-//   //         l.add(new NPETask())
-//   //         try {
-//   //             e.invokeAny(l, LONG_DELAY_MS, MILLISECONDS)
-//   //             shouldThrow()
-//   //         } catch (ExecutionException success) {
-//   //             assertTrue(success.getCause() instanceof NullPointerException)
-//   //         }
-//   //         assertTrue(millisElapsedSince(startTime) < LONG_DELAY_MS)
-//   //     }
-//   // }
+  // /** timed invokeAny(c) throws ExecutionException if no task completes
+  //  */
+  // @Test def testTimedInvokeAny4(): Unit =
+  //   usingPoolCleaner(new ForkJoinPool(1)) { (e: ExecutorService) =>
+  //     val startTime = System.nanoTime()
+  //     val l = new ArrayList[Callable[String]]()
+  //     l.add(new NPETask())
+  //     assertThrowsAnd(
+  //       classOf[ExecutionException],
+  //       e.invokeAny(l, LONG_DELAY_MS, MILLISECONDS)
+  //     )(_.getCause().isInstanceOf[NullPointerException])
+  //     assertTrue(millisElapsedSince(startTime) < LONG_DELAY_MS)
+  //   }
 
-//   // /**
-//   //  * timed invokeAny(c) returns result of some task in c
-//   //  */
-//   // @throws[Throwable]
-// // @Test def testTimedInvokeAny5(): Unit = {
-//   //     ExecutorService e = new ForkJoinPool(1)
-//   //     try (PoolCleaner cleaner = cleaner(e)) {
-//   //         long startTime = System.nanoTime()
-//   //         List<Callable<String>> l = new ArrayList<>()
-//   //         l.add(new StringTask())
-//   //         l.add(new StringTask())
-//   //         String result = e.invokeAny(l, LONG_DELAY_MS, MILLISECONDS)
-//   //         assertSame(TEST_STRING, result)
-//   //         assertTrue(millisElapsedSince(startTime) < LONG_DELAY_MS)
-//   //     }
-//   // }
+  // /** timed invokeAny(c) returns result of some task in c
+  //  */
+  // @Test def testTimedInvokeAny5(): Unit =
+  //   usingPoolCleaner(new ForkJoinPool(1)) { (e: ExecutorService) =>
+  //     val startTime = System.nanoTime()
+  //     val l = new ArrayList[Callable[String]]()
+  //     l.add(new StringTask())
+  //     l.add(new StringTask())
+  //     val result = e.invokeAny(l, LONG_DELAY_MS, MILLISECONDS)
+  //     assertSame(TEST_STRING, result)
+  //     assertTrue(millisElapsedSince(startTime) < LONG_DELAY_MS)
+  //   }
 
-//   // /**
-//   //  * timed invokeAll(null) throws NullPointerException
-//   //  */
-//   // @throws[Throwable]
-// // @Test def testTimedInvokeAll1(): Unit = {
-//   //     ExecutorService e = new ForkJoinPool(1)
-//   //     try (PoolCleaner cleaner = cleaner(e)) {
-//   //         try {
-//   //             e.invokeAll(null, randomTimeout(), randomTimeUnit())
-//   //             shouldThrow()
-//   //         } catch (NullPointerException success) {}
-//   //     }
-//   // }
+  // /** timed invokeAll(null) throws NullPointerException
+  //  */
+  // @Test def testTimedInvokeAll1(): Unit =
+  //   usingPoolCleaner(new ForkJoinPool(1)) { (e: ExecutorService) =>
+  //     assertThrows(
+  //       classOf[NullPointerException],
+  //       e.invokeAll(null, randomTimeout(), randomTimeUnit())
+  //     )
+  //   }
 
-//   // /**
-//   //  * timed invokeAll(null time unit) throws NullPointerException
-//   //  */
-//   // @throws[Throwable]
-// // @Test def testTimedInvokeAllNullTimeUnit(): Unit = {
-//   //     ExecutorService e = new ForkJoinPool(1)
-//   //     try (PoolCleaner cleaner = cleaner(e)) {
-//   //         List<Callable<String>> l = new ArrayList<>()
-//   //         l.add(new StringTask())
-//   //         try {
-//   //             e.invokeAll(l, randomTimeout(), null)
-//   //             shouldThrow()
-//   //         } catch (NullPointerException success) {}
-//   //     }
-//   // }
+  // /** timed invokeAll(null time unit) throws NullPointerException
+  //  */
+  // @Test def testTimedInvokeAllNullTimeUnit(): Unit =
+  //   usingPoolCleaner(new ForkJoinPool(1)) { (e: ExecutorService) =>
+  //     val l = new ArrayList[Callable[String]]()
+  //     l.add(new StringTask())
+  //     assertThrows(
+  //       classOf[NullPointerException],
+  //       e.invokeAll(l, randomTimeout(), null)
+  //     )
+  //   }
 
-//   // /**
-//   //  * timed invokeAll(empty collection) returns empty list
-//   //  */
-//   // @throws[InterruptedException]
-// // @Test def testTimedInvokeAll2(): Unit = {
-//   //     ExecutorService e = new ForkJoinPool(1)
-//   //     final Collection<Callable<String>> emptyCollection
-//   //         = Collections.emptyList()
-//   //     try (PoolCleaner cleaner = cleaner(e)) {
-//   //         List<Future<String>> r
-//   //             = e.invokeAll(emptyCollection,
-//   //                           randomTimeout(), randomTimeUnit())
-//   //         assertTrue(r.isEmpty())
-//   //     }
-//   // }
+  // /** timed invokeAll(empty collection) returns empty list
+  //  */
+  // @Test def testTimedInvokeAll2(): Unit =
+  //   usingPoolCleaner(new ForkJoinPool(1)) { (e: ExecutorService) =>
+  //     val r = e.invokeAll(
+  //       Collections.emptyList(),
+  //       randomTimeout(),
+  //       randomTimeUnit()
+  //     )
+  //     assertTrue(r.isEmpty())
+  //   }
 
-//   // /**
-//   //  * timed invokeAll(c) throws NullPointerException if c has null elements
-//   //  */
-//   // @throws[InterruptedException]
-// // @Test def testTimedInvokeAll3(): Unit = {
-//   //     ExecutorService e = new ForkJoinPool(1)
-//   //     try (PoolCleaner cleaner = cleaner(e)) {
-//   //         List<Callable<String>> l = new ArrayList<>()
-//   //         l.add(new StringTask())
-//   //         l.add(null)
-//   //         try {
-//   //             e.invokeAll(l, randomTimeout(), randomTimeUnit())
-//   //             shouldThrow()
-//   //         } catch (NullPointerException success) {}
-//   //     }
-//   // }
+  // /** timed invokeAll(c) throws NullPointerException if c has null elements
+  //  */
+  // @Test def testTimedInvokeAll3(): Unit =
+  //   usingPoolCleaner(new ForkJoinPool(1)) { (e: ExecutorService) =>
+  //     val l = new ArrayList[Callable[String]]()
+  //     l.add(new StringTask())
+  //     l.add(null)
+  //     assertThrows(
+  //       classOf[NullPointerException],
+  //       e.invokeAll(l, randomTimeout(), randomTimeUnit())
+  //     )
+  //   }
 
-//   // /**
-//   //  * get of returned element of invokeAll(c) throws exception on failed task
-//   //  */
-//   // @throws[Throwable]
-// // @Test def testTimedInvokeAll4(): Unit = {
-//   //     ExecutorService e = new ForkJoinPool(1)
-//   //     try (PoolCleaner cleaner = cleaner(e)) {
-//   //         List<Callable<String>> l = new ArrayList<>()
-//   //         l.add(new NPETask())
-//   //         List<Future<String>> futures
-//   //             = e.invokeAll(l, LONG_DELAY_MS, MILLISECONDS)
-//   //         assertEquals(1, futures.size())
-//   //         try {
-//   //             futures.get(0).get()
-//   //             shouldThrow()
-//   //         } catch (ExecutionException success) {
-//   //             assertTrue(success.getCause() instanceof NullPointerException)
-//   //         }
-//   //     }
-//   // }
+  // /** get of returned element of invokeAll(c) throws exception on failed task
+  //  */
+  // @throws[Throwable]
+  // @Test def testTimedInvokeAll4(): Unit =
+  //   usingPoolCleaner(new ForkJoinPool(1)) { (e: ExecutorService) =>
+  //     val l = new ArrayList[Callable[String]]()
+  //     l.add(new NPETask())
+  //     val futures = e.invokeAll(l, LONG_DELAY_MS, MILLISECONDS)
+  //     assertEquals(1, futures.size())
+  //     assertThrowsAnd(classOf[ExecutionException], futures.get(0).get())(
+  //       _.getCause().isInstanceOf[NullPointerException]
+  //     )
+  //   }
 
-//   // /**
-//   //  * timed invokeAll(c) returns results of all completed tasks in c
-//   //  */
-//   // @throws[Throwable]
-// // @Test def testTimedInvokeAll5(): Unit = {
-//   //     ForkJoinPool e = new ForkJoinPool(1)
-//   //     try (PoolCleaner cleaner = cleaner(e)) {
-//   //         List<Callable<String>> l = new ArrayList<>()
-//   //         l.add(new StringTask())
-//   //         l.add(new StringTask())
-//   //         List<Future<String>> futures
-//   //             = e.invokeAll(l, LONG_DELAY_MS, MILLISECONDS)
-//   //         assertEquals(2, futures.size())
-//   //         for (Future<String> future : futures)
-//   //             assertSame(TEST_STRING, future.get())
-//   //     }
-//   // }
+  // /** timed invokeAll(c) returns results of all completed tasks in c
+  //  */
+  // @Test def testTimedInvokeAll5(): Unit =
+  //   usingPoolCleaner(new ForkJoinPool(1)) { (e: ExecutorService) =>
+  //     val l = new ArrayList[Callable[String]]()
+  //     l.add(new StringTask())
+  //     l.add(new StringTask())
+  //     val futures = e.invokeAll(l, LONG_DELAY_MS, MILLISECONDS)
+  //     assertEquals(2, futures.size())
+  //     futures.forEach(f => assertSame(TEST_STRING, f.get()))
+  //   }
 
 }

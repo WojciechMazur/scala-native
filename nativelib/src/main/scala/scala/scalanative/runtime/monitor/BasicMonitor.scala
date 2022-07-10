@@ -27,11 +27,11 @@ final case class BasicMonitor(lockWordRef: Ptr[Word]) extends AnyVal {
 
   @inline def _notify(): Unit = withInflatedLockIfPresent(_._notify())
   @inline def _notifyAll(): Unit = withInflatedLockIfPresent(_._notifyAll())
-  @inline def _wait(): Unit = withInflatedLockIfPresent(_._wait())
-  @inline def _wait(timeout: Long): Unit =
-    withInflatedLockIfPresent(_._wait(timeout))
-  @inline def _wait(timeout: Long, nanos: Int): Unit =
-    withInflatedLockIfPresent(_._wait(timeout, nanos))
+  @inline def _wait(): Unit = withInflatedLock(_._wait())
+  @inline def _wait(timeout: Long): Unit = withInflatedLock(_._wait(timeout))
+  @inline def _wait(timeout: Long, nanos: Int): Unit = withInflatedLock(
+    _._wait(timeout, nanos)
+  )
 
   def enter(): Unit = {
     val threadId = Thread.currentThread().getId()
@@ -44,14 +44,11 @@ final case class BasicMonitor(lockWordRef: Ptr[Word]) extends AnyVal {
             if (isSelfLocked) {
               if (witnessed.recursionCount < ThinMonitorMaxRecursion) {
                 !lockWordRef = witnessed.withIncreasedRecursion()
-              } else {
-                inflate()
-                lockInflated(!lockWordRef)
-              }
+              } else inflate()
               // No need for atomic operation since we already obtain the lock
             } else lockAndInflate(threadId)
 
-          case LockStatus.Inflated => lockInflated(witnessed)
+          case LockStatus.Inflated => witnessed.getObjectMonitor.enter()
 
           case _ => ??? // should not happen
         }
@@ -85,15 +82,21 @@ final case class BasicMonitor(lockWordRef: Ptr[Word]) extends AnyVal {
   }
 
   @alwaysinline
+  private def withInflatedLock(fn: ObjectMonitor => Unit): Unit = {
+    def current = !lockWordRef
+    val monitor =
+      if (current.isInflated) current.getObjectMonitor
+      else inflate()
+    fn(monitor)
+  }
+
+  @alwaysinline
   private def tryLockPreviouslyUnlocked(threadId: Long) =
     atomic
       .compareExchangeStrong(
         LockStatus.Unlocked, // ThreadId set to 0, recursion set to 0
         LockStatus.Locked.withThreadId(threadId)
       )
-
-  private def lockInflated(lockWord: LockWord): Unit =
-    lockWord.getObjectMonitor.enter()
 
   // Monitor is currently locked by other thread. Wait until getting over owership
   // of this object and transform LockWord to use HeavyWeight monitor
@@ -112,16 +115,15 @@ final case class BasicMonitor(lockWordRef: Ptr[Word]) extends AnyVal {
     val (needsInflating, current) = waitForOwnership()
 
     // Check if other thread has not inflated lock already
-    if (!needsInflating) lockInflated(current)
-    else {
-      inflate()
-      lockInflated(!lockWordRef)
-    }
+    if (!needsInflating) current.getObjectMonitor.enter()
+    else inflate()
   }
 
-  private def inflate(): Unit = {
+  private def inflate(): ObjectMonitor = {
     val objectMonitor = new ObjectMonitor()
+    objectMonitor.enter()
     val prev = !lockWordRef
     !lockWordRef = LockStatus.Inflated.withMonitorAssigned(objectMonitor)
+    objectMonitor
   }
 }

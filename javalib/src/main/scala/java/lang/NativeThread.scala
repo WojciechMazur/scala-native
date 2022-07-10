@@ -47,8 +47,8 @@ trait NativeThread {
       if (skipNextUnparkEvent) {
         skipNextUnparkEvent = false
       } else {
-        state = NativeThread.State.Parked
-        while (state == NativeThread.State.Parked) {
+        state = NativeThread.State.ParkedWaiting
+        while (state == NativeThread.State.ParkedWaiting) {
           tryPark()
         }
         state = NativeThread.State.Running
@@ -61,10 +61,12 @@ trait NativeThread {
       if (skipNextUnparkEvent) {
         skipNextUnparkEvent = false
       } else {
-        state = NativeThread.State.Parked
-        while (state == NativeThread.State.Parked) {
+        state = NativeThread.State.ParkedWaitingTimed
+        // println(s"Park $thread  for $nanos ns")
+        while (state == NativeThread.State.ParkedWaitingTimed) {
           tryParkNanos(nanos)
         }
+        // println(s"Unparked $thread")
         state = NativeThread.State.Running
       }
     }
@@ -75,8 +77,8 @@ trait NativeThread {
       if (skipNextUnparkEvent) {
         skipNextUnparkEvent = false
       } else {
-        state = NativeThread.State.Parked
-        while (state == NativeThread.State.Parked) {
+        state = NativeThread.State.ParkedWaitingTimed
+        while (state == NativeThread.State.ParkedWaitingTimed) {
           tryParkUntil(deadline)
         }
         state = NativeThread.State.Running
@@ -87,11 +89,13 @@ trait NativeThread {
   def unpark(): Unit = {
     withParkingLock {
       state match {
-        case NativeThread.State.Parked =>
+        case _: NativeThread.State.Parked =>
+          // println(s"Try unpark $thread - $state")
           state = NativeThread.State.Running
           tryUnpark()
 
         case _ =>
+          // println(s"Skip next park event in $thread")
           // Race between park/unpark won, ignore next park event
           skipNextUnparkEvent = true
       }
@@ -122,7 +126,9 @@ object NativeThread {
     case object Waiting extends State
     case object WaitingWithTimeout extends State
     case object WaitingOnMonitorEnter extends State
-    case object Parked extends State
+    sealed trait Parked extends State
+    case object ParkedWaiting extends Parked
+    case object ParkedWaitingTimed extends Parked
     case object Terminated extends State
   }
 
@@ -135,17 +141,19 @@ object NativeThread {
       while (thread.nativeThread == null) Thread.onSpinWait()
       thread.run()
     } catch {
-      case ex: Throwable => ex.printStackTrace()
-    } finally {
-      thread.nativeThread.state = NativeThread.State.Terminated
-      thread.alive = false
-      thread.getThreadGroup().remove(thread)
-      try {
-        thread.nativeThread.onTermination()
-      } catch {
-        case ex: Throwable => ()
+      case ex: Throwable =>
+        Option(thread.getUncaughtExceptionHandler())
+          .getOrElse(Thread.getDefaultUncaughtExceptionHandler())
+          .uncaughtException(thread, ex)
+    } finally
+      thread.synchronized {
+        thread.nativeThread.state = NativeThread.State.Terminated
+        thread.alive = false
+        thread.getThreadGroup().remove(thread)
+        try thread.nativeThread.onTermination()
+        catch { case ex: Throwable => () }
+        thread.notifyAll()
       }
-    }
   }
 
   def threadRoutineArgs(thread: Thread): ThreadRoutineArg = {

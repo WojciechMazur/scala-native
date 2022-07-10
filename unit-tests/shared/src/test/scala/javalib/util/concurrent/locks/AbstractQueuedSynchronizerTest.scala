@@ -183,9 +183,13 @@ class AbstractQueuedSynchronizerTest extends JSR166Test {
       c: AbstractQueuedSynchronizer#ConditionObject,
       threads: Thread*
   ) = {
-    assertEquals("hasWaiters",threads.length > 0, sync.hasWaiters(c))
+    assertEquals("hasWaiters", threads.length > 0, sync.hasWaiters(c))
     assertEquals(threads.length, sync.getWaitQueueLength(c))
-    assertEquals("getWaitingThreads.isEmpty",threads.length == 0, sync.getWaitingThreads(c).isEmpty())
+    assertEquals(
+      "getWaitingThreads.isEmpty",
+      threads.length == 0,
+      sync.getWaitingThreads(c).isEmpty()
+    )
     assertEquals(threads.length, sync.getWaitingThreads(c).size())
     val expected = new HashSet[Thread]()
     threads.foreach(expected.add(_))

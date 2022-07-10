@@ -158,7 +158,7 @@ class Thread private[lang] (
     lock.synchronized {
       if (started) interruptedState = true
     }
-    if (nativeThread.state == NativeThread.State.Parked) {
+    if (nativeThread.state.isInstanceOf[NativeThread.State.Parked]) {
       LockSupport.unpark(this)
     }
   }
@@ -175,7 +175,7 @@ class Thread private[lang] (
     throw new NoSuchMethodError()
 
   // synchronized
-  final def join(): Unit = {
+  final def join(): Unit = synchronized {
     while (isAlive()) wait()
   }
 
@@ -184,8 +184,7 @@ class Thread private[lang] (
     if (millis < 0)
       throw new IllegalArgumentException("timeout value is negative")
     if (millis == 0) join()
-    else {
-      val callingThread = Thread.currentThread()
+    else
       synchronized {
         val end: scala.Long = System.currentTimeMillis() + millis
         var continue: scala.Boolean = true
@@ -194,7 +193,6 @@ class Thread private[lang] (
           millis = end - System.currentTimeMillis()
         }
       }
-    }
   }
 
   final def join(ml: scala.Long, n: Int): Unit = {
@@ -203,8 +201,7 @@ class Thread private[lang] (
     if (millis < 0 || nanos < 0 || nanos > 999999)
       throw new IllegalArgumentException()
     if (millis == 0 && nanos == 0) join()
-    else {
-      val callingThread = Thread.currentThread()
+    else
       synchronized {
         val end = System.nanoTime() + 1000000 * millis + nanos.toLong
         var rest = 0L
@@ -215,7 +212,6 @@ class Thread private[lang] (
           millis = rest / 1000000
         }
       }
-    }
   }
 
   @deprecated("Deprecated for removal", "1.7")
@@ -253,12 +249,12 @@ class Thread private[lang] (
   def getState(): State = {
     import NativeThread.State._
     nativeThread.state match {
-      case Terminated            => State.TERMINATED
-      case WaitingWithTimeout    => State.TIMED_WAITING
-      case Waiting | Parked      => State.WAITING
-      case WaitingOnMonitorEnter => State.BLOCKED
-      case Running               => State.RUNNABLE
-      case New                   => State.NEW
+      case New                                     => State.NEW
+      case Running                                 => State.RUNNABLE
+      case WaitingOnMonitorEnter                   => State.BLOCKED
+      case Waiting | ParkedWaiting                 => State.WAITING
+      case WaitingWithTimeout | ParkedWaitingTimed => State.TIMED_WAITING
+      case Terminated                              => State.TERMINATED
     }
   }
 
@@ -300,28 +296,28 @@ class Thread private[lang] (
 }
 
 object Thread {
-  type State = ThreadState
-  lazy val State = ThreadState
-  // sealed class State(name: String, ordinal: Int)
-  //     extends Enum[State](name, ordinal)
+  sealed class State(val name: String, val ordinal: Int) {
+    override def toString() = this.name
+  }
+  // extends Enum[State](name, ordinal)
 
-  // object State {
-  //   final val NEW: State = new State("NEW", 0)
-  //   final val RUNNABLE: State = new State("RUNNABLE", 1)
-  //   final val BLOCKED: State = new State("BLOCKED", 2)
-  //   final val WAITING: State = new State("WAITING", 3)
-  //   final val TIMED_WAITING: State = new State("TIMED_WAITING", 4)
-  //   final val TERMINATED: State = new State("TERMINATED", 5)
+  object State {
+    final val NEW: State = new State("NEW", 0)
+    final val RUNNABLE: State = new State("RUNNABLE", 1)
+    final val BLOCKED: State = new State("BLOCKED", 2)
+    final val WAITING: State = new State("WAITING", 3)
+    final val TIMED_WAITING: State = new State("TIMED_WAITING", 4)
+    final val TERMINATED: State = new State("TERMINATED", 5)
 
-  //   private[this] val cachedValues =
-  //     Array(NEW, RUNNABLE, BLOCKED, WAITING, TIMED_WAITING, TERMINATED)
-  //   def values(): Array[State] = cachedValues.clone()
-  //   def valueOf(name: String): State = {
-  //     cachedValues.find(_.name() == name).getOrElse {
-  //       throw new IllegalArgumentException("No enum const Thread.State." + name)
-  //     }
-  //   }
-  // }
+    private[this] val cachedValues =
+      Array(NEW, RUNNABLE, BLOCKED, WAITING, TIMED_WAITING, TERMINATED)
+    def values(): Array[State] = cachedValues.clone()
+    def valueOf(name: String): State = {
+      cachedValues.find(_.name == name).getOrElse {
+        throw new IllegalArgumentException("No enum const Thread.State." + name)
+      }
+    }
+  }
 
   // Thread Local Storage
   @extern

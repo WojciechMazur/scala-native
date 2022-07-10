@@ -267,7 +267,7 @@ abstract class ForkJoinTask[V] private[concurrent] ()
       }) {
         val a = aux
         if (!installed && {
-              a == null || a.ex == null && {
+              (a == null || a.ex == null) && {
                 installed = casAux(a, h)
                 installed
               }

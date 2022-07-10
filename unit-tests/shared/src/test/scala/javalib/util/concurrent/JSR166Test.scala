@@ -699,12 +699,8 @@ trait JSR166Test {
    *  that it may terminate later) and fails.
    */
   def awaitTermination(thread: Thread, timeoutMillis: Long = LONG_DELAY_MS) = {
-    // println(s"wait termination $thread, state=${thread.getState()}, timeout: ${timeoutMillis}ms")
     try thread.join(timeoutMillis)
-    catch {
-      case fail: InterruptedException => threadUnexpectedException(fail)
-    }
-    println("force termination")
+    catch { case fail: InterruptedException => threadUnexpectedException(fail) }
     if (thread.getState() != Thread.State.TERMINATED) {
       try
         threadFail(
@@ -1809,7 +1805,8 @@ object JSR166Test {
    */
   def randomBoolean(): Boolean = ThreadLocalRandom.current().nextBoolean();
 
-  private final lazy val TIMEOUT_DELAY_MS = (12.0 * Math.cbrt(delayFactor)).toLong
+  private final lazy val TIMEOUT_DELAY_MS =
+    (12.0 * Math.cbrt(delayFactor)).toLong
 
   /** Returns a timeout in milliseconds to be used in tests that verify that
    *  operations block or time out. We want this to be longer than the OS

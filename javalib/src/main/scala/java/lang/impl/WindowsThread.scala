@@ -109,7 +109,7 @@ private[java] case class WindowsThread(handle: Handle, id: UInt, thread: Thread)
       }
 
     if (successfull) {
-      if (state == NativeThread.State.Parked) {
+      if (state.isInstanceOf[NativeThread.State.Parked]) {
         // spurious wakeup, retry
         tryParkTimed(deadline)
       }

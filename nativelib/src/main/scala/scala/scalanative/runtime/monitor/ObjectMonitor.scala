@@ -18,11 +18,9 @@ private[runtime] class ObjectMonitor {
   private val lock = new ReentrantLock(true)
   private val condition = lock.newCondition()
 
-  def enter(): Unit = if (!lock.tryLock()) {
-    val thread = NativeThread.current
-    thread.state = NativeThread.State.Blocked
-    try lock.lock()
-    finally thread.state = NativeThread.State.Running
+  def enter(): Unit = {
+    // TODO: should set Thread.State.BLOCKED
+    lock.lock()
   }
   def exit(): Unit = lock.unlock()
 
@@ -38,7 +36,6 @@ private[runtime] class ObjectMonitor {
 
   @alwaysinline def _wait(): Unit = {
     checkOwnership()
-    val thread = NativeThread.current
     condition.await()
     if (Thread.interrupted()) throw new InterruptedException()
   }

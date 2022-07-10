@@ -1300,11 +1300,11 @@ class ForkJoinPool(
   /** Returns true if all workers are busy, possibly creating one if allowed
    */
   private[concurrent] final def isSaturated(): Boolean = {
-    val maxTotal = bounds >>> SWIDTH
+    val maxTotal = (bounds >>> SWIDTH).toInt
     @tailrec
     def loop(): Boolean = {
-      val c = (ctl & ~UNSIGNALLED).toInt
-      if (c != 0) false
+      val c = ctl
+      if ((c & ~UNSIGNALLED).toInt != 0) false
       else if ((c >>> TC_SHIFT).toShort >= maxTotal) true
       else {
         val nc = ((c + TC_UNIT) & TC_MASK) | (c & ~TC_MASK)

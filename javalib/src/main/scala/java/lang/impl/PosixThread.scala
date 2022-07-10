@@ -119,7 +119,6 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
     deadline.tv_nsec = nextNanos % NanosecondsInSecond
     deadline.tv_sec = deadline.tv_sec + (nextNanos / NanosecondsInSecond)
     waitForThreadUnparking(deadline)
-
   }
 
   @inline def tryUnpark(): Unit = {
@@ -138,7 +137,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
   @inline private def waitForThreadUnparking(
       deadline: Ptr[timespec]
   ): Unit = withGCSafeZone {
-    while (state == NativeThread.State.Parked) {
+    while (state.isInstanceOf[NativeThread.State.Parked]) {
       pthread_cond_timedwait(condition, lock, deadline) match {
         case 0 | TimeoutCode =>
           state = NativeThread.State.Running

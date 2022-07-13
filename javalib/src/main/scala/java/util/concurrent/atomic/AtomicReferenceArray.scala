@@ -10,11 +10,11 @@ import scala.annotation.tailrec
 import scala.language.implicitConversions
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
-import scala.scalanative.unsafe.atomic.memory_order._
+import scala.scalanative.libc.atomic.CAtomicRef
+import scala.scalanative.libc.atomic.memory_order._
 import scala.scalanative.runtime.ObjectArray
 import java.util.Arrays
-import java.util.function.BinaryOperator
-import java.util.function.UnaryOperator
+import java.util.function.{BinaryOperator, UnaryOperator}
 
 class AtomicReferenceArray[E <: AnyRef] extends Serializable {
 
@@ -123,7 +123,7 @@ class AtomicReferenceArray[E <: AnyRef] extends Serializable {
    *    was not equal to the expected value.
    */
   final def compareAndSet(i: Int, expectedValue: E, newValue: E): Boolean =
-    nativeArray.at(i).compareExchangeStrong(expectedValue, newValue)._1
+    nativeArray.at(i).compareExchangeStrong(expectedValue, newValue)
 
   /** Possibly atomically sets the element at index {@code i} to {@code
    *  newValue} if the element's current value {@code == expectedValue}, with
@@ -412,10 +412,12 @@ class AtomicReferenceArray[E <: AnyRef] extends Serializable {
    *  @since 9
    */
   final def compareAndExchange(i: Int, expectedValue: E, newValue: E): E = {
+    val expected = stackalloc[AnyRef]()
+    !expected = expectedValue
     nativeArray
       .at(i)
-      .compareExchangeStrong(expectedValue, newValue)
-      ._2
+      .compareExchangeStrong(expected.asInstanceOf[Ptr[E]], newValue)
+    (!expected).asInstanceOf[E]
   }
 
   /** Atomically sets the element at index {@code i} to {@code newValue} if the
@@ -439,10 +441,16 @@ class AtomicReferenceArray[E <: AnyRef] extends Serializable {
       expectedValue: E,
       newValue: E
   ): E = {
+    val expected = stackalloc[AnyRef]()
+    !expected = expectedValue
     nativeArray
       .at(i)
-      .compareExchangeStrong(expectedValue, newValue, memory_order_acquire)
-      ._2
+      .compareExchangeStrong(
+        expected.asInstanceOf[Ptr[E]],
+        newValue,
+        memory_order_acquire
+      )
+    (!expected).asInstanceOf[E]
   }
 
   /** Atomically sets the element at index {@code i} to {@code newValue} if the
@@ -465,11 +473,18 @@ class AtomicReferenceArray[E <: AnyRef] extends Serializable {
       i: Int,
       expectedValue: E,
       newValue: E
-  ): E =
+  ): E = {
+    val expectedAny = stackalloc[AnyRef]()
+    !expectedAny = expectedValue
     nativeArray
       .at(i)
-      .compareExchangeStrong(expectedValue, newValue, memory_order_release)
-      ._2
+      .compareExchangeStrong(
+        expectedAny.asInstanceOf[Ptr[E]],
+        newValue,
+        memory_order_release
+      )
+    (!expectedAny).asInstanceOf[E]
+  }
 
   /** Possibly atomically sets the element at index {@code i} to {@code
    *  newValue} if the element's current value {@code == expectedValue}, with
@@ -493,7 +508,6 @@ class AtomicReferenceArray[E <: AnyRef] extends Serializable {
     nativeArray
       .at(i)
       .compareExchangeWeak(expectedValue, newValue)
-      ._1
   }
 
   /** Possibly atomically sets the element at index {@code i} to {@code
@@ -515,10 +529,15 @@ class AtomicReferenceArray[E <: AnyRef] extends Serializable {
       expectedValue: E,
       newValue: E
   ): Boolean = {
+    val expected = stackalloc[AnyRef]()
+    !expected = expectedValue
     nativeArray
       .at(i)
-      .compareExchangeWeak(expectedValue, newValue, memory_order_acquire)
-      ._1
+      .compareExchangeWeak(
+        expected.asInstanceOf[Ptr[E]],
+        newValue,
+        memory_order_acquire
+      )
   }
 
   /** Possibly atomically sets the element at index {@code i} to {@code
@@ -540,9 +559,14 @@ class AtomicReferenceArray[E <: AnyRef] extends Serializable {
       expectedValue: E,
       newValue: E
   ): Boolean = {
+    val expected = stackalloc[Object]()
+    !expected = expectedValue
     nativeArray
       .at(i)
-      .compareExchangeWeak(expectedValue, newValue, memory_order_release)
-      ._1
+      .compareExchangeWeak(
+        expected.asInstanceOf[Ptr[E]],
+        newValue,
+        memory_order_release
+      )
   }
 }

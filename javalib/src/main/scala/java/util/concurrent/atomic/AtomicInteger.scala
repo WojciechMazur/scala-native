@@ -10,7 +10,8 @@ import java.io.Serializable
 import scala.annotation.tailrec
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
-import scala.scalanative.unsafe.atomic.memory_order._
+import scala.scalanative.libc.atomic.CAtomicInt
+import scala.scalanative.libc.atomic.memory_order._
 import scala.scalanative.runtime.{fromRawPtr}
 import java.util.function.IntBinaryOperator
 import java.util.function.IntUnaryOperator
@@ -83,7 +84,7 @@ class AtomicInteger(private[this] var value: Int)
    *    was not equal to the expected value.
    */
   final def compareAndSet(expectedValue: Int, newValue: Int): Boolean = {
-    valueRef.compareExchangeStrong(expectedValue, newValue)._1
+    valueRef.compareExchangeStrong(expectedValue, newValue)
   }
 
   /** Possibly atomically sets the value to {@code newValue} if the current
@@ -107,7 +108,7 @@ class AtomicInteger(private[this] var value: Int)
    */
   @deprecated("", "9")
   final def weakCompareAndSet(expectedValue: Int, newValue: Int): Boolean = {
-    valueRef.compareExchangeWeak(expectedValue, newValue)._1
+    valueRef.compareExchangeWeak(expectedValue, newValue)
   }
 
   /** Possibly atomically sets the value to {@code newValue} if the current
@@ -433,7 +434,11 @@ class AtomicInteger(private[this] var value: Int)
    *  @since 9
    */
   final def compareAndExchange(expectedValue: Int, newValue: Int): Int = {
-    valueRef.compareExchangeStrong(expectedValue, newValue)._2
+    val expected = stackalloc[Int]()
+    !expected = expectedValue
+    valueRef
+      .compareExchangeStrong(expected, newValue)
+    !expected
   }
 
   /** Atomically sets the value to {@code newValue} if the current value,
@@ -454,9 +459,11 @@ class AtomicInteger(private[this] var value: Int)
       expectedValue: Int,
       newValue: Int
   ): Int = {
+    val expected = stackalloc[Int]()
+    !expected = expectedValue
     valueRef
-      .compareExchangeStrong(expectedValue, newValue, memory_order_acquire)
-      ._2
+      .compareExchangeStrong(expected, newValue, memory_order_acquire)
+    !expected
   }
 
   /** Atomically sets the value to {@code newValue} if the current value,
@@ -477,9 +484,11 @@ class AtomicInteger(private[this] var value: Int)
       expectedValue: Int,
       newValue: Int
   ): Int = {
+    val expected = stackalloc[Int]()
+    !expected = expectedValue
     valueRef
-      .compareExchangeStrong(expectedValue, newValue, memory_order_release)
-      ._2
+      .compareExchangeStrong(expected, newValue, memory_order_release)
+    !expected
   }
 
   /** Possibly atomically sets the value to {@code newValue} if the current
@@ -498,7 +507,7 @@ class AtomicInteger(private[this] var value: Int)
       expectedValue: Int,
       newValue: Int
   ): Boolean = {
-    valueRef.compareExchangeWeak(expectedValue, newValue)._1
+    valueRef.compareExchangeWeak(expectedValue, newValue)
   }
 
   /** Possibly atomically sets the value to {@code newValue} if the current
@@ -519,7 +528,6 @@ class AtomicInteger(private[this] var value: Int)
   ): Boolean = {
     valueRef
       .compareExchangeWeak(expectedValue, newValue, memory_order_acquire)
-      ._1
   }
 
   /** Possibly atomically sets the value to {@code newValue} if the current
@@ -540,6 +548,5 @@ class AtomicInteger(private[this] var value: Int)
   ): Boolean = {
     valueRef
       .compareExchangeWeak(expectedValue, newValue, memory_order_release)
-      ._1
   }
 }

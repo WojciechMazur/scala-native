@@ -9,7 +9,8 @@ package java.util.concurrent.atomic
 import scala.annotation.tailrec
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
-import scala.scalanative.unsafe.atomic.memory_order._
+import scala.scalanative.libc.atomic.CAtomicRef
+import scala.scalanative.libc.atomic.memory_order._
 import scala.scalanative.runtime.{fromRawPtr, Intrinsics}
 
 object AtomicStampedReference {
@@ -31,11 +32,10 @@ class AtomicStampedReference[V <: AnyRef] private (
 
   // Pointer to field containing underlying StampedReference.
   @alwaysinline
-  private[concurrent] def valueRef: CAtomicRef[StampedReference[V]] = {
+  private[concurrent] def valueRef: CAtomicRef[StampedReference[V]] =
     new CAtomicRef(
       fromRawPtr(Intrinsics.classFieldRawPtr(this, "value"))
     )
-  }
 
   /** Returns the current value of the reference.
    *
@@ -127,7 +127,6 @@ class AtomicStampedReference[V <: AnyRef] private (
           current,
           StampedReference(newReference, newStamp)
         )
-        ._1
 
     matchesExpected && (matchesNew || compareAndSetNew())
   }
@@ -170,7 +169,6 @@ class AtomicStampedReference[V <: AnyRef] private (
           current,
           StampedReference(expectedReference, newStamp)
         )
-        ._1
     }
   }
 }

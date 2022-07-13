@@ -4,10 +4,8 @@ import LockWord._
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
 import scala.annotation.tailrec
-import scala.scalanative.runtime.Intrinsics._
-import scala.scalanative.runtime.Monitor
+import scala.scalanative.runtime.{libc, fromRawPtr, Monitor, Intrinsics}
 import scala.annotation.switch
-import scala.scalanative.runtime.Intrinsics
 
 /** Lightweight monitor used for single-threaded execution, upon detection of
  *  access from multiple threads is inflated in ObjectMonitor
@@ -21,9 +19,6 @@ import scala.scalanative.runtime.Intrinsics
  */
 final case class BasicMonitor(lockWordRef: Ptr[Word]) extends AnyVal {
   import BasicMonitor._
-
-  @alwaysinline
-  private def atomic = new CAtomicLong(lockWordRef)
 
   @inline def _notify(): Unit = withInflatedLockIfPresent(_._notify())
   @inline def _notifyAll(): Unit = withInflatedLockIfPresent(_._notifyAll())
@@ -91,12 +86,16 @@ final case class BasicMonitor(lockWordRef: Ptr[Word]) extends AnyVal {
   }
 
   @alwaysinline
-  private def tryLockPreviouslyUnlocked(threadId: Long) =
-    atomic
-      .compareExchangeStrong(
-        LockStatus.Unlocked, // ThreadId set to 0, recursion set to 0
-        LockStatus.Locked.withThreadId(threadId)
-      )
+  private def tryLockPreviouslyUnlocked(threadId: Long) = {
+    val expected = fromRawPtr[CLong](Intrinsics.stackalloc(sizeof[CLong]))
+    !expected = LockStatus.Unlocked // ThreadId set to 0, recursion set to 0
+    val result = libc.atomic_compare_exchange_strong(
+      lockWordRef,
+      expected,
+      LockStatus.Locked.withThreadId(threadId)
+    )
+    (result, !expected)
+  }
 
   // Monitor is currently locked by other thread. Wait until getting over owership
   // of this object and transform LockWord to use HeavyWeight monitor

@@ -10,11 +10,11 @@ import scala.annotation.tailrec
 import scala.language.implicitConversions
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
-import scala.scalanative.unsafe.atomic.memory_order._
+import scala.scalanative.libc.atomic.CAtomicLong
+import scala.scalanative.libc.atomic.memory_order._
 import scala.scalanative.runtime.MemoryLayout
 
-import java.util.function.LongBinaryOperator
-import java.util.function.LongUnaryOperator
+import java.util.function.{LongBinaryOperator, LongUnaryOperator}
 import java.util.Arrays
 import scala.scalanative.runtime.LongArray
 
@@ -131,7 +131,7 @@ class AtomicLongArray extends Serializable {
       expectedValue: Long,
       newValue: Long
   ): Boolean =
-    nativeArray.at(i).compareExchangeStrong(expectedValue, newValue)._1
+    nativeArray.at(i).compareExchangeStrong(expectedValue, newValue)
 
   /** Possibly atomically sets the element at index {@code i} to {@code
    *  newValue} if the element's current value {@code == expectedValue}, with
@@ -512,7 +512,12 @@ class AtomicLongArray extends Serializable {
       expectedValue: Long,
       newValue: Long
   ): Long = {
-    nativeArray.at(i).compareExchangeStrong(expectedValue, newValue)._2
+    val expected = stackalloc[Long]()
+    !expected = expectedValue
+    nativeArray
+      .at(i)
+      .compareExchangeStrong(expected, newValue)
+    !expected
   }
 
   /** Atomically sets the element at index {@code i} to {@code newValue} if the
@@ -535,11 +540,14 @@ class AtomicLongArray extends Serializable {
       i: Int,
       expectedValue: Long,
       newValue: Long
-  ): Long =
+  ): Long = {
+    val expected = stackalloc[Long]()
+    !expected = expectedValue
     nativeArray
       .at(i)
-      .compareExchangeStrong(expectedValue, newValue, memory_order_acquire)
-      ._2
+      .compareExchangeStrong(expected, newValue, memory_order_acquire)
+    !expected
+  }
 
   /** Atomically sets the element at index {@code i} to {@code newValue} if the
    *  element's current value, referred to as the <em>witness value</em>, {@code
@@ -561,11 +569,14 @@ class AtomicLongArray extends Serializable {
       i: Int,
       expectedValue: Long,
       newValue: Long
-  ): Long =
+  ): Long = {
+    val expected = stackalloc[Long]()
+    !expected = expectedValue
     nativeArray
       .at(i)
-      .compareExchangeStrong(expectedValue, newValue, memory_order_release)
-      ._2
+      .compareExchangeStrong(expected, newValue, memory_order_release)
+    !expected
+  }
 
   /** Possibly atomically sets the element at index {@code i} to {@code
    *  newValue} if the element's current value {@code == expectedValue}, with
@@ -589,7 +600,6 @@ class AtomicLongArray extends Serializable {
     nativeArray
       .at(i)
       .compareExchangeWeak(expectedValue, newValue)
-      ._1
 
   /** Possibly atomically sets the element at index {@code i} to {@code
    *  newValue} if the element's current value {@code == expectedValue}, with
@@ -613,7 +623,6 @@ class AtomicLongArray extends Serializable {
     nativeArray
       .at(i)
       .compareExchangeWeak(expectedValue, newValue, memory_order_acquire)
-      ._1
 
   /** Possibly atomically sets the element at index {@code i} to {@code
    *  newValue} if the element's current value {@code == expectedValue}, with
@@ -633,9 +642,9 @@ class AtomicLongArray extends Serializable {
       i: Int,
       expectedValue: Long,
       newValue: Long
-  ): Boolean =
+  ): Boolean = {
     nativeArray
       .at(i)
       .compareExchangeWeak(expectedValue, newValue, memory_order_release)
-      ._1
+  }
 }

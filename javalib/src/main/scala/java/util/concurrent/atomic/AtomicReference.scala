@@ -9,10 +9,10 @@ package java.util.concurrent.atomic
 import scala.annotation.tailrec
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
-import scala.scalanative.unsafe.atomic.memory_order._
+import scala.scalanative.libc.atomic.CAtomicRef
+import scala.scalanative.libc.atomic.memory_order._
 import scala.scalanative.runtime.{fromRawPtr, Intrinsics}
-import java.util.function.BinaryOperator
-import java.util.function.UnaryOperator
+import java.util.function.{BinaryOperator, UnaryOperator}
 
 @SerialVersionUID(-1848883965231344442L)
 class AtomicReference[V <: AnyRef](@volatile private var value: V)
@@ -70,7 +70,7 @@ class AtomicReference[V <: AnyRef](@volatile private var value: V)
    *    was not equal to the expected value.
    */
   final def compareAndSet(expectedValue: V, newValue: V): Boolean =
-    valueRef.compareExchangeStrong(expectedValue, newValue)._1
+    valueRef.compareExchangeStrong(expectedValue, newValue)
 
   /** Possibly atomically sets the value to {@code newValue} if the current
    *  value {@code == expectedValue}, with memory effects as specified by {@link
@@ -323,7 +323,14 @@ class AtomicReference[V <: AnyRef](@volatile private var value: V)
    *  @since 9
    */
   final def compareAndExchange(expectedValue: V, newValue: V): V = {
-    valueRef.compareExchangeStrong(expectedValue, newValue)._2
+    val expected = stackalloc[AnyRef]()
+    !expected = expectedValue
+    valueRef
+      .compareExchangeStrong(
+        expected.asInstanceOf[Ptr[V]],
+        newValue
+      )
+    (!expected).asInstanceOf[V]
   }
 
   /** Atomically sets the value to {@code newValue} if the current value,
@@ -341,9 +348,15 @@ class AtomicReference[V <: AnyRef](@volatile private var value: V)
    *  @since 9
    */
   final def compareAndExchangeAcquire(expectedValue: V, newValue: V): V = {
+    val expected = stackalloc[AnyRef]()
+    !expected = expectedValue
     valueRef
-      .compareExchangeStrong(expectedValue, newValue, memory_order_acquire)
-      ._2
+      .compareExchangeStrong(
+        expected.asInstanceOf[Ptr[V]],
+        newValue,
+        memory_order_acquire
+      )
+    (!expected).asInstanceOf[V]
   }
 
   /** Atomically sets the value to {@code newValue} if the current value,
@@ -361,9 +374,15 @@ class AtomicReference[V <: AnyRef](@volatile private var value: V)
    *  @since 9
    */
   final def compareAndExchangeRelease(expectedValue: V, newValue: V): V = {
+    val expected = stackalloc[AnyRef]()
+    !expected = expectedValue
     valueRef
-      .compareExchangeStrong(expectedValue, newValue, memory_order_release)
-      ._2
+      .compareExchangeStrong(
+        expected.asInstanceOf[Ptr[V]],
+        newValue,
+        memory_order_release
+      )
+    (!expected).asInstanceOf[V]
   }
 
   /** Possibly atomically sets the value to {@code newValue} if the current
@@ -382,7 +401,7 @@ class AtomicReference[V <: AnyRef](@volatile private var value: V)
       expectedValue: V,
       newValue: V
   ): Boolean = {
-    valueRef.compareExchangeWeak(expectedValue, newValue)._1
+    valueRef.compareExchangeWeak(expectedValue, newValue)
   }
 
   /** Possibly atomically sets the value to {@code newValue} if the current
@@ -398,9 +417,14 @@ class AtomicReference[V <: AnyRef](@volatile private var value: V)
    *  @since 9
    */
   final def weakCompareAndSetAcquire(expectedValue: V, newValue: V): Boolean = {
+    val expected = stackalloc[AnyRef]()
+    !expected = expectedValue
     valueRef
-      .compareExchangeWeak(expectedValue, newValue, memory_order_acquire)
-      ._1
+      .compareExchangeWeak(
+        expected.asInstanceOf[Ptr[V]],
+        newValue,
+        memory_order_acquire
+      )
   }
 
   /** Possibly atomically sets the value to {@code newValue} if the current
@@ -416,8 +440,13 @@ class AtomicReference[V <: AnyRef](@volatile private var value: V)
    *  @since 9
    */
   final def weakCompareAndSetRelease(expectedValue: V, newValue: V): Boolean = {
+    val expected = stackalloc[AnyRef]()
+    !expected = expectedValue
     valueRef
-      .compareExchangeWeak(expectedValue, newValue, memory_order_release)
-      ._1
+      .compareExchangeWeak(
+        expected.asInstanceOf[Ptr[V]],
+        newValue,
+        memory_order_release
+      )
   }
 }

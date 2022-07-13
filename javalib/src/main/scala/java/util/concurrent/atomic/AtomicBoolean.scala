@@ -10,7 +10,8 @@ import scala.annotation.tailrec
 import scala.language.implicitConversions
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
-import scala.scalanative.unsafe.atomic.memory_order._
+import scala.scalanative.libc.atomic.memory_order._
+import scala.scalanative.libc.atomic.CAtomicByte
 import scala.scalanative.runtime.{fromRawPtr, MemoryLayout}
 import scala.scalanative.runtime.Intrinsics
 
@@ -58,7 +59,7 @@ class AtomicBoolean private (private var value: Byte) extends Serializable {
       expectedValue: Boolean,
       newValue: Boolean
   ): Boolean = {
-    valueRef.compareExchangeStrong(expectedValue, newValue)._1
+    valueRef.compareExchangeStrong(expectedValue, newValue)
   }
 
   /** Possibly atomically sets the value to {@code newValue} if the current
@@ -83,7 +84,7 @@ class AtomicBoolean private (private var value: Byte) extends Serializable {
    */
   @deprecated("", "9")
   def weakCompareAndSet(expectedValue: Boolean, newValue: Boolean): Boolean =
-    valueRef.compareExchangeWeak(expectedValue, newValue)._1
+    valueRef.compareExchangeWeak(expectedValue, newValue)
 
   /** Possibly atomically sets the value to {@code newValue} if the current
    *  value {@code == expectedValue}, with memory effects as specified by {@link
@@ -227,7 +228,10 @@ class AtomicBoolean private (private var value: Byte) extends Serializable {
       expectedValue: Boolean,
       newValue: Boolean
   ): Boolean = {
-    valueRef.compareExchangeStrong(expectedValue, newValue)._2
+    val expected = stackalloc[Byte]()
+    !expected = expectedValue.toByte
+    valueRef.compareExchangeStrong(expected, newValue)
+    !expected
   }
 
   /** Atomically sets the value to {@code newValue} if the current value,
@@ -248,9 +252,11 @@ class AtomicBoolean private (private var value: Byte) extends Serializable {
       expectedValue: Boolean,
       newValue: Boolean
   ): Boolean = {
-    valueRef
-      .compareExchangeStrong(expectedValue, newValue, memory_order_acquire)
-      ._2
+    valueRef.compareExchangeStrong(
+      expectedValue,
+      newValue,
+      memory_order_acquire
+    )
   }
 
   /** Atomically sets the value to {@code newValue} if the current value,
@@ -271,9 +277,9 @@ class AtomicBoolean private (private var value: Byte) extends Serializable {
       expectedValue: Boolean,
       newValue: Boolean
   ): Boolean = {
-    valueRef
-      .compareExchangeStrong(expectedValue, newValue, memory_order_release)
-      ._2
+    val expected = stackalloc[Byte]()
+    !expected = expectedValue.toByte
+    valueRef.compareExchangeStrong(expected, newValue, memory_order_release)
   }
 
   /** Possibly atomically sets the value to {@code newValue} if the current
@@ -292,7 +298,7 @@ class AtomicBoolean private (private var value: Byte) extends Serializable {
       expectedValue: Boolean,
       newValue: Boolean
   ): Boolean =
-    valueRef.compareExchangeWeak(expectedValue, newValue)._1
+    valueRef.compareExchangeWeak(expectedValue, newValue)
 
   /** Possibly atomically sets the value to {@code newValue} if the current
    *  value {@code == expectedValue}, with memory effects as specified by {@link
@@ -310,9 +316,7 @@ class AtomicBoolean private (private var value: Byte) extends Serializable {
       expectedValue: Boolean,
       newValue: Boolean
   ): Boolean =
-    valueRef
-      .compareExchangeWeak(expectedValue, newValue, memory_order_acquire)
-      ._1
+    valueRef.compareExchangeWeak(expectedValue, newValue, memory_order_acquire)
 
   /** Possibly atomically sets the value to {@code newValue} if the current
    *  value {@code == expectedValue}, with memory effects as specified by {@link
@@ -330,7 +334,5 @@ class AtomicBoolean private (private var value: Byte) extends Serializable {
       expectedValue: Boolean,
       newValue: Boolean
   ): Boolean =
-    valueRef
-      .compareExchangeWeak(expectedValue, newValue, memory_order_release)
-      ._1
+    valueRef.compareExchangeWeak(expectedValue, newValue, memory_order_release)
 }

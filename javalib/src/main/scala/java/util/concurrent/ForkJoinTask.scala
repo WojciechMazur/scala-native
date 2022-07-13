@@ -18,8 +18,9 @@ import scala.annotation.tailrec
 import scala.util.control.Breaks
 import java.util.concurrent.atomic.{AtomicReference, AtomicInteger}
 import scala.scalanative.annotation.stub
-import scala.scalanative.unsafe.{CAtomicInt, CAtomicPtr}
+import scala.scalanative.libc.atomic.{CAtomicInt, CAtomicRef}
 import scala.scalanative.runtime.{fromRawPtr, Intrinsics}
+import scala.scalanative.unsafe.{Ptr, stackalloc}
 
 /** Abstract base class for tasks that run within a {@link ForkJoinPool}. A
  *  {@code ForkJoinTask} is a thread-like entity that is much lighter weight
@@ -178,25 +179,18 @@ abstract class ForkJoinTask[V] private[concurrent] ()
   private val statusAtomic = new CAtomicInt(
     fromRawPtr(Intrinsics.classFieldRawPtr(this, "status"))
   )
-  private val auxAtomic = new CAtomicPtr(
+  private val auxAtomic = new CAtomicRef[Aux](
     fromRawPtr(Intrinsics.classFieldRawPtr(this, "aux"))
   )
-  private def casStatus(expected: Int, value: Int): Boolean =
-    statusAtomic.compareExchangeWeak(expected, value)._1
+  private def casStatus(expected: Int, value: Int): Boolean = {
+    val expectedPtr = stackalloc[Int]()
+    !expectedPtr = expected
+    statusAtomic.compareExchangeWeak(expectedPtr, value)
+  }
   private def getAndBitwiseOrStatus(v: Int): Int =
     statusAtomic.fetchXor(v)
-  private def casAux(c: Aux, v: Aux): Boolean =
-    auxAtomic
-      .compareExchangeStrong(
-        // Todo: atomic api:  it probably should be Ptr[Word] instead of Word
-        fromRawPtr[scalanative.unsafe.Word](
-          Intrinsics.castObjectToRawPtr(c)
-        ).toLong,
-        fromRawPtr[scalanative.unsafe.Word](
-          Intrinsics.castObjectToRawPtr(v)
-        ).toLong
-      )
-      ._1
+  private def casAux(c: Aux, v: Aux): Boolean = 
+    auxAtomic.compareExchangeStrong(c, v)
 
   /** Removes and unparks waiters */
   @tailrec
@@ -981,22 +975,11 @@ object ForkJoinTask {
       ex: Throwable
   ) {
     var next: Aux = _
-    val nextAtomic = new CAtomicPtr(
-      fromRawPtr[scalanative.unsafe.Word](
-        Intrinsics.classFieldRawPtr(this, "next")
-      )
+    val nextAtomic = new CAtomicRef[Aux](
+      fromRawPtr(Intrinsics.classFieldRawPtr(this, "next"))
     )
     def casNext(c: Aux, v: Aux): Boolean = { // used only in cacellation
-      nextAtomic
-        .compareExchangeStrong(
-          fromRawPtr[scalanative.unsafe.Word](
-            Intrinsics.castObjectToRawPtr(c)
-          ).toLong,
-          fromRawPtr[scalanative.unsafe.Word](
-            Intrinsics.castObjectToRawPtr(v)
-          ).toLong
-        )
-        ._1
+      nextAtomic.compareExchangeStrong(c, v)
     }
   }
 

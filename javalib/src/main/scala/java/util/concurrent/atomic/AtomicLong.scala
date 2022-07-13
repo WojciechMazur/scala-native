@@ -10,10 +10,10 @@ import java.io.Serializable
 import scala.annotation.tailrec
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
-import scala.scalanative.unsafe.atomic.memory_order._
+import scala.scalanative.libc.atomic.CAtomicLong
+import scala.scalanative.libc.atomic.memory_order._
 import scala.scalanative.runtime.{fromRawPtr, Intrinsics}
-import java.util.function.LongBinaryOperator
-import java.util.function.LongUnaryOperator
+import java.util.function.{LongBinaryOperator, LongUnaryOperator}
 
 @SerialVersionUID(1927816293512124184L)
 class AtomicLong(private[this] var value: Long)
@@ -82,7 +82,7 @@ class AtomicLong(private[this] var value: Long)
    *    was not equal to the expected value.
    */
   final def compareAndSet(expectedValue: Long, newValue: Long): Boolean = {
-    valueRef.compareExchangeStrong(expectedValue, newValue)._1
+    valueRef.compareExchangeStrong(expectedValue, newValue)
   }
 
   /** Possibly atomically sets the value to {@code newValue} if the current
@@ -106,7 +106,7 @@ class AtomicLong(private[this] var value: Long)
    */
   @deprecated("", "9")
   final def weakCompareAndSet(expectedValue: Long, newValue: Long): Boolean = {
-    valueRef.compareExchangeWeak(expectedValue, newValue)._1
+    valueRef.compareExchangeWeak(expectedValue, newValue)
   }
 
   /** Possibly atomically sets the value to {@code newValue} if the current
@@ -432,7 +432,10 @@ class AtomicLong(private[this] var value: Long)
    *  @since 9
    */
   final def compareAndExchange(expectedValue: Long, newValue: Long): Long = {
-    valueRef.compareExchangeStrong(expectedValue, newValue)._2
+    val expected = stackalloc[Long]()
+    !expected = expectedValue
+    valueRef.compareExchangeStrong(expected, newValue)
+    !expected
   }
 
   /** Atomically sets the value to {@code newValue} if the current value,
@@ -453,9 +456,10 @@ class AtomicLong(private[this] var value: Long)
       expectedValue: Long,
       newValue: Long
   ): Long = {
-    valueRef
-      .compareExchangeStrong(expectedValue, newValue, memory_order_acquire)
-      ._2
+    val expected = stackalloc[Long]()
+    !expected = expectedValue
+    valueRef.compareExchangeStrong(expected, newValue, memory_order_acquire)
+    !expected
   }
 
   /** Atomically sets the value to {@code newValue} if the current value,
@@ -476,9 +480,10 @@ class AtomicLong(private[this] var value: Long)
       expectedValue: Long,
       newValue: Long
   ): Long = {
-    valueRef
-      .compareExchangeStrong(expectedValue, newValue, memory_order_release)
-      ._2
+    val expected = stackalloc[Long]()
+    !expected = expectedValue
+    valueRef.compareExchangeStrong(expected, newValue, memory_order_release)
+    !expected
   }
 
   /** Possibly atomically sets the value to {@code newValue} if the current
@@ -497,7 +502,7 @@ class AtomicLong(private[this] var value: Long)
       expectedValue: Long,
       newValue: Long
   ): Boolean = {
-    valueRef.compareExchangeWeak(expectedValue, newValue)._1
+    valueRef.compareExchangeWeak(expectedValue, newValue)
   }
 
   /** Possibly atomically sets the value to {@code newValue} if the current
@@ -518,7 +523,6 @@ class AtomicLong(private[this] var value: Long)
   ): Boolean = {
     valueRef
       .compareExchangeWeak(expectedValue, newValue, memory_order_acquire)
-      ._1
   }
 
   /** Possibly atomically sets the value to {@code newValue} if the current
@@ -539,6 +543,5 @@ class AtomicLong(private[this] var value: Long)
   ): Boolean = {
     valueRef
       .compareExchangeWeak(expectedValue, newValue, memory_order_release)
-      ._1
   }
 }

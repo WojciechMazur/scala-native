@@ -17,6 +17,8 @@ import scala.util.control.Breaks._
 import java.util.concurrent.atomic.{AtomicReference, AtomicInteger}
 import scala.scalanative.runtime.{fromRawPtr, Intrinsics}
 import scala.scalanative.unsafe._
+import scala.scalanative.libc.atomic.{CAtomicInt, CAtomicRef}
+import scala.scalanative.libc.atomic.memory_order._
 
 /** Provides a framework for implementing blocking locks and related
  *  synchronizers (semaphores, events, etc) that rely on first-in-first-out
@@ -224,10 +226,10 @@ object AbstractQueuedSynchronizer { // Node status bits, also used as argument a
     @volatile var next: Node = _ // visibly nonnull when signallable
     @volatile var status: Int = 0 // written by owner, atomic bit ops by others
 
-    private val prevAtomic = new CAtomicPtr(
+    private val prevAtomic = new CAtomicRef[Node](
       fromRawPtr(Intrinsics.classFieldRawPtr(this, "prev"))
     )
-    private val nextAtomic = new CAtomicPtr(
+    private val nextAtomic = new CAtomicRef[Node](
       fromRawPtr(Intrinsics.classFieldRawPtr(this, "next"))
     )
     private val statusPtr: Ptr[Int] = fromRawPtr(
@@ -237,32 +239,19 @@ object AbstractQueuedSynchronizer { // Node status bits, also used as argument a
 
     // methods for atomic operations
     def casPrev(c: Node, v: Node): Boolean = // for cleanQueue
-      prevAtomic
-        .compareExchangeWeak(
-          fromRawPtr(Intrinsics.castObjectToRawPtr(c)).toLong,
-          fromRawPtr(Intrinsics.castObjectToRawPtr(v)).toLong
-        )
-        ._1
+      prevAtomic.compareExchangeWeak(c, v)
 
     def casNext(c: Node, v: Node): Boolean = // for cleanQueue
-      nextAtomic
-        .compareExchangeWeak(
-          fromRawPtr(Intrinsics.castObjectToRawPtr(c)).toLong,
-          fromRawPtr(Intrinsics.castObjectToRawPtr(v)).toLong
-        )
-        ._1
+      nextAtomic.compareExchangeWeak(c, v)
 
     def getAndUnsetStatus(v: Int): Int = // for signalling
       statusAtomic.fetchAnd(~v)
 
     def setPrevRelaxed(p: Node): Unit = // for off-queue assignment
-      prevAtomic.store(
-        fromRawPtr(Intrinsics.castObjectToRawPtr(p)).toLong,
-        atomic.memory_order.memory_order_relaxed
-      )
+      prevAtomic.store(p, memory_order_relaxed)
 
     def setStatusRelaxed(s: Int) = // for off-queue assignment
-      statusAtomic.store(s, atomic.memory_order.memory_order_relaxed)
+      statusAtomic.store(s, memory_order_relaxed)
 
     def clearStatus(): Unit = // for reducing unneeded signals
       !statusPtr = 0
@@ -341,10 +330,10 @@ abstract class AbstractQueuedSynchronizer protected ()
   @volatile private var state: Int = 0
 
   // Support for atomic ops
-  private val headAtomic = new CAtomicPtr(
+  private val headAtomic = new CAtomicRef[Node](
     fromRawPtr(Intrinsics.classFieldRawPtr(this, "head"))
   )
-  private val tailAtomic = new CAtomicPtr(
+  private val tailAtomic = new CAtomicRef[Node](
     fromRawPtr(Intrinsics.classFieldRawPtr(this, "tail"))
   )
   private val stateAtomic = new CAtomicInt(
@@ -369,24 +358,14 @@ abstract class AbstractQueuedSynchronizer protected ()
       expected: Int,
       newState: Int
   ): Boolean =
-    stateAtomic.compareExchangeStrong(expected, newState)._1
+    stateAtomic.compareExchangeStrong(expected, newState)
 
-  private def casTail(c: Node, v: Node) = tailAtomic
-    .compareExchangeWeak(
-      fromRawPtr(Intrinsics.castObjectToRawPtr(c)).toLong,
-      fromRawPtr(Intrinsics.castObjectToRawPtr(v)).toLong
-    )
-    ._1
+  private def casTail(c: Node, v: Node) = tailAtomic.compareExchangeWeak(c, v)
 
   /** tries once to CAS a new dummy node for head */
   private def tryInitializeHead(): Unit = {
     val h = new AbstractQueuedSynchronizer.ExclusiveNode()
-    val isInitialized = headAtomic
-      .compareExchangeWeak(
-        fromRawPtr(Intrinsics.castObjectToRawPtr(null)).toLong,
-        fromRawPtr(Intrinsics.castObjectToRawPtr(h)).toLong
-      )
-      ._1
+    val isInitialized = headAtomic.compareExchangeWeak(null: Node, h)
     if (isInitialized)
       tail = h
   }

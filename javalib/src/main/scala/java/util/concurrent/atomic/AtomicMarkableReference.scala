@@ -9,7 +9,8 @@ package java.util.concurrent.atomic
 import scala.annotation.tailrec
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
-import scala.scalanative.unsafe.atomic.memory_order._
+import scala.scalanative.libc.atomic.CAtomicRef
+import scala.scalanative.libc.atomic.memory_order._
 import scala.scalanative.runtime.{fromRawPtr, Intrinsics}
 import scala.scalanative.runtime.Intrinsics
 
@@ -122,7 +123,6 @@ class AtomicMarkableReference[V <: AnyRef](
             current,
             MarkableReference(newReference, newMark)
           )
-          ._1
       }
   }
 
@@ -163,7 +163,6 @@ class AtomicMarkableReference[V <: AnyRef](
           current,
           MarkableReference(expectedReference, newMark)
         )
-        ._1
     }
   }
 

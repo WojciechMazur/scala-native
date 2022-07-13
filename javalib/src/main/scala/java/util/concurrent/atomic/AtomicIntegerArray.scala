@@ -10,7 +10,8 @@ import scala.annotation.tailrec
 import scala.language.implicitConversions
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
-import scala.scalanative.unsafe.atomic.memory_order._
+import scala.scalanative.libc.atomic.CAtomicInt
+import scala.scalanative.libc.atomic.memory_order._
 import java.util.function.IntBinaryOperator
 import java.util.function.IntUnaryOperator
 import scala.scalanative.runtime.IntArray
@@ -124,7 +125,7 @@ class AtomicIntegerArray extends Serializable {
    *    was not equal to the expected value.
    */
   final def compareAndSet(i: Int, expectedValue: Int, newValue: Int): Boolean =
-    nativeArray.at(i).compareExchangeStrong(expectedValue, newValue)._1
+    nativeArray.at(i).compareExchangeStrong(expectedValue, newValue)
 
   /** Possibly atomically sets the element at index {@code i} to {@code
    *  newValue} if the element's current value {@code == expectedValue}, with
@@ -505,7 +506,12 @@ class AtomicIntegerArray extends Serializable {
       expectedValue: Int,
       newValue: Int
   ): Int = {
-    nativeArray.at(i).compareExchangeStrong(expectedValue, newValue)._2
+    val expected = stackalloc[Int]()
+    !expected = expectedValue
+    nativeArray
+      .at(i)
+      .compareExchangeStrong(expected, newValue)
+    !expected
   }
 
   /** Atomically sets the element at index {@code i} to {@code newValue} if the
@@ -528,11 +534,14 @@ class AtomicIntegerArray extends Serializable {
       i: Int,
       expectedValue: Int,
       newValue: Int
-  ): Int =
+  ): Int = {
+    val expected = stackalloc[Int]()
+    !expected = expectedValue
     nativeArray
       .at(i)
-      .compareExchangeStrong(expectedValue, newValue, memory_order_acquire)
-      ._2
+      .compareExchangeStrong(expected, newValue, memory_order_acquire)
+    !expected
+  }
 
   /** Atomically sets the element at index {@code i} to {@code newValue} if the
    *  element's current value, referred to as the <em>witness value</em>, {@code
@@ -554,11 +563,14 @@ class AtomicIntegerArray extends Serializable {
       i: Int,
       expectedValue: Int,
       newValue: Int
-  ): Int =
+  ): Int = {
+    val expected = stackalloc[Int]()
+    !expected = expectedValue
     nativeArray
       .at(i)
-      .compareExchangeStrong(expectedValue, newValue, memory_order_release)
-      ._2
+      .compareExchangeStrong(expected, newValue, memory_order_release)
+    !expected
+  }
 
   /** Possibly atomically sets the element at index {@code i} to {@code
    *  newValue} if the element's current value {@code == expectedValue}, with
@@ -582,7 +594,6 @@ class AtomicIntegerArray extends Serializable {
     nativeArray
       .at(i)
       .compareExchangeWeak(expectedValue, newValue)
-      ._1
 
   /** Possibly atomically sets the element at index {@code i} to {@code
    *  newValue} if the element's current value {@code == expectedValue}, with
@@ -606,7 +617,6 @@ class AtomicIntegerArray extends Serializable {
     nativeArray
       .at(i)
       .compareExchangeWeak(expectedValue, newValue, memory_order_acquire)
-      ._1
 
   /** Possibly atomically sets the element at index {@code i} to {@code
    *  newValue} if the element's current value {@code == expectedValue}, with
@@ -630,5 +640,4 @@ class AtomicIntegerArray extends Serializable {
     nativeArray
       .at(i)
       .compareExchangeWeak(expectedValue, newValue, memory_order_release)
-      ._1
 }

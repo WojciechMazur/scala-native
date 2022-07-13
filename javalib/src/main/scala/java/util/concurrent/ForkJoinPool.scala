@@ -28,7 +28,7 @@ import scala.annotation._
 import scala.scalanative.annotation._
 import scala.util.control.Breaks._
 import scala.scalanative.unsafe._
-
+import scala.scalanative.libc.atomic.{CAtomicInt, CAtomicLong, CAtomicRef}
 import scala.scalanative.runtime.{fromRawPtr, Intrinsics, ObjectArray}
 
 /*
@@ -892,11 +892,18 @@ class ForkJoinPool(
   }
 
   @alwaysinline
-  private def compareAndSetCtl(expected: Long, value: Long): Boolean =
-    ctlAtomic.compareExchangeStrong(expected, value)._1
+  private def compareAndSetCtl(expected: Long, value: Long): Boolean = {
+    val expectedPtr = stackalloc[Long]()
+    !expectedPtr = expected
+    ctlAtomic.compareExchangeStrong(expectedPtr, value)
+  }
   @alwaysinline
-  private def compareAndExchangeCtl(expected: Long, value: Long): Long =
-    ctlAtomic.compareExchangeStrong(expected, value)._2
+  private def compareAndExchangeCtl(expected: Long, value: Long): Long = {
+    val expectedPtr = stackalloc[Long]()
+    !expectedPtr = expected
+    ctlAtomic.compareExchangeStrong(expectedPtr, value)
+    !expectedPtr
+  }
   @alwaysinline
   private def getAndAddCtl(v: Long): Long =
     ctlAtomic.fetchAdd(v)
@@ -3105,7 +3112,7 @@ object ForkJoinPool {
 
   object WorkQueue {
     // Support for atomic operations
-    import scala.scalanative.unsafe.atomic.memory_order._
+    import scala.scalanative.libc.atomic.memory_order._
     @alwaysinline
     private def arraySlotAtomicAccess[T <: AnyRef](
         a: Array[T],
@@ -3143,7 +3150,6 @@ object ForkJoinPool {
     ): Boolean = {
       arraySlotAtomicAccess(a, i)
         .compareExchangeStrong(c, null: ForkJoinTask[_])
-        ._1
     }
   }
 
@@ -3196,7 +3202,9 @@ object ForkJoinPool {
 
     @alwaysinline
     final def tryLock(): Boolean = {
-      sourceAtomic.compareExchangeStrong(0, 1)._1
+      val expected = stackalloc[Int]()
+      !expected = 0
+      sourceAtomic.compareExchangeStrong(expected, 1)
     }
 
     @alwaysinline

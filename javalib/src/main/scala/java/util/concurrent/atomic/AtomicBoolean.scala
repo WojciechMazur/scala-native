@@ -252,11 +252,10 @@ class AtomicBoolean private (private var value: Byte) extends Serializable {
       expectedValue: Boolean,
       newValue: Boolean
   ): Boolean = {
-    valueRef.compareExchangeStrong(
-      expectedValue,
-      newValue,
-      memory_order_acquire
-    )
+    val expected = stackalloc[Byte]()
+    !expected = expectedValue.toByte
+    valueRef.compareExchangeStrong(expected, newValue, memory_order_acquire)
+    !expected
   }
 
   /** Atomically sets the value to {@code newValue} if the current value,
@@ -280,6 +279,7 @@ class AtomicBoolean private (private var value: Byte) extends Serializable {
     val expected = stackalloc[Byte]()
     !expected = expectedValue.toByte
     valueRef.compareExchangeStrong(expected, newValue, memory_order_release)
+    !expected
   }
 
   /** Possibly atomically sets the value to {@code newValue} if the current

@@ -214,7 +214,7 @@ class AtomicInteger(private[this] var value: Int)
         if (!haveNext) updateFunction.applyAsInt(prev)
         else next
 
-      if (weakCompareAndSetVolatile(prev, newNext)) newNext
+      if (weakCompareAndSetVolatile(prev, newNext)) prev
       else {
         val newPrev = get()
         loop(newPrev, newNext, prev == newPrev)
@@ -242,7 +242,7 @@ class AtomicInteger(private[this] var value: Int)
         if (!haveNext) updateFunction.applyAsInt(prev)
         else next
 
-      if (weakCompareAndSetVolatile(prev, newNext)) next
+      if (weakCompareAndSetVolatile(prev, newNext)) newNext
       else {
         val newPrev = get()
         loop(newPrev, newNext, prev == newPrev)
@@ -312,7 +312,7 @@ class AtomicInteger(private[this] var value: Int)
         if (!haveNext) accumulatorFunction.applyAsInt(prev, x)
         else next
 
-      if (weakCompareAndSetVolatile(prev, newNext)) next
+      if (weakCompareAndSetVolatile(prev, newNext)) newNext
       else {
         val newPrev = get()
         loop(newPrev, newNext, prev == newPrev)

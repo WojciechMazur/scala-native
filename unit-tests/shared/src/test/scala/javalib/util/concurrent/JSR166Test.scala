@@ -1956,30 +1956,28 @@ object JSR166Test {
 //      */
 //     static final int MAX_SPURIOUS_WAKEUPS = 10;
 
-//     /**
-//      * The number of elements to place in collections, arrays, etc.
-//      */
-//     public static final int SIZE = 20;
+  /** The number of elements to place in collections, arrays, etc.
+   */
+  final val SIZE = 20;
 
-//     // Some convenient Integer constants
-
-//     public static final Integer zero  = new Integer(0);
-//     public static final Integer one   = new Integer(1);
-//     public static final Integer two   = new Integer(2);
-//     public static final Integer three = new Integer(3);
-//     public static final Integer four  = new Integer(4);
-//     public static final Integer five  = new Integer(5);
-//     public static final Integer six   = new Integer(6);
-//     public static final Integer seven = new Integer(7);
-//     public static final Integer eight = new Integer(8);
-//     public static final Integer nine  = new Integer(9);
-//     public static final Integer m1  = new Integer(-1);
-//     public static final Integer m2  = new Integer(-2);
-//     public static final Integer m3  = new Integer(-3);
-//     public static final Integer m4  = new Integer(-4);
-//     public static final Integer m5  = new Integer(-5);
-//     public static final Integer m6  = new Integer(-6);
-//     public static final Integer m10 = new Integer(-10);
+  // Some convenient Integer constants
+  final val zero = new Integer(0)
+  final val one = new Integer(1)
+  final val two = new Integer(2)
+  final val three = new Integer(3)
+  final val four = new Integer(4)
+  final val five = new Integer(5)
+  final val six = new Integer(6)
+  final val seven = new Integer(7)
+  final val eight = new Integer(8)
+  final val nine = new Integer(9)
+  final val m1 = new Integer(-1)
+  final val m2 = new Integer(-2)
+  final val m3 = new Integer(-3)
+  final val m4 = new Integer(-4)
+  final val m5 = new Integer(-5)
+  final val m6 = new Integer(-6)
+  final val m10 = new Integer(-10)
 
   /** Returns the number of milliseconds since time given by startNanoTime,
    *  which must have been previously returned from a call to {@link

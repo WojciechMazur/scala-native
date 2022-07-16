@@ -142,15 +142,17 @@ class AtomicReference[V <: AnyRef](@volatile private var value: V)
    */
   final def getAndUpdate(updateFunction: UnaryOperator[V]): V = {
     @tailrec
-    def loop(prev: V, next: Option[V]): V = {
-      val newNext = next.getOrElse(updateFunction.apply(prev))
+    def loop(prev: V, next: V, haveNext: Boolean): V = {
+      val newNext =
+        if (!haveNext) updateFunction.apply(prev)
+        else next
       if (weakCompareAndSetVolatile(prev, newNext)) prev
       else {
         val newPrev = get()
-        loop(newPrev, if (newPrev eq prev) Some(newNext) else None)
+        loop(newPrev, newNext, prev == newPrev)
       }
     }
-    loop(get(), None)
+    loop(get(), null.asInstanceOf[V], false)
   }
 
   /** Atomically updates (with memory effects as specified by {@link
@@ -167,15 +169,17 @@ class AtomicReference[V <: AnyRef](@volatile private var value: V)
    */
   final def updateAndGet(updateFunction: UnaryOperator[V]): V = {
     @tailrec
-    def loop(prev: V, next: Option[V]): V = {
-      val newNext = next.getOrElse(updateFunction.apply(prev))
+    def loop(prev: V, next: V, haveNext: Boolean): V = {
+      val newNext =
+        if (!haveNext) updateFunction.apply(prev)
+        else next
       if (weakCompareAndSetVolatile(prev, newNext)) newNext
       else {
         val newPrev = get()
-        loop(newPrev, if (newPrev eq prev) Some(newNext) else None)
+        loop(newPrev, newNext, prev == newPrev)
       }
     }
-    loop(get(), None)
+    loop(get(), null.asInstanceOf[V], false)
   }
 
   /** Atomically updates (with memory effects as specified by {@link
@@ -199,15 +203,15 @@ class AtomicReference[V <: AnyRef](@volatile private var value: V)
       accumulatorFunction: BinaryOperator[V]
   ): V = {
     @tailrec
-    def loop(prev: V, next: Option[V]): V = {
-      val newNext = next.getOrElse(accumulatorFunction.apply(prev, x))
+    def loop(prev: V, next: V, hasNext: Boolean): V = {
+      val newNext = if (hasNext) next else accumulatorFunction.apply(prev, x)
       if (weakCompareAndSetVolatile(prev, newNext)) prev
       else {
         val newPrev = get()
-        loop(newPrev, if (newPrev eq prev) Some(newNext) else None)
+        loop(newPrev, newNext, prev == newPrev)
       }
     }
-    loop(get(), None)
+    loop(get(), null.asInstanceOf[V], false)
   }
 
   /** Atomically updates (with memory effects as specified by {@link

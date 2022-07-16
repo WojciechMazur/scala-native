@@ -212,13 +212,13 @@ class AtomicLong(private[this] var value: Long)
         if (!haveNext) updateFunction.applyAsLong(prev)
         else next
 
-      if (weakCompareAndSetVolatile(prev, newNext)) newNext
+      if (weakCompareAndSetVolatile(prev, newNext)) prev
       else {
         val newPrev = get()
-        loop(newPrev, newNext, prev == newPrev)
+        loop(newPrev, newNext, haveNext = prev == newPrev)
       }
     }
-    loop(get(), 0, false)
+    loop(get(), 0L, false)
   }
 
   /** Atomically updates (with memory effects as specified by {@link
@@ -240,13 +240,13 @@ class AtomicLong(private[this] var value: Long)
         if (!haveNext) updateFunction.applyAsLong(prev)
         else next
 
-      if (weakCompareAndSetVolatile(prev, newNext)) next
+      if (weakCompareAndSetVolatile(prev, newNext)) newNext
       else {
         val newPrev = get()
         loop(newPrev, newNext, prev == newPrev)
       }
     }
-    loop(get(), 0, false)
+    loop(get(), 0L, false)
   }
 
   /** Atomically updates (with memory effects as specified by {@link
@@ -310,7 +310,7 @@ class AtomicLong(private[this] var value: Long)
         if (!haveNext) accumulatorFunction.applyAsLong(prev, x)
         else next
 
-      if (weakCompareAndSetVolatile(prev, newNext)) next
+      if (weakCompareAndSetVolatile(prev, newNext)) newNext
       else {
         val newPrev = get()
         loop(newPrev, newNext, prev == newPrev)

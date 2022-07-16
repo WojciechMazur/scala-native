@@ -226,7 +226,7 @@ class AtomicLongArray extends Serializable {
    *  @return
    *    the previous value
    */
-  final def getAndAdd(i: Int, delta: Int): Long =
+  final def getAndAdd(i: Int, delta: Long): Long =
     nativeArray.at(i).fetchAdd(delta)
 
   /** Atomically increments the value of the element at index {@code i}, with
@@ -265,7 +265,7 @@ class AtomicLongArray extends Serializable {
    *  @return
    *    the updated value
    */
-  final def addAndGet(i: Int, delta: Int): Long =
+  final def addAndGet(i: Int, delta: Long): Long =
     nativeArray.at(i).fetchAdd(delta) + delta
 
   /** Atomically updates (with memory effects as specified by {@link
@@ -349,7 +349,7 @@ class AtomicLongArray extends Serializable {
    */
   final def getAndAccumulate(
       i: Int,
-      x: Int,
+      x: Long,
       accumulatorFunction: LongBinaryOperator
   ): Long = {
     @tailrec
@@ -388,7 +388,7 @@ class AtomicLongArray extends Serializable {
    */
   final def accumulateAndGet(
       i: Int,
-      x: Int,
+      x: Long,
       accumulatorFunction: LongBinaryOperator
   ): Long = {
     @tailrec

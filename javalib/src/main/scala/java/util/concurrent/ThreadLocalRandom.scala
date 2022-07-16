@@ -581,9 +581,12 @@ class ThreadLocalRandom private ()
     val m = bound - 1
     if ((bound & m) == 0L) r &= m
     else {
-      var u = r >>> 1
+      var u: Long = r >>> 1
       r = u % bound
-      while ((u + m - r) < 0L)
+      while ({
+        r = u % bound
+        (u + m - r) < 0L
+      })
         u = ThreadLocalRandom.mix64(nextSeed()) >>> 1
     }
     r

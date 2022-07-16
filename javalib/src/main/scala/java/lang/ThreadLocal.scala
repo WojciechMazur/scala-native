@@ -9,9 +9,7 @@ class ThreadLocal[T] {
 
   import java.lang.ThreadLocal._
 
-  private final val reference: Reference[ThreadLocal[T]] =
-    new WeakReference[ThreadLocal[T]](this)
-
+  private final val reference = new WeakReference[ThreadLocal[T]](this)
   private final val hash: Int = hashCounter.getAndAdd(0x61c88647 << 1)
 
   protected def initialValue(): T = null.asInstanceOf[T]
@@ -41,10 +39,6 @@ class ThreadLocal[T] {
   }
 
   def values(current: Thread): Values = current.localValues
-
-  protected[lang] def childValue[T](parentValue: T) = {
-    throw new UnsupportedOperationException()
-  }
 }
 
 object ThreadLocal {
@@ -93,9 +87,6 @@ object ThreadLocal {
 
       while (counter > 0) {
         continue = false
-        if (index > table.size) {
-          println(s"Cleanup $index / ${table.size}")
-        }
         val k: Object = table(index)
 
         if (k == Tombstone || k == null) continue = true
@@ -140,9 +131,6 @@ object ThreadLocal {
       var i: Int = oldTable.length - 2
       var continue: scala.Boolean = false
       while (i >= 0) {
-        if (i > oldTable.length) {
-          println(s"rehash - $i / ${oldTable.length}")
-        }
         continue = false
         val k: Object = oldTable(i)
         if (k == null || k == Tombstone) continue = true
@@ -187,11 +175,6 @@ object ThreadLocal {
 
       var index: Int = key.hash & mask
       while (true) {
-        if (index > table.length || firstTombstone > table.length) {
-          println(
-            s"Index $index, firstTombstone: ${firstTombstone}, tableLen: ${table.length}"
-          )
-        }
         val k: Object = table(index)
 
         if (k == key.reference) {
@@ -352,7 +335,7 @@ object ThreadLocal {
             // Replace value with filtered value
             // We should just let exceptions bubble out and tank
             // the thread creation
-            table(next) = key.childValue(fromParent.table(next))
+            table(next) = key.getChildValue(fromParent.table(next))
         }
       }
       table

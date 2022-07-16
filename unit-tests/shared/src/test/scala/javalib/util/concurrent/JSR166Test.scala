@@ -1354,12 +1354,11 @@ object JSR166Test {
 //     protected static final boolean expensiveTests =
 //         Boolean.getBoolean("jsr166.expensiveTests");
 
-//     /**
-//      * If true, also run tests that are not part of the official tck
-//      * because they test unspecified implementation details.
-//      */
-//     protected static final boolean testImplementationDetails =
-//         Boolean.getBoolean("jsr166.testImplementationDetails");
+  /** If true, also run tests that are not part of the official tck because they
+   *  test unspecified implementation details.
+   */
+  protected final val testImplementationDetails =
+    java.lang.Boolean.getBoolean("jsr166.testImplementationDetails")
 
 //     /**
 //      * If true, report on stdout all "slow" tests, that is, ones that

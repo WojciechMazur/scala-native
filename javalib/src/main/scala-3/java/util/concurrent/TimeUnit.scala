@@ -16,6 +16,15 @@ enum TimeUnit extends Enum[TimeUnit] {
   case HOURS extends TimeUnit
   case DAYS extends TimeUnit
 
+  def sleep(timeout: Long): Unit =
+    if timeout > 0 then Thread.sleep(toMillis(timeout))
+
+  def timedJoin(thread: Thread, timeout: Long) =
+    if timeout > 0 then thread.join(toMillis(timeout))
+
+  def timedWait(obj: Object, timeout: Long) =
+    if timeout > 0 then obj.wait(toMillis(timeout))
+
   def convert(a: Long, u: TimeUnit): Long = this match {
     case TimeUnit.NANOSECONDS  => u.toNanos(a)
     case TimeUnit.MICROSECONDS => u.toMicros(a)

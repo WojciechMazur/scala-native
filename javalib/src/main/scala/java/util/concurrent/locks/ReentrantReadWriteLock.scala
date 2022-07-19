@@ -8,7 +8,11 @@ package java.util.concurrent.locks
 import java.util.concurrent.TimeUnit
 
 @SerialVersionUID(-6992448646407690164L)
-class ReentrantReadWriteLock extends ReadWriteLock with java.io.Serializable {
+class ReentrantReadWriteLock(fair: Boolean)
+    extends ReadWriteLock
+    with java.io.Serializable {
+  def this() = this(false)
+
   import ReentrantReadWriteLock._
 
   private final val readerLock: ReadLock =
@@ -17,7 +21,9 @@ class ReentrantReadWriteLock extends ReadWriteLock with java.io.Serializable {
   private final val writerLock: WriteLock =
     new ReentrantReadWriteLock.WriteLock()
 
-  final var sync: Sync = new NonfairSync()
+  final val sync: Sync =
+    if (fair) new FairSync()
+    else new NonfairSync()
 
   def writeLock(): ReentrantReadWriteLock.WriteLock = writerLock
 

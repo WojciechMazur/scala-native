@@ -483,17 +483,6 @@ trait JSR166Test {
   }
 
 //     /**
-//      * Returns the thread's blocker's class name, if any, else null.
-//      */
-//     String blockerClassName(Thread thread) {
-//         ThreadInfo threadInfo LockInfo lockInfo
-//         if ((threadInfo = THREAD_MXBEAN.getThreadInfo(thread.getId(), 0)) != null
-//             && (lockInfo = threadInfo.getLockInfo()) != null)
-//             return lockInfo.getClassName()
-//         return null
-//     }
-
-//     /**
 //      * Checks that future.get times out, with the default timeout of
 //      * {@code timeoutMillis()}.
 //      */
@@ -1960,11 +1949,10 @@ object JSR166Test {
 //       }
 //   }
 
-//   /**
-//      * The maximum number of consecutive spurious wakeups we should
-//      * tolerate (from APIs like LockSupport.park) before failing a test.
-//      */
-//     static final int MAX_SPURIOUS_WAKEUPS = 10
+  /** The maximum number of consecutive spurious wakeups we should tolerate
+   *  (from APIs like LockSupport.park) before failing a test.
+   */
+  final val MAX_SPURIOUS_WAKEUPS = 10
 
   /** The number of elements to place in collections, arrays, etc.
    */

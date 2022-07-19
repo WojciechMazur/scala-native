@@ -10,7 +10,6 @@ import java.util.concurrent.TimeUnit
 
 @SerialVersionUID(7373984872572414699L)
 class ReentrantLock extends Lock with java.io.Serializable {
-
   import ReentrantLock._
 
   private final var sync: Sync = new ReentrantLock.NonfairSync()
@@ -45,11 +44,11 @@ class ReentrantLock extends Lock with java.io.Serializable {
 
   final def hasQueuedThreads(): Boolean = sync.hasQueuedThreads()
 
-  final def hasQueuedThreads(thread: Thread): Boolean = sync.isQueued(thread)
+  final def hasQueuedThread(thread: Thread): Boolean = sync.isQueued(thread)
 
   final def getQueueLength(): Int = sync.getQueueLength()
 
-  protected def getQeueuedThreads(): java.util.Collection[Thread] =
+  protected def getQueuedThreads(): java.util.Collection[Thread] =
     sync.getQueuedThreads()
 
   def hasWaiters(condition: Condition): Boolean = {

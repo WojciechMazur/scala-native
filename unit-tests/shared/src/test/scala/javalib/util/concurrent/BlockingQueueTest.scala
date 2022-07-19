@@ -210,8 +210,8 @@ abstract class BlockingQueueTest extends JSR166Test {
       @throws[InterruptedException]
       override def realRun(): Unit = {
         val startTime = System.nanoTime
-        assertNull(q.poll(timeoutMillis, MILLISECONDS))
-        assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+        assertNull(q.poll(timeoutMillis(), MILLISECONDS))
+        assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
         barrier.await
         assertSame(zero, q.poll(LONG_DELAY_MS, MILLISECONDS))
         Thread.currentThread.interrupt()
@@ -240,7 +240,7 @@ abstract class BlockingQueueTest extends JSR166Test {
     assertTrue(q.offer(zero, LONG_DELAY_MS, MILLISECONDS))
     assertTrue(millisElapsedSince(startTime) < LONG_DELAY_MS)
     barrier.await
-    if (randomBoolean) assertThreadBlocks(t, Thread.State.TIMED_WAITING)
+    if (randomBoolean()) assertThreadBlocks(t, Thread.State.TIMED_WAITING)
     t.interrupt()
     awaitTermination(t)
   }
@@ -264,7 +264,7 @@ abstract class BlockingQueueTest extends JSR166Test {
       }
     })
     await(threadStarted)
-    if (randomBoolean) assertThreadBlocks(t, Thread.State.WAITING)
+    if (randomBoolean()) assertThreadBlocks(t, Thread.State.WAITING)
     t.interrupt()
     awaitTermination(t)
   }
@@ -309,7 +309,7 @@ abstract class BlockingQueueTest extends JSR166Test {
       }
     })
     await(pleaseInterrupt)
-    if (randomBoolean) assertThreadBlocks(t, Thread.State.TIMED_WAITING)
+    if (randomBoolean()) assertThreadBlocks(t, Thread.State.TIMED_WAITING)
     t.interrupt()
     awaitTermination(t)
   }

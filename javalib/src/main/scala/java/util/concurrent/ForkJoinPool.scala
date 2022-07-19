@@ -2677,22 +2677,16 @@ class ForkJoinPool(
   // undocumented fact that ForkJoinTask.adapt returns ForkJoinTasks
   // that also implement RunnableFuture.
 
-  @stub()
   override protected[concurrent] def newTaskFor[T](
       runnable: Runnable,
       value: T
-  ): RunnableFuture[T] = {
-    ???
-    // return new ForkJoinTask.AdaptedRunnable<T>(runnable, value)
-  }
+  ): RunnableFuture[T] =
+    new ForkJoinTask.AdaptedRunnable[T](runnable, value)
 
-  @stub()
   override protected[concurrent] def newTaskFor[T](
       callable: Callable[T]
-  ): RunnableFuture[T] = {
-    ???
-    // return new ForkJoinTask.AdaptedCallable[T](callable)
-  }
+  ): RunnableFuture[T] =
+    new ForkJoinTask.AdaptedCallable[T](callable)
 }
 
 object ForkJoinPool {

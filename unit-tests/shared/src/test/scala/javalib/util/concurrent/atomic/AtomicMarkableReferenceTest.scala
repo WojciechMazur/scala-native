@@ -17,8 +17,8 @@ import org.junit.Test
 import org.junit.Assert._
 
 class AtomicMarkableReferenceTest extends JSR166Test {
-  /**
-   * constructor initializes to given reference and mark
+
+  /** constructor initializes to given reference and mark
    */
   @Test def testConstructor(): Unit = {
     val ai = new AtomicMarkableReference[Any](one, false)
@@ -29,8 +29,7 @@ class AtomicMarkableReferenceTest extends JSR166Test {
     assertTrue(a2.isMarked)
   }
 
-  /**
-   * get returns the last values of reference and mark set
+  /** get returns the last values of reference and mark set
    */
   @Test def testGetSet(): Unit = {
     val mark = new Array[Boolean](1)
@@ -51,8 +50,7 @@ class AtomicMarkableReferenceTest extends JSR166Test {
     assertTrue(mark(0))
   }
 
-  /**
-   * attemptMark succeeds in single thread
+  /** attemptMark succeeds in single thread
    */
   @Test def testAttemptMark(): Unit = {
     val mark = new Array[Boolean](1)
@@ -64,9 +62,8 @@ class AtomicMarkableReferenceTest extends JSR166Test {
     assertTrue(mark(0))
   }
 
-  /**
-   * compareAndSet succeeds in changing values if equal to expected reference
-   * and mark else fails
+  /** compareAndSet succeeds in changing values if equal to expected reference
+   *  and mark else fails
    */
   @Test def testCompareAndSet(): Unit = {
     val mark = new Array[Boolean](1)
@@ -85,16 +82,15 @@ class AtomicMarkableReferenceTest extends JSR166Test {
     assertTrue(mark(0))
   }
 
-  /**
-   * compareAndSet in one thread enables another waiting for reference value
-   * to succeed
+  /** compareAndSet in one thread enables another waiting for reference value to
+   *  succeed
    */
   @throws[Exception]
   @Test def testCompareAndSetInMultipleThreads(): Unit = {
     val ai = new AtomicMarkableReference[Any](one, false)
     val t = new Thread(new CheckedRunnable() {
       override def realRun(): Unit = {
-        while ( {
+        while ({
           !ai.compareAndSet(two, three, false, false)
         }) Thread.`yield`()
       }
@@ -107,16 +103,15 @@ class AtomicMarkableReferenceTest extends JSR166Test {
     assertFalse(ai.isMarked)
   }
 
-  /**
-   * compareAndSet in one thread enables another waiting for mark value
-   * to succeed
+  /** compareAndSet in one thread enables another waiting for mark value to
+   *  succeed
    */
   @throws[Exception]
   @Test def testCompareAndSetInMultipleThreads2(): Unit = {
     val ai = new AtomicMarkableReference[Any](one, false)
     val t = new Thread(new CheckedRunnable() {
       override def realRun(): Unit = {
-        while ( {
+        while ({
           !ai.compareAndSet(one, one, true, false)
         }) Thread.`yield`()
       }
@@ -129,26 +124,23 @@ class AtomicMarkableReferenceTest extends JSR166Test {
     assertFalse(ai.isMarked)
   }
 
-  /**
-   * repeated weakCompareAndSet succeeds in changing values when equal
-   * to expected
+  /** repeated weakCompareAndSet succeeds in changing values when equal to
+   *  expected
    */
   @Test def testWeakCompareAndSet(): Unit = {
     val mark = new Array[Boolean](1)
     val ai = new AtomicMarkableReference[Any](one, false)
     assertSame(one, ai.get(mark))
-    assertFalse(ai.isMarked)
+    assertFalse(ai.isMarked())
     assertFalse(mark(0))
-    do {
-    } while ( {
+    while ({
       !ai.weakCompareAndSet(one, two, false, false)
-    })
+    }) ()
     assertSame(two, ai.get(mark))
     assertFalse(mark(0))
-    do {
-    } while ( {
+    while ({
       !ai.weakCompareAndSet(two, m3, false, true)
-    })
+    }) ()
     assertSame(m3, ai.get(mark))
     assertTrue(mark(0))
   }

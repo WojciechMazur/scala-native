@@ -767,7 +767,7 @@ object Executors {
         command: Runnable,
         delay: Long,
         unit: TimeUnit
-    ): ScheduledFuture[_] = {
+    ): ScheduledFuture[Any] = {
       return e.schedule(command, delay, unit)
     }
     override def schedule[V](
@@ -775,23 +775,23 @@ object Executors {
         delay: Long,
         unit: TimeUnit
     ): ScheduledFuture[V] = {
-      return e.schedule(callable, delay, unit)
+      e.schedule(callable, delay, unit)
     }
     override def scheduleAtFixedRate(
         command: Runnable,
         initialDelay: Long,
         period: Long,
         unit: TimeUnit
-    ): ScheduledFuture[_] = {
-      return e.scheduleAtFixedRate(command, initialDelay, period, unit)
+    ): ScheduledFuture[Any] = {
+      e.scheduleAtFixedRate(command, initialDelay, period, unit)
     }
     override def scheduleWithFixedDelay(
         command: Runnable,
         initialDelay: Long,
         delay: Long,
         unit: TimeUnit
-    ): ScheduledFuture[_] = {
-      return e.scheduleWithFixedDelay(command, initialDelay, delay, unit)
+    ): ScheduledFuture[Any] = {
+      e.scheduleWithFixedDelay(command, initialDelay, delay, unit)
     }
   }
 }

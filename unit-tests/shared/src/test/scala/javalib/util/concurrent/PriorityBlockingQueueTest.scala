@@ -338,7 +338,7 @@ class PriorityBlockingQueueTest extends JSR166Test {
       }
     })
     await(pleaseInterrupt)
-    if (randomBoolean) { assertThreadBlocks(t, Thread.State.WAITING) }
+    if (randomBoolean()) { assertThreadBlocks(t, Thread.State.WAITING) }
     t.interrupt()
     awaitTermination(t)
   }
@@ -374,8 +374,8 @@ class PriorityBlockingQueueTest extends JSR166Test {
       assertTrue(millisElapsedSince(startTime) < LONG_DELAY_MS)
     }
     val startTime: Long = System.nanoTime
-    assertNull(q.poll(timeoutMillis, MILLISECONDS))
-    assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+    assertNull(q.poll(timeoutMillis(), MILLISECONDS))
+    assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
     checkEmpty(q)
   }
 
@@ -414,7 +414,7 @@ class PriorityBlockingQueueTest extends JSR166Test {
       }
     })
     await(pleaseInterrupt)
-    if (randomBoolean) { assertThreadBlocks(t, Thread.State.TIMED_WAITING) }
+    if (randomBoolean()) { assertThreadBlocks(t, Thread.State.TIMED_WAITING) }
     t.interrupt()
     awaitTermination(t)
   }
@@ -729,7 +729,7 @@ class PriorityBlockingQueueTest extends JSR166Test {
       PriorityBlockingQueueTest.populatedQueue(2)
     )
     for (q <- qs) {
-      assertFalse(q.contains(null))
+      assertFalse(q.contains(null)) 
       assertFalse(q.remove(null))
     }
   }

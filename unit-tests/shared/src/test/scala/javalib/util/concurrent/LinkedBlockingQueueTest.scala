@@ -276,7 +276,7 @@ class LinkedBlockingQueueTest extends JSR166Test {
       }
     })
     await(pleaseInterrupt)
-    if (randomBoolean) { assertThreadBlocks(t, Thread.State.WAITING) }
+    if (randomBoolean()) { assertThreadBlocks(t, Thread.State.WAITING) }
     t.interrupt()
     awaitTermination(t)
     assertEquals(SIZE, q.size)
@@ -321,7 +321,7 @@ class LinkedBlockingQueueTest extends JSR166Test {
     assertEquals(0, q.remainingCapacity)
     assertEquals(0, q.take)
     await(pleaseInterrupt)
-    if (randomBoolean) { assertThreadBlocks(t, Thread.State.WAITING) }
+    if (randomBoolean()) { assertThreadBlocks(t, Thread.State.WAITING) }
     t.interrupt()
     awaitTermination(t)
     assertEquals(0, q.remainingCapacity)
@@ -338,8 +338,8 @@ class LinkedBlockingQueueTest extends JSR166Test {
         q.put(new Object {})
         q.put(new Object {})
         val startTime: Long = System.nanoTime
-        assertFalse(q.offer(new Object {}, timeoutMillis, MILLISECONDS))
-        assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+        assertFalse(q.offer(new Object {}, timeoutMillis(), MILLISECONDS))
+        assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
         Thread.currentThread.interrupt()
         try {
           q.offer(new Object {}, randomTimeout(), randomTimeUnit())
@@ -361,7 +361,7 @@ class LinkedBlockingQueueTest extends JSR166Test {
       }
     })
     await(pleaseInterrupt)
-    if (randomBoolean) { assertThreadBlocks(t, Thread.State.TIMED_WAITING) }
+    if (randomBoolean()) { assertThreadBlocks(t, Thread.State.TIMED_WAITING) }
     t.interrupt()
     awaitTermination(t)
   }
@@ -405,7 +405,7 @@ class LinkedBlockingQueueTest extends JSR166Test {
       }
     })
     await(pleaseInterrupt)
-    if (randomBoolean) { assertThreadBlocks(t, Thread.State.WAITING) }
+    if (randomBoolean()) { assertThreadBlocks(t, Thread.State.WAITING) }
     t.interrupt()
     awaitTermination(t)
   }
@@ -439,8 +439,8 @@ class LinkedBlockingQueueTest extends JSR166Test {
       assertTrue(millisElapsedSince(startTime) < LONG_DELAY_MS)
     }
     val startTime: Long = System.nanoTime
-    assertNull(q.poll(timeoutMillis, MILLISECONDS))
-    assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+    assertNull(q.poll(timeoutMillis(), MILLISECONDS))
+    assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
     checkEmpty(q)
   }
 
@@ -478,7 +478,7 @@ class LinkedBlockingQueueTest extends JSR166Test {
       }
     })
     await(pleaseInterrupt)
-    if (randomBoolean) { assertThreadBlocks(t, Thread.State.TIMED_WAITING) }
+    if (randomBoolean()) { assertThreadBlocks(t, Thread.State.TIMED_WAITING) }
     t.interrupt()
     awaitTermination(t)
     checkEmpty(q)

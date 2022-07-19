@@ -99,10 +99,10 @@ class AtomicLongTest extends JSR166Test {
    */
   @Test def testWeakCompareAndSet(): Unit = {
     val ai = new AtomicLong(1)
-    while ( !ai.weakCompareAndSet(1, 2) ) ()
-    while ( !ai.weakCompareAndSet(2, -(4)) ) ()
+    while (!ai.weakCompareAndSet(1, 2)) ()
+    while (!ai.weakCompareAndSet(2, -(4))) ()
     assertEquals(-4, ai.get)
-    while ( !ai.weakCompareAndSet(-(4), 7) ) ()
+    while (!ai.weakCompareAndSet(-(4), 7)) ()
     assertEquals(7, ai.get)
   }
 
@@ -183,17 +183,17 @@ class AtomicLongTest extends JSR166Test {
   /** a deserialized/reserialized atomic holds same value
    */
   @throws[Exception]
-@Ignore("No ObjectInputStreams in Scala Native")
+  @Ignore("No ObjectInputStreams in Scala Native")
   @Test def testSerialization(): Unit = {
-  //   val x = new AtomicLong
-  //   val y = serialClone(x)
-  //   assertNotSame(x, y)
-  //   x.set(-22)
-  //   val z = serialClone(x)
-  //   assertNotSame(y, z)
-  //   assertEquals(-22, x.get)
-  //   assertEquals(0, y.get)
-  //   assertEquals(-22, z.get)
+    //   val x = new AtomicLong
+    //   val y = serialClone(x)
+    //   assertNotSame(x, y)
+    //   x.set(-22)
+    //   val z = serialClone(x)
+    //   assertNotSame(y, z)
+    //   assertEquals(-22, x.get)
+    //   assertEquals(0, y.get)
+    //   assertEquals(-22, z.get)
   }
 
   /** toString returns current value.
@@ -230,6 +230,7 @@ class AtomicLongTest extends JSR166Test {
   }
 
   val delta = 0.00000001
+
   /** floatValue returns current value.
    */
   @Test def testFloatValue(): Unit = {
@@ -237,7 +238,7 @@ class AtomicLongTest extends JSR166Test {
     assertEquals(0.0f, ai.floatValue, delta)
     for (x <- VALUES) {
       ai.set(x)
-      assertEquals(x.toFloat, ai.floatValue,delta)
+      assertEquals(x.toFloat, ai.floatValue, delta)
     }
   }
 
@@ -245,10 +246,10 @@ class AtomicLongTest extends JSR166Test {
    */
   @Test def testDoubleValue(): Unit = {
     val ai = new AtomicLong
-    assertEquals(0.0d, ai.doubleValue,delta)
+    assertEquals(0.0d, ai.doubleValue, delta)
     for (x <- VALUES) {
       ai.set(x)
-      assertEquals(x.toDouble, ai.doubleValue,delta)
+      assertEquals(x.toDouble, ai.doubleValue, delta)
     }
   }
 }

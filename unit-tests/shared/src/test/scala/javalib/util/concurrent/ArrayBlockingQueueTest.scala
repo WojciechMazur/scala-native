@@ -336,7 +336,7 @@ class ArrayBlockingQueueTest extends JSR166Test {
       }
     })
     await(pleaseInterrupt)
-    if (randomBoolean) { assertThreadBlocks(t, Thread.State.WAITING) }
+    if (randomBoolean()) { assertThreadBlocks(t, Thread.State.WAITING) }
     t.interrupt()
     awaitTermination(t)
     assertEquals(SIZE, q.size)
@@ -381,7 +381,7 @@ class ArrayBlockingQueueTest extends JSR166Test {
     assertEquals(0, q.remainingCapacity)
     assertEquals(0, q.take)
     await(pleaseInterrupt)
-    if (randomBoolean) { assertThreadBlocks(t, Thread.State.WAITING) }
+    if (randomBoolean()) { assertThreadBlocks(t, Thread.State.WAITING) }
     t.interrupt()
     awaitTermination(t)
     assertEquals(0, q.remainingCapacity)
@@ -397,9 +397,9 @@ class ArrayBlockingQueueTest extends JSR166Test {
       override def realRun(): Unit = {
         q.put(new Object {})
         q.put(new Object {})
-        val startTime: Long = System.nanoTime
-        assertFalse(q.offer(new Object {}, timeoutMillis, MILLISECONDS))
-        assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+        val startTime: Long = System.nanoTime()
+        assertFalse(q.offer(new Object {}, timeoutMillis(), MILLISECONDS))
+        assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
         Thread.currentThread.interrupt()
         try {
           q.offer(new Object {}, randomTimeout(), randomTimeUnit())
@@ -421,7 +421,7 @@ class ArrayBlockingQueueTest extends JSR166Test {
       }
     })
     await(pleaseInterrupt)
-    if (randomBoolean) { assertThreadBlocks(t, Thread.State.TIMED_WAITING) }
+    if (randomBoolean()) { assertThreadBlocks(t, Thread.State.TIMED_WAITING) }
     t.interrupt()
     awaitTermination(t)
   }
@@ -466,7 +466,7 @@ class ArrayBlockingQueueTest extends JSR166Test {
       }
     })
     await(pleaseInterrupt)
-    if (randomBoolean) { assertThreadBlocks(t, Thread.State.WAITING) }
+    if (randomBoolean()) { assertThreadBlocks(t, Thread.State.WAITING) }
     t.interrupt()
     awaitTermination(t)
   }
@@ -500,8 +500,8 @@ class ArrayBlockingQueueTest extends JSR166Test {
       assertTrue(millisElapsedSince(startTime) < LONG_DELAY_MS)
     }
     val startTime: Long = System.nanoTime
-    assertNull(q.poll(timeoutMillis, MILLISECONDS))
-    assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+    assertNull(q.poll(timeoutMillis(), MILLISECONDS))
+    assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
     checkEmpty(q)
   }
 
@@ -539,7 +539,7 @@ class ArrayBlockingQueueTest extends JSR166Test {
       }
     })
     await(pleaseInterrupt)
-    if (randomBoolean) { assertThreadBlocks(t, Thread.State.TIMED_WAITING) }
+    if (randomBoolean()) { assertThreadBlocks(t, Thread.State.TIMED_WAITING) }
     t.interrupt()
     awaitTermination(t)
     checkEmpty(q)
@@ -652,6 +652,7 @@ class ArrayBlockingQueueTest extends JSR166Test {
     for (i <- 1 until SIZE) {
       val q = ArrayBlockingQueueTest.populatedQueue(SIZE)
       val p = ArrayBlockingQueueTest.populatedQueue(i)
+      println(p.toArray().toList)
       assertTrue(q.removeAll(p))
       assertEquals(SIZE - i, q.size)
       for (j <- 0 until i) {
@@ -662,7 +663,7 @@ class ArrayBlockingQueueTest extends JSR166Test {
   }
   def checkToArray(q: ArrayBlockingQueue[Integer]): Unit = {
     val size: Int = q.size
-    val a1: Array[AnyRef] = q.toArray
+    val a1 = q.toArray.asInstanceOf[Array[Integer]]
     assertEquals(size, a1.length)
     val a2 = q.toArray(new Array[Integer](0))
     assertEquals(size, a2.length)
@@ -691,11 +692,10 @@ class ArrayBlockingQueueTest extends JSR166Test {
   /** toArray() and toArray(a) contain all elements in FIFO order
    */
   @Test def testToArray(): Unit = {
-    val rnd: ThreadLocalRandom = ThreadLocalRandom.current
+    val rnd = ThreadLocalRandom.current
     val size: Int = rnd.nextInt(6)
     val capacity: Int = Math.max(1, size + rnd.nextInt(size + 1))
-    val q: ArrayBlockingQueue[Integer] =
-      new ArrayBlockingQueue[Integer](capacity)
+    val q =      new ArrayBlockingQueue[Integer](capacity)
     for (i <- 0 until size) {
       checkToArray(q)
       q.add(i)
@@ -704,19 +704,20 @@ class ArrayBlockingQueueTest extends JSR166Test {
     val added: Int = size * 2
     for (i <- 0 until added) {
       checkToArray(q)
-      assertEquals(i.asInstanceOf[Integer], q.poll)
+      assertEquals(i.asInstanceOf[Integer], q.poll())
       q.add(size + i)
     }
     for (i <- 0 until size) {
       checkToArray(q)
-      assertEquals((added + i).asInstanceOf[Integer], q.poll)
+      assertEquals((added + i).asInstanceOf[Integer], q.poll())
     }
   }
 
   /** toArray(incompatible array type) throws ArrayStoreException
    */
+  @Ignore("No support for Array component type checks in SN")
   @Test def testToArray_incompatibleArrayType(): Unit = {
-    val q = ArrayBlockingQueueTest.populatedQueue(SIZE)
+    val q: BlockingQueue[Integer] = ArrayBlockingQueueTest.populatedQueue(SIZE)
     try {
       q.toArray(new Array[String](10))
       shouldThrow()
@@ -728,7 +729,7 @@ class ArrayBlockingQueueTest extends JSR166Test {
       q.toArray(new Array[String](0))
       shouldThrow()
     } catch {
-      case success: ArrayStoreException =>
+      case success: ArrayStoreException => ()
 
     }
   }

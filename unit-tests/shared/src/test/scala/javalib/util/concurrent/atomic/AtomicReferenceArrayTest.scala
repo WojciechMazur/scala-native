@@ -6,7 +6,6 @@
  * Pat Fisher, Mike Judd.
  */
 
-
 package org.scalanative.testsuite.javalib.util.concurrent.atomic
 
 import org.scalanative.testsuite.javalib.util.concurrent.JSR166Test
@@ -25,7 +24,7 @@ class AtomicReferenceArrayTest extends JSR166Test {
   @Test def testConstructor(): Unit = {
     val aa =
       new AtomicReferenceArray[Integer](SIZE)
-    for (i <- 0 until SIZE) { assertNull(i.toString,aa.get(i)) }
+    for (i <- 0 until SIZE) { assertNull(i.toString, aa.get(i)) }
   }
 
   /** constructor with null array throws NPE
@@ -177,10 +176,10 @@ class AtomicReferenceArrayTest extends JSR166Test {
     val aa = new AtomicReferenceArray[Any](SIZE)
     for (i <- 0 until SIZE) {
       aa.set(i, one)
-      while ( !aa.weakCompareAndSet(i, one, two) ) ()
-      while ( !aa.weakCompareAndSet(i, two, m4) ) ()
+      while (!aa.weakCompareAndSet(i, one, two)) ()
+      while (!aa.weakCompareAndSet(i, two, m4)) ()
       assertSame(m4, aa.get(i))
-      while ( !aa.weakCompareAndSet(i, m4, seven) ) ()
+      while (!aa.weakCompareAndSet(i, m4, seven)) ()
       assertSame(seven, aa.get(i))
     }
   }
@@ -200,21 +199,21 @@ class AtomicReferenceArrayTest extends JSR166Test {
   /** a deserialized/reserialized array holds same values in same order
    */
   @throws[Exception]
-@Ignore("No ObjectInputStreams in Scala Native")
+  @Ignore("No ObjectInputStreams in Scala Native")
   @Test def testSerialization(): Unit = {
-  //   val x = new AtomicReferenceArray[Any](SIZE)
-  //   for (i <- 0 until SIZE) { x.set(i, new Integer(-i)) }
-  //   val y = serialClone(x)
-  //   assertNotSame(x, y)
-  //   assertEquals(x.length, y.length)
-  //   for (i <- 0 until SIZE) { assertEquals(x.get(i), y.get(i)) }
+    //   val x = new AtomicReferenceArray[Any](SIZE)
+    //   for (i <- 0 until SIZE) { x.set(i, new Integer(-i)) }
+    //   val y = serialClone(x)
+    //   assertNotSame(x, y)
+    //   assertEquals(x.length, y.length)
+    //   for (i <- 0 until SIZE) { assertEquals(x.get(i), y.get(i)) }
   }
 
   /** toString returns current value.
    */
   @Test def testToString(): Unit = {
     val a = Array[Int](two, one, three, four, seven)
-    val aRef: Array[Integer] = a.map(v => v:Integer)
+    val aRef: Array[Integer] = a.map(v => v: Integer)
     val aa = new AtomicReferenceArray[Integer](aRef)
     assertEquals(java.util.Arrays.toString(a), aa.toString)
   }

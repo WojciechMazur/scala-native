@@ -248,14 +248,16 @@ class Thread private[lang] (
 
   def getState(): State = {
     import NativeThread.State._
-    nativeThread.state match {
-      case New                                     => State.NEW
-      case Running                                 => State.RUNNABLE
-      case WaitingOnMonitorEnter                   => State.BLOCKED
-      case Waiting | ParkedWaiting                 => State.WAITING
-      case WaitingWithTimeout | ParkedWaitingTimed => State.TIMED_WAITING
-      case Terminated                              => State.TERMINATED
-    }
+    if (nativeThread == null) State.NEW
+    else
+      nativeThread.state match {
+        case New                                     => State.NEW
+        case Running                                 => State.RUNNABLE
+        case WaitingOnMonitorEnter                   => State.BLOCKED
+        case Waiting | ParkedWaiting                 => State.WAITING
+        case WaitingWithTimeout | ParkedWaitingTimed => State.TIMED_WAITING
+        case Terminated                              => State.TERMINATED
+      }
   }
 
   @deprecated("Deprecated for removal", "1.7")

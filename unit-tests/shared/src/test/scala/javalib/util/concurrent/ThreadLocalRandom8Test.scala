@@ -215,8 +215,8 @@ class ThreadLocalRandom8Test extends JSR166Test {
 
   /** A parallel unsized stream of doubles generates at least 100 values
    */
-@Ignore("Not implemented Java Streams")
-@Test def testUnsizedDoublesCount(): Unit = {
+  @Ignore("Not implemented Java Streams")
+  @Test def testUnsizedDoublesCount(): Unit = {
     // val counter = new LongAdder
     // val r = ThreadLocalRandom.current
     // val size = 100

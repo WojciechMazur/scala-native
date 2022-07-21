@@ -1,6 +1,7 @@
 package java.lang.impl
 
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.LockSupport
 
 import scala.annotation._
 import scala.scalanative.annotation._
@@ -17,6 +18,9 @@ import scala.scalanative.posix.pthread._
 import scala.scalanative.posix.signal.{pthread_kill => _, _}
 import scala.scalanative.posix.signalOps._
 import scala.scalanative.posix.errno.{ETIMEDOUT, EINTR}
+import scala.scalanative.posix.sys.eventfd._
+import scala.scalanative.posix.poll._
+import scala.scalanative.posix.unistd._
 import scala.scalanative.libc.errno
 import scala.scalanative.libc.signal.{SIGUSR1 => _, _}
 import scala.scalanative.posix
@@ -27,6 +31,8 @@ import scala.scalanative.runtime.GC.MutatorThread
 private[java] case class PosixThread(handle: pthread_t, thread: Thread)
     extends NativeThread {
   import PosixThread._
+
+  private[impl] var sleepEvent = UnsetEvent
 
   private[this] val nativeArray = new Array[scala.Byte](InnerBufferSize)
     .asInstanceOf[ByteArray]
@@ -87,6 +93,22 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
   def stop(): Unit = GCExt.GC_pthread_cancel(handle) match {
     case 0   => state = NativeThread.State.Terminated
     case err => throw new RuntimeException("Failed to stop thread")
+  }
+
+  def interrupt(): Unit = {
+    if (state.isInstanceOf[NativeThread.State.Parked]) {
+      LockSupport.unpark(thread)
+    }
+    if (sleepEvent != UnsetEvent) {
+      val eventSize = 8.toUInt
+      val buf = stackalloc[Byte](eventSize)
+      !buf = 1
+
+      val res = write(sleepEvent, buf, eventSize)
+      if (res == -1) {
+        println(errno.errno)
+      }
+    }
   }
 
   @inline def tryPark(): Unit = withGCSafeZone {
@@ -213,25 +235,41 @@ private[lang] object PosixThread {
     new PosixThread(!id, thread)
   }
 
-  def sleep(millis: scala.Long, nanos: scala.Int): Unit = {
-    @tailrec
-    def doSleep(requestedTime: Ptr[timespec]): Unit = {
-      val remaining = stackalloc[timespec]()
-      nanosleep(requestedTime, remaining) match {
-        case _ if Thread.interrupted() =>
-          throw new InterruptedException("Sleep was interrupted")
+  private val UnsetEvent = -1
 
-        case -1 if errno.errno == EINTR =>
-          doSleep(remaining)
+  def sleep(_millis: scala.Long, nanos: scala.Int): Unit = {
+    val nativeThread =
+      Thread.currentThread().nativeThread.asInstanceOf[PosixThread]
 
-        case _ => ()
-      }
+    val millis = if (nanos > 0) _millis + 1 else _millis
+    val deadline = System.currentTimeMillis() + millis
+    var remaining = millis
+    if (remaining > 0) {
+      import scala.scalanative.posix.pollOps._
+      import scala.scalanative.posix.pollEvents._
+
+      val sleepEvent = eventfd(0.toUInt, 0)
+      if (sleepEvent == -1)
+        throw new RuntimeException("Failed to create a sleep event")
+      nativeThread.sleepEvent = sleepEvent
+
+      val fds = stackalloc[struct_pollfd]()
+      fds.fd = sleepEvent
+      fds.events = POLLIN
+
+      try
+        while (remaining > 0) {
+          poll(fds, 1.toUInt, (remaining min Int.MaxValue).toInt) match {
+            case 0  => () // timeout
+            case -1 => throw new RuntimeException()
+            case res =>
+              if (Thread.interrupted())
+                throw new InterruptedException("Sleep was interrupted")
+          }
+          remaining = deadline - System.currentTimeMillis()
+        }
+      finally nativeThread.sleepEvent = UnsetEvent
     }
-
-    val requestedTime = stackalloc[timespec]()
-    requestedTime.tv_sec = millis / 1000
-    requestedTime.tv_nsec = (millis % 1000) * 1e6.toInt + nanos
-    doSleep(requestedTime)
   }
 
   def yieldThread(): Unit = sched_yield()

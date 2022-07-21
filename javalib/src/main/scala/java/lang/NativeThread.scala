@@ -35,6 +35,7 @@ trait NativeThread {
   def resume(): Unit
   def suspend(): Unit
   def stop(): Unit
+  def interrupt(): Unit
 
   protected def tryPark(): Unit
   protected def tryParkUntil(deadline: scala.Long): Unit
@@ -62,11 +63,9 @@ trait NativeThread {
         skipNextUnparkEvent = false
       } else {
         state = NativeThread.State.ParkedWaitingTimed
-        // println(s"Park $thread  for $nanos ns")
         while (state == NativeThread.State.ParkedWaitingTimed) {
           tryParkNanos(nanos)
         }
-        // println(s"Unparked $thread")
         state = NativeThread.State.Running
       }
     }
@@ -90,12 +89,10 @@ trait NativeThread {
     withParkingLock {
       state match {
         case _: NativeThread.State.Parked =>
-          // println(s"Try unpark $thread - $state")
           state = NativeThread.State.Running
           tryUnpark()
 
         case _ =>
-          // println(s"Skip next park event in $thread")
           // Race between park/unpark won, ignore next park event
           skipNextUnparkEvent = true
       }

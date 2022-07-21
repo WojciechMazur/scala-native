@@ -156,10 +156,8 @@ class Thread private[lang] (
 
   def interrupt(): Unit = {
     lock.synchronized {
-      if (started) interruptedState = true
-    }
-    if (nativeThread.state.isInstanceOf[NativeThread.State.Parked]) {
-      LockSupport.unpark(this)
+      interruptedState = true
+      nativeThread.interrupt()
     }
   }
 

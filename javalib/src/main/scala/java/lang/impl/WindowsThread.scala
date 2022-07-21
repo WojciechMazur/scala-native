@@ -66,6 +66,9 @@ private[java] case class WindowsThread(handle: Handle, id: UInt, thread: Thread)
   @inline
   def stop(): Unit = ExitThread(0.toUInt)
 
+  def interrupt(): Unit = ()
+
+
   @inline
   def tryPark(): Unit = {
     if (!SleepConditionVariableCS(isUnparked, threadParkingSection, Infinite)) {

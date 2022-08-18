@@ -21,16 +21,15 @@ class Thread private[lang] (
 
   @volatile private[lang] var alive = false
   @volatile private[lang] var started = false
-  @volatile private var daemon = false
   @volatile private var interruptedState = false
 
-  @volatile private var name: String = s"Thread-$threadId"
-  @volatile private var priority: Int = Thread.NORM_PRIORITY
-
-  @volatile private[lang] var contextClassLoader: ClassLoader = _
+  private var name: String = s"Thread-$threadId"
+  private var priority: Int = Thread.NORM_PRIORITY
+  private var daemon = false
+  private[lang] var contextClassLoader: ClassLoader = _
 
   // Uncaught exception handler for this thread
-  @volatile private var exceptionHandler: Thread.UncaughtExceptionHandler = _
+  private var exceptionHandler: Thread.UncaughtExceptionHandler = _
 
   // ThreadLocal values : local and inheritable
   private[java] lazy val localValues: ThreadLocal.Values =
@@ -154,11 +153,14 @@ class Thread private[lang] (
 
   def isInterrupted(): scala.Boolean = interruptedState
 
-  def interrupt(): Unit = {
+  def interrupt(): Unit = if (this != Thread.currentThread())
     lock.synchronized {
       interruptedState = true
       nativeThread.interrupt()
     }
+  else {
+    interruptedState = true
+    nativeThread.interrupt()
   }
 
   def getStackTrace(): Array[StackTraceElement] =
@@ -447,9 +449,12 @@ object Thread {
   }
 
   def interrupted(): scala.Boolean = {
-    val ret = currentThread().isInterrupted()
-    currentThread().interruptedState = false
-    ret
+    val thread = currentThread()
+    val isInterrupted = thread.interruptedState
+    if (isInterrupted) {
+      thread.interruptedState = false
+    }
+    isInterrupted
   }
 
   def sleep(millis: scala.Long, nanos: scala.Int): Unit = {

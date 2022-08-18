@@ -27,12 +27,13 @@ import scala.scalanative.posix
 import scala.scalanative.runtime.ByteArray
 import scala.scalanative.libc.string.strerror
 import scala.scalanative.runtime.GC.MutatorThread
+import scala.scalanative.libc.stdlib.malloc
 
 private[java] case class PosixThread(handle: pthread_t, thread: Thread)
     extends NativeThread {
   import PosixThread._
 
-  private[impl] var sleepEvent = UnsetEvent
+  @volatile private[impl] var sleepEvent = UnsetEvent
 
   private[this] val nativeArray = new Array[scala.Byte](InnerBufferSize)
     .asInstanceOf[ByteArray]
@@ -43,19 +44,37 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
       .asInstanceOf[Ptr[pthread_mutex_t]]
   }
 
-  private[java] val condition: Ptr[pthread_cond_t] = {
-    nativeArray
-      .at(ConditionOffset)
-      .asInstanceOf[Ptr[pthread_cond_t]]
+  private[java] val conditions = nativeArray
+    .at(ConditionsOffset)
+    .asInstanceOf[Ptr[pthread_cond_t]]
+
+  def condition(idx: Int) = idx match {
+    case 0 => conditions
+    case 1 =>
+      fromRawPtr[pthread_cond_t](
+        Intrinsics.elemRawPtr(
+          toRawPtr(conditions),
+          pthread_cond_t_size.toInt
+        )
+      )
   }
 
   {
-    val mutexAttr = stackalloc[pthread_mutexattr_t]()
-    assert(0 == pthread_mutexattr_init(mutexAttr))
-    assert(0 == pthread_mutexattr_settype(mutexAttr, PTHREAD_MUTEX_RECURSIVE))
-
     assert(0 == pthread_mutex_init(lock, mutexAttr))
-    assert(0 == pthread_cond_init(condition, null))
+    assert(
+      0 == pthread_cond_init(
+        condition(ConditionRelativeIdx),
+        clockMonotonicCondAttr
+      )
+    )
+    assert(0 == pthread_cond_init(condition(ConditionAbsoluteIdx), null))
+  }
+
+  override def onTermination(): Unit = {
+    super.onTermination()
+    pthread_cond_destroy(condition(0))
+    pthread_cond_destroy(condition(1))
+    pthread_mutex_destroy(lock)
   }
 
   def setPriority(priority: CInt): Unit = {
@@ -76,7 +95,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
     pthread_mutex_lock(lock)
     while (state == NativeThread.State.Waiting) {
       state = NativeThread.State.Running
-      pthread_cond_signal(condition)
+      pthread_cond_signal(condition(ConditionRelativeIdx))
     }
     pthread_mutex_unlock(lock)
   }
@@ -85,7 +104,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
     pthread_mutex_lock(lock)
     state = NativeThread.State.Waiting
     while (state == NativeThread.State.Waiting) {
-      pthread_cond_wait(condition, lock)
+      pthread_cond_wait(condition(ConditionRelativeIdx), lock)
     }
     pthread_mutex_unlock(lock)
   }
@@ -96,99 +115,183 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
   }
 
   def interrupt(): Unit = {
-    if (state.isInstanceOf[NativeThread.State.Parked]) {
-      LockSupport.unpark(thread)
-    }
+    // LockSupport.park
+    this.unpark()
+    // Thread.sleep
     if (sleepEvent != UnsetEvent) {
       val eventSize = 8.toUInt
       val buf = stackalloc[Byte](eventSize)
       !buf = 1
 
       val res = write(sleepEvent, buf, eventSize)
-      if (res == -1) {
-        println(errno.errno)
+      assert(res != -1)
+    }
+  }
+
+  @volatile private var counter: Int = 0
+  @volatile private var conditionIdx = -1 // index of currently used condition
+
+  import scala.scalanative.libc.atomic._
+  import scala.scalanative.runtime.Intrinsics
+  final private val counterAtromic = new CAtomicInt(
+    fromRawPtr(Intrinsics.classFieldRawPtr(this, "counter"))
+  )
+  override def park(): Unit =
+    park(0, isAbsolute = false)
+  override def parkNanos(nanos: Long): Unit = if (nanos > 0) {
+    park(nanos, isAbsolute = false)
+  }
+  override def parkUntil(deadline: scala.Long): Unit =
+    park(deadline, isAbsolute = true)
+
+  private def park(time: Long, isAbsolute: Boolean): Unit = {
+    // fast-path check, return if can skip parking
+    if (counterAtromic.exchange(0) > 0) return
+    // Avoid parking if there's an interrupt pending
+    if (thread.isInterrupted()) return // println("park: interrupted")
+
+    // Don't wait at all
+    if (time < 0 || (isAbsolute && time == 0)) return
+    val absTime = stackalloc[timespec]()
+    if (time > 0) toAbsoluteTime(absTime, time, isAbsolute)
+    // Interference with ongoing unpark
+    if (pthread_mutex_trylock(lock) != 0) return
+
+    try {
+      if (counter > 0) { // no wait needed
+        counter = 0
+        return
       }
-    }
-  }
 
-  @inline def tryPark(): Unit = withGCSafeZone {
-    pthread_cond_wait(condition, lock) match {
-      case 0 => ()
-      case errno =>
-        throw new RuntimeException(
-          s"Failed to park thread - ${fromCString(strerror(errno))}"
+      if (time == 0) {
+        assert(conditionIdx == -1, "conditiond idx")
+        conditionIdx = ConditionRelativeIdx
+        state = NativeThread.State.ParkedWaiting
+        val status = withGCSafeZone {
+          pthread_cond_wait(condition(conditionIdx), lock)
+        }
+        checkStatus(
+          status == 0 ||
+            (scalanative.runtime.Platform.isMac() && status == ETIMEDOUT),
+          "park, wait"
         )
-    }
-  }
-
-  @inline def tryParkUntil(deadline: scala.Long): Unit = {
-    val deadlineSpec = stackalloc[timespec]()
-    val MillisecondsInSecond = 1000
-    deadlineSpec.tv_sec = TimeUnit.MILLISECONDS.toSeconds(deadline)
-    deadlineSpec.tv_nsec =
-      TimeUnit.MILLISECONDS.toNanos(deadline % MillisecondsInSecond)
-    waitForThreadUnparking(deadlineSpec)
-  }
-
-  @inline def tryParkNanos(nanos: scala.Long): Unit = {
-    val NanosecondsInSecond = 1000000000
-    val deadline = stackalloc[timespec]()
-    // CLOCK_REALTIME instead of CLOCK_MONOTONIC is used only becouse deadline
-    // in tryParkUnitl would be always epoch time (System.currentTimeMillis)
-
-    clock_gettime(CLOCK_REALTIME, deadline)
-    val nextNanos = deadline.tv_nsec + nanos
-    deadline.tv_nsec = nextNanos % NanosecondsInSecond
-    deadline.tv_sec = deadline.tv_sec + (nextNanos / NanosecondsInSecond)
-    waitForThreadUnparking(deadline)
-  }
-
-  @inline def tryUnpark(): Unit = {
-    pthread_cond_signal(condition) match {
-      case 0 => ()
-      case errno =>
-        val errorMsg = fromCString(strerror(errno))
-        throw new RuntimeException(
-          s"Failed to signal thread unparking - $errorMsg"
-        )
-    }
-  }
-
-  private final val TimeoutCode = ETIMEDOUT
-
-  @inline private def waitForThreadUnparking(
-      deadline: Ptr[timespec]
-  ): Unit = withGCSafeZone {
-    while (state.isInstanceOf[NativeThread.State.Parked]) {
-      pthread_cond_timedwait(condition, lock, deadline) match {
-        case 0 | TimeoutCode =>
-          state = NativeThread.State.Running
-        case errno =>
-          val errorMsg = fromCString(strerror(errno))
-          throw new RuntimeException(
-            s"Failed to wait on thread unparking - $errorMsg"
-          )
+      } else {
+        assert(conditionIdx == -1, "conditiond idx")
+        conditionIdx =
+          if (isAbsolute) ConditionAbsoluteIdx else ConditionRelativeIdx
+        state = NativeThread.State.ParkedWaitingTimed
+        val status = withGCSafeZone {
+          pthread_cond_timedwait(condition(conditionIdx), lock, absTime)
+        }
+        checkStatus(status, "park, timed-wait", s => s == 0 || s == ETIMEDOUT)
       }
+
+      conditionIdx = -1
+      counter = 0
+    } finally {
+      state = NativeThread.State.Running
+      checkStatus(pthread_mutex_unlock(lock), "park, unlock", _ == 0)
+      atomic_thread_fence(memory_order.memory_order_seq_cst)
     }
   }
+
+  override def unpark(): Unit = {
+    checkStatus(withGCSafeZone(pthread_mutex_lock(lock)) == 0, "unpark, lock")
+    val s = counter
+    counter = 1
+    val index = conditionIdx
+    checkStatus(pthread_mutex_unlock(lock) == 0, "unpark, unlock")
+
+    if (s < 1 && index != -1) {
+      checkStatus(
+        0 == pthread_cond_signal(condition(index)),
+        "unpark, signal"
+      )
+    }
+  }
+
+  private def checkStatus(cond: Boolean, label: => String) =
+    assert(cond, label)
+
+  private def checkStatus(
+      status: Int,
+      label: => String,
+      cond: Int => Boolean
+  ) = {
+    def reason = fromCString(libc.string.strerror(status))
+    assert(cond(status), s"$label, error #$status, reason: $reason")
+  }
+
+  private def toAbsoluteTime(
+      abstime: Ptr[timespec],
+      _timeout: Long,
+      isAbsolute: Boolean
+  ) = {
+    val timeout = if (_timeout < 0) 0 else _timeout
+    val clock = if (isAbsolute) CLOCK_REALTIME else CLOCK_MONOTONIC
+    val now = stackalloc[timespec]()
+    clock_gettime(clock, now)
+    if (isAbsolute) unpackAbsoluteTime(abstime, timeout, now.tv_sec)
+    else calculateRelativeTime(abstime, timeout, now)
+  }
+
+  private def calculateRelativeTime(
+      abstime: Ptr[timespec],
+      timeout: Long,
+      now: Ptr[timespec]
+  ) = {
+    val maxSeconds = now.tv_sec + MaxSeconds
+    val seconds = timeout / NanonsInSecond
+    if (seconds > maxSeconds) {
+      abstime.tv_sec = maxSeconds
+      abstime.tv_nsec = 0
+    } else {
+      abstime.tv_sec = now.tv_sec + seconds
+      val nanos = now.tv_nsec + (timeout % NanonsInSecond)
+      abstime.tv_nsec = if (nanos >= NanonsInSecond) {
+        abstime.tv_sec += 1
+        nanos - NanonsInSecond
+      } else nanos
+    }
+  }
+
+  private final val MaxSeconds = 100000000
+  private final val MillisInSecond = 1000
+  private final val NanonsInSecond = 1000000000
+  private final val NanosInMillisecond = NanonsInSecond / MillisInSecond
+
+  private def unpackAbsoluteTime(
+      abstime: Ptr[timespec],
+      deadline: Long,
+      nowSeconds: Long
+  ) = {
+    val maxSeconds = nowSeconds + MaxSeconds
+    val seconds = deadline / MillisInSecond
+    val millis = deadline % MillisInSecond
+
+    if (seconds >= maxSeconds) {
+      abstime.tv_sec = maxSeconds
+      abstime.tv_nsec = 0
+    } else {
+      abstime.tv_sec = seconds
+      abstime.tv_nsec = millis * NanosInMillisecond
+    }
+
+    assert(abstime.tv_sec <= maxSeconds, "tvSec")
+    assert(abstime.tv_nsec <= NanonsInSecond, "tvNSec")
+  }
+
+  @inline def tryPark(): Unit = ???
+  @inline def tryParkUntil(deadline: scala.Long): Unit = ???
+  @inline def tryParkNanos(nanos: scala.Long): Unit = ???
+  @inline def tryUnpark(): Unit = ???
 
   @inline
   def withParkingLock(fn: => Unit): Unit = {
-    @alwaysinline
-    def checkResult(res: Int, op: => String): Unit = {
-      res match {
-        case 0 => ()
-        case errCode =>
-          val errorMsg = fromCString(strerror(errCode))
-          throw new RuntimeException(
-            s"Failed to $op @ ${Thread.currentThread()} - $errorMsg"
-          )
-      }
-    }
-
-    checkResult(withGCSafeZone(pthread_mutex_lock(lock)), "lock")
+    if (pthread_mutex_trylock(lock) != 0)
+      assert(withGCSafeZone(pthread_mutex_lock(lock)) == 0, "lock")
     try fn
-    finally checkResult(pthread_mutex_unlock(lock), "unlock")
+    finally assert(pthread_mutex_unlock(lock) == 0, "unlock")
   }
 }
 
@@ -211,11 +314,31 @@ private[lang] object PosixThread {
   }
 
   private final val LockOffset = 0
-  private final val ConditionOffset = LockOffset + pthread_mutex_t_size.toInt
+  private final val ConditionsOffset = LockOffset + pthread_mutex_t_size.toInt
+
+  private final val ConditionRelativeIdx = 0
+  private final val ConditionAbsoluteIdx = 1
 
   private final val InnerBufferSize =
-    (pthread_mutex_t_size + pthread_cond_t_size).toInt
+    (pthread_mutex_t_size + pthread_cond_t_size * 2.toUInt).toInt
 
+  private lazy val clockMonotonicCondAttr = {
+    val condAttr = malloc(sizeof[pthread_condattr_t])
+      .asInstanceOf[Ptr[pthread_condattr_t]]
+    assert(condAttr != null)
+    assert(0 == pthread_condattr_init(condAttr))
+    assert(0 == pthread_condattr_setclock(condAttr, CLOCK_MONOTONIC))
+    assert(0 == pthread_condattr_setpshared(condAttr, PTHREAD_PROCESS_SHARED))
+    condAttr
+  }
+
+  private lazy val mutexAttr = {
+    val attr = malloc(sizeof[pthread_mutexattr_t])
+      .asInstanceOf[Ptr[pthread_mutexattr_t]]
+    assert(0 == pthread_mutexattr_init(attr))
+    assert(0 == pthread_mutexattr_settype(attr, PTHREAD_MUTEX_RECURSIVE))
+    attr
+  }
   def apply(thread: Thread): PosixThread = {
     import GCExt._
     val id = stackalloc[pthread_t]()
@@ -241,35 +364,38 @@ private[lang] object PosixThread {
     val nativeThread =
       Thread.currentThread().nativeThread.asInstanceOf[PosixThread]
 
-    val millis = if (nanos > 0) _millis + 1 else _millis
+    var millis = if (nanos > 0) _millis + 1 else _millis
+    if (millis <= 0) return
     val deadline = System.currentTimeMillis() + millis
-    var remaining = millis
-    if (remaining > 0) {
-      import scala.scalanative.posix.pollOps._
-      import scala.scalanative.posix.pollEvents._
 
-      val sleepEvent = eventfd(0.toUInt, 0)
-      if (sleepEvent == -1)
-        throw new RuntimeException("Failed to create a sleep event")
-      nativeThread.sleepEvent = sleepEvent
+    import scala.scalanative.posix.pollOps._
+    import scala.scalanative.posix.pollEvents._
 
-      val fds = stackalloc[struct_pollfd]()
-      fds.fd = sleepEvent
-      fds.events = POLLIN
+    val sleepEvent = eventfd(0.toUInt, 0)
+    assert(sleepEvent != -1, "sleep event")
+    nativeThread.sleepEvent = sleepEvent
 
-      try
-        while (remaining > 0) {
-          poll(fds, 1.toUInt, (remaining min Int.MaxValue).toInt) match {
-            case 0  => () // timeout
-            case -1 => throw new RuntimeException()
-            case res =>
-              if (Thread.interrupted())
-                throw new InterruptedException("Sleep was interrupted")
-          }
-          remaining = deadline - System.currentTimeMillis()
+    val fds = stackalloc[struct_pollfd]()
+    fds.fd = sleepEvent
+    fds.events = POLLIN
+
+    try
+      while (true) {
+        if (Thread.interrupted())
+          throw new InterruptedException("Sleep was interrupted")
+        if (millis <= 0) return ()
+
+        val status = nativeThread.withGCSafeZone {
+          poll(fds, 1.toUInt, (millis min Int.MaxValue).toInt)
         }
-      finally nativeThread.sleepEvent = UnsetEvent
-    }
+        assert(
+          status == 0 || errno.errno == EINTR,
+          s"sleep, ${fromCString(strerror(errno.errno))}"
+        )
+
+        millis = deadline - System.currentTimeMillis()
+      }
+    finally nativeThread.sleepEvent = UnsetEvent
   }
 
   def yieldThread(): Unit = sched_yield()

@@ -43,61 +43,10 @@ trait NativeThread {
   protected def tryUnpark(): Unit
   protected def withParkingLock(fn: => Unit): Unit
 
-  def park(): Unit = {
-    withParkingLock {
-      if (skipNextUnparkEvent) {
-        skipNextUnparkEvent = false
-      } else {
-        state = NativeThread.State.ParkedWaiting
-        while (state == NativeThread.State.ParkedWaiting) {
-          tryPark()
-        }
-        state = NativeThread.State.Running
-      }
-    }
-  }
-
-  def parkNanos(nanos: Long): Unit = {
-    withParkingLock {
-      if (skipNextUnparkEvent) {
-        skipNextUnparkEvent = false
-      } else {
-        state = NativeThread.State.ParkedWaitingTimed
-        while (state == NativeThread.State.ParkedWaitingTimed) {
-          tryParkNanos(nanos)
-        }
-        state = NativeThread.State.Running
-      }
-    }
-  }
-
-  def parkUntil(deadline: Long): Unit = {
-    withParkingLock {
-      if (skipNextUnparkEvent) {
-        skipNextUnparkEvent = false
-      } else {
-        state = NativeThread.State.ParkedWaitingTimed
-        while (state == NativeThread.State.ParkedWaitingTimed) {
-          tryParkUntil(deadline)
-        }
-        state = NativeThread.State.Running
-      }
-    }
-  }
-
-  def unpark(): Unit = {
-    withParkingLock {
-      state match {
-        case _: NativeThread.State.Parked =>
-          state = NativeThread.State.Running
-          tryUnpark()
-
-        case _ =>
-          // Race between park/unpark won, ignore next park event
-          skipNextUnparkEvent = true
-      }
-    }
-  }
+  def park(): Unit = ??? // todo: make abstract
+  def parkNanos(nanos: scala.Long): Unit = ??? // todo: make abstract
+  def parkUntil(deadline: scala.Long): Unit = ??? // todo: make abstract
+  def unpark(): Unit = ??? // todo: make abstract
 
   protected def onTermination(): Unit = {
     state = NativeThread.State.Terminated

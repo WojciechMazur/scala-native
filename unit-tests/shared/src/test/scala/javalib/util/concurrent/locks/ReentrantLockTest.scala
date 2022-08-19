@@ -1198,14 +1198,13 @@ class ReentrantLockTest extends JSR166Test {
     val threads = new util.ArrayList[Thread]
     val rogue: Runnable = () => {
       def foo() = {
-        while ({ done.getCount > 0 }) try { // call await without holding lock?!
+        while (done.getCount > 0) try {
+          // call await without holding lock?!
           await(cond, awaitMethod)
           throw new AssertionError("should throw")
         } catch {
           case success: IllegalMonitorStateException =>
-
-          case fail: Throwable =>
-            threadUnexpectedException(fail)
+          case fail: Throwable => threadUnexpectedException(fail)
         }
       }
       foo()

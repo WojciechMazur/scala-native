@@ -41,7 +41,7 @@ object LockSupport {
       .parkNanos(nanos)
   }
 
-  def parkNanos(blocker: Object, nanos: Long): Unit = {
+  def parkNanos(blocker: Object, nanos: Long): Unit = if (nanos > 0) {
     val thread = Thread.currentThread()
     setBlocker(thread, blocker)
     parkNanos(nanos)
@@ -62,10 +62,8 @@ object LockSupport {
     setBlocker(thread, null: Object)
   }
 
-  def unpark(thread: Thread): Unit = {
-    if (thread != null) {
-      thread.nativeThread.unpark()
-    }
+  def unpark(thread: Thread): Unit = if (thread != null) {
+    thread.nativeThread.unpark()
   }
 
   @alwaysinline private def setBlocker(
@@ -91,4 +89,6 @@ object LockSupport {
   @alwaysinline def setCurrentBlocker(blocker: Object): Unit =
     // TODO: parkBlocker can be accessed using CAtomics
     Thread.currentThread().parkBlocker.setOpaque(blocker)
+
+  private[locks] def getThreadId(thread: Thread) = thread.threadId
 }

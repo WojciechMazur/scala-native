@@ -132,7 +132,7 @@ class ReentrantReadWriteLockTest extends JSR166Test {
   def assertHasNoWaiters(
       lock: ReentrantReadWriteLockTest.PublicReentrantReadWriteLock,
       c: Condition
-  ): Unit = { assertHasWaiters(lock, c, Array.empty[Thread]:_*) }
+  ): Unit = { assertHasWaiters(lock, c, Array.empty[Thread]: _*) }
 
   /** Checks that condition c has exactly the given waiter threads.
    */
@@ -148,7 +148,7 @@ class ReentrantReadWriteLockTest extends JSR166Test {
     assertEquals(threads.length, lock.getWaitingThreads(c).size)
     assertEquals(
       new util.HashSet[Thread](lock.getWaitingThreads(c)),
-      new util.HashSet[Thread](util.Arrays.asList(threads:_*))
+      new util.HashSet[Thread](util.Arrays.asList(threads: _*))
     )
     lock.writeLock.unlock()
   }
@@ -187,14 +187,19 @@ class ReentrantReadWriteLockTest extends JSR166Test {
    */
   @Test def testConstructor(): Unit = {
     var lock = new ReentrantReadWriteLockTest.PublicReentrantReadWriteLock
+    println(lock)
     assertFalse(lock.isFair)
     assertNotWriteLocked(lock)
     assertEquals(0, lock.getReadLockCount)
+
     lock = new ReentrantReadWriteLockTest.PublicReentrantReadWriteLock(true)
+    println(lock)
     assertTrue(lock.isFair)
     assertNotWriteLocked(lock)
     assertEquals(0, lock.getReadLockCount)
+
     lock = new ReentrantReadWriteLockTest.PublicReentrantReadWriteLock(false)
+    println(lock)
     assertFalse(lock.isFair)
     assertNotWriteLocked(lock)
     assertEquals(0, lock.getReadLockCount)
@@ -1804,7 +1809,7 @@ class ReentrantReadWriteLockTest extends JSR166Test {
         foo()
       }.asInstanceOf[Action]
     )
-    // Needs Java MxBeans to execute this art of the test
+    // Needs Java MxBeans to execute this part of the test
     // val waitingForLock = () => {
     //   def foo() = {
     //     var className = null

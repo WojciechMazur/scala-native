@@ -47,4 +47,6 @@ void scalanative_collect() { GC_gcollect(); }
 
 void scalanative_register_weak_reference_handler(void *handler) {}
 
-INLINE void* scalanative_gc_switch_mutator_thread_state(void* newState){}
+INLINE void *scalanative_gc_switch_mutator_thread_state(void *newState) {
+    return newState;
+}

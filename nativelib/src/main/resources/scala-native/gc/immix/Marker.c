@@ -109,7 +109,6 @@ void Marker_markProgramStack(Heap *heap, Stack *stack) {
         word_t **stackBottom = thread->stackBottom;
         assert(thread->stackTop != NULL);
         word_t **current = thread->stackTop;
-        ptrdiff_t stackSize = stackBottom - current;
         assert(current != NULL);
         while (current <= stackBottom) {
             word_t *stackObject = *current;

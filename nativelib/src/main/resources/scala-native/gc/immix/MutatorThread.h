@@ -6,6 +6,7 @@
 #include "State.h"
 #include "Safepoint.h"
 #include <setjmp.h>
+#include <stdatomic.h>
 
 #ifndef MUTATOR_THREAD_H
 #define MUTATOR_THREAD_H
@@ -22,7 +23,7 @@ typedef enum MutatorThreadState {
 thread_local static safepoint_t* scalanative_gc_safepoint;
 
 typedef struct {
-    MutatorThreadState state;
+    volatile MutatorThreadState state;
     word_t **stackTop;
     word_t **stackBottom;
     safepoint_t* safepoint;
@@ -41,8 +42,6 @@ void MutatorThread_init(word_t **stackBottom);
 void MutatorThread_delete(MutatorThread *self);
 
 INLINE static MutatorThreadState MutatorThread_switchState(MutatorThread *self, MutatorThreadState newState){
-    MutatorThreadState prev = self->state;
-    self->state = newState;
     if(newState == MutatorThreadState_InSafeZone){
         // Dumps registers into 'regs' which is on stack
         jmp_buf regs;
@@ -50,6 +49,8 @@ INLINE static MutatorThreadState MutatorThread_switchState(MutatorThread *self, 
         word_t *dummy;
         self->stackTop = &dummy;
     }
+    MutatorThreadState prev = self->state;
+    self->state = newState;
     return prev;
 }
 

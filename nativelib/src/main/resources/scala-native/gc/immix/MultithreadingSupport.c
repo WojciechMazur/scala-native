@@ -54,8 +54,6 @@ void MutatorThread_synchronizationHandler(int signal) {
     MutatorThread *currentThread = currentMutatorThread;
     switch (signal) {
     case SIGSEGV:
-        // printf("Got seg fault,  wantsToCollect=%d thread=%lu\n",
-        //        atomic_load(&scalanative_gc_wantsToCollect), pthread_self());
         if (collectingThread == currentThread)
             break;
         if (!atomic_load(&scalanative_gc_wantsToCollect)) {
@@ -113,7 +111,8 @@ bool scalanative_gc_onCollectStart() {
     bool alreadyCollects =
         atomic_exchange(&scalanative_gc_wantsToCollect, true);
 
-    if (alreadyCollects) return true;
+    if (alreadyCollects)
+        return true;
     collectingThread = currentMutatorThread;
     MutatorThreadState prevState = MutatorThread_switchState(
         currentMutatorThread, MutatorThreadState_Synchronized);
@@ -129,6 +128,8 @@ bool scalanative_gc_onCollectStart() {
         MutatorThreads_foreach(mutatorThreads, node) {
             if (node->value->state == MutatorThreadState_Working) {
                 activeThreads++;
+                assert(node->value != currentMutatorThread);
+                assert(node->value != collectingThread);
             }
         }
         if (activeThreads > 0) {
@@ -164,6 +165,7 @@ static void ProxyThreadStartRoutine(void *args) {
 
     GC_register_my_thread(&dummy);
     originalFn(originalArgs);
+    GC_unregister_my_thread();
     free(args);
 }
 

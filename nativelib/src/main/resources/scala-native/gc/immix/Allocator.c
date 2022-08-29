@@ -159,6 +159,7 @@ bool Allocator_getNextLine(Allocator *allocator) {
  * free line of the new block.
  */
 bool Allocator_newBlock(Allocator *allocator) {
+    assert(allocator != NULL);
     BlockMeta *block = BlockList_Poll(&allocator->recycledBlocks);
     word_t *blockStart;
 
@@ -183,7 +184,6 @@ bool Allocator_newBlock(Allocator *allocator) {
         if (block == NULL) {
             return false;
         }
-        block->owner = allocator;
         blockStart = BlockMeta_GetBlockStart(allocator->blockMetaStart,
                                              allocator->heapStart, block);
 
@@ -192,8 +192,8 @@ bool Allocator_newBlock(Allocator *allocator) {
         BlockMeta_SetFirstFreeLine(block, LAST_HOLE);
     }
 
-    allocator->block = block;
     assert(block->owner == NULL || block->owner == allocator);
+    allocator->block = block;
     block->owner = allocator;
     allocator->blockStart = blockStart;
 

@@ -379,16 +379,13 @@ trait JSR166Test {
       pool: Executor,
       wrapper: Executor => PoolCleaner = cleaner(_: ExecutorService)
   )(fn: Executor => T): T = {
-    scala.util
-      .Using(wrapper(pool)) { cleaner => fn(pool) }
-      .fold(
-        t => {
-          throw new AssertionError("usingPoolClaner", t)
-          fail(s"Pool cleanup failed: $t")
-          null.asInstanceOf[T]
-        },
-        identity
-      )
+    val cleaner = wrapper(pool)
+    try fn(pool)
+    catch {
+      case t: Throwable =>
+        fail(s"Pool cleanup failed: $t")
+        null.asInstanceOf[T]
+    } finally cleaner.close()
   }
 
   def cleaner(pool: ExecutorService): PoolCleaner = new PoolCleaner(pool)
@@ -416,11 +413,11 @@ trait JSR166Test {
     try {
       pool.shutdown()
       if (!pool.awaitTermination(2 * LONG_DELAY_MS, MILLISECONDS)) {
-        try
+        try {
           threadFail(
             s"ExecutorService $pool did not terminate in a timely manner"
           )
-        finally {
+        } finally {
           // last resort, for the benefit of subsequent tests
           pool.shutdownNow()
           val res = pool.awaitTermination(MEDIUM_DELAY_MS, MILLISECONDS)
@@ -766,9 +763,9 @@ trait JSR166Test {
     def run() = ()
   }
 
-//     public static class NoOpCallable implements Callable {
-//         public Object call() { return Boolean.TRUE }
-//     }
+  class NoOpCallable extends Callable[Any] {
+    def call(): Any = java.lang.Boolean.TRUE
+  }
 
   final val TEST_STRING = "a test string"
 
@@ -894,20 +891,15 @@ trait JSR166Test {
     }
   }
 
-//     /**
-//      * Analog of CheckedRunnable for RecursiveAction
-//      */
-//     public abstract class CheckedRecursiveAction extends RecursiveAction {
-//         protected abstract void realCompute() throws Throwable
+  /** Analog of CheckedRunnable for RecursiveAction
+   */
+  abstract class CheckedRecursiveAction extends RecursiveAction {
+    protected def realCompute(): Unit
 
-//         @Override protected final void compute() {
-//             try {
-//                 realCompute()
-//             } catch (Throwable fail) {
-//                 threadUnexpectedException(fail)
-//             }
-//         }
-//     }
+    override protected final def compute(): Unit =
+      try realCompute()
+      catch { case fail: Throwable => threadUnexpectedException(fail) }
+  }
 
   /** Analog of CheckedCallable for RecursiveTask
    */
@@ -1103,9 +1095,9 @@ trait JSR166Test {
 //                                1000L, MILLISECONDS,
 //                                new SynchronousQueue<Runnable>())
 
-//     static <T> void shuffle(T[] array) {
-//         Collections.shuffle(Arrays.asList(array), ThreadLocalRandom.current())
-//     }
+  def shuffle[T](array: Array[T]) = {
+    Collections.shuffle(Arrays.asList(array), ThreadLocalRandom.current())
+  }
 
 //     /**
 //      * Returns the same String as would be returned by {@link
@@ -1114,10 +1106,10 @@ trait JSR166Test {
 //      *
 //      * @see System#identityHashCode
 //      */
-//     static String identityString(Object x) {
-//         return x.getClass().getName()
-//             + "@" + Integer.toHexString(System.identityHashCode(x))
-//     }
+  def identityString(x: AnyRef): String = {
+    x.getClass().getName() + "@" +
+      Integer.toHexString(System.identityHashCode(x))
+  }
 
 //     // --- Shared assertions for Executor tests ---
 

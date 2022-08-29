@@ -215,13 +215,6 @@ object PriorityBlockingQueue {
 @SuppressWarnings(Array("unchecked"))
 @SerialVersionUID(5595510919245408276L)
 class PriorityBlockingQueue[E <: AnyRef] private (
-    private var queue: Array[E],
-    elemComparator: Comparator[_ >: E]
-) extends util.AbstractQueue[E]
-    with BlockingQueue[E]
-    with Serializable {
-  import PriorityBlockingQueue._
-
   /** Priority queue represented as a balanced binary heap: the two children of
    *  queue[n] are queue[2*n+1] and queue[2*(n+1)]. The priority queue is
    *  ordered by comparator, or by the elements' natural ordering, if comparator
@@ -229,15 +222,18 @@ class PriorityBlockingQueue[E <: AnyRef] private (
    *  The element with the lowest value is in queue[0], assuming the queue is
    *  nonempty.
    */
-  // private var queue = null
+    private var queue: Array[E],
+    /** The comparator, or null if priority queue uses elements' natural ordering.   */
+    elemComparator: Comparator[_ >: E]
+) extends util.AbstractQueue[E]
+    with BlockingQueue[E]
+    with Serializable {
+  import PriorityBlockingQueue._
+
 
   /** The number of elements in the priority queue.
    */
   private var curSize = 0
-
-  // /** The comparator, or null if priority queue uses elements' natural ordering.
-  //  */
-  // private var comparator = null
 
   /** Lock used for all public operations.
    */
@@ -429,15 +425,21 @@ class PriorityBlockingQueue[E <: AnyRef] private (
     if (e == null) throw new NullPointerException
     val lock = this.lock
     lock.lock()
-    var n = curSize
+    var n: Int = 0
+    var cap: Int = 0
     var es = queue
-    var cap = es.length
-    while (n >= cap) tryGrow(es, cap)
+    while ({
+      n = curSize
+      es = queue
+      cap = es.length
+      n >= cap
+    }) tryGrow(es, cap)
     try {
       val cmp = comparator()
       if (cmp == null)
         PriorityBlockingQueue.siftUpComparable(n, e, es)
-      else PriorityBlockingQueue.siftUpUsingComparator(n, e, es, cmp)
+      else 
+        PriorityBlockingQueue.siftUpUsingComparator(n, e, es, cmp)
       curSize = n + 1
       notEmpty.signal()
     } finally lock.unlock()

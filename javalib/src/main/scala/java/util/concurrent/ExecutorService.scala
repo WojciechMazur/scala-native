@@ -21,25 +21,25 @@ trait ExecutorService extends Executor {
 
   def awaitTermination(timeout: Long, unit: TimeUnit): Boolean
 
-  def submit[T](task: Callable[T]): Future[T]
+  def submit[T <: AnyRef](task: Callable[T]): Future[T]
 
-  def submit[T](task: Runnable, result: T): Future[T]
+  def submit[T <: AnyRef](task: Runnable, result: T): Future[T]
 
   def submit(task: Runnable): Future[_]
 
-  def invokeAll[T](
+  def invokeAll[T <: AnyRef](
       tasks: java.util.Collection[_ <: Callable[T]]
   ): java.util.List[Future[T]]
 
-  def invokeAll[T](
+  def invokeAll[T <: AnyRef](
       tasks: java.util.Collection[_ <: Callable[T]],
       timeout: Long,
       unit: TimeUnit
   ): java.util.List[Future[T]]
 
-  def invokeAny[T](tasks: java.util.Collection[_ <: Callable[T]]): T
+  def invokeAny[T <: AnyRef](tasks: java.util.Collection[_ <: Callable[T]]): T
 
-  def invokeAny[T](
+  def invokeAny[T <: AnyRef](
       tasks: java.util.Collection[_ <: Callable[T]],
       timeout: Long,
       unit: TimeUnit

@@ -663,7 +663,7 @@ class ArrayBlockingQueueTest extends JSR166Test {
   }
   def checkToArray(q: ArrayBlockingQueue[Integer]): Unit = {
     val size: Int = q.size
-    val a1 = q.toArray.asInstanceOf[Array[Integer]]
+    val a1 = q.toArray().asInstanceOf[Array[Integer]]
     assertEquals(size, a1.length)
     val a2 = q.toArray(new Array[Integer](0))
     assertEquals(size, a2.length)

@@ -344,7 +344,7 @@ class ForkJoinPoolTest extends JSR166Test {
     val c = p.submit(awaiter(done))
     val al = new ArrayList[ForkJoinTask[_]]()
     p.drainTasks(al)
-    assertTrue("was empty",al.size() > 0)
+    assertTrue("was empty", al.size() > 0)
     al.forEach { r =>
       assertTrue(r == a || r == b || r == c)
       assertFalse(r.isDone())
@@ -381,7 +381,7 @@ class ForkJoinPoolTest extends JSR166Test {
 
   /** Completed submit(runnable) returns successfully
    */
-  @Test def     testSubmitRunnable(): Unit = usingPoolCleaner(new ForkJoinPool(1)) {
+  @Test def testSubmitRunnable(): Unit = usingPoolCleaner(new ForkJoinPool(1)) {
     (e: ExecutorService) =>
       val future = e.submit(new NoOpRunnable())
       assertNull(future.get())

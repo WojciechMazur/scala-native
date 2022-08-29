@@ -6,7 +6,7 @@
 
 package java.util.concurrent
 
-class ExecutorCompletionService[V](
+class ExecutorCompletionService[V <: AnyRef](
     val executor: Executor,
     val completionQueue: BlockingQueue[Future[V]]
 ) extends CompletionService[V] {
@@ -58,10 +58,10 @@ class ExecutorCompletionService[V](
 }
 
 object ExecutorCompletionService {
-  private class QueueingFuture[V](
+  private class QueueingFuture[V <: AnyRef](
       task: RunnableFuture[V],
       completionQueue: BlockingQueue[Future[V]]
-  ) extends FutureTask[Unit](task, null.asInstanceOf[V]) {
+  ) extends FutureTask(task, null.asInstanceOf[V]) {
     override protected def done(): Unit = completionQueue.add(task)
   }
 }

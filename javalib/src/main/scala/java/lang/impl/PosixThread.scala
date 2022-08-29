@@ -38,20 +38,20 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
   private[this] val nativeArray = new Array[scala.Byte](InnerBufferSize)
     .asInstanceOf[ByteArray]
 
-  private[java] val lock: Ptr[pthread_mutex_t] = {
+  private[java] val lock: Ptr[pthread_mutex_t] =
     nativeArray
       .at(LockOffset)
       .asInstanceOf[Ptr[pthread_mutex_t]]
-  }
 
-  private[java] val conditions = nativeArray
-    .at(ConditionsOffset)
-    .asInstanceOf[Ptr[pthread_cond_t]]
+  private[java] val conditions =
+    nativeArray
+      .at(ConditionsOffset)
+      .asInstanceOf[Ptr[pthread_cond_t]]
 
-  def condition(idx: Int) = idx match {
+  def condition(idx: Int): Ptr[pthread_cond_t] = idx match {
     case 0 => conditions
     case 1 =>
-      fromRawPtr[pthread_cond_t](
+      fromRawPtr(
         Intrinsics.elemRawPtr(
           toRawPtr(conditions),
           pthread_cond_t_size.toInt
@@ -59,16 +59,14 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
       )
   }
 
-  {
-    assert(0 == pthread_mutex_init(lock, mutexAttr))
-    assert(
-      0 == pthread_cond_init(
-        condition(ConditionRelativeIdx),
-        clockMonotonicCondAttr
-      )
+  assert(0 == pthread_mutex_init(lock, mutexAttr))
+  assert(
+    0 == pthread_cond_init(
+      condition(ConditionRelativeIdx),
+      clockMonotonicCondAttr
     )
-    assert(0 == pthread_cond_init(condition(ConditionAbsoluteIdx), null))
-  }
+  )
+  assert(0 == pthread_cond_init(condition(ConditionAbsoluteIdx), null))
 
   override def onTermination(): Unit = {
     super.onTermination()
@@ -85,7 +83,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
     pthread_setschedparam(handle, !policy, schedParam)
   }
 
-  def withGCSafeZone[T](fn: => T) = {
+  @alwaysinline def withGCSafeZone[T](fn: => T) = {
     val prev = MutatorThread.switchState(MutatorThread.State.InSafeZone)
     try fn
     finally MutatorThread.switchState(MutatorThread.State.Running)
@@ -115,9 +113,9 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
   }
 
   def interrupt(): Unit = {
-    // LockSupport.park
+    // for LockSupport.park
     this.unpark()
-    // Thread.sleep
+    // for Thread.sleep
     if (sleepEvent != UnsetEvent) {
       val eventSize = 8.toUInt
       val buf = stackalloc[Byte](eventSize)
@@ -148,8 +146,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
     // fast-path check, return if can skip parking
     if (counterAtromic.exchange(0) > 0) return
     // Avoid parking if there's an interrupt pending
-    if (thread.isInterrupted()) return // println("park: interrupted")
-
+    if (thread.isInterrupted()) return
     // Don't wait at all
     if (time < 0 || (isAbsolute && time == 0)) return
     val absTime = stackalloc[timespec]()
@@ -165,12 +162,11 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
 
       if (time == 0) {
         assert(conditionIdx == -1, "conditiond idx")
-        conditionIdx = ConditionRelativeIdx
+        conditionIdx = 0
         state = NativeThread.State.ParkedWaiting
-        val status = withGCSafeZone {
-          pthread_cond_wait(condition(conditionIdx), lock)
-        }
-        checkStatus(
+        val cond = condition(conditionIdx)
+        val status = withGCSafeZone(pthread_cond_wait(cond, lock))
+        assert(
           status == 0 ||
             (scalanative.runtime.Platform.isMac() && status == ETIMEDOUT),
           "park, wait"
@@ -183,43 +179,32 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
         val status = withGCSafeZone {
           pthread_cond_timedwait(condition(conditionIdx), lock, absTime)
         }
-        checkStatus(status, "park, timed-wait", s => s == 0 || s == ETIMEDOUT)
+        assert(status == 0 || status == ETIMEDOUT, "park, timed-wait")
       }
 
       conditionIdx = -1
       counter = 0
     } finally {
       state = NativeThread.State.Running
-      checkStatus(pthread_mutex_unlock(lock), "park, unlock", _ == 0)
+      val status = pthread_mutex_unlock(lock)
+      assert(status == 0, "park, unlock")
       atomic_thread_fence(memory_order.memory_order_seq_cst)
     }
   }
 
   override def unpark(): Unit = {
-    checkStatus(withGCSafeZone(pthread_mutex_lock(lock)) == 0, "unpark, lock")
+    assert(withGCSafeZone(pthread_mutex_lock(lock)) == 0, "unpark, lock")
     val s = counter
     counter = 1
     val index = conditionIdx
-    checkStatus(pthread_mutex_unlock(lock) == 0, "unpark, unlock")
+    assert(pthread_mutex_unlock(lock) == 0, "unpark, unlock")
 
     if (s < 1 && index != -1) {
-      checkStatus(
+      assert(
         0 == pthread_cond_signal(condition(index)),
         "unpark, signal"
       )
     }
-  }
-
-  private def checkStatus(cond: Boolean, label: => String) =
-    assert(cond, label)
-
-  private def checkStatus(
-      status: Int,
-      label: => String,
-      cond: Int => Boolean
-  ) = {
-    def reason = fromCString(libc.string.strerror(status))
-    assert(cond(status), s"$label, error #$status, reason: $reason")
   }
 
   private def toAbsoluteTime(
@@ -287,12 +272,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
   @inline def tryUnpark(): Unit = ???
 
   @inline
-  def withParkingLock(fn: => Unit): Unit = {
-    if (pthread_mutex_trylock(lock) != 0)
-      assert(withGCSafeZone(pthread_mutex_lock(lock)) == 0, "lock")
-    try fn
-    finally assert(pthread_mutex_unlock(lock) == 0, "unlock")
-  }
+  def withParkingLock(fn: => Unit): Unit = ???
 }
 
 private[lang] object PosixThread {
@@ -328,7 +308,6 @@ private[lang] object PosixThread {
     assert(condAttr != null)
     assert(0 == pthread_condattr_init(condAttr))
     assert(0 == pthread_condattr_setclock(condAttr, CLOCK_MONOTONIC))
-    assert(0 == pthread_condattr_setpshared(condAttr, PTHREAD_PROCESS_SHARED))
     condAttr
   }
 
@@ -336,7 +315,7 @@ private[lang] object PosixThread {
     val attr = malloc(sizeof[pthread_mutexattr_t])
       .asInstanceOf[Ptr[pthread_mutexattr_t]]
     assert(0 == pthread_mutexattr_init(attr))
-    assert(0 == pthread_mutexattr_settype(attr, PTHREAD_MUTEX_RECURSIVE))
+    assert(0 == pthread_mutexattr_settype(attr, PTHREAD_MUTEX_NORMAL))
     attr
   }
   def apply(thread: Thread): PosixThread = {

@@ -187,19 +187,16 @@ class ReentrantReadWriteLockTest extends JSR166Test {
    */
   @Test def testConstructor(): Unit = {
     var lock = new ReentrantReadWriteLockTest.PublicReentrantReadWriteLock
-    println(lock)
     assertFalse(lock.isFair)
     assertNotWriteLocked(lock)
     assertEquals(0, lock.getReadLockCount)
 
     lock = new ReentrantReadWriteLockTest.PublicReentrantReadWriteLock(true)
-    println(lock)
     assertTrue(lock.isFair)
     assertNotWriteLocked(lock)
     assertEquals(0, lock.getReadLockCount)
 
     lock = new ReentrantReadWriteLockTest.PublicReentrantReadWriteLock(false)
-    println(lock)
     assertFalse(lock.isFair)
     assertNotWriteLocked(lock)
     assertEquals(0, lock.getReadLockCount)

@@ -72,7 +72,7 @@ package java.util.concurrent;
  *    Doug Lea
  */
 @SerialVersionUID(5232453952276485070L)
-abstract class RecursiveAction() extends ForkJoinTask[Unit] {
+abstract class RecursiveAction() extends ForkJoinTask[Void] {
 
   /** The main computation performed by this task.
    */
@@ -83,11 +83,11 @@ abstract class RecursiveAction() extends ForkJoinTask[Unit] {
    *  @return
    *    {@code null} always
    */
-  final def getRawResult(): Unit = ()
+  final def getRawResult(): Void = null
 
   /** Requires null completion value.
    */
-  protected final def setRawResult(mustBeNull: Unit): Unit = ()
+  protected final def setRawResult(mustBeNull: Void): Unit = ()
 
   /** Implements execution conventions for RecursiveActions.
    */

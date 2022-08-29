@@ -250,7 +250,7 @@ class AtomicReference[V <: AnyRef](@volatile private var value: V)
    *  @return
    *    the String representation of the current value
    */
-  override def toString(): String = get().toString()
+  override def toString(): String = String.valueOf(get())
 
   /** Returns the current value, with memory semantics of reading as if the
    *  variable was declared non-{@code volatile}.

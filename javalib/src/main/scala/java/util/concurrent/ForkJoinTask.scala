@@ -4,23 +4,18 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-package java.util.concurrent;
+package java.util.concurrent
 
-import java.io.Serializable;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
-import java.lang.reflect.Constructor;
-import java.util.Collection;
-import java.{util => ju}
-import java.util.RandomAccess;
-import java.util.concurrent.locks.LockSupport;
-import scala.annotation.tailrec
-import scala.util.control.Breaks
-import java.util.concurrent.atomic.{AtomicReference, AtomicInteger}
-import scala.scalanative.annotation.stub
-import scala.scalanative.libc.atomic.{CAtomicInt, CAtomicRef}
+import java.io.Serializable
+import java.util._
+import java.util.RandomAccess
+import java.util.concurrent.locks.LockSupport
+
+import scala.scalanative.libc.atomic._
 import scala.scalanative.runtime.{fromRawPtr, Intrinsics}
 import scala.scalanative.unsafe.{Ptr, stackalloc}
+
+import scala.annotation.tailrec
 
 /** Abstract base class for tasks that run within a {@link ForkJoinPool}. A
  *  {@code ForkJoinTask} is a thread-like entity that is much lighter weight
@@ -34,11 +29,10 @@ import scala.scalanative.unsafe.{Ptr, stackalloc}
  *  {@link #fork}, {@link #invoke}, or related methods. Once started, it will
  *  usually in turn start other subtasks. As indicated by the name of this
  *  class, many programs using {@code ForkJoinTask} employ only methods {@link
- *  #fork} and {@link #join}, or derivatives such as {@link
- *  #invokeAll(ForkJoinTask...) invokeAll}. However, this class also provides a
- *  number of other methods that can come into play in advanced usages, as well
- *  as extension mechanics that allow support of new forms of fork/join
- *  processing.
+ *  #fork} and {@link #join}, or derivatives such as {@link #invokeAll(..)
+ *  invokeAll}. However, this class also provides a number of other methods that
+ *  can come into play in advanced usages, as well as extension mechanics that
+ *  allow support of new forms of fork/join processing.
  *
  *  <p>A {@code ForkJoinTask} is a lightweight form of {@link Future}. The
  *  efficiency of {@code ForkJoinTask}s stems from a set of restrictions (that
@@ -105,6 +99,21 @@ import scala.scalanative.unsafe.{Ptr, stackalloc}
  *  encountered an exception, in which case {@link #getException} will return
  *  either the encountered exception or {@link CancellationException}.
  *
+ *  <p>By default, method {@link #cancel} ignores its {@code
+ *  mayInterruptIfRunning} argument, separating task cancellation from the
+ *  interruption status of threads running tasks. However, the method is
+ *  overridable to accommodate cases in which running tasks must be cancelled
+ *  using interrupts. This may arise when adapting Callables that cannot check
+ *  {@code isCancelled()} task status. Tasks constructed with the {@link
+ *  #adaptInterruptible} adaptor track and interrupt the running thread upon
+ *  {@code cancel(true)}. Reliable usage requires awareness of potential
+ *  consequences: Method bodies should ignore stray interrupts to cope with the
+ *  inherent possibility that a late interrupt issued by another thread after a
+ *  given task has completed may (inadvertently) interrupt some future task.
+ *  Further, interruptible tasks should not in general create subtasks, because
+ *  an interrupt intended for a given task may be consumed by one of its
+ *  subtasks, or vice versa.
+ *
  *  <p>The ForkJoinTask class is not usually directly subclassed. Instead, you
  *  subclass one of the abstract classes that support a particular style of
  *  fork/join processing, typically {@link RecursiveAction} for most
@@ -164,10 +173,7 @@ import scala.scalanative.unsafe.{Ptr, stackalloc}
  *  @author
  *    Doug Lea
  */
-@SerialVersionUID(-7721805057305804111L)
-abstract class ForkJoinTask[V] private[concurrent] ()
-    extends Future[V]
-    with Serializable {
+abstract class ForkJoinTask[V]() extends Future[V] with Serializable {
   import ForkJoinTask._
 
   // Fields
@@ -182,14 +188,10 @@ abstract class ForkJoinTask[V] private[concurrent] ()
   private val auxAtomic = new CAtomicRef[Aux](
     fromRawPtr(Intrinsics.classFieldRawPtr(this, "aux"))
   )
-  private def casStatus(expected: Int, value: Int): Boolean = {
-    val expectedPtr = stackalloc[Int]()
-    !expectedPtr = expected
-    statusAtomic.compareExchangeWeak(expectedPtr, value)
-  }
-  private def getAndBitwiseOrStatus(v: Int): Int =
-    statusAtomic.fetchXor(v)
-  private def casAux(c: Aux, v: Aux): Boolean = 
+  private def casStatus(expected: Int, value: Int): Boolean =
+    statusAtomic.compareExchangeWeak(expected, value)
+  private def getAndBitwiseOrStatus(v: Int): Int = statusAtomic.fetchOr(v)
+  private def casAux(c: Aux, v: Aux): Boolean =
     auxAtomic.compareExchangeStrong(c, v)
 
   /** Removes and unparks waiters */
@@ -207,10 +209,12 @@ abstract class ForkJoinTask[V] private[concurrent] ()
     }
 
     aux match {
-      case a @ Aux(_, null) =>
-        if (casAux(a, null)) unparkThreads(a)
-        else signalWaiters()
-      case _ => ()
+      case null => ()
+      case a =>
+        if (a.ex == null) {
+          if (casAux(a, null)) unparkThreads(a)
+          else signalWaiters()
+        }
     }
   }
 
@@ -218,10 +222,10 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    *  @return
    *    status on exit
    */
-  private def setDone(): Int = {
-    val result = getAndBitwiseOrStatus(DONE) | DONE;
-    signalWaiters();
-    result
+  private def setDone() = {
+    val s = getAndBitwiseOrStatus(DONE) | DONE
+    signalWaiters()
+    s
   }
 
   /** Sets ABNORMAL DONE status unless already done, and wakes up threads
@@ -232,9 +236,12 @@ abstract class ForkJoinTask[V] private[concurrent] ()
   private def trySetCancelled(): Int = {
     var s = status
     while ({
-      val lastStatus = status
-      s = lastStatus | DONE | ABNORMAL
-      lastStatus >= 0 && !casStatus(lastStatus, s)
+      s = status
+      s >= 0 && {
+        val prevStatus = s
+        s |= (DONE | ABNORMAL)
+        !casStatus(prevStatus, s)
+      }
     }) ()
     signalWaiters()
     s
@@ -249,26 +256,21 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    *    status on exit
    */
   private[concurrent] final def trySetThrown(ex: Throwable): Int = {
-    val h = Aux(Thread.currentThread(), ex)
+    val h = new Aux(Thread.currentThread(), ex)
     var p: Aux = null
     var installed = false
-    var s: Int = status
-    import Breaks._
-    breakable {
-      while ({
-        s = status
-        s >= 0
-      }) {
-        val a = aux
-        if (!installed && {
-              (a == null || a.ex == null) && {
-                installed = casAux(a, h)
-                installed
-              }
-            }) p = a // list of waiters replaced by h
-        if (installed && casStatus(s, { s |= (DONE | ABNORMAL | THROWN); s }))
-          break()
-      }
+    var s = status
+    var break = false
+    while (!break && { s = status; s >= 0 }) {
+      val a = aux
+      if (!installed && {
+            (a == null || a.ex == null) && {
+              installed = casAux(a, h)
+              installed
+            }
+          }) p = a // list of waiters replaced by h
+      if (installed && casStatus(s, { s |= (DONE | ABNORMAL | THROWN); s }))
+        break = true
     }
     while (p != null) {
       LockSupport.unpark(p.thread)
@@ -282,8 +284,7 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    *  @return
    *    status on exit
    */
-  private[concurrent] def trySetException(ex: Throwable): Int =
-    trySetThrown(ex);
+  private[concurrent] def trySetException(ex: Throwable) = trySetThrown(ex)
 
   /** Unless done, calls exec and records status if completed, but doesn't wait
    *  for completion otherwise.
@@ -359,28 +360,23 @@ abstract class ForkJoinTask[V] private[concurrent] ()
       if (internal) {
         s = p.helpJoin(this, q)
         if (s < 0) return s
-        if (s == UNCOMPENSATE) uncompensate = p;
+        if (s == UNCOMPENSATE) uncompensate = p
         interruptible = false;
       }
     }
-    return awaitDone(interruptible, deadline, uncompensate);
+    awaitDone(interruptible, deadline, uncompensate)
   }
 
-  /** Helps and/or waits for completion from join, get, or invoke; called from
-   *  either internal or external threads.
+  /** Possibly blocks until task is done or interrupted or timed out.
    *
-   *  @param pool
-   *    if nonnull, known submitted pool, else assumes current pool
-   *  @param ran
-   *    true if task known to have been exec'd
    *  @param interruptible
-   *    true if park interruptibly when external
-   *  @param timed
-   *    true if use timed wait
-   *  @param nanos
-   *    if timed, timeout value
+   *    true if wait can be cancelled by interrupt
+   *  @param deadline
+   *    if non-zero use timed waits and possibly timeout
+   *  @param pool
+   *    if nonnull pool to uncompensate after unblocking
    *  @return
-   *    ABNORMAL if interrupted, else status on exit
+   *    status on exit, or ABNORMAL if interrupted while waiting
    */
   private def awaitDone(
       interruptible: Boolean,
@@ -392,71 +388,60 @@ abstract class ForkJoinTask[V] private[concurrent] ()
     var queued = false
     var parked = false
     var node: Aux = null
-    import Breaks._
-    breakable {
-      while ({
-        s = status
-        s >= 0
-      }) {
-        if (parked && Thread.interrupted()) {
-          if (interruptible) {
-            s = ABNORMAL
-            break()
-          }
-          interrupted = true
-        } else if (queued) {
-          if (deadline != 0L) {
-            val ns = deadline - System.nanoTime()
-            if (ns <= 0L) break()
-            else LockSupport.parkNanos(ns)
-          } else LockSupport.park()
-          parked = true
-        } else if (node != null) {
-          val a = aux
-          if (a != null && a.ex != null)
-            Thread.onSpinWait() // exception in progress
-          else {
-            node.next = a
-            queued = casAux(node.next, node)
-            if (queued) LockSupport.setCurrentBlocker(this)
-          }
+    var break = false
+    while (!break && { s = status; s >= 0 }) {
+      if (parked && Thread.interrupted()) {
+        if (interruptible) {
+          s = ABNORMAL
+          break = true
         } else
-          try node = new Aux(Thread.currentThread(), null)
-          catch {
-            // try to cancel if cannot create
-            case ex: Throwable => casStatus(s, s | DONE | ABNORMAL)
-          }
+          interrupted = true
+      } else if (queued) {
+        if (deadline != 0L) {
+          val ns = deadline - System.nanoTime()
+          if (ns <= 0L) break = true
+          else LockSupport.parkNanos(ns)
+        } else LockSupport.park()
+        parked = true
+      } else if (node != null) {
+        val a = aux
+        if (a != null && a.ex != null)
+          Thread.onSpinWait() // exception in progress
+        else {
+          node.next = a
+          queued = casAux(a, node)
+          if (queued) LockSupport.setCurrentBlocker(this)
+        }
+      } else {
+        try node = new Aux(Thread.currentThread(), null)
+        catch {
+          // try to cancel if cannot create
+          case ex: Throwable =>            casStatus(s, s | DONE | ABNORMAL)
+        }
       }
     }
 
     if (pool != null) pool.uncompensate()
-
     if (queued) {
       LockSupport.setCurrentBlocker(null)
       if (s >= 0) { // cancellation similar to AbstractQueuedSynchronizer
-        val outer = new Breaks()
-        val inner = new Breaks()
-        var a: Aux = null
-        outer.breakable {
-          while ({
-            a = aux
-            a != null && a.ex == null
-          }) {
-            inner.breakable {
-              var trail: Aux = null
-              while (true) {
-                val next = a.next
-                if (a == node) {
-                  if (trail != null) trail.casNext(trail, next)
-                  else if (casAux(a, next))
-                    outer.break() // cannot be re-encountered
-                  else inner.break() // restart
-                } else {
-                  trail = a
-                  a = next
-                  if (a == null) outer.break()
-                }
-              }
+        // outer // todo: labels are not supported
+        var a = aux
+        var breakOuter = false
+        while (!breakOuter && { a = aux; a != null && a.ex == null }) {
+          var trail: Aux = null
+          var break = false
+          while (!break || !breakOuter) {
+            val next = a.next
+            if (a == node) {
+              if (trail != null) trail.casNext(trail, next)
+              else if (casAux(a, next)) breakOuter = true
+              break = true // restart
+            } else {
+
+              trail = a
+              a = next
+              if (next == null) breakOuter = true
             }
           }
         }
@@ -483,10 +468,10 @@ abstract class ForkJoinTask[V] private[concurrent] ()
   private def getThrowableException(): Throwable = {
     val a = aux
     val ex = if (a != null) a.ex else null
-    if (ex != null && a.thread != Thread.currentThread()) {
-      // JSR166 used reflectie initialziation here
-      ex
-    } else null
+    // if(ex != nulll && a.thread != Thread.currentThread()){
+    //   // JSR166 used reflective initialization here
+    // }
+    ex
   }
 
   /** Returns exception associated with the given status, or null if none.
@@ -506,17 +491,16 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    *  CancellationException if none recorded.
    */
   private def reportException(s: Int): Unit = {
-    val exception = (s & THROWN) match {
-      case 0 => null
-      case _ => getThrowableException()
-    }
-    uncheckedThrow(exception)
+    uncheckedThrow[RuntimeException](
+      if ((s & THROWN) != 0) getThrowableException()
+      else null
+    )
   }
 
   /** Throws exception for (timed or untimed) get, wrapping if necessary in an
    *  ExecutionException.
    */
-  private def reportExecutionException(s: Int) = {
+  private def reportExecutionException(s: Int): Unit = {
     val exception: Throwable =
       if (s == ABNORMAL) new InterruptedException()
       else if (s >= 0) new TimeoutException()
@@ -526,10 +510,8 @@ abstract class ForkJoinTask[V] private[concurrent] ()
           case ex   => new ExecutionException(ex)
         }
       } else null
-    uncheckedThrow(exception)
+    uncheckedThrow[RuntimeException](exception)
   }
-
-  // public methods
 
   /** Arranges to asynchronously execute this task in the pool the current task
    *  is running in, if applicable, or using the {@link
@@ -565,14 +547,9 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    *    the computed result
    */
   final def join(): V = {
-    val s = {
-      val s = status
-      if (s >= 0) awaitJoin(false, false, false, 0L)
-      else s
-    }
-    if ((s & ABNORMAL) != 0) {
-      reportException(s)
-    }
+    var s = status
+    if (s >= 0) s = awaitJoin(false, false, false, 0L)
+    if ((s & ABNORMAL) != 0) reportException(s)
     getRawResult()
   }
 
@@ -588,9 +565,7 @@ abstract class ForkJoinTask[V] private[concurrent] ()
     if (s >= 0) {
       s = awaitJoin(true, false, false, 0L)
     }
-    if ((s & ABNORMAL) != 0) {
-      reportException(s)
-    }
+    if ((s & ABNORMAL) != 0) reportException(s)
     getRawResult()
   }
 
@@ -599,10 +574,9 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    *  reason. If successful, and this task has not started when {@code cancel}
    *  is called, execution of this task is suppressed. After this method returns
    *  successfully, unless there is an intervening call to {@link
-   *  #reinitialize}, subsequent calls to {@link #isCancelled}, {@link
-   *  #isDone()}, and {@code cancel} will return {@code true} and calls to
-   *  {@link #join} and related methods will result in {@code
-   *  CancellationException}.
+   *  #reinitialize}, subsequent calls to {@link #isCancelled}, {@link #isDone},
+   *  and {@code cancel} will return {@code true} and calls to {@link #join} and
+   *  related methods will result in {@code CancellationException}.
    *
    *  <p>This method may be overridden in subclasses, but if so, must still
    *  ensure that these properties hold. In particular, the {@code cancel}
@@ -620,12 +594,10 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    *  @return
    *    {@code true} if this task is now cancelled
    */
-  def cancel(mayInterruptIfRunning: Boolean): Boolean =
+  override def cancel(mayInterruptIfRunning: Boolean): Boolean =
     (trySetCancelled() & (ABNORMAL | THROWN)) == ABNORMAL
-
-  final def isDone(): Boolean = status < 0
-
-  final def isCancelled(): Boolean =
+  override final def isDone(): Boolean = status < 0
+  override final def isCancelled(): Boolean =
     (status & (ABNORMAL | THROWN)) == ABNORMAL
 
   /** Returns {@code true} if this task threw an exception or was cancelled.
@@ -642,9 +614,8 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    *    {@code true} if this task completed without throwing an exception and
    *    was not cancelled
    */
-  final def isCompletedNormally(): Boolean = {
-    (status & (DONE | ABNORMAL)) == DONE;
-  }
+  final def isCompletedNormally(): Boolean =
+    (status & (DONE | ABNORMAL)) == DONE
 
   /** Returns the exception thrown by the base computation, or a {@code
    *  CancellationException} if cancelled, or {@code null} if none or if the
@@ -653,9 +624,7 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    *  @return
    *    the exception, or {@code null} if none
    */
-  final def getException(): Throwable = {
-    getException(status);
-  }
+  final def getException(): Throwable = getException(status)
 
   /** Completes this task abnormally, and if not already aborted or cancelled,
    *  causes it to throw the given exception upon {@code join} and related
@@ -704,9 +673,7 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    *
    *  @since 1.8
    */
-  final def quietlyComplete(): Unit = {
-    setDone();
-  }
+  final def quietlyComplete(): Unit = setDone()
 
   /** Waits if necessary for the computation to complete, and then retrieves its
    *  result.
@@ -723,7 +690,7 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    */
   @throws[InterruptedException]
   @throws[ExecutionException]
-  final def get(): V = {
+  override final def get(): V = {
     val s = awaitJoin(false, true, false, 0L)
     if ((s & ABNORMAL) != 0) reportExecutionException(s)
     getRawResult()
@@ -751,11 +718,9 @@ abstract class ForkJoinTask[V] private[concurrent] ()
   @throws[InterruptedException]
   @throws[ExecutionException]
   @throws[TimeoutException]
-  final def get(timeout: Long, unit: TimeUnit): V = {
-    val nanos = unit.toNanos(timeout)
-    val s = awaitJoin(false, true, true, nanos)
-    if (s >= 0 || (s & ABNORMAL) != 0)
-      reportExecutionException(s)
+  override final def get(timeout: Long, unit: TimeUnit): V = {
+    val s = awaitJoin(false, true, true, unit.toNanos(timeout))
+    if (s >= 0 || (s & ABNORMAL) != 0) reportExecutionException(s)
     getRawResult()
   }
 
@@ -764,16 +729,14 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    *  have been cancelled or otherwise known to have aborted.
    */
   final def quietlyJoin(): Unit = {
-    if (status >= 0)
-      awaitJoin(false, false, false, 0L);
+    if (status >= 0) awaitJoin(false, false, false, 0L)
   }
 
   /** Commences performing this task and awaits its completion if necessary,
    *  without returning its result or throwing its exception.
    */
   final def quietlyInvoke(): Unit = {
-    if (doExec() >= 0)
-      awaitJoin(true, false, false, 0L)
+    if (doExec() >= 0) awaitJoin(true, false, false, 0L)
   }
 
   /** Resets the internal bookkeeping state of this task, allowing a subsequent
@@ -791,7 +754,7 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    */
   def reinitialize(): Unit = {
     aux = null
-    status = 0;
+    status = 0
   }
 
   /** Tries to unschedule this task for execution. This method will typically
@@ -803,18 +766,14 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    *  @return
    *    {@code true} if unforked
    */
-  def tryUnfork(): Boolean = {
-    Thread.currentThread() match {
-      case worker: ForkJoinWorkerThread =>
-        val q = worker.workQueue
-        q != null && q.tryUnpush(this)
-      case _ =>
-        val q = ForkJoinPool.commonQueue()
-        q != null && q.externalTryUnpush(this)
-    }
+  def tryUnfork(): Boolean = Thread.currentThread() match {
+    case worker: ForkJoinWorkerThread =>
+      val q = worker.workQueue
+      q != null && q.tryUnpush(this)
+    case _ =>
+      val q = ForkJoinPool.commonQueue()
+      q != null && q.externalTryUnpush(this)
   }
-
-  // Extension methods
 
   /** Returns the result that would be returned by {@link #join}, even if this
    *  task completed abnormally, or {@code null} if this task is not known to
@@ -846,9 +805,7 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    *  @return
    *    {@code true} if this task is known to have completed normally
    */
-  protected def exec(): Boolean;
-
-  // tag operations
+  protected def exec(): Boolean
 
   /** Returns the tag for this task.
    *
@@ -856,9 +813,7 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    *    the tag for this task
    *  @since 1.8
    */
-  final def getForkJoinTaskTag(): Short = {
-    status.toShort;
-  }
+  final def getForkJoinTaskTag(): Short = status.toShort
 
   /** Atomically sets the tag value for this task and returns the old value.
    *
@@ -868,13 +823,11 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    *    the previous value of the tag
    *  @since 1.8
    */
-  @stub()
+  @tailrec
   final def setForkJoinTaskTag(newValue: Short): Short = {
-    ???
-    // for (int s;;) {
-    //     if (status.compareAndSet(s = status, (s & ~SMASK) | (newValue & SMASK)))
-    //         return (short)s;
-    // }
+    val s = status
+    if (casStatus(s, (s & ~SMASK) | (newValue & SMASK))) s.toShort
+    else setForkJoinTaskTag(newValue)
   }
 
   /** Atomically conditionally sets the tag value for this task. Among other
@@ -892,18 +845,15 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    *    expect} and was changed to {@code update}.
    *  @since 1.8
    */
-  @stub()
+  @tailrec
   final def compareAndSetForkJoinTaskTag(
       expect: Short,
       update: Short
   ): Boolean = {
-    ???
-    // for (int s;;) {
-    //     if ((short)(s = status) != expect)
-    //         return false;
-    //     if (status.compareAndSet(s, (s & ~SMASK) | (update & SMASK)))
-    //         return true;
-    // }
+    val s = status
+    if (s.toShort != expect) false
+    else if (casStatus(s, (s & ~SMASK) | (update & SMASK))) true
+    else compareAndSetForkJoinTaskTag(expect, update)
   }
 
   /** Saves this task to a stream (that is, serializes it).
@@ -917,12 +867,13 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    *    {@code null} if none
    */
   @throws[java.io.IOException]
-  @stub()
   private def writeObject(s: java.io.ObjectOutputStream): Unit = {
-    ???
-    // Aux a;
-    // s.defaultWriteObject();
-    // s.writeObject((a = aux) == null ? null : a.ex);
+    val a = aux
+    s.defaultWriteObject()
+    s.writeObject(
+      if (a == null) null
+      else a.ex
+    )
   }
 
   /** Reconstitutes this task from a stream (that is, deserializes it).
@@ -935,15 +886,11 @@ abstract class ForkJoinTask[V] private[concurrent] ()
    */
   @throws[java.io.IOException]
   @throws[ClassNotFoundException]
-  @stub()
   private def readObject(s: java.io.ObjectInputStream): Unit = {
-    ???
-    // s.defaultReadObject();
-    // Object ex = s.readObject();
-    // if (ex != null)
-    //     trySetThrown((Throwable)ex);
+    s.defaultReadObject()
+    val ex = s.readObject
+    if (ex != null) trySetThrown(ex.asInstanceOf[Throwable])
   }
-
 }
 
 object ForkJoinTask {
@@ -970,19 +917,15 @@ object ForkJoinTask {
    *  (never both). Waiting threads prepend nodes Treiber-stack-style.
    *  Signallers detach and unpark waiters. Cancelled waiters try to unsplice.
    */
-  private[concurrent] final case class Aux(
-      thread: Thread,
-      ex: Throwable
+  final private[concurrent] class Aux private[concurrent] (
+      val thread: Thread,
+      val ex: Throwable // null if a waiter
   ) {
-    var next: Aux = _
-    val nextAtomic = new CAtomicRef[Aux](
-      fromRawPtr(Intrinsics.classFieldRawPtr(this, "next"))
-    )
-    def casNext(c: Aux, v: Aux): Boolean = { // used only in cacellation
-      nextAtomic.compareExchangeStrong(c, v)
-    }
+    @volatile var next: Aux = _
+    final private val nextAtomic =
+      new CAtomicRef[Aux](fromRawPtr(Intrinsics.classFieldRawPtr(this, "next")))
+    final def casNext(c: Aux, v: Aux) = nextAtomic.compareExchangeStrong(c, v)
   }
-
   /*
    * The status field holds bits packed into a single int to ensure
    * atomicity.  Status is initially zero, and takes on nonnegative
@@ -993,50 +936,42 @@ object ForkJoinTask {
    * control bits occupy only (some of) the upper half (16 bits) of
    * status field. The lower bits are used for user-defined tags.
    */
-  private final val DONE = 1 << 31; // must be negative
-  private final val ABNORMAL = 1 << 16;
-  private final val THROWN = 1 << 17;
-  private final val SMASK = 0xffff; // short bits for tags
-  private final val UNCOMPENSATE = 1 << 16; // helpJoin return sentinel
+  private final val DONE = 1 << 31 // must be negative
+  private final val ABNORMAL = 1 << 16
+  private final val THROWN = 1 << 17
+  private final val SMASK = 0xffff // short bits for tags
+  private final val UNCOMPENSATE = 1 << 16 // helpJoin return sentinel
 
-  // Support for atomic operations
-  private final var STATUS: VarHandle = _
-  private final var AUX: VarHandle = _
-
-  private[concurrent] def isExceptionalStatus(s: Int): Boolean = { // needed by subclasses
-    (s & THROWN) != 0;
-  }
+  private[concurrent] def isExceptionalStatus(s: Int) = (s & THROWN) != 0
 
   /** Cancels, ignoring any exceptions thrown by cancel. Cancel is spec'ed not
    *  to throw any exceptions, but if it does anyway, we have no recourse, so
    *  guard against this case.
    */
-  private[concurrent] final def cancelIgnoringExceptions(t: Future[_]): Unit = {
-    if (t != null) {
-      try {
-        t.cancel(true);
-      } catch {
-        case _: Throwable => ()
-      }
-    }
+  private[concurrent] def cancelIgnoringExceptions(t: Future[_]): Unit = {
+    if (t != null)
+      try t.cancel(true)
+      catch { case _: Throwable => () }
   }
 
   /** A version of "sneaky throw" to relay exceptions in other contexts.
    */
-  private[concurrent] def rethrow(ex: Throwable): Unit =
+  private[concurrent] def rethrow(ex: Throwable): Unit = {
     uncheckedThrow[RuntimeException](ex)
+  }
 
   /** The sneaky part of sneaky throw, relying on generics limitations to evade
    *  compiler complaints about rethrowing unchecked exceptions. If argument
    *  null, throws CancellationException.
    */
-  private[concurrent] def uncheckedThrow[T <: Throwable](t: Throwable): Unit =
+  private[concurrent] def uncheckedThrow[T <: Throwable](t: Throwable): Unit = {
     // In the Java t would need to be casted to T to satisfy exceptions handling
     // however in Scala we don't have a checked exceptions so throw exception as it is
     t match {
       case null => throw new CancellationException()
       case _    => throw t
     }
+  }
 
   /** Forks the given tasks, returning when {@code isDone} holds for each task
    *  or an (unchecked) exception is encountered, in which case the exception is
@@ -1056,20 +991,17 @@ object ForkJoinTask {
    *    if any task is null
    */
   def invokeAll(t1: ForkJoinTask[_], t2: ForkJoinTask[_]): Unit = {
-    // int s1, s2;
-    if (t1 == null || t2 == null)
-      throw new NullPointerException()
+    var s1 = 0
+    var s2 = 0
+    if (t1 == null || t2 == null) throw new NullPointerException
     t2.fork()
-    val s1 = {
-      val s1 = t1.doExec()
-      if (s1 >= 0) t1.awaitJoin(true, false, false, 0L)
-      else s1
-    }
+    s1 = t1.doExec()
+    if (s1 >= 0) s1 = t1.awaitJoin(true, false, false, 0L)
     if ((s1 & ABNORMAL) != 0) {
       cancelIgnoringExceptions(t2)
       t1.reportException(s1)
     } else {
-      val s2 = t2.awaitJoin(false, false, false, 0L)
+      s2 = t2.awaitJoin(false, false, false, 0L)
       if ((s2 & ABNORMAL) != 0)
         t2.reportException(s2)
     }
@@ -1091,49 +1023,35 @@ object ForkJoinTask {
    *    if any task is null
    */
   def invokeAll(tasks: Array[ForkJoinTask[_]]): Unit = {
+    var ex = null: Throwable
     val last = tasks.length - 1
-    var ex: Throwable = null: Throwable
-    import Breaks._
-    breakable {
-      for (i <- last to 0 by -1) {
-        val t = tasks(i)
-        if (t == null) {
-          ex = new NullPointerException()
-          break()
-        } else if (i == 0) {
-          val s = {
-            val s = t.doExec()
-            if (s >= 0) t.awaitJoin(true, false, false, 0L)
-            else s
-          }
-          if ((s & ABNORMAL) != 0) {
-            ex = t.getException(s)
-            break()
-          }
-        }
+    (last to 0 by -1).takeWhile { i =>
+      val t = tasks(i)
+      if (t == null) {
+        ex = new NullPointerException()
+        false
+      } else if (i == 0) {
+        var s = t.doExec()
+        if (s >= 0) s = t.awaitJoin(true, false, false, 0L)
+        if ((s & ABNORMAL) != 0) ex = t.getException(s)
+        false
+      } else {
         t.fork()
+        true
       }
     }
-    if (ex == null) {
-      for (i <- 1 to last) {
-        val t = tasks(i)
-        if (t != null) {
-          val s = {
-            val s = t.status
-            if (s >= 0) t.awaitJoin(false, false, false, 0L)
-            else s
-          }
-          if ((s & ABNORMAL) != 0) {
-            ex = t.getException(s)
-            if (ex != null) break()
-          }
-        }
+
+    if (ex == null) (1 to last).takeWhile { i =>
+      val t = tasks(i)
+      t == null || {
+        var s = t.status
+        if (s >= 0)  s = t.awaitJoin(false, false, false, 0L) 
+        if ((s & ABNORMAL) != 0) ex = t.getException(s)
+        ex == null
       }
     }
     if (ex != null) {
-      for (i <- 1 to last) {
-        cancelIgnoringExceptions(tasks(i))
-      }
+      for (i <- 1 to last) { cancelIgnoringExceptions(tasks(i)) }
       rethrow(ex)
     }
   }
@@ -1158,47 +1076,35 @@ object ForkJoinTask {
    *    if tasks or any element are null
    */
   def invokeAll[T <: ForkJoinTask[_]](tasks: Collection[T]): Collection[T] = {
-    def invokeAllImpl(ts: ju.List[_ <: ForkJoinTask[_]]): Unit = {
+    def invokeAllImpl(ts: java.util.List[_ <: ForkJoinTask[_]]): Unit = {
       var ex: Throwable = null
       val last = ts.size() - 1 // nearly same as array version
-      import Breaks._
-      breakable {
-        for (i <- last to 0 by -1) {
-          ts.get(i) match {
-            case null =>
-              ex = new NullPointerException()
-              break()
+      (last to 0 by -1).takeWhile { i =>
+        ts.get(i) match {
+          case null =>
+            ex = new NullPointerException()
+            false
 
-            case t: ForkJoinTask[_] if i == 0 =>
-              val s = {
-                val s = t.doExec()
-                if (s >= 0) t.awaitJoin(true, false, false, 0L)
-                else s
-              }
-              if ((s & ABNORMAL) != 0) ex = t.getException()
-              break()
+          case t if i == 0 =>
+            var s = t.doExec()
+            if (s >= 0) s = t.awaitJoin(true, false, false, 0L)
+            if ((s & ABNORMAL) != 0) ex = t.getException(s)
+            false
 
-            case t: ForkJoinTask[_] => t.fork()
-          }
+          case t =>
+            t.fork()
+            true
         }
       }
-      if (ex == null) {
-        breakable {
-          for (i <- 1 to last) {
-            ts.get(i) match {
-              case null => ()
-              case t: ForkJoinTask[_] =>
-                val s = {
-                  val s = t.status
-                  if (s >= 0) t.awaitJoin(false, false, false, 0L)
-                  else s
-                }
-                if ((s & ABNORMAL) != 0 && {
-                      ex = t.getException(s)
-                      ex != null
-                    }) break()
-            }
+      if (ex == null) (1 to last).takeWhile { i =>
+        val t = ts.get(i)
+        t == null || {
+          var s = t.status
+          if (s >= 0) s = t.awaitJoin(false, false, false, 0L)
+          if ((s & ABNORMAL) != 0) {
+            ex = t.getException(s)
           }
+          ex == null
         }
       }
       if (ex != null) {
@@ -1208,8 +1114,10 @@ object ForkJoinTask {
     }
 
     tasks match {
-      case list: ju.List[T] with RandomAccess @unchecked => invokeAllImpl(list)
-      case _ => invokeAll(tasks.toArray(Array.empty[ForkJoinTask[_]]))
+      case list: java.util.List[T] with RandomAccess @unchecked =>
+        invokeAllImpl(list)
+      case _ =>
+        invokeAll(tasks.toArray(Array.empty[ForkJoinTask[_]]))
     }
     tasks
   }
@@ -1357,78 +1265,65 @@ object ForkJoinTask {
    *  AbstractExecutorService constraints when used in ForkJoinPool.
    */
   @SerialVersionUID(5232453952276885070L)
-  private[concurrent] final class AdaptedRunnable[T](
-      runnable: Runnable,
-      private var result: T
-  ) extends ForkJoinTask[T]
+  final private[concurrent] class AdaptedRunnable[T] private[concurrent] (
+      val runnable: Runnable,
+      var result: T
+  ) // OK to set this even before completion
+      extends ForkJoinTask[T]
       with RunnableFuture[T] {
-    if (runnable == null) {
-      throw new NullPointerException()
-    }
-
-    def run(): Unit = invoke()
-
-    protected def exec(): Boolean = {
+    if (runnable == null) throw new NullPointerException
+    override final def getRawResult(): T = result
+    override final def setRawResult(v: T): Unit = { result = v }
+    override final def exec(): Boolean = {
       runnable.run()
       true
     }
-
-    protected def setRawResult(value: T): Unit = result = value
-    def getRawResult(): T = result
-
-    override def toString(): String = {
-      super.toString() + "[Wrapped task = " + runnable + "]";
-    }
+    override final def run(): Unit = invoke()
+    override def toString(): String =
+      super.toString + "[Wrapped task = " + runnable + "]"
   }
 
   /** Adapter for Runnables without results.
    */
   @SerialVersionUID(5232453952276885070L)
-  private[concurrent] final class AdaptedRunnableAction(runnable: Runnable)
-      extends ForkJoinTask[Null]
-      with RunnableFuture[Null] {
-    if (runnable == null) throw new NullPointerException()
-
-    protected def exec(): Boolean = {
+  final private[concurrent] class AdaptedRunnableAction private[concurrent] (
+      val runnable: Runnable
+  ) extends ForkJoinTask[Void]
+      with RunnableFuture[Void] {
+    if (runnable == null) throw new NullPointerException
+    override final def getRawResult(): Void = null
+    override final def setRawResult(v: Void): Unit = {}
+    override final def exec(): Boolean = {
       runnable.run()
       true
     }
-
-    def run(): Unit = invoke()
-
-    def getRawResult(): Null = null
-    protected def setRawResult(value: Null): Unit = ()
-
+    override final def run(): Unit = invoke()
     override def toString(): String =
-      super.toString() + "[Wrapped task = " + runnable + "]"
+      super.toString + "[Wrapped task = " + runnable + "]"
   }
 
   /** Adapter for Runnables in which failure forces worker exception.
    */
   @SerialVersionUID(5232453952276885070L)
-  final class RunnableExecuteAction(runnable: Runnable)
-      extends ForkJoinTask[Null] {
-    if (runnable == null)
-      throw new NullPointerException()
-
-    def getRawResult(): Null = null
-    def setRawResult(v: Null): Unit = ()
-    def exec(): Boolean = {
+  final private[concurrent] class RunnableExecuteAction private[concurrent] (
+      val runnable: Runnable
+  ) extends ForkJoinTask[Void] {
+    if (runnable == null) throw new NullPointerException
+    override final def getRawResult(): Void = null
+    override final def setRawResult(v: Void): Unit = ()
+    override final def exec(): Boolean = {
       runnable.run()
       true
     }
-
-    override def trySetException(ex: Throwable): Int = {
-      // if a handler, invoke it
+    override private[concurrent] def trySetException(ex: Throwable) = {
+// if a handler, invoke it
       val s: Int = trySetThrown(ex)
-      val t: Thread = Thread.currentThread()
-      val h: Thread.UncaughtExceptionHandler = t.getUncaughtExceptionHandler()
-
-      if (isExceptionalStatus(s) && h != null) {
-        try h.uncaughtException(t, ex)
-        catch {
-          case _: Throwable => ()
-        }
+      if (isExceptionalStatus(s)) {
+        val t: Thread = Thread.currentThread()
+        val h: Thread.UncaughtExceptionHandler = t.getUncaughtExceptionHandler()
+        if (h != null)
+          try h.uncaughtException(t, ex)
+          catch { case _: Throwable => () }
       }
       s
     }
@@ -1437,78 +1332,62 @@ object ForkJoinTask {
   /** Adapter for Callables.
    */
   @SerialVersionUID(2838392045355241008L)
-  final class AdaptedCallable[T](callable: Callable[T])
-      extends ForkJoinTask[T]
+  final private[concurrent] class AdaptedCallable[T] private[concurrent] (
+      val callable: Callable[T]
+  ) extends ForkJoinTask[T]
       with RunnableFuture[T] {
-    if (callable == null) throw new NullPointerException();
-
-    private var result: T = _
-
-    def getRawResult(): T = result
-    protected def setRawResult(value: T): Unit = result = result
-    protected def exec(): Boolean = {
-      try {
-        result = callable.call()
-        true
-      } catch {
-        case ex: RuntimeException => throw ex
-        case ex: Exception        => throw new RuntimeException(ex)
-      }
+    if (callable == null) throw new NullPointerException
+    private[concurrent] var result: T = _
+    override final def getRawResult() = result
+    override final def setRawResult(v: T): Unit = result = v
+    override final def exec(): Boolean = try {
+      result = callable.call()
+      true
+    } catch {
+      case rex: RuntimeException => throw rex
+      case ex: Exception         => throw new RuntimeException(ex)
     }
-
-    def run(): Unit = invoke()
+    override final def run(): Unit = invoke()
     override def toString(): String =
-      super.toString() + "[Wrapped task = " + callable + "]";
+      super.toString + "[Wrapped task = " + callable + "]"
   }
-
   @SerialVersionUID(2838392045355241008L)
-  final class AdaptedInterruptibleCallable[T](callable: Callable[T])
-      extends ForkJoinTask[T]
+  final private[concurrent] class AdaptedInterruptibleCallable[T](
+      val callable: Callable[T]
+  ) extends ForkJoinTask[T]
       with RunnableFuture[T] {
-    if (callable == null) throw new NullPointerException()
-
-    // private val Atomic
-    private[concurrent] val runner = new AtomicReference[Thread]()
+    if (callable == null) throw new NullPointerException
+    @volatile var runner: Thread = _
     private var result: T = _
-
-    def getRawResult(): T = result
-    protected def setRawResult(value: T): Unit = result = value
-    def run(): Unit = invoke()
-
-    protected def exec(): Boolean = {
+    override final def getRawResult(): T = result
+    override final def setRawResult(v: T): Unit = result = v
+    override final def exec(): Boolean = {
       Thread.interrupted()
-      runner.set(Thread.currentThread())
+      runner = Thread.currentThread()
       try {
-        if (!isDone())
-          result = callable.call()
+        if (!isDone()) result = callable.call()
         true
       } catch {
-        case ex: RuntimeException => throw ex
-        case ex: Exception        => throw new RuntimeException(ex)
+        case rex: RuntimeException => throw rex
+        case ex: Exception         => throw new RuntimeException(ex)
       } finally {
-        runner.set(null: Thread)
+        runner = null
         Thread.interrupted()
       }
     }
-
-    override def cancel(mayInterruptIfRunning: Boolean): Boolean = {
+    override final def run(): Unit = invoke()
+    override final def cancel(mayInterruptIfRunning: Boolean): Boolean = {
       val status = super.cancel(false)
-      if (mayInterruptIfRunning) {
-        runner.get() match {
-          case null => ()
-          case runner =>
-            try {
-              runner.interrupt()
-            } catch {
-              case _: Throwable => ()
-            }
-        }
+      if (mayInterruptIfRunning) runner match {
+        case null => ()
+        case t =>
+          try t.interrupt()
+          catch { case _: Throwable => () }
       }
       status
     }
-
     override def toString(): String =
-      super.toString() + "[Wrapped task = " + callable + "]";
+      super.toString + "[Wrapped task = " + callable + "]"
   }
 
   /** Returns a new {@code ForkJoinTask} that performs the {@code run} method of
@@ -1520,11 +1399,9 @@ object ForkJoinTask {
    *  @return
    *    the task
    */
-  @stub()
-  def adapt(runnable: Runnable): ForkJoinTask[_] = {
-    ???
-    // return new AdaptedRunnableAction(runnable);
-  }
+  def adapt(runnable: Runnable): ForkJoinTask[_] = new AdaptedRunnableAction(
+    runnable
+  )
 
   /** Returns a new {@code ForkJoinTask} that performs the {@code run} method of
    *  the given {@code Runnable} as its action, and returns the given result
@@ -1539,11 +1416,8 @@ object ForkJoinTask {
    *  @return
    *    the task
    */
-  @stub()
-  def adapt[T](runnable: Runnable, result: T): ForkJoinTask[T] = {
-    ???
-    // return new AdaptedRunnable<T>(runnable, result);
-  }
+  def adapt[T](runnable: Runnable, result: T): ForkJoinTask[T] =
+    new AdaptedRunnable[T](runnable, result)
 
   /** Returns a new {@code ForkJoinTask} that performs the {@code call} method
    *  of the given {@code Callable} as its action, and returns its result upon
@@ -1557,11 +1431,8 @@ object ForkJoinTask {
    *  @return
    *    the task
    */
-  @stub()
-  def adapt[T](callable: Callable[_ <: T]): ForkJoinTask[T] = {
-    ???
-    // return new AdaptedCallable<T>(callable);
-  }
+  def adapt[T](callable: Callable[T]): ForkJoinTask[T] =
+    new AdaptedCallable[T](callable)
 
   /** Returns a new {@code ForkJoinTask} that performs the {@code call} method
    *  of the given {@code Callable} as its action, and returns its result upon
@@ -1577,13 +1448,8 @@ object ForkJoinTask {
    *  @return
    *    the task
    *
-   *  @since 17
+   *  @since 15
    */
-  // adaptInterruptible deferred to its own independent change
-  // https://bugs.openjdk.java.net/browse/JDK-8246587
-  @stub()
-  private def adaptInterruptible[T](callable: Callable[_ <: T]) = {
-    ???
-    // return new AdaptedInterruptibleCallable<T>(callable);
-  }
+  def adaptInterruptible[T](callable: Callable[T]): ForkJoinTask[T] =
+    new AdaptedInterruptibleCallable[T](callable)
 }

@@ -8,7 +8,7 @@
 package org.scalanative.testsuite.javalib.util.concurrent
 
 import org.junit.Assert._
-import org.junit.{Test,Ignore}
+import org.junit.{Test, Ignore}
 import JSR166Test._
 
 import java.util.concurrent.TimeUnit.MILLISECONDS
@@ -564,6 +564,7 @@ class PriorityBlockingQueueTest extends JSR166Test {
 
   /** toArray(incompatible array type) throws ArrayStoreException
    */
+  @Ignore("Runtime limitation - issue #209")
   @Test def testToArray1_BadArg(): Unit = {
     val q =
       PriorityBlockingQueueTest.populatedQueue(SIZE)
@@ -717,7 +718,7 @@ class PriorityBlockingQueueTest extends JSR166Test {
       assertEquals(k, l.size)
       assertEquals(SIZE - k, q.size)
       for (j <- 0 until k) { assertEquals(l.get(j), new Integer(j)) }
-      while (q.poll != null )()
+      while (q.poll != null) ()
     }
   }
 
@@ -729,7 +730,7 @@ class PriorityBlockingQueueTest extends JSR166Test {
       PriorityBlockingQueueTest.populatedQueue(2)
     )
     for (q <- qs) {
-      assertFalse(q.contains(null)) 
+      assertFalse(q.contains(null))
       assertFalse(q.remove(null))
     }
   }

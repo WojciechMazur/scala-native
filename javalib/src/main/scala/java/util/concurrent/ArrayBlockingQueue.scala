@@ -78,9 +78,7 @@ object ArrayBlockingQueue {
     // assert 0 <= end && end < items.length;
     val to = if (i < end) end else items.length
     for (i <- i until to) items(i) = null
-    if (to != end) {
-      for (i <- 0 until end) items(i) = null
-    }
+    for (i <- 0 until end) items(i) = null
   }
 
   private def nBits(n: Int) = new Array[Long](((n - 1) >> 6) + 1)
@@ -548,7 +546,7 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
    *    if the specified array is null
    */
   override def toArray[T <: AnyRef](_a: Array[T]): Array[T] = {
-    var a: Array[T] = null
+    var a: Array[T] = _a
     val lock = this.lock
     lock.lock()
     try {
@@ -557,7 +555,7 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
       val firstLeg = Math.min(items.length - takeIndex, count)
       if (a.length < count)
         a = util.Arrays
-          .copyOfRange(items, takeIndex, takeIndex + count)
+          .copyOfRange(items, takeIndex, takeIndex + count, a.getClass())
           .asInstanceOf[Array[T]]
       else {
         System.arraycopy(items, takeIndex, a, 0, firstLeg)
@@ -1078,7 +1076,7 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
         val cursor = this.cursor
         if (cursor >= 0) {
           nextIndex = cursor
-          nextItem = itemAt(nextIndex)
+          nextItem = itemAt(cursor)
           this.cursor = incCursor(cursor)
         } else {
           nextIndex = NONE
@@ -1088,6 +1086,7 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
       } finally lock.unlock()
       e
     }
+
     override def forEachRemaining(action: Consumer[_ >: E]): Unit = {
       Objects.requireNonNull(action)
       val lock = ArrayBlockingQueue.this.lock
@@ -1253,18 +1252,19 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
       }
       false
     }
-    //         /** Uncomment for debugging. */
-    //         public String toString() {
-    //             return ("cursor=" + cursor + " " +
-    //                     "nextIndex=" + nextIndex + " " +
-    //                     "lastRet=" + lastRet + " " +
-    //                     "nextItem=" + nextItem + " " +
-    //                     "lastItem=" + lastItem + " " +
-    //                     "prevCycles=" + prevCycles + " " +
-    //                     "prevTakeIndex=" + prevTakeIndex + " " +
-    //                     "size()=" + size() + " " +
-    //                     "remainingCapacity()=" + remainingCapacity());
-    //         }
+
+    // /** Uncomment for debugging. */
+    // def toString(): String = {
+    //   "cursor=" + cursor + " " +
+    //     "nextIndex=" + nextIndex + " " +
+    //     "lastRet=" + lastRet + " " +
+    //     "nextItem=" + nextItem + " " +
+    //     "lastItem=" + lastItem + " " +
+    //     "prevCycles=" + prevCycles + " " +
+    //     "prevTakeIndex=" + prevTakeIndex + " " +
+    //     "size()=" + size() + " " +
+    //     "remainingCapacity()=" + remainingCapacity()
+    // }
   }
 
   /** Returns a {@link Spliterator} over the elements in this queue.
@@ -1341,26 +1341,23 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
     val lock = this.lock
     lock.lock()
     try
-      if (itrs == null) { // check for active iterators
-        if (count > 0) {
-          val items = this.items
-          // Optimize for initial run of survivors
-          val start = takeIndex
-          val end = putIndex
-          val to =
-            if (start < end) end
-            else items.length
+      if (itrs == null && count > 0) { // check for active iterators
+        val items = this.items
+        // Optimize for initial run of survivors
+        val start = takeIndex
+        val end = putIndex
+        val to =
+          if (start < end) end
+          else items.length
 
-          def findInRange(range: Range) = range
-            .find(i => filter.test(ArrayBlockingQueue.itemAt(items, i)))
-            .map(bulkRemoveModified(filter, _))
-            .getOrElse(false)
+        def findInRange(range: Range) = range
+          .find(i => filter.test(ArrayBlockingQueue.itemAt(items, i)))
 
-          return findInRange(start until to) ||
-            (to != end && findInRange(0 until end))
-        }
-        return false
-      }
+        findInRange(start until to)
+          .orElse(findInRange(0 until end))
+          .map(bulkRemoveModified(filter, _))
+          .getOrElse(false)
+      } else false
     finally lock.unlock()
     // Active iterators are too hairy!
     // Punting (for now) to the slow n^2 algorithm ...

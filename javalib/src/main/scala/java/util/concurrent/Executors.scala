@@ -696,20 +696,20 @@ object Executors {
         reachabilityFence(this)
       }
     }
-    override def submit[T](task: Callable[T]): Future[T] = {
+    override def submit[T<: AnyRef](task: Callable[T]): Future[T] = {
       try return executor.submit(task)
       finally {
         reachabilityFence(this)
       }
     }
-    override def submit[T](task: Runnable, result: T): Future[T] = {
+    override def submit[T<: AnyRef](task: Runnable, result: T): Future[T] = {
       try return executor.submit(task, result)
       finally {
         reachabilityFence(this)
       }
     }
     @throws[InterruptedException]
-    override def invokeAll[T](
+    override def invokeAll[T<: AnyRef](
         tasks: Collection[_ <: Callable[T]]
     ): List[Future[T]] = {
       try return executor.invokeAll(tasks)
@@ -718,7 +718,7 @@ object Executors {
       }
     }
     @throws[InterruptedException]
-    override def invokeAll[T](
+    override def invokeAll[T<: AnyRef](
         tasks: Collection[_ <: Callable[T]],
         timeout: Long,
         unit: TimeUnit
@@ -730,7 +730,7 @@ object Executors {
     }
     @throws[InterruptedException]
     @throws[ExecutionException]
-    override def invokeAny[T](tasks: Collection[_ <: Callable[T]]): T = {
+    override def invokeAny[T<: AnyRef](tasks: Collection[_ <: Callable[T]]): T = {
       try return executor.invokeAny(tasks)
       finally {
         reachabilityFence(this)
@@ -739,7 +739,7 @@ object Executors {
     @throws[InterruptedException]
     @throws[ExecutionException]
     @throws[TimeoutException]
-    override def invokeAny[T](
+    override def invokeAny[T<: AnyRef](
         tasks: Collection[_ <: Callable[T]],
         timeout: Long,
         unit: TimeUnit

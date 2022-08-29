@@ -17,7 +17,7 @@ class Thread private[lang] (
     stackSize: Long,
     private[java] val inheritableValues: ThreadLocal.Values
 ) extends Runnable {
-  private val threadId = getNextThreadId()
+  private[java] val threadId = getNextThreadId()
 
   @volatile private[lang] var alive = false
   @volatile private[lang] var started = false

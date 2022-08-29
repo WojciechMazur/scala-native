@@ -301,10 +301,7 @@ abstract class BlockingQueueTest extends JSR166Test {
         try {
           q.poll(LONGER_DELAY_MS, MILLISECONDS)
           shouldThrow()
-        } catch {
-          case success: InterruptedException =>
-
-        }
+        } catch { case success: InterruptedException => () }
         assertFalse(Thread.interrupted)
       }
     })
@@ -346,10 +343,10 @@ abstract class BlockingQueueTest extends JSR166Test {
     assertFalse(q.remove(makeElement(99)))
     checkEmpty(q)
     for (i <- 0 until size) {
-     val elem  = makeElement(i)
-     elts(i) = elem
-     q.add(elem) 
-  }
+      val elem = makeElement(i)
+      elts(i) = elem
+      q.add(elem)
+    }
     var i = 1
     while (i < size) {
       for (pass <- 0 until 2) {

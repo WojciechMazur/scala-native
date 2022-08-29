@@ -62,7 +62,7 @@ class AbstractExecutorServiceTest extends JSR166Test {
     val e = new AbstractExecutorServiceTest.DirectExecutorService
     val future = e.submit(new StringTask)
     val result = future.get
-    assertSame(TEST_STRING, result)
+    assertEquals(TEST_STRING, result)
   }
 
   /** Completed submit(runnable) returns successfully
@@ -82,7 +82,7 @@ class AbstractExecutorServiceTest extends JSR166Test {
     val e = new AbstractExecutorServiceTest.DirectExecutorService
     val future = e.submit(new NoOpRunnable, TEST_STRING)
     val result = future.get
-    assertSame(TEST_STRING, result)
+    assertEquals(TEST_STRING, result)
   }
 
   // No PrivilegedAction in Scala Native
@@ -231,7 +231,7 @@ class AbstractExecutorServiceTest extends JSR166Test {
     l.add(new StringTask)
     l.add(new StringTask)
     val result = e.invokeAny(l)
-    assertSame(TEST_STRING, result)
+    assertEquals(TEST_STRING, result)
   }
 
   /** invokeAll(null) throws NPE
@@ -397,7 +397,7 @@ class AbstractExecutorServiceTest extends JSR166Test {
     l.add(new StringTask)
     l.add(new StringTask)
     val result = e.invokeAny(l, LONG_DELAY_MS, MILLISECONDS)
-    assertSame(TEST_STRING, result)
+    assertEquals(TEST_STRING, result)
     assertTrue(millisElapsedSince(startTime) < LONG_DELAY_MS)
   }
 

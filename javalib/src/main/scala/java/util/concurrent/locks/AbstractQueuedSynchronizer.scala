@@ -29,7 +29,7 @@ import scala.scalanative.libc.atomic.memory_order._
  *  being acquired or released. Given these, the other methods in this class
  *  carry out all queuing and blocking mechanics. Subclasses can maintain other
  *  state fields, but only the atomically updated {@code int} value manipulated
- *  using methods {@link #getState()}, {@link #setState} and {@link
+ *  using methods {@link #getState}, {@link #setState} and {@link
  *  #compareAndSetState} is tracked with respect to synchronization.
  *
  *  <p>Subclasses should be defined as non-public internal helper classes that
@@ -42,7 +42,7 @@ import scala.scalanative.libc.atomic.memory_order._
  *  <p>This class supports either or both a default <em>exclusive</em> mode and
  *  a <em>shared</em> mode. When acquired in exclusive mode, attempted acquires
  *  by other threads cannot succeed. Shared mode acquires by multiple threads
- *  may (but need not) succeed. This class does not &quotunderstand&quot these
+ *  may (but need not) succeed. This class does not &quot;understand&quot; these
  *  differences except in the mechanical sense that when a shared mode acquire
  *  succeeds, the next waiting thread (if one exists) must also determine
  *  whether it can acquire as well. Threads waiting in the different modes share
@@ -53,9 +53,9 @@ import scala.scalanative.libc.atomic.memory_order._
  *
  *  <p>This class defines a nested {@link ConditionObject} class that can be
  *  used as a {@link Condition} implementation by subclasses supporting
- *  exclusive mode for which method {@link #isHeldExclusively()} reports whether
+ *  exclusive mode for which method {@link #isHeldExclusively} reports whether
  *  synchronization is exclusively held with respect to the current thread,
- *  method {@link #release} invoked with the current {@link #getState()} value
+ *  method {@link #release} invoked with the current {@link #getState} value
  *  fully releases this object, and {@link #acquire}, given this saved state
  *  value, eventually restores this object to its previous acquired state. No
  *  {@code AbstractQueuedSynchronizer} method otherwise creates such a
@@ -77,12 +77,12 @@ import scala.scalanative.libc.atomic.memory_order._
  *
  *  <p>To use this class as the basis of a synchronizer, redefine the following
  *  methods, as applicable, by inspecting and/or modifying the synchronization
- *  state using {@link #getState()}, {@link #setState} and/or {@link
+ *  state using {@link #getState}, {@link #setState} and/or {@link
  *  #compareAndSetState}:
  *
  *  <ul> <li>{@link #tryAcquire} <li>{@link #tryRelease} <li>{@link
  *  #tryAcquireShared} <li>{@link #tryReleaseShared} <li>{@link
- *  #isHeldExclusively()} </ul>
+ *  #isHeldExclusively} </ul>
  *
  *  Each of these methods by default throws {@link
  *  UnsupportedOperationException}. Implementations of these methods must be
@@ -101,11 +101,11 @@ import scala.scalanative.libc.atomic.memory_order._
  *  automatically enforce FIFO acquisition policies. The core of exclusive
  *  synchronization takes the form:
  *
- *  <pre> <em>Acquire:</em> while (!tryAcquire(arg)) { <em>enqueue thread if it
- *  is not already queued</em> <em>possibly block current thread</em> }
+ *  <pre> Acquire: while (!tryAcquire(arg)) { <em>enqueue thread if it is not
+ *  already queued</em>; <em>possibly block current thread</em>; }
  *
- *  <em>Release:</em> if (tryRelease(arg)) <em>unblock the first queued
- *  thread</em> </pre>
+ *  Release: if (tryRelease(arg)) <em>unblock the first queued thread</em>;
+ *  </pre>
  *
  *  (Shared mode is similar but may involve cascading signals.)
  *
@@ -124,14 +124,15 @@ import scala.scalanative.libc.atomic.memory_order._
  *  <em>convoy-avoidance</em>) strategy. While this is not guaranteed to be fair
  *  or starvation-free, earlier queued threads are allowed to recontend before
  *  later queued threads, and each recontention has an unbiased chance to
- *  succeed against incoming threads. Also, while acquires do not &quotspin&quot
- *  in the usual sense, they may perform multiple invocations of {@code
- *  tryAcquire} interspersed with other computations before blocking. This gives
- *  most of the benefits of spins when exclusive synchronization is only briefly
- *  held, without most of the liabilities when it isn't. If so desired, you can
- *  augment this by preceding calls to acquire methods with "fast-path" checks,
- *  possibly prechecking {@link #hasContended} and/or {@link #hasQueuedThreads}
- *  to only do so if the synchronizer is likely not to be contended.
+ *  succeed against incoming threads. Also, while acquires do not
+ *  &quot;spin&quot; in the usual sense, they may perform multiple invocations
+ *  of {@code tryAcquire} interspersed with other computations before blocking.
+ *  This gives most of the benefits of spins when exclusive synchronization is
+ *  only briefly held, without most of the liabilities when it isn't. If so
+ *  desired, you can augment this by preceding calls to acquire methods with
+ *  "fast-path" checks, possibly prechecking {@link #hasContended} and/or {@link
+ *  #hasQueuedThreads} to only do so if the synchronizer is likely not to be
+ *  contended.
  *
  *  <p>This class provides an efficient and scalable basis for synchronization
  *  in part by specializing its range of use to synchronizers that can rely on
@@ -154,41 +155,43 @@ import scala.scalanative.libc.atomic.memory_order._
  *
  *  // Our internal helper class private static class Sync extends
  *  AbstractQueuedSynchronizer { // Acquires the lock if state is zero public
- *  boolean tryAcquire(int acquires) { assert acquires == 1 // Otherwise unused
+ *  boolean tryAcquire(int acquires) { assert acquires == 1; // Otherwise unused
  *  if (compareAndSetState(0, 1)) {
- *  setExclusiveOwnerThread(Thread.currentThread()) return true } return false }
+ *  setExclusiveOwnerThread(Thread.currentThread()); return true; } return
+ *  false; }
  *
  *  // Releases the lock by setting state to zero protected boolean
- *  tryRelease(int releases) { assert releases == 1 // Otherwise unused if
- *  (!isHeldExclusively()) throw new IllegalMonitorStateException()
- *  setExclusiveOwnerThread(null) setState(0) return true }
+ *  tryRelease(int releases) { assert releases == 1; // Otherwise unused if
+ *  (!isHeldExclusively()) throw new IllegalMonitorStateException();
+ *  setExclusiveOwnerThread(null); setState(0); return true; }
  *
  *  // Reports whether in locked state public boolean isLocked() { return
- *  getState() != 0 }
+ *  getState() != 0; }
  *
  *  public boolean isHeldExclusively() { // a data race, but safe due to
  *  out-of-thin-air guarantees return getExclusiveOwnerThread() ==
- *  Thread.currentThread() }
+ *  Thread.currentThread(); }
  *
  *  // Provides a Condition public Condition newCondition() { return new
- *  ConditionObject() }
+ *  ConditionObject(); }
  *
  *  // Deserializes properly private void readObject(ObjectInputStream s) throws
- *  IOException, ClassNotFoundException { s.defaultReadObject() setState(0) //
+ *  IOException, ClassNotFoundException { s.defaultReadObject(); setState(0); //
  *  reset to unlocked state } }
  *
  *  // The sync object does all the hard work. We just forward to it. private
- *  final Sync sync = new Sync()
+ *  final Sync sync = new Sync();
  *
- *  public void lock() { sync.acquire(1) } public boolean tryLock() { return
- *  sync.tryAcquire(1) } public void unlock() { sync.release(1) } public
- *  Condition newCondition() { return sync.newCondition() } public boolean
- *  isLocked() { return sync.isLocked() } public boolean isHeldByCurrentThread()
- *  { return sync.isHeldExclusively() } public boolean hasQueuedThreads() {
- *  return sync.hasQueuedThreads() } public void lockInterruptibly() throws
- *  InterruptedException { sync.acquireInterruptibly(1) } public boolean
- *  tryLock(long timeout, TimeUnit unit) throws InterruptedException { return
- *  sync.tryAcquireNanos(1, unit.toNanos(timeout)) } }}</pre>
+ *  public void lock() { sync.acquire(1); } public boolean tryLock() { return
+ *  sync.tryAcquire(1); } public void unlock() { sync.release(1); } public
+ *  Condition newCondition() { return sync.newCondition(); } public boolean
+ *  isLocked() { return sync.isLocked(); } public boolean
+ *  isHeldByCurrentThread() { return sync.isHeldExclusively(); } public boolean
+ *  hasQueuedThreads() { return sync.hasQueuedThreads(); } public void
+ *  lockInterruptibly() throws InterruptedException {
+ *  sync.acquireInterruptibly(1); } public boolean tryLock(long timeout,
+ *  TimeUnit unit) throws InterruptedException { return sync.tryAcquireNanos(1,
+ *  unit.toNanos(timeout)); } }}</pre>
  *
  *  <p>Here is a latch class that is like a {@link
  *  java.util.concurrent.CountDownLatch CountDownLatch} except that it only
@@ -198,16 +201,18 @@ import scala.scalanative.libc.atomic.memory_order._
  *  <pre> {@code class BooleanLatch {
  *
  *  private static class Sync extends AbstractQueuedSynchronizer { boolean
- *  isSignalled() { return getState() != 0 }
+ *  isSignalled() { return getState() != 0; }
  *
- *  protected int tryAcquireShared(int ignore) { return isSignalled() ? 1 : -1 }
+ *  protected int tryAcquireShared(int ignore) { return isSignalled() ? 1 : -1;
+ *  }
  *
- *  protected boolean tryReleaseShared(int ignore) { setState(1) return true } }
+ *  protected boolean tryReleaseShared(int ignore) { setState(1); return true; }
+ *  }
  *
- *  private final Sync sync = new Sync() public boolean isSignalled() { return
- *  sync.isSignalled() } public void signal() { sync.releaseShared(1) } public
+ *  private final Sync sync = new Sync(); public boolean isSignalled() { return
+ *  sync.isSignalled(); } public void signal() { sync.releaseShared(1); } public
  *  void await() throws InterruptedException {
- *  sync.acquireSharedInterruptibly(1) } }}</pre>
+ *  sync.acquireSharedInterruptibly(1); } }}</pre>
  *
  *  @since 1.5
  *  @author
@@ -226,9 +231,10 @@ object AbstractQueuedSynchronizer { // Node status bits, also used as argument a
     @volatile var next: Node = _ // visibly nonnull when signallable
     @volatile var status: Int = 0 // written by owner, atomic bit ops by others
 
-    private val prevAtomic = new CAtomicRef[Node](
-      fromRawPtr(Intrinsics.classFieldRawPtr(this, "prev"))
+    private val prevPtr: Ptr[Node] = fromRawPtr(
+      Intrinsics.classFieldRawPtr(this, "prev")
     )
+    private val prevAtomic = new CAtomicRef[Node](prevPtr)
     private val nextAtomic = new CAtomicRef[Node](
       fromRawPtr(Intrinsics.classFieldRawPtr(this, "next"))
     )
@@ -248,13 +254,13 @@ object AbstractQueuedSynchronizer { // Node status bits, also used as argument a
       statusAtomic.fetchAnd(~v)
 
     def setPrevRelaxed(p: Node): Unit = // for off-queue assignment
-      prevAtomic.store(p, memory_order_relaxed)
+    !prevPtr = p // U.putObject
 
     def setStatusRelaxed(s: Int) = // for off-queue assignment
-      statusAtomic.store(s, memory_order_relaxed)
+    !statusPtr = s // U.putInt
 
     def clearStatus(): Unit = // for reducing unneeded signals
-      !statusPtr = 0
+    statusAtomic.store(0, memory_order_relaxed) // U.putIntOpaque
   }
 
   // Concrete classes tagged by type
@@ -275,14 +281,11 @@ object AbstractQueuedSynchronizer { // Node status bits, also used as argument a
      *  exhaustion. This is usable only for untimed Condition waits, not timed
      *  versions.
      */
-    override final def isReleasable(): Boolean = {
+    override final def isReleasable(): Boolean =
       status <= 1 || Thread.currentThread().isInterrupted()
-    }
 
     override final def block(): Boolean = {
-      while (!isReleasable()) {
-        LockSupport.park(this)
-      }
+      while (!isReleasable()) LockSupport.park(this)
       true
     }
   }
@@ -354,23 +357,32 @@ abstract class AbstractQueuedSynchronizer protected ()
    */
   final protected def setState(newState: Int): Unit = state = newState
 
-  final protected def compareAndSetState(
-      expected: Int,
-      newState: Int
-  ): Boolean =
-    stateAtomic.compareExchangeStrong(expected, newState)
+  /** Atomically sets synchronization state to the given updated value if the
+   *  current state value equals the expected value. This operation has memory
+   *  semantics of a {@code volatile} read and write.
+   *
+   *  @param expect
+   *    the expected value
+   *  @param update
+   *    the new value
+   *  @return
+   *    {@code true} if successful. False return indicates that the actual value
+   *    was not equal to the expected value.
+   */
+  final protected def compareAndSetState(c: Int, v: Int): Boolean =
+    stateAtomic.compareExchangeStrong(c, v)
 
-  private def casTail(c: Node, v: Node) = tailAtomic.compareExchangeWeak(c, v)
+  private def casTail(c: Node, v: Node) = tailAtomic.compareExchangeStrong(c, v)
 
   /** tries once to CAS a new dummy node for head */
   private def tryInitializeHead(): Unit = {
     val h = new AbstractQueuedSynchronizer.ExclusiveNode()
-    val isInitialized = headAtomic.compareExchangeWeak(null: Node, h)
+    val isInitialized = headAtomic.compareExchangeStrong(null: Node, h)
     if (isInitialized)
       tail = h
   }
 
-  /** Enqueues the node unless null. (Currently used only for ConditionNodes
+  /** Enqueues the node unless null. (Currently used only for ConditionNodes;
    *  other cases are interleaved with acquires.)
    */
   final private[locks] def enqueue(
@@ -404,7 +416,7 @@ abstract class AbstractQueuedSynchronizer protected ()
     @tailrec
     def checkLoop(t: AbstractQueuedSynchronizer.Node): Boolean = {
       if (t == null) false
-      else if (t == node) true
+      else if (t eq node) true
       else checkLoop(t.prev)
     }
     checkLoop(tail)
@@ -423,7 +435,7 @@ abstract class AbstractQueuedSynchronizer protected ()
    *  @param timed
    *    if true use timed waits
    *  @param time
-   *    if timed, the System.nanoTime()value to timeout
+   *    if timed, the System.nanoTime value to timeout
    *  @return
    *    positive if acquired, 0 if timed out, negative if interrupted
    */
@@ -438,12 +450,11 @@ abstract class AbstractQueuedSynchronizer protected ()
     val current = Thread.currentThread()
 
     var node: Node = _node
-    var pred: Node = null // predecessor of node when enqueued
-    var interrupted = false
-    var first = false
     var spins = 0
     var postSpins = 0 // retries upon unpark of first thread
-
+    var interrupted = false
+    var first = false
+    var pred: Node = null // predecessor of node when enqueued
     /*
      * Repeatedly:
      *  Check if node now first
@@ -457,26 +468,28 @@ abstract class AbstractQueuedSynchronizer protected ()
      */
 
     def getPred() = {
-      pred = if (node == null) null else node.prev
+      pred = if (node != null) node.prev else null
       pred
     }
     def isFirst() = {
-      first = head == pred
+      first = head eq pred
       first
     }
-    val continue = new scala.util.control.Breaks()
     while (true) {
-      continue.breakable {
-        if (!first && getPred() != null && !isFirst()) {
-          if (pred.status < 0) {
-            cleanQueue() // predecessor cancelled
-            continue.break()
-          } else if (pred.prev == null) {
-            Thread.onSpinWait() // ensure serialization
-            continue.break()
-          }
+      var shouldReset = false
+      if (!first &&
+          getPred() != null &&
+          !isFirst()) {
+        if (pred.status < 0) {
+          cleanQueue()
+          shouldReset = true
+        } else if (pred.prev == null) {
+          Thread.onSpinWait()
+          shouldReset = true
         }
+      }
 
+      if (!shouldReset) {
         if (first || pred == null) {
           val acquired =
             try
@@ -493,10 +506,8 @@ abstract class AbstractQueuedSynchronizer protected ()
               head = node
               pred.next = null
               node.waiter = null
-              if (shared)
-                signalNextIfShared(node)
-              if (interrupted)
-                current.interrupt()
+              if (shared) signalNextIfShared(node)
+              if (interrupted) current.interrupt()
             }
             return 1
           }
@@ -510,22 +521,18 @@ abstract class AbstractQueuedSynchronizer protected ()
           node.waiter = current
           val t = tail
           node.setPrevRelaxed(t) // avoid unnecessary fence
-          if (t == null)
-            tryInitializeHead()
-          else if (!casTail(t, node))
-            node.setPrevRelaxed(null) // back out
-          else
-            t.next = node
+          if (t == null) tryInitializeHead()
+          else if (!casTail(t, node)) node.setPrevRelaxed(null) // back out
+          else t.next = node
         } else if (first && spins != 0) {
           spins -= 1 // reduce unfairness on rewaits
           Thread.onSpinWait()
-        } else if (node.status == 0) {
+        } else if (node.status == 0)
           node.status = WAITING // enable signal and recheck
-        } else {
+        else {
           postSpins = ((postSpins << 1) | 1).toByte
           spins = postSpins
-          if (!timed)
-            LockSupport.park(this)
+          if (!timed) LockSupport.park(this)
           else {
             val nanos = time - System.nanoTime()
             if (nanos > 0L) LockSupport.parkNanos(this, nanos)
@@ -538,7 +545,7 @@ abstract class AbstractQueuedSynchronizer protected ()
         }
       }
     }
-    throw new IllegalStateException("unreachable")
+    -1 // unreachable
   }
 
   /** Possibly repeatedly traverses from tail, unsplicing cancelled nodes until
@@ -553,21 +560,20 @@ abstract class AbstractQueuedSynchronizer protected ()
       var n: Node = null
       while (true) {
         val p = if (q != null) q.prev else null
-        if (p == null) return () // ned of list
+        if (p == null) return () // end of list
 
         val isIncosisient =
-          if (s == null) tail != q
-          else s.prev != q || s.status < 0
+          if (s == null) tail ne q
+          else (s.prev ne q) || s.status < 0
         if (isIncosisient) break()
 
         if (q.status < 0) { // canceled
           val casNode =
             if (s == null) casTail(q, p)
             else s.casPrev(q, p)
-          if (casNode && q.prev == p) {
+          if (casNode && (q.prev eq p)) {
             p.casNext(q, s) // OK if fails
-            if (p.prev == null)
-              signalNext(p)
+            if (p.prev == null) signalNext(p)
           }
           break()
         }
@@ -655,7 +661,7 @@ abstract class AbstractQueuedSynchronizer protected ()
    *    value is otherwise uninterpreted and can represent anything you like.
    *  @return
    *    {@code true} if this object is now in a fully released state, so that
-   *    any waiting threads may attempt to acquire and {@code false} otherwise.
+   *    any waiting threads may attempt to acquire; and {@code false} otherwise.
    *  @throws IllegalMonitorStateException
    *    if releasing would place this synchronizer in an illegal state. This
    *    exception must be thrown in a consistent fashion for synchronization to
@@ -683,13 +689,14 @@ abstract class AbstractQueuedSynchronizer protected ()
    *    method, or is the value saved on entry to a condition wait. The value is
    *    otherwise uninterpreted and can represent anything you like.
    *  @return
-   *    a negative value on failure zero if acquisition in shared mode succeeded
-   *    but no subsequent shared-mode acquire can succeed and a positive value
-   *    if acquisition in shared mode succeeded and subsequent shared-mode
-   *    acquires might also succeed, in which case a subsequent waiting thread
-   *    must check availability. (Support for three different return values
-   *    enables this method to be used in contexts where acquires only sometimes
-   *    act exclusively.) Upon success, this object has been acquired.
+   *    a negative value on failure; zero if acquisition in shared mode
+   *    succeeded but no subsequent shared-mode acquire can succeed; and a
+   *    positive value if acquisition in shared mode succeeded and subsequent
+   *    shared-mode acquires might also succeed, in which case a subsequent
+   *    waiting thread must check availability. (Support for three different
+   *    return values enables this method to be used in contexts where acquires
+   *    only sometimes act exclusively.) Upon success, this object has been
+   *    acquired.
    *  @throws IllegalMonitorStateException
    *    if acquiring would place this synchronizer in an illegal state. This
    *    exception must be thrown in a consistent fashion for synchronization to
@@ -713,7 +720,7 @@ abstract class AbstractQueuedSynchronizer protected ()
    *    value is otherwise uninterpreted and can represent anything you like.
    *  @return
    *    {@code true} if this release of shared mode may permit a waiting acquire
-   *    (shared or exclusive) to succeed and {@code false} otherwise
+   *    (shared or exclusive) to succeed; and {@code false} otherwise
    *  @throws IllegalMonitorStateException
    *    if releasing would place this synchronizer in an illegal state. This
    *    exception must be thrown in a consistent fashion for synchronization to
@@ -734,7 +741,7 @@ abstract class AbstractQueuedSynchronizer protected ()
    *  conditions are not used.
    *
    *  @return
-   *    {@code true} if synchronization is held exclusively {@code false}
+   *    {@code true} if synchronization is held exclusively; {@code false}
    *    otherwise
    *  @throws UnsupportedOperationException
    *    if conditions are not supported
@@ -790,7 +797,7 @@ abstract class AbstractQueuedSynchronizer protected ()
    *  @param nanosTimeout
    *    the maximum number of nanoseconds to wait
    *  @return
-   *    {@code true} if acquired {@code false} if timed out
+   *    {@code true} if acquired; {@code false} if timed out
    *  @throws InterruptedException
    *    if the current thread is interrupted
    */
@@ -835,9 +842,7 @@ abstract class AbstractQueuedSynchronizer protected ()
    *    anything you like.
    */
   final def acquireShared(arg: Int): Unit = {
-    if (tryAcquireShared(arg) < 0) {
-      acquire(null, arg, true, false, false, 0L)
-    }
+    if (tryAcquireShared(arg) < 0) acquire(null, arg, true, false, false, 0L)
   }
 
   /** Acquires in shared mode, aborting if interrupted. Implemented by first
@@ -876,7 +881,7 @@ abstract class AbstractQueuedSynchronizer protected ()
    *  @param nanosTimeout
    *    the maximum number of nanoseconds to wait
    *  @return
-   *    {@code true} if acquired {@code false} if timed out
+   *    {@code true} if acquired; {@code false} if timed out
    *  @throws InterruptedException
    *    if the current thread is interrupted
    */
@@ -924,7 +929,7 @@ abstract class AbstractQueuedSynchronizer protected ()
     val h = head
     @tailrec
     def loop(p: Node): Boolean = {
-      if (p != h && p != null) {
+      if ((p ne h) && p != null) {
         if (p.status >= 0) true
         else loop(p.prev)
       } else false
@@ -933,7 +938,7 @@ abstract class AbstractQueuedSynchronizer protected ()
   }
 
   /** Queries whether any threads have ever contended to acquire this
-   *  synchronizer that is, if an acquire method has ever blocked.
+   *  synchronizer; that is, if an acquire method has ever blocked.
    *
    *  <p>In this implementation, this operation returns in constant time.
    *
@@ -991,7 +996,7 @@ abstract class AbstractQueuedSynchronizer protected ()
     if (thread == null) throw new NullPointerException
     var p = tail
     while ({ p != null }) {
-      if (p.waiter == thread) return true
+      if (p.waiter eq thread) return true
       p = p.prev
     }
     false
@@ -1036,9 +1041,9 @@ abstract class AbstractQueuedSynchronizer protected ()
    *  mode synchronizer might look like this:
    *
    *  <pre> {@code protected boolean tryAcquire(int arg) { if
-   *  (isHeldExclusively()) { // A reentrant acquire increment hold count return
-   *  true } else if (hasQueuedPredecessors()) { return false } else { // try to
-   *  acquire normally } }}</pre>
+   *  (isHeldExclusively()) { // A reentrant acquire; increment hold count
+   *  return true; } else if (hasQueuedPredecessors()) { return false; } else {
+   *  // try to acquire normally } }}</pre>
    *
    *  @return
    *    {@code true} if there is a queued thread preceding the current thread,
@@ -1152,8 +1157,7 @@ abstract class AbstractQueuedSynchronizer protected ()
    */
   final def owns(
       condition: AbstractQueuedSynchronizer#ConditionObject
-  ): Boolean =
-    condition.isOwnedBy(this)
+  ): Boolean = condition.isOwnedBy(this)
 
   /** Queries whether any threads are waiting on the given condition associated
    *  with this synchronizer. Note that because timeouts and interrupts may
@@ -1175,8 +1179,7 @@ abstract class AbstractQueuedSynchronizer protected ()
   final def hasWaiters(
       condition: AbstractQueuedSynchronizer#ConditionObject
   ): Boolean = {
-    if (!owns(condition))
-      throw new IllegalArgumentException("Not owner")
+    if (!owns(condition)) throw new IllegalArgumentException("Not owner")
     condition.hasWaiters()
   }
 
@@ -1200,8 +1203,7 @@ abstract class AbstractQueuedSynchronizer protected ()
   final def getWaitQueueLength(
       condition: AbstractQueuedSynchronizer#ConditionObject
   ): Int = {
-    if (!owns(condition))
-      throw new IllegalArgumentException("Not owner")
+    if (!owns(condition)) throw new IllegalArgumentException("Not owner")
     condition.getWaitQueueLength()
   }
 
@@ -1225,8 +1227,7 @@ abstract class AbstractQueuedSynchronizer protected ()
   final def getWaitingThreads(
       condition: AbstractQueuedSynchronizer#ConditionObject
   ): Collection[Thread] = {
-    if (!owns(condition))
-      throw new IllegalArgumentException("Not owner")
+    if (!owns(condition)) throw new IllegalArgumentException("Not owner")
     condition.getWaitingThreads()
   }
 
@@ -1253,21 +1254,19 @@ abstract class AbstractQueuedSynchronizer protected ()
 
     /** Removes and transfers one or all waiters to sync queue.
      */
+    @tailrec
     private def doSignal(
-        _first: AbstractQueuedSynchronizer.ConditionNode,
+        first: AbstractQueuedSynchronizer.ConditionNode,
         all: Boolean
     ): Unit = {
-      var first = _first
-      while (first != null) {
+      if (first != null) {
         val next = first.nextWaiter
         firstWaiter = next
-        if (firstWaiter == null)
-          lastWaiter = null
+        if (firstWaiter == null) lastWaiter = null
         if ((first.getAndUnsetStatus(COND) & COND) != 0) {
           enqueue(first)
-          if (!all) return
+          if (all) doSignal(next, all)
         }
-        first = next
       }
     }
 
@@ -1311,19 +1310,13 @@ abstract class AbstractQueuedSynchronizer protected ()
           AbstractQueuedSynchronizer.COND | AbstractQueuedSynchronizer.WAITING
         )
         val last = lastWaiter
-
         if (last == null) firstWaiter = node
         else last.nextWaiter = node
-
         lastWaiter = node
         val savedState = getState()
-
-        if (release(savedState))
-          return savedState
+        if (release(savedState)) return savedState
       }
-
-      // lock not held or inconsistent
-      node.status = AbstractQueuedSynchronizer.CANCELLED
+      node.status = CANCELLED // lock not held or inconsistent
       throw new IllegalMonitorStateException()
     }
 
@@ -1402,30 +1395,23 @@ abstract class AbstractQueuedSynchronizer protected ()
      */
     @throws[InterruptedException]
     override final def await(): Unit = {
-      if (Thread.interrupted())
-        throw new InterruptedException
+      if (Thread.interrupted()) throw new InterruptedException
 
       val node = new AbstractQueuedSynchronizer.ConditionNode
       val savedState = enableWait(node)
-
+      LockSupport.setCurrentBlocker(this)
       var interrupted = false
       var cancelled = false
-      var rejected = false
-      LockSupport.setCurrentBlocker(this) // for back-compatibility
-      breakable {
-        while (!canReacquire(node)) {
-          interrupted |= Thread.interrupted()
-          if (interrupted) {
-            cancelled = (node.getAndUnsetStatus(COND) & COND) != 0
-            if (cancelled) break()
-          } else if ((node.status & COND) != 0) { // else interrupted after signal
-            try ForkJoinPool.managedBlock(node)
-            catch {
-              case ex: RejectedExecutionException => rejected = true
-              case ie: InterruptedException       => interrupted = true
-            }
-          } else Thread.onSpinWait() // awoke while enqueuing
-        }
+      var break = false
+      while (!break && !canReacquire(node)) {
+        interrupted |= Thread.interrupted()
+        if (interrupted) {
+          cancelled = (node.getAndUnsetStatus(COND) & COND) != 0
+          if (cancelled) break = true
+        } else if ((node.status & COND) != 0) { // else interrupted after signal
+          try ForkJoinPool.managedBlock(node)
+          catch { case ie: InterruptedException => interrupted = true }
+        } else Thread.onSpinWait() // awoke while enqueuing
       }
 
       LockSupport.setCurrentBlocker(null)
@@ -1451,8 +1437,7 @@ abstract class AbstractQueuedSynchronizer protected ()
      */
     @throws[InterruptedException]
     override final def awaitNanos(nanosTimeout: Long): Long = {
-      if (Thread.interrupted())
-        throw new InterruptedException
+      if (Thread.interrupted()) throw new InterruptedException
 
       val node = new AbstractQueuedSynchronizer.ConditionNode()
       val savedState = enableWait(node)
@@ -1498,10 +1483,9 @@ abstract class AbstractQueuedSynchronizer protected ()
      *  <li>If timed out while blocked in step 4, return false, else true. </ol>
      */
     @throws[InterruptedException]
-    final def awaitUntil(deadline: Date): Boolean = {
+    override final def awaitUntil(deadline: Date): Boolean = {
       val abstime = deadline.getTime()
-      if (Thread.interrupted())
-        throw new InterruptedException
+      if (Thread.interrupted()) throw new InterruptedException
 
       val node = new AbstractQueuedSynchronizer.ConditionNode
       val savedState = enableWait(node)
@@ -1538,10 +1522,9 @@ abstract class AbstractQueuedSynchronizer protected ()
      *  <li>If timed out while blocked in step 4, return false, else true. </ol>
      */
     @throws[InterruptedException]
-    final def await(time: Long, unit: TimeUnit): Boolean = {
+    override final def await(time: Long, unit: TimeUnit): Boolean = {
       val nanosTimeout = unit.toNanos(time)
-      if (Thread.interrupted())
-        throw new InterruptedException
+      if (Thread.interrupted()) throw new InterruptedException
       val node = new AbstractQueuedSynchronizer.ConditionNode
       val savedState = enableWait(node)
       var nanos = nanosTimeout.max(0L)
@@ -1578,7 +1561,7 @@ abstract class AbstractQueuedSynchronizer protected ()
      *    {@code true} if owned
      */
     final private[locks] def isOwnedBy(sync: AbstractQueuedSynchronizer) = {
-      sync == AbstractQueuedSynchronizer.this
+      sync eq AbstractQueuedSynchronizer.this
     }
 
     /** Queries whether any threads are waiting on this condition. Implements
@@ -1590,14 +1573,11 @@ abstract class AbstractQueuedSynchronizer protected ()
      *    if {@link #isHeldExclusively} returns {@code false}
      */
     final private[locks] def hasWaiters(): Boolean = {
-      if (!isHeldExclusively())
-        throw new IllegalMonitorStateException
+      if (!isHeldExclusively()) throw new IllegalMonitorStateException
 
       var w = firstWaiter
       while (w != null) {
-        if ((w.status & AbstractQueuedSynchronizer.COND) != 0)
-          return true
-
+        if ((w.status & COND) != 0) return true
         w = w.nextWaiter
       }
       false
@@ -1619,8 +1599,7 @@ abstract class AbstractQueuedSynchronizer protected ()
       var n = 0
       var w = firstWaiter
       while (w != null) {
-        if ((w.status & AbstractQueuedSynchronizer.COND) != 0)
-          n += 1
+        if ((w.status & COND) != 0) n += 1
 
         w = w.nextWaiter
       }
@@ -1637,8 +1616,7 @@ abstract class AbstractQueuedSynchronizer protected ()
      *    if {@link #isHeldExclusively} returns {@code false}
      */
     final private[locks] def getWaitingThreads(): Collection[Thread] = {
-      if (!isHeldExclusively())
-        throw new IllegalMonitorStateException
+      if (!isHeldExclusively()) throw new IllegalMonitorStateException
       val list = new ArrayList[Thread]
       var w = firstWaiter
       while (w != null) {

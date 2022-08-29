@@ -37,11 +37,11 @@ private[lang] object StackTrace {
     cache.getOrElseUpdate(ip, makeStackTraceElement(cursor))
 
   @noinline private[lang] def currentStackTrace(): Array[StackTraceElement] = {
-    val cursor: Ptr[scala.Byte] = stackalloc[scala.Byte](2048.toUInt)
-    val context: Ptr[scala.Byte] = stackalloc[scala.Byte](2048.toUInt)
-    val offset: Ptr[scala.Byte] = stackalloc[scala.Byte](8.toUInt)
+    val cursor: Ptr[scala.Byte] = stackalloc[scala.Byte](4096.toUInt)
+    val context: Ptr[scala.Byte] = stackalloc[scala.Byte](4096.toUInt)
+    val offset: Ptr[scala.Byte] = stackalloc[scala.Byte](16.toUInt)
     val ip = stackalloc[CUnsignedLongLong]()
-    var buffer = mutable.ArrayBuffer.empty[StackTraceElement]
+    val buffer = mutable.ArrayBuffer.empty[StackTraceElement]
 
     unwind.get_context(context)
     unwind.init_local(cursor, context)

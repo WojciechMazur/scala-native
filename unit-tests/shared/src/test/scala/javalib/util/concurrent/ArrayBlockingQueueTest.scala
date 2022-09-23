@@ -652,7 +652,6 @@ class ArrayBlockingQueueTest extends JSR166Test {
     for (i <- 1 until SIZE) {
       val q = ArrayBlockingQueueTest.populatedQueue(SIZE)
       val p = ArrayBlockingQueueTest.populatedQueue(i)
-      println(p.toArray().toList)
       assertTrue(q.removeAll(p))
       assertEquals(SIZE - i, q.size)
       for (j <- 0 until i) {
@@ -663,7 +662,7 @@ class ArrayBlockingQueueTest extends JSR166Test {
   }
   def checkToArray(q: ArrayBlockingQueue[Integer]): Unit = {
     val size: Int = q.size
-    val a1 = q.toArray().asInstanceOf[Array[Integer]]
+    val a1 = q.toArray().asInstanceOf[Array[Object]]
     assertEquals(size, a1.length)
     val a2 = q.toArray(new Array[Integer](0))
     assertEquals(size, a2.length)

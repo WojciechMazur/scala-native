@@ -416,7 +416,7 @@ abstract class ForkJoinTask[V]() extends Future[V] with Serializable {
         try node = new Aux(Thread.currentThread(), null)
         catch {
           // try to cancel if cannot create
-          case ex: Throwable =>            casStatus(s, s | DONE | ABNORMAL)
+          case ex: Throwable => casStatus(s, s | DONE | ABNORMAL)
         }
       }
     }
@@ -991,17 +991,15 @@ object ForkJoinTask {
    *    if any task is null
    */
   def invokeAll(t1: ForkJoinTask[_], t2: ForkJoinTask[_]): Unit = {
-    var s1 = 0
-    var s2 = 0
     if (t1 == null || t2 == null) throw new NullPointerException
     t2.fork()
-    s1 = t1.doExec()
+    var s1 = t1.doExec()
     if (s1 >= 0) s1 = t1.awaitJoin(true, false, false, 0L)
     if ((s1 & ABNORMAL) != 0) {
       cancelIgnoringExceptions(t2)
       t1.reportException(s1)
     } else {
-      s2 = t2.awaitJoin(false, false, false, 0L)
+      var s2 = t2.awaitJoin(false, false, false, 0L)
       if ((s2 & ABNORMAL) != 0)
         t2.reportException(s2)
     }
@@ -1045,7 +1043,7 @@ object ForkJoinTask {
       val t = tasks(i)
       t == null || {
         var s = t.status
-        if (s >= 0)  s = t.awaitJoin(false, false, false, 0L) 
+        if (s >= 0) s = t.awaitJoin(false, false, false, 0L)
         if ((s & ABNORMAL) != 0) ex = t.getException(s)
         ex == null
       }

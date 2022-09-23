@@ -676,6 +676,7 @@ class FutureTaskTest extends JSR166Test {
   @Test def testTimedGet_Cancellation_interrupt(): Unit = {
     testTimedGet_Cancellation(true)
   }
+  
   def testTimedGet_Cancellation(
       mayInterruptIfRunning: java.lang.Boolean
   ): Unit = {
@@ -721,9 +722,9 @@ class FutureTaskTest extends JSR166Test {
     awaitTermination(t2)
     cancelled.countDown()
     awaitTermination(t3)
-    assertEquals(1, task.runCount)
-    assertEquals(1, task.setCount)
-    assertEquals(0, task.setExceptionCount)
+    assertEquals("runCount", 1, task.runCount)
+    assertEquals("setCunt", 1, task.setCount)
+    assertEquals("exceptionCount", 0, task.setExceptionCount)
     tryToConfuseDoneTask(task)
     checkCancelled(task)
   }

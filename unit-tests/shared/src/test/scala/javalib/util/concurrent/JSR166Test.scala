@@ -383,6 +383,7 @@ trait JSR166Test {
     try fn(pool)
     catch {
       case t: Throwable =>
+        throw new RuntimeException("Pool cleanup failed", t)
         fail(s"Pool cleanup failed: $t")
         null.asInstanceOf[T]
     } finally cleaner.close()

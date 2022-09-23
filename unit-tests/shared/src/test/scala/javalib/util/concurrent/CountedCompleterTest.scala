@@ -6,7 +6,7 @@
 package org.scalanative.testsuite.javalib.util.concurrent
 
 import org.junit.Assert._
-import org.junit.Test
+import org.junit.{Test, Ignore}
 import JSR166Test._
 
 import java.util.concurrent.TimeUnit.MILLISECONDS
@@ -194,6 +194,8 @@ class CountedCompleterTest extends JSR166Test {
 
   abstract class CheckedCC(p: CountedCompleter[Any], n: Int)
       extends CountedCompleter[Any](p, n) {
+    def this(p: CountedCompleter[Any]) = this(p, 0)
+    def this() = this(null)
     final val computeNAtomic = new AtomicInteger(0)
     final val onCompletionNAtomic = new AtomicInteger(0)
     final val onExceptionalCompletionNAtomic = new AtomicInteger(0)
@@ -203,17 +205,21 @@ class CountedCompleterTest extends JSR166Test {
     def onCompletionN: Int = onCompletionNAtomic.get
     def onExceptionalCompletionN: Int = onExceptionalCompletionNAtomic.get
     def setRawResultN: Int = setRawResultNAtomic.get
-    def this(p: CountedCompleter[Any]) = this(p, 0)
-
+    
     protected def realCompute(): Unit
+
     override final def compute(): Unit = {
       computeNAtomic.incrementAndGet
       realCompute()
     }
+
+    override def toString(): String = super.toString() + s"[$n, ${computeNAtomic.get()}, ${onCompletionNAtomic.get()}, ${onExceptionalCompletionNAtomic.get()}, ${setRawResultNAtomic.get()}, ${rawResultAtomic.get()}]"
+
     override def onCompletion(caller: CountedCompleter[_]): Unit = {
       onCompletionNAtomic.incrementAndGet
       super.onCompletion(caller)
     }
+
     override def onExceptionalCompletion(
         ex: Throwable,
         caller: CountedCompleter[_]
@@ -491,22 +497,25 @@ class CountedCompleterTest extends JSR166Test {
    */
   // Invocation tests use some interdependent task classes
   // to better test propagation etc
-  abstract class CCF(val parent: CountedCompleter[Any], var number: Int)
+  abstract class CCF(val parent: CountedCompleter[Any], @volatile var number: Int)
       extends CheckedCC(parent, 1) {
-    var rnumber = 0
+    @volatile var rnumber = 0
+
     override final protected def realCompute(): Unit = {
       var f = this
       var n = number
       while (n >= 2) {
-        new RCCF(f, n - 2).fork
-        f = new LCCF(f, { n -= 1; n })
+        new RCCF(f, n - 2).fork()
+        n -= 1
+        f = new LCCF(f, n)
       }
       f.complete(null)
     }
+    override def toString(): String = super.toString() + s" n=$number, rn=${rnumber}"
   }
   final class LCCF(parent: CountedCompleter[Any], val n: Int)
       extends CCF(parent, n) {
-    def this(n: Int) { this(null, n) }
+    def this(n: Int) = this(null, n)
     override final def onCompletion(caller: CountedCompleter[_]): Unit = {
       super.onCompletion(caller)
       val p = getCompleter.asInstanceOf[CCF]
@@ -547,7 +556,7 @@ class CountedCompleterTest extends JSR166Test {
       val p = getCompleter.asInstanceOf[FailingCCF]
       val n = number + rnumber
       if (p != null) p.number = n
-      else number = n
+      else number =  n
     }
   }
   final class RFCCF(val parent: CountedCompleter[Any], val n: Int)
@@ -918,6 +927,7 @@ class CountedCompleterTest extends JSR166Test {
 
   /** getPool of non-FJ task returns null
    */
+  @Ignore("Test-infrastructure limitation, all tests are executed in ForkJoinPool due to usage of Future in RPCCore")
   @Test def testGetPool2(): Unit = {
     import ForkJoinTask._
     val a = new CheckedRecursiveAction() {
@@ -940,6 +950,7 @@ class CountedCompleterTest extends JSR166Test {
 
   /** inForkJoinPool of non-FJ task returns false
    */
+  @Ignore("Test-infrastructure limitation, all tests are executed in ForkJoinPool due to usage of Future in RPCCore")
   @Test def testInForkJoinPool2(): Unit = {
     import ForkJoinTask._
     val a = new CheckedRecursiveAction() {
@@ -1073,7 +1084,6 @@ class CountedCompleterTest extends JSR166Test {
           shouldThrow()
         } catch {
           case success: NullPointerException =>
-
         }
       }
     }

@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit._
 import java.util.concurrent._
 import java.util.HashSet
 
-import org.junit.Test
+import org.junit.{Test, Ignore}
 import org.junit.Assert._
 import scala.scalanative.junit.utils.AssertThrows.assertThrows
 import scala.scalanative.junit.utils.ThrowsHelper.assertThrowsAnd
@@ -536,6 +536,7 @@ class RecursiveTaskTest extends JSR166Test {
 
   /** getPool of non-FJ task returns null
    */
+  @Ignore("Test-infrastructure limitation, all tests are executed in ForkJoinPool due to usage of Future in RPCCore")
   @Test def testGetPool2(): Unit = {
     val a = new CheckedRecursiveTask[Integer] {
       protected def realCompute(): Integer = {
@@ -560,6 +561,7 @@ class RecursiveTaskTest extends JSR166Test {
 
   /** inForkJoinPool of non-FJ task returns false
    */
+  @Ignore("Test-infrastructure limitation, all tests are executed in ForkJoinPool due to usage of Future in RPCCore")
   @Test def testInForkJoinPool2(): Unit = {
     val a = new CheckedRecursiveTask[Integer] {
       protected def realCompute(): Integer = {

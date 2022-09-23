@@ -1,14 +1,14 @@
+package java.util.concurrent
+
+import scala.scalanative.runtime.{Intrinsics, fromRawPtr}
+import scala.scalanative.libc.atomic.CAtomicInt
+import scala.annotation.tailrec
+
 /*
  * Written by Doug Lea with assistance from members of JCP JSR-166
  * Expert Group and released to the public domain, as explained at
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
-
-package java.util.concurrent
-
-import java.util.concurrent.atomic.AtomicInteger
-import scala.scalanative.annotation.alwaysinline
-import scala.annotation.tailrec
 
 /** A {@link ForkJoinTask} with a completion action performed when triggered and
  *  there are no remaining pending actions. CountedCompleters are in general
@@ -136,7 +136,7 @@ import scala.annotation.tailrec
  *  <pre> {@code public static <E> void forEach(E[] array, Consumer<E> action) {
  *  class Task extends CountedCompleter<Void> { final int lo, hi; Task(Task
  *  parent, int lo, int hi) { super(parent, 31 - Integer.numberOfLeadingZeros(hi
- *    - lo)); this.lo = lo; this.hi = hi; }
+ *  \- lo)); this.lo = lo; this.hi = hi; }
  *
  *  public void compute() { for (int n = hi - lo; n >= 2; n /= 2) new Task(this,
  *  lo + n/2, lo + n).fork(); action.accept(array[lo]); propagateCompletion(); }
@@ -227,7 +227,7 @@ import scala.annotation.tailrec
  *  additional synchronization is required within this method to ensure thread
  *  safety of accesses to fields of this task or other completed tasks.
  *
- *  <p><b>Completion Traversals.</b> If using {@code onCompletion} to process
+ *  <p><b>Completion Traversals</b>. If using {@code onCompletion} to process
  *  completions is inapplicable or inconvenient, you can use methods {@link
  *  #firstComplete} and {@link #nextComplete} to create custom traversals. For
  *  example, to define a MapReducer that only splits out right-hand tasks in the
@@ -271,35 +271,16 @@ import scala.annotation.tailrec
  *  @author
  *    Doug Lea
  */
-@SerialVersionUID(5232453752276485070L)
-abstract class CountedCompleter[T](
-    final private[concurrent] var completer: CountedCompleter[_],
-    atomicPending: AtomicInteger
+abstract class CountedCompleter[T] protected (
+    final private[concurrent] val completer: CountedCompleter[_],
+    initialPendingCount: Int
 ) extends ForkJoinTask[T] {
 
-  protected def this() = {
-    this(
-      completer = null: CountedCompleter[_],
-      atomicPending = new AtomicInteger(0)
-    )
-  }
-
-  @alwaysinline
-  private[concurrent] def pending: Int = atomicPending.getPlain()
-  @alwaysinline
-  private[concurrent] def pending_=(v: Int): Unit = atomicPending.setPlain(v)
-
-  /** Creates a new CountedCompleter with the given completer and initial
-   *  pending count.
-   *
-   *  @param completer
-   *    this task's completer, or {@code null} if none
-   *  @param initialPendingCount
-   *    the initial pending count
-   */
-  def this(completer: CountedCompleter[_], initialPendingCount: Int) = {
-    this(completer, new AtomicInteger(initialPendingCount))
-  }
+  /** The number of pending tasks until completion */
+  @volatile private var pending = initialPendingCount
+  private val atomicPending = new CAtomicInt(
+    fromRawPtr(Intrinsics.classFieldRawPtr(this, "pending"))
+  )
 
   /** Creates a new CountedCompleter with the given completer and an initial
    *  pending count of zero.
@@ -307,9 +288,9 @@ abstract class CountedCompleter[T](
    *  @param completer
    *    this task's completer, or {@code null} if none
    */
-  def this(completer: CountedCompleter[_]) = {
-    this(completer, 0)
-  }
+  protected def this(completer: CountedCompleter[_]) = this(completer, 0)
+
+  protected def this() = this(null, 0)
 
   /** The main computation performed by this task.
    */
@@ -345,7 +326,10 @@ abstract class CountedCompleter[T](
    *    {@code true} if this exception should be propagated to this task's
    *    completer, if one exists
    */
-  def onExceptionalCompletion(ex: Throwable, caller: CountedCompleter[_]) = true
+  def onExceptionalCompletion(
+      ex: Throwable,
+      caller: CountedCompleter[_]
+  ) = true
 
   /** Returns the completer established in this task's constructor, or {@code
    *  null} if none.
@@ -367,16 +351,14 @@ abstract class CountedCompleter[T](
    *  @param count
    *    the count
    */
-  final def setPendingCount(count: Int): Unit = { pending = count }
+  final def setPendingCount(count: Int): Unit = pending = count
 
   /** Adds (atomically) the given value to the pending count.
    *
    *  @param delta
    *    the value to add
    */
-  final def addToPendingCount(delta: Int): Unit = {
-    atomicPending.getAndAdd(delta)
-  }
+  final def addToPendingCount(delta: Int): Unit = atomicPending.fetchAdd(delta)
 
   /** Sets (atomically) the pending count to the given count only if it
    *  currently holds the given expected value.
@@ -388,16 +370,14 @@ abstract class CountedCompleter[T](
    *  @return
    *    {@code true} if successful
    */
-  final def compareAndSetPendingCount(expected: Int, count: Int): Boolean = {
-    atomicPending.compareAndSet(expected, count)
-  }
+  final def compareAndSetPendingCount(expected: Int, count: Int): Boolean =
+    atomicPending.compareExchangeStrong(expected, count)
+
   // internal-only weak version
   final private[concurrent] def weakCompareAndSetPendingCount(
       expected: Int,
       count: Int
-  ) = {
-    atomicPending.weakCompareAndSetVolatile(expected, count)
-  }
+  ) = atomicPending.compareExchangeWeak(expected, count)
 
   /** If the pending count is nonzero, (atomically) decrements it.
    *
@@ -405,12 +385,13 @@ abstract class CountedCompleter[T](
    *    the initial (undecremented) pending count holding on entry to this
    *    method
    */
-  @tailrec
-  final def decrementPendingCountUnlessZero(): Int = {
-    val c = pending
-    if (c != 0 && !weakCompareAndSetPendingCount(c, c - 1))
-      decrementPendingCountUnlessZero()
-    else c
+  final def decrementPendingCountUnlessZero: Int = {
+    var c = 0
+    while ({
+      c = pending
+      pending != 0 && !weakCompareAndSetPendingCount(c, c - 1)
+    }) ()
+    c
   }
 
   /** Returns the root of the current computation; i.e., this task if it has no
@@ -420,8 +401,12 @@ abstract class CountedCompleter[T](
    *    the root of the current computation
    */
   final def getRoot(): CountedCompleter[_] = {
-    if (completer != null) completer.getRoot()
-    else this
+    @tailrec def loop(a: CountedCompleter[_]): CountedCompleter[_] =
+      a.completer match {
+        case null => a
+        case p    => loop(p)
+      }
+    loop(this)
   }
 
   /** If the pending count is nonzero, decrements the count; otherwise invokes
@@ -430,19 +415,21 @@ abstract class CountedCompleter[T](
    *  complete.
    */
   final def tryComplete(): Unit = {
-    @tailrec
-    def loop(current: CountedCompleter[_], prev: CountedCompleter[_]): Unit = {
-      current.pending match {
-        case 0 =>
-          current.onCompletion(prev)
-          val next = current.completer
-          if (next == null) current.quietlyComplete()
-          else loop(current = next, prev = current)
-        case c => current.weakCompareAndSetPendingCount(c, c - 1)
-      }
+    var a: CountedCompleter[_] = this
+    var s = a
+    var c = 0
+    while (true) {
+      c = a.pending
+      if (c == 0) {
+        a.onCompletion(s)
+        s = a
+        a = a.completer
+        if (a == null) {
+          s.quietlyComplete()
+          return
+        }
+      } else if (a.weakCompareAndSetPendingCount(c, c - 1)) return
     }
-
-    loop(current = this, prev = this)
   }
 
   /** Equivalent to {@link #tryComplete} but does not invoke {@link
@@ -453,18 +440,20 @@ abstract class CountedCompleter[T](
    *  should not, or need not, be invoked for each completer in a computation.
    */
   final def propagateCompletion(): Unit = {
-    @tailrec
-    def loop(current: CountedCompleter[_], prev: CountedCompleter[_]): Unit = {
-      current.pending match {
-        case 0 =>
-          val next = current.completer
-          if (next == null) current.quietlyComplete()
-          else loop(current = next, prev = current)
-        case c => current.weakCompareAndSetPendingCount(c, c - 1)
-      }
+    var a: CountedCompleter[_] = this
+    var s = null: CountedCompleter[_]
+    var c = 0
+    while (true) {
+      c = a.pending
+      if (c == 0) {
+        s = a
+        a = a.completer
+        if (a == null) {
+          s.quietlyComplete()
+          return
+        }
+      } else if (a.weakCompareAndSetPendingCount(c, c - 1)) return
     }
-
-    loop(current = this, prev = null)
   }
 
   /** Regardless of pending count, invokes {@link
@@ -488,7 +477,8 @@ abstract class CountedCompleter[T](
     setRawResult(rawResult)
     onCompletion(this)
     quietlyComplete()
-    if (completer != null) completer.tryComplete()
+    val p = completer
+    if (p != null) p.tryComplete()
   }
 
   /** If this task's pending count is zero, returns this task; otherwise
@@ -499,13 +489,14 @@ abstract class CountedCompleter[T](
    *  @return
    *    this task, if pending count was zero, else {@code null}
    */
-  @tailrec
   final def firstComplete(): CountedCompleter[_] = {
-    pending match {
-      case 0                                            => this
-      case c if weakCompareAndSetPendingCount(c, c - 1) => null
-      case _                                            => firstComplete()
+    var c = 0
+    while (true) {
+      c = pending
+      if (c == 0) return this
+      else if (weakCompareAndSetPendingCount(c, c - 1)) return null
     }
+    null // unreachable
   }
 
   /** If this task does not have a completer, invokes {@link
@@ -521,25 +512,22 @@ abstract class CountedCompleter[T](
    *  @return
    *    the completer, or {@code null} if none
    */
-  final def nextComplete(): CountedCompleter[_] = {
-    if (completer != null) completer.firstComplete()
-    else {
-      quietlyComplete()
-      null
+  final def nextComplete(): CountedCompleter[_] =
+    completer match {
+      case null => quietlyComplete(); null
+      case p    => p.firstComplete()
     }
-  }
 
   /** Equivalent to {@code getRoot().quietlyComplete()}.
    */
   final def quietlyCompleteRoot(): Unit = {
-    @tailrec
-    def loop(current: CountedCompleter[_]): Unit = {
-      current.completer match {
-        case null      => current.quietlyComplete()
-        case completer => loop(current = completer)
+    var a: CountedCompleter[_] = this
+    while (true) {
+      a.completer match {
+        case null => a.quietlyComplete(); return
+        case p    => a = p
       }
     }
-    loop(this)
   }
 
   /** If this task has not completed, attempts to process at most the given
@@ -551,34 +539,27 @@ abstract class CountedCompleter[T](
    *    then no tasks are processed.
    */
   final def helpComplete(maxTasks: Int): Unit = {
-    def tryComplete(queue: ForkJoinPool.WorkQueue, owned: Boolean) = {
-      if (queue != null && maxTasks > 0) {
-        queue.helpComplete(this, owned, maxTasks)
-      }
-    }
-    Thread.currentThread() match {
-      case worker: ForkJoinWorkerThread =>
-        tryComplete(worker.workQueue, owned = true)
-      case _ =>
-        tryComplete(ForkJoinPool.commonQueue(), owned = false)
-    }
+    val t = Thread.currentThread()
+    val owned = t.isInstanceOf[ForkJoinWorkerThread]
+    val q =
+      if (owned) t.asInstanceOf[ForkJoinWorkerThread].workQueue
+      else ForkJoinPool.commonQueue()
+
+    if (q != null && maxTasks > 0) q.helpComplete(this, owned, maxTasks)
   }
 
   /** Supports ForkJoinTask exception propagation.
    */
-  override final private[concurrent] def trySetException(ex: Throwable) = {
-    @tailrec
-    def loop(current: CountedCompleter[_], prev: CountedCompleter[_]): Unit = {
-      if (ForkJoinTask.isExceptionalStatus(current.trySetThrown(ex)) &&
-          current.onExceptionalCompletion(ex, prev)) {
-        val next = current.completer
-        if (next != null && next.status >= 0)
-          loop(current = next, prev = current)
-        else ()
-      }
-    }
-
-    loop(current = this, prev = this)
+  override final private[concurrent] def trySetException(ex: Throwable): Int = {
+    var a: CountedCompleter[_] = this
+    var p = a
+    while ({
+      ForkJoinTask.isExceptionalStatus(a.trySetThrown(ex)) &&
+      a.onExceptionalCompletion(ex, p) && {
+        p = a; a = a.completer; a != null
+      } &&
+      a.status >= 0
+    }) ()
     status
   }
 

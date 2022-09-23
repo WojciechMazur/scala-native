@@ -688,22 +688,26 @@ import scala.scalanative.runtime.{fromRawPtr, Intrinsics, ObjectArray}
  *  @author
  *    Doug Lea
  */
-class ForkJoinPool() extends AbstractExecutorService {
+class ForkJoinPool private (
+    factory: ForkJoinPool.ForkJoinWorkerThreadFactory,
+    val ueh: UncaughtExceptionHandler,
+    saturate: Predicate[ForkJoinPool],
+    keepAlive: Long,
+    workerNamePrefix: String
+) extends AbstractExecutorService {
   import ForkJoinPool._
-  final private[concurrent] var keepAlive: Long = 0L
+
   @volatile private[concurrent] var stealCount: Long = 0
-  private[concurrent] var scanRover: Int = 0 // advances across pollScan calls
   @volatile private[concurrent] var threadIds: Int = 0
-  final private[concurrent] var bounds: Int = 0
   @volatile private[concurrent] var mode: Int = 0
-  private[concurrent] var queues: Array[WorkQueue] = _ // main registry
-  final private[concurrent] val registrationLock = new ReentrantLock()
-  private[concurrent] var termination: Condition = _
-  final private[concurrent] var workerNamePrefix: String = null
-  final private[concurrent] var factory: ForkJoinWorkerThreadFactory = _
-  final private[concurrent] var ueh: Thread.UncaughtExceptionHandler = _
-  final private[concurrent] var saturate: Predicate[_ >: ForkJoinPool] = _
   @volatile private[concurrent] var ctl: Long = 0L // main pool control
+
+  final private[concurrent] var bounds: Int = 0
+  final private[concurrent] val registrationLock = new ReentrantLock()
+
+  private[concurrent] var scanRover: Int = 0 // advances across pollScan calls
+  private[concurrent] var queues: Array[WorkQueue] = _ // main registry
+  private[concurrent] var termination: Condition = _
 
   private val modeAtomic = new CAtomicInt(
     fromRawPtr(Intrinsics.classFieldRawPtr(this, "mode"))
@@ -819,6 +823,7 @@ class ForkJoinPool() extends AbstractExecutorService {
             }
             VarHandle.releaseFence() // fill before publish
             queues = as
+            println(s"2: $queues")
           }
         }
       } finally lock.unlock()
@@ -893,7 +898,7 @@ class ForkJoinPool() extends AbstractExecutorService {
               c,
               (RC_MASK & (c + RC_UNIT)) | (TC_MASK & (c + TC_UNIT))
             )
-            if(c == prevC) {
+            if (c == prevC) {
               createWorker()
               return
             }
@@ -1344,7 +1349,7 @@ class ForkJoinPool() extends AbstractExecutorService {
       var locals: Boolean = true
       var c: Long = 0L
       var breakOuter = false
-      while (!breakOuter)
+      while (!breakOuter) {
         if (locals) { // try locals before scanning
           if ({ s = w.helpComplete(task, owned, 0); s < 0 }) breakOuter = true
           locals = false
@@ -1397,8 +1402,9 @@ class ForkJoinPool() extends AbstractExecutorService {
               r += 1
             }
           }
+      }
     }
-    return s
+    s
   }
 
   /** Scans for and returns a polled task, if available. Used only for untracked
@@ -1624,6 +1630,7 @@ class ForkJoinPool() extends AbstractExecutorService {
       val qs = queues
       val n = if (qs != null) qs.length else 0
       if ((mode & SHUTDOWN) != 0 || n <= 0) {
+        println(s"submisisonQueue shutdown=${(mode & SHUTDOWN)}, n=$n, qs=$qs")
         return null
       }
 
@@ -1663,7 +1670,8 @@ class ForkJoinPool() extends AbstractExecutorService {
    */
   final private[concurrent] def externalPush(task: ForkJoinTask[_]): Unit = {
     submissionQueue() match {
-      case null => throw new RejectedExecutionException // shutdown or disabled
+      case null =>
+        throw new RejectedExecutionException // shutdown or disabled
       case q =>
         if (q.lockedPush(task)) signalWork()
     }
@@ -1834,16 +1842,21 @@ class ForkJoinPool() extends AbstractExecutorService {
       keepAliveTime: Long,
       unit: TimeUnit
   ) = {
-    this()
-    // checkPermission()
+    this(
+      factory = factory,
+      ueh = handler,
+      saturate = saturate,
+      keepAlive =
+        Math.max(unit.toMillis(keepAliveTime), ForkJoinPool.TIMEOUT_SLOP),
+      workerNamePrefix = {
+        val pid: String = Integer.toString(ForkJoinPool.getAndAddPoolIds(1) + 1)
+        s"$pid-worker-"
+      }
+    )
+    if (factory == null || unit == null) throw new NullPointerException
     val p: Int = parallelism
     if (p <= 0 || p > MAX_CAP || p > maximumPoolSize || keepAliveTime <= 0L)
       throw new IllegalArgumentException
-    if (factory == null || unit == null) throw new NullPointerException
-    this.factory = factory
-    this.ueh = handler
-    this.saturate = saturate
-    this.keepAlive = Math.max(unit.toMillis(keepAliveTime), TIMEOUT_SLOP)
     val size: Int = 1 << (33 - Integer.numberOfLeadingZeros(p - 1))
     val corep: Int = Math.min(Math.max(corePoolSize, p), MAX_CAP)
     val maxSpares: Int = Math.min(maximumPoolSize, MAX_CAP) - p
@@ -1854,8 +1867,6 @@ class ForkJoinPool() extends AbstractExecutorService {
     this.ctl = ((((-corep).toLong << TC_SHIFT) & TC_MASK) |
       ((-p.toLong << RC_SHIFT) & RC_MASK))
     this.queues = new Array[WorkQueue](size)
-    val pid: String = Integer.toString(getAndAddPoolIds(1) + 1)
-    this.workerNamePrefix = "" + pid + "-worker-"
   }
 
   /** Creates a {@code with the indicated parallelism level, using defaults for
@@ -1887,6 +1898,11 @@ class ForkJoinPool() extends AbstractExecutorService {
       TimeUnit.MILLISECONDS
     )
   }
+
+  def this() = this(
+    parallelism =
+      Math.min(ForkJoinPool.MAX_CAP, Runtime.getRuntime().availableProcessors())
+  )
 
   /** Creates a {@code with the given parameters (using defaults for others --
    *  see {@link #int, ForkJoinWorkerThreadFactory, UncaughtExceptionHandler,
@@ -3135,52 +3151,50 @@ object ForkJoinPool {
         owned: Boolean,
         limit: Int
     ): Int = {
-      def loop(currentLimit: Int): Int = {
+      var taken = false
+
+      @tailrec def loop(limit: Int): Int = {
         val status = task.status
-        val p = top
-        val s = p - 1
         val a = array
         val cap = if (a != null) a.length else 0
+        val p = top
+        val s = p - 1
         val k = (cap - 1) & s
         val t = if (cap > 0) a(k) else null
 
-        var taken = false
-        @inline
-        def updateAndCheckTaked() = {
-          taken = WorkQueue.casSlotToNull(a, k, t)
-          taken
-        }
-
         @tailrec
-        def doTryComplete(current: CountedCompleter[_]): Unit = {
+        def doTryComplete(current: CountedCompleter[_]): Unit =
           current match {
             case `task` =>
+              @alwaysinline def tryTakeTask() = {
+                taken = WorkQueue.casSlotToNull(a, k, t); taken
+              }
               if (owned) {
-                if (updateAndCheckTaked()) top = s
+                if (tryTakeTask()) top = s
               } else if (tryLock()) {
-                if (top == p && array == a && updateAndCheckTaked()) {
-                  top = s
-                }
+                if (top == p && array == a && tryTakeTask()) top = s
                 source = 0
               }
-              if (taken) t.doExec()
-              else if (!owned) Thread.`yield`() // tryLock failure
-              return
 
             case _ =>
               val next = current.completer
-              if (next == null) ()
-              else doTryComplete(next)
+              if (next != null) doTryComplete(next)
           }
-        }
 
         t match {
           case completer: CountedCompleter[_] if status >= 0 =>
+            taken = false
             doTryComplete(completer)
-          case task => ()
+            if (!taken) status
+            else {
+              t.doExec()
+              val nextLimit = limit - 1
+              if (limit != 0 && nextLimit == 0) status
+              else loop(nextLimit)
+            }
+
+          case _ => status
         }
-        if (taken && limit != 0 && currentLimit - 1 == 0) status
-        else loop(currentLimit = currentLimit - 1)
       }
 
       if (task == null) 0
@@ -3254,13 +3268,18 @@ object ForkJoinPool {
    *  potential initialization circularities as well as to simplify generated
    *  code.
    */
-  private[concurrent] object common extends ForkJoinPool() {
+  private[concurrent] object common
+      extends ForkJoinPool(
+        factory = new DefaultCommonPoolForkJoinWorkerThreadFactory(),
+        ueh = null,
+        saturate = null,
+        keepAlive = DEFAULT_KEEPALIVE,
+        workerNamePrefix = null
+      ) {
     val parallelism = Runtime.getRuntime().availableProcessors() - 1
     this.mode = Math.min(Math.max(parallelism, 0), MAX_CAP)
     val p = this.mode
     val size = 1 << (33 - Integer.numberOfLeadingZeros((p - 1)))
-    this.factory = new DefaultCommonPoolForkJoinWorkerThreadFactory()
-    this.keepAlive = DEFAULT_KEEPALIVE
     this.bounds = ((1 - p) & SMASK) | (COMMON_MAX_SPARES << SWIDTH)
     this.ctl = ((((-p).toLong) << TC_SHIFT) & TC_MASK) |
       ((((-p).toLong) << RC_SHIFT) & RC_MASK)

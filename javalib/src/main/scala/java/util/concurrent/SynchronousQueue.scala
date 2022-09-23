@@ -99,14 +99,10 @@ object SynchronousQueue {
     final private[concurrent] class SNode private[concurrent] (
         var item: Any // data; or null for REQUESTs
     ) extends ForkJoinPool.ManagedBlocker {
-      // next node in stack
-      @volatile private[concurrent] var next: SNode = _
 
-      // the node matched to this
-      @volatile private[concurrent] var `match`: SNode = _
-
-      // to control park/unpark
-      @volatile private[concurrent] var waiter: Thread = _
+      @volatile var next: SNode = _ // next node in stack
+      @volatile var `match`: SNode = _ // the node matched to this
+      @volatile var waiter: Thread = _ // to control park/unpark
 
       val atomicMatch = new CAtomicRef[SNode](
         fromRawPtr(Intrinsics.classFieldRawPtr(this, "match"))
@@ -219,7 +215,6 @@ object SynchronousQueue {
         timed: Boolean,
         _nanos: Long
     ): E = {
-      var nanos = _nanos
       /*
        * Basic algorithm is to loop trying one of three actions:
        *
@@ -240,19 +235,20 @@ object SynchronousQueue {
        *    is essentially the same as for fulfilling, except
        *    that it doesn't return the item.
        */
+      var nanos = _nanos
       var s: SNode = null // constructed/reused as needed
       val mode =
         if (e == null) TransferStack.REQUEST
         else TransferStack.DATA
 
-      import scala.util.control.Breaks._
       while (true) {
         val h = head
         if (h == null || h.mode == mode) { // empty or same-mode
           if (timed && nanos <= 0L) { // can't wait
             if (h != null && h.isCancelled())
               casHead(h, h.next) // pop cancelled node
-            else return null.asInstanceOf[E]
+            else
+              return null.asInstanceOf[E]
           } else if (casHead(h, { s = snode(s, e, h, mode); s })) {
             val deadline =
               if (timed) System.nanoTime() + nanos
@@ -260,32 +256,34 @@ object SynchronousQueue {
             val w = Thread.currentThread()
             var stat = -1 // -1: may yield, +1: park, else 0
             var m: SNode = null // await fulfill or cancel
-            breakable {
-              while ({ m = s.`match`; m == null })
-                if ((timed && {
-                      nanos = deadline - System.nanoTime()
-                      nanos <= 0
-                    }) || w.isInterrupted())
-                  if (s.tryCancel()) {
-                    clean(s) // wait cancelled
-                    return null.asInstanceOf[E]
-                  } else if ({ m = s.`match`; m != null }) break() // recheck
-                  else if (stat <= 0)
-                    if (stat < 0 && h == null && (head eq s)) {
-                      stat = 0 // yield once if was empty
-                      Thread.`yield`()
-                    } else {
-                      stat = 1
-                      s.waiter = w // enable signal
-                    }
-                  else if (!timed) {
-                    LockSupport.setCurrentBlocker(this)
-                    try ForkJoinPool.managedBlock(s)
-                    catch { case _: InterruptedException => () }
-                    LockSupport.setCurrentBlocker(null)
-                  } else if (nanos > SPIN_FOR_TIMEOUT_THRESHOLD)
-                    LockSupport.parkNanos(this, nanos)
+            var break = false
+            while (!break && { m = s.`match`; m == null }) {
+              if ((timed && {
+                    nanos = deadline - System.nanoTime()
+                    nanos <= 0
+                  }) || w.isInterrupted()) {
+                if (s.tryCancel()) {
+                  clean(s) // wait cancelled
+                  return null.asInstanceOf[E]
+                }
+              } else if ({ m = s.`match`; m != null }) break = true // recheck
+              else if (stat <= 0) {
+                if (stat < 0 && h == null && (head eq s)) {
+                  stat = 0 // yield once if was empty
+                  Thread.`yield`()
+                } else {
+                  stat = 1
+                  s.waiter = w // enable signal
+                }
+              } else if (!timed) {
+                LockSupport.setCurrentBlocker(this)
+                try ForkJoinPool.managedBlock(s)
+                catch { case _: InterruptedException => () }
+                LockSupport.setCurrentBlocker(null)
+              } else if (nanos > SPIN_FOR_TIMEOUT_THRESHOLD)
+                LockSupport.parkNanos(this, nanos)
             }
+
             if (stat == 1) s.forgetWaiter()
             val result =
               if (mode == TransferStack.REQUEST) m.item
@@ -294,19 +292,21 @@ object SynchronousQueue {
             return result.asInstanceOf[E]
           }
         } else if (!TransferStack.isFulfilling(h.mode)) { // try to fulfill
-          if (h.isCancelled()) { // already cancelled
+          if (h.isCancelled()) // already cancelled
             casHead(h, h.next) // pop and retry
-          } else if ({
+          else if ({
             s = TransferStack.snode(s, e, h, TransferStack.FULFILLING | mode)
-            casHead(s, h)
-          }) breakable {
-            while (true) { // loop until matched or waiters disappear
+            casHead(h, s)
+          }) {
+            var break = false
+            while (!break) { // loop until matched or waiters disappear
               val m = s.next // m is s's match
               if (m == null) { // all waiters are gone
                 casHead(s, null) // pop fulfill node
                 s = null // use new node next time
-                break() // restart main loop
+                break = true // restart main loop
               }
+
               val mn = m.next
               if (m.tryMatch(s)) {
                 casHead(s, mn) // pop both s and m
@@ -323,9 +323,10 @@ object SynchronousQueue {
             casHead(h, null) // pop fulfilling node
           } else {
             val mn = m.next
-            if (m.tryMatch(h)) { // help match
+            if (m.tryMatch(h)) // help match
               casHead(h, mn) // pop both h and m
-            } else h.casNext(m, mn)
+            else
+              h.casNext(m, mn)
           }
         }
       }
@@ -496,14 +497,13 @@ object SynchronousQueue {
       var s: QNode = null
       val isData = e != null
 
-      import scala.util.control.Breaks._
       while (true) {
         val t = tail
         val h = head
         var m: QNode = null
         var tn: QNode = null // m is node to fulfill
-        if (t == null || h == null) { // inconsistent
-        } else if ((h eq t) || t.isData == isData)
+        if (t == null || h == null) () // inconsistent
+        else if ((h eq t) || t.isData == isData) {
           if (t ne tail) () // no-op
           else if ({ tn = t.next; tn != null }) advanceTail(t, tn)
           else if (timed && nanos <= 0L) return null.asInstanceOf[E]
@@ -518,57 +518,65 @@ object SynchronousQueue {
             val w = Thread.currentThread()
             var stat = -1 // same idea as TransferStack
             var item: AnyRef = null
-            breakable {
-              while ({ item = s.item; item eq e })
-                if (w.isInterrupted() || (timed && {
-                      nanos = deadline - System.nanoTime(); nanos <= 0
-                    })) {
-                  if (s.tryCancel(e)) {
-                    clean(t, s)
-                    return null.asInstanceOf[E]
-                  } else if ({ item = s.item; item ne e }) break()
-                  else if (stat <= 0)
-                    if (t.next eq s) if (stat < 0 && t.isFulfilled()) {
-                      stat = 0 // yield once if first
-                      Thread.`yield`()
-                    } else {
-                      stat = 1
-                      s.waiter = w
-                    }
-                    else if (!timed) {
-                      LockSupport.setCurrentBlocker(this)
-                      try ForkJoinPool.managedBlock(s)
-                      catch { case _: InterruptedException => () }
-                      LockSupport.setCurrentBlocker(null)
-                    } else if (nanos > SPIN_FOR_TIMEOUT_THRESHOLD)
-                      LockSupport.parkNanos(this, nanos)
+            var break = false
+            while (!break && { item = s.item; item eq e }) {
+              if ((timed && {
+                    nanos = deadline - System.nanoTime()
+                    nanos <= 0
+                  }) || w.isInterrupted()) {
+                if (s.tryCancel(e)) {
+                  clean(t, s)
+                  return null.asInstanceOf[E]
                 }
+              } else if ({ item = s.item; item ne e }) break = true
+              else if (stat <= 0) {
+                if (t.next eq s) {
+                  if (stat < 0 && t.isFulfilled()) {
+                    stat = 0 // yield once if first
+                    Thread.`yield`()
+                  } else {
+                    stat = 1
+                    s.waiter = w
+                  }
+                }
+              } else if (!timed) {
+                LockSupport.setCurrentBlocker(this)
+                try ForkJoinPool.managedBlock(s)
+                catch { case _: InterruptedException => () }
+                LockSupport.setCurrentBlocker(null)
+              } else if (nanos > SPIN_FOR_TIMEOUT_THRESHOLD)
+                LockSupport.parkNanos(this, nanos)
             }
+
             if (stat == 1) s.forgetWaiter()
             if (!s.isOffList) { // not already unlinked
               advanceHead(t, s) // unlink if head
-              if (item != null) { // and forget fields
+              if (item != null) // and forget fields
                 s.item = s
-              }
             }
             return {
               if (item != null) item.asInstanceOf[E]
               else e
             }
-          } else if ({ m = h.next; m != null } && (t eq tail) && (h eq head)) {
-            var waiter: Thread = null
-            val x = m.item
-            val fulfilled =
-              (isData == (x == null)) && (x ne m) && m.casItem(x, e)
-            advanceHead(h, m) // (help) dequeue
+          }
+        } else if ({ m = h.next; m != null } && (t eq tail) && (h eq head)) {
+          var waiter: Thread = null
+          val x = m.item
+          val fulfilled =
+            isData == (x == null) &&
+              (x ne m) &&
+              m.casItem(x, e)
+          advanceHead(h, m) // (help) dequeue
 
-            if (fulfilled) {
-              if ({ waiter = m.waiter; waiter != null })
-                LockSupport.unpark(waiter)
-              return if (x != null) x.asInstanceOf[E]
+          if (fulfilled) {
+            if ({ waiter = m.waiter; waiter != null })
+              LockSupport.unpark(waiter)
+            return {
+              if (x != null) x.asInstanceOf[E]
               else e
             }
           }
+        }
       }
       null.asInstanceOf[E] // unreachable
     }

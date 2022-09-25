@@ -368,8 +368,8 @@ private[lang] object PosixThread {
           poll(fds, 1.toUInt, (millis min Int.MaxValue).toInt)
         }
         assert(
-          status == 0 || errno.errno == EINTR,
-          s"sleep, ${fromCString(strerror(errno.errno))}"
+          status >= 0 || errno.errno == EINTR,
+          s"sleep, errno=${errno.errno}"
         )
 
         millis = deadline - System.currentTimeMillis()

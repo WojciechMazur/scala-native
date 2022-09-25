@@ -24,6 +24,6 @@ trait RunnableFuture[V] extends Runnable with Future[V] {
   /** Sets this Future to the result of its computation unless it has been
    *  cancelled.
    */
-  override def run(): Unit
+  def run(): Unit
 
 }

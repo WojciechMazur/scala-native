@@ -28,7 +28,7 @@ trait ScheduledExecutorService extends ExecutorService {
       command: Runnable,
       delay: Long,
       unit: TimeUnit
-  ): ScheduledFuture[Any]
+  ): ScheduledFuture[AnyRef]
 
   /** Submits a value-returning one-shot task that becomes enabled after the
    *  given delay.
@@ -48,7 +48,7 @@ trait ScheduledExecutorService extends ExecutorService {
    *  @throws NullPointerException
    *    if callable or unit is null
    */
-  def schedule[V](
+  def schedule[V <: AnyRef](
       command: Callable[V],
       delay: Long,
       unit: TimeUnit
@@ -97,7 +97,7 @@ trait ScheduledExecutorService extends ExecutorService {
       initialDelay: Long,
       period: Long,
       unit: TimeUnit
-  ): ScheduledFuture[Any]
+  ): ScheduledFuture[AnyRef]
 
   /** Submits a periodic action that becomes enabled first after the given
    *  initial delay, and subsequently with the given delay between the
@@ -139,6 +139,6 @@ trait ScheduledExecutorService extends ExecutorService {
       initialDelay: Long,
       period: Long,
       unit: TimeUnit
-  ): ScheduledFuture[Any]
+  ): ScheduledFuture[AnyRef]
 
 }

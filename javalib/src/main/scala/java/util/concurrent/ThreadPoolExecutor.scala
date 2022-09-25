@@ -263,7 +263,7 @@ object ThreadPoolExecutor {
 
   /** The default rejected execution handler.
    */
-  private val defaultHandler: RejectedExecutionHandler = new AbortPolicy
+  private[concurrent] val defaultHandler: RejectedExecutionHandler = new AbortPolicy
 
   private val ONLY_ONE: Boolean = true
 
@@ -1008,7 +1008,7 @@ class ThreadPoolExecutor(
       keepAliveTime,
       unit,
       workQueue,
-      Executors.defaultThreadFactory,
+      Executors.defaultThreadFactory(),
       ThreadPoolExecutor.defaultHandler
     )
   }
@@ -1102,7 +1102,7 @@ class ThreadPoolExecutor(
       keepAliveTime,
       unit,
       workQueue,
-      Executors.defaultThreadFactory,
+      Executors.defaultThreadFactory(),
       handler
     )
   }
@@ -1565,9 +1565,15 @@ class ThreadPoolExecutor(
     try {
       val it: util.Iterator[Runnable] = q.iterator()
       while (it.hasNext()) {
+        println("---------")
+        println(s"hasNext=${it.hasNext()}")
         it.next() match {
-          case r: Future[_] if r.isCancelled() => it.remove()
-          case _                               => ()
+          case r: Future[_] if r.isCancelled() => 
+            println(s"got $r, hasNext=${it.hasNext()}")
+            it.remove()
+          case _                               => 
+            println("not cancelled")
+            ()
         }
       }
     } catch {

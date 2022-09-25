@@ -383,6 +383,8 @@ trait JSR166Test {
     try fn(pool)
     catch {
       case t: Throwable =>
+        println(t)
+        t.printStackTrace()
         throw new RuntimeException("Pool cleanup failed", t)
         fail(s"Pool cleanup failed: $t")
         null.asInstanceOf[T]
@@ -480,29 +482,26 @@ trait JSR166Test {
     fail("timed out waiting for thread to enter thread state " + expected)
   }
 
-//     /**
-//      * Checks that future.get times out, with the default timeout of
-//      * {@code timeoutMillis()}.
-//      */
-//     void assertFutureTimesOut(Future future) {
-//         assertFutureTimesOut(future, timeoutMillis())
-//     }
+  /** Checks that future.get times out, with the default timeout of {@code
+   *  timeoutMillis()}.
+   */
+  def assertFutureTimesOut(future: Future[_]): Unit =
+    assertFutureTimesOut(future, timeoutMillis())
 
-//     /**
-//      * Checks that future.get times out, with the given millisecond timeout.
-//      */
-//     void assertFutureTimesOut(Future future, long timeoutMillis) {
-//         long startTime = System.nanoTime()
-//         try {
-//             future.get(timeoutMillis, MILLISECONDS)
-//             shouldThrow()
-//         } catch (TimeoutException success) {
-//         } catch (Exception fail) {
-//             threadUnexpectedException(fail)
-//         }
-//         assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
-//         assertFalse(future.isDone())
-//     }
+  /** Checks that future.get times out, with the given millisecond timeout.
+   */
+  def assertFutureTimesOut(future: Future[_], timeoutMillis: Long): Unit = {
+    val startTime = System.nanoTime()
+    try {
+      future.get(timeoutMillis, MILLISECONDS)
+      shouldThrow()
+    } catch {
+      case _: TimeoutException => ()
+      case fail: Exception     => threadUnexpectedException(fail)
+    }
+    assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+    assertFalse(future.isDone())
+  }
 
 //     /**
 //      * Fails with message "should throw exception".
@@ -811,18 +810,16 @@ trait JSR166Test {
   def awaiter(latch: CountDownLatch) = new LatchAwaiter(latch)
 
   def await(latch: CountDownLatch, timeoutMillis: Long = LONG_DELAY_MS) = {
-    util
-      .Try(
-        !latch.await(timeoutMillis, MILLISECONDS)
+    val timedOut =
+      try !latch.await(timeoutMillis, MILLISECONDS)
+      catch {
+        case fail: Throwable => threadUnexpectedException(fail); false
+      }
+    if (timedOut) {
+      fail(
+        s"timed out waiting for CountDownLatch for ${timeoutMillis / 1000} sec"
       )
-      .fold(
-        threadUnexpectedException(_), {
-          if (_)
-            fail(
-              s"timed out waiting for CountDownLatch for ${timeoutMillis / 1000} sec"
-            )
-        }
-      )
+    }
   }
 
 //     public void await(Semaphore semaphore) {
@@ -1082,19 +1079,23 @@ trait JSR166Test {
     assertFalse(it.hasNext())
   }
 
-//     public <T> Callable<T> callableThrowing(final Exception ex) {
-//         return new Callable<T>() { public T call() throws Exception { throw ex }}
-//     }
+  def callableThrowing[T](ex: Exception): Callable[T] = new Callable[T] {
+    def call(): T = throw ex
+  }
 
-//     public Runnable runnableThrowing(final RuntimeException ex) {
-//         return new Runnable() { public void run() { throw ex }}
-//     }
+  def runnableThrowing(ex: Exception): Runnable = new Runnable {
+    def run(): Unit = throw ex
+  }
 
-//     /** A reusable thread pool to be shared by tests. */
-//     static final ExecutorService cachedThreadPool =
-//         new ThreadPoolExecutor(0, Integer.MAX_VALUE,
-//                                1000L, MILLISECONDS,
-//                                new SynchronousQueue<Runnable>())
+  /** A reusable thread pool to be shared by tests. */
+  final val cachedThreadPool: ExecutorService =
+    new ThreadPoolExecutor(
+      0,
+      Integer.MAX_VALUE,
+      1000L,
+      MILLISECONDS,
+      new SynchronousQueue[Runnable]()
+    )
 
   def shuffle[T](array: Array[T]) = {
     Collections.shuffle(Arrays.asList(array), ThreadLocalRandom.current())

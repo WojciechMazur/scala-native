@@ -5,12 +5,6 @@
  */
 
 package java.util.concurrent
-import java.security.AccessControlContext
-import java.security.AccessControlException
-import java.security.AccessController
-import java.security.PrivilegedAction
-import java.security.PrivilegedActionException
-import java.security.PrivilegedExceptionAction
 import java.util.Collection
 import java.util.List
 import java.util.concurrent.atomic.AtomicInteger
@@ -96,7 +90,7 @@ object Executors {
    *    #newWorkStealingPool(int)
    *  @since 1.8
    */
-  def newWorkStealingPool: ExecutorService =
+  def newWorkStealingPool(): ExecutorService =
     new ForkJoinPool(
       Runtime.getRuntime().availableProcessors(),
       ForkJoinPool.defaultForkJoinWorkerThreadFactory,
@@ -151,7 +145,7 @@ object Executors {
    *  @return
    *    the newly created single-threaded Executor
    */
-  def newSingleThreadExecutor: ExecutorService = {
+  def newSingleThreadExecutor(): ExecutorService = {
     new Executors.FinalizableDelegatedExecutorService(
       new ThreadPoolExecutor(
         1,
@@ -204,7 +198,7 @@ object Executors {
    *  @return
    *    the newly created thread pool
    */
-  def newCachedThreadPool: ExecutorService = {
+  def newCachedThreadPool(): ExecutorService = {
     new ThreadPoolExecutor(
       0,
       Integer.MAX_VALUE,
@@ -248,7 +242,7 @@ object Executors {
    *  @return
    *    the newly created scheduled executor
    */
-  def newSingleThreadScheduledExecutor: ScheduledExecutorService = {
+  def newSingleThreadScheduledExecutor(): ScheduledExecutorService = {
     new Executors.DelegatedScheduledExecutorService(
       new ScheduledThreadPoolExecutor(1)
     )
@@ -363,7 +357,7 @@ object Executors {
    *  @return
    *    a thread factory
    */
-  def defaultThreadFactory: ThreadFactory = {
+  def defaultThreadFactory(): ThreadFactory = {
     return new Executors.DefaultThreadFactory
   }
 
@@ -395,7 +389,7 @@ object Executors {
    *    if the current access control context does not have permission to both
    *    get and set context class loader
    */
-  def privilegedThreadFactory: ThreadFactory = {
+  def privilegedThreadFactory(): ThreadFactory = {
     new Executors.PrivilegedThreadFactory
   }
 
@@ -432,38 +426,38 @@ object Executors {
     new Executors.RunnableAdapter[AnyRef](task, null)
   }
 
-  /** Returns a {@link Callable} object that, when called, runs the given
-   *  privileged action and returns its result.
-   *  @param action
-   *    the privileged action to run
-   *  @return
-   *    a callable object
-   *  @throws NullPointerException
-   *    if action null
-   */
-  def callable(action: PrivilegedAction[_]): Callable[Any] = {
-    if (action == null) throw new NullPointerException
-    new Callable[Any]() {
-      override def call(): Any = { action.run() }
-    }
-  }
+  // /** Returns a {@link Callable} object that, when called, runs the given
+  //  *  privileged action and returns its result.
+  //  *  @param action
+  //  *    the privileged action to run
+  //  *  @return
+  //  *    a callable object
+  //  *  @throws NullPointerException
+  //  *    if action null
+  //  */
+  // def callable(action: PrivilegedAction[_]): Callable[Any] = {
+  //   if (action == null) throw new NullPointerException
+  //   new Callable[Any]() {
+  //     override def call(): Any = { action.run() }
+  //   }
+  // }
 
-  /** Returns a {@link Callable} object that, when called, runs the given
-   *  privileged exception action and returns its result.
-   *  @param action
-   *    the privileged exception action to run
-   *  @return
-   *    a callable object
-   *  @throws NullPointerException
-   *    if action null
-   */
-  def callable(action: PrivilegedExceptionAction[_]): Callable[Any] = {
-    if (action == null) { throw new NullPointerException }
-    new Callable[Any]() {
-      @throws[Exception]
-      override def call(): Any = { action.run() }
-    }
-  }
+  // /** Returns a {@link Callable} object that, when called, runs the given
+  //  *  privileged exception action and returns its result.
+  //  *  @param action
+  //  *    the privileged exception action to run
+  //  *  @return
+  //  *    a callable object
+  //  *  @throws NullPointerException
+  //  *    if action null
+  //  */
+  // def callable(action: PrivilegedExceptionAction[_]): Callable[Any] = {
+  //   if (action == null) { throw new NullPointerException }
+  //   new Callable[Any]() {
+  //     @throws[Exception]
+  //     override def call(): Any = { action.run() }
+  //   }
+  // }
 
   /** Returns a {@link Callable} object that will, when called, execute the
    *  given {@code callable} under the current access control context. This
@@ -534,21 +528,23 @@ object Executors {
   final private class PrivilegedCallable[T](
       val task: Callable[T]
   ) extends Callable[T] {
-    final private[concurrent] val acc: AccessControlContext =
-      AccessController.getContext()
+    // No AccessControlContext in Scala Native
+    // final private[concurrent] val acc: AccessControlContext =
+    //   AccessController.getContext()
     @throws[Exception]
-    override def call(): T = {
-      try {
-        val action = new PrivilegedExceptionAction[T]() {
-          @throws[Exception]
-          override def run(): T = task.call()
-        }
-        AccessController.doPrivileged(action, acc)
-      } catch {
-        case e: PrivilegedActionException =>
-          throw e.getException
-      }
-    }
+    override def call(): T = task.call()
+    //   try {
+    //     val action = new PrivilegedExceptionAction[T]() {
+    //       @throws[Exception]
+    //       override def run(): T = task.call()
+    //     }
+    //     AccessController.doPrivileged(action, acc)
+    //   } catch {
+    //     case e: PrivilegedActionException =>
+    //       throw e.getException
+    //   }
+    // }
+
     override def toString(): String = {
       super.toString + "[Wrapped task = " + task + "]"
     }
@@ -560,37 +556,39 @@ object Executors {
   final private class PrivilegedCallableUsingCurrentClassLoader[T](
       val task: Callable[T]
   ) extends Callable[T] {
-    final private[concurrent] var acc: AccessControlContext =
-      AccessController.getContext()
-    final private[concurrent] var ccl: ClassLoader =
-      Thread.currentThread().getContextClassLoader()
+    // No AccessControlContext in Scala NAtive
+    // final private[concurrent] var acc: AccessControlContext =
+    //   AccessController.getContext()
+    // final private[concurrent] var ccl: ClassLoader =
+    //   Thread.currentThread().getContextClassLoader()
 
     @throws[Exception]
-    override def call(): T = {
-      try
-        AccessController.doPrivileged(
-          new PrivilegedExceptionAction[T]() {
-            @throws[Exception]
-            override def run(): T = {
-              val t: Thread = Thread.currentThread()
-              val cl: ClassLoader = t.getContextClassLoader()
-              if (ccl eq cl) { return task.call() }
-              else {
-                t.setContextClassLoader(ccl)
-                try return task.call()
-                finally {
-                  t.setContextClassLoader(cl)
-                }
-              }
-            }
-          },
-          acc
-        )
-      catch {
-        case e: PrivilegedActionException =>
-          throw e.getException
-      }
-    }
+    override def call(): T = task.call()
+    //   try
+    //     AccessController.doPrivileged(
+    //       new PrivilegedExceptionAction[T]() {
+    //         @throws[Exception]
+    //         override def run(): T = {
+    //           val t: Thread = Thread.currentThread()
+    //           val cl: ClassLoader = t.getContextClassLoader()
+    //           if (ccl eq cl) { return task.call() }
+    //           else {
+    //             t.setContextClassLoader(ccl)
+    //             try return task.call()
+    //             finally {
+    //               t.setContextClassLoader(cl)
+    //             }
+    //           }
+    //         }
+    //       },
+    //       acc
+    //     )
+    //   catch {
+    //     case e: PrivilegedActionException =>
+    //       throw e.getException
+    //   }
+    // }
+
     override def toString(): String = {
       return super.toString + "[Wrapped task = " + task + "]"
     }
@@ -625,26 +623,24 @@ object Executors {
    */
   private class PrivilegedThreadFactory()
       extends Executors.DefaultThreadFactory {
-    final private[concurrent] val acc: AccessControlContext =
-      AccessController.getContext()
-    final private[concurrent] val ccl: ClassLoader =
-      Thread.currentThread().getContextClassLoader()
-    override def newThread(r: Runnable): Thread = {
-      return super.newThread(new Runnable() {
-        override def run(): Unit = {
-          AccessController.doPrivileged(
-            new PrivilegedAction[AnyRef]() {
-              override def run(): Void = {
-                Thread.currentThread().setContextClassLoader(ccl)
-                r.run()
-                return null
-              }
-            },
-            acc
-          )
-        }
+    // final private[concurrent] val acc: AccessControlContext =
+    //   AccessController.getContext()
+    // final private[concurrent] val ccl: ClassLoader =
+    //   Thread.currentThread().getContextClassLoader()
+    override def newThread(r: Runnable): Thread =
+      super.newThread(new Runnable() {
+        override def run(): Unit = r.run()
+        // AccessController.doPrivileged(
+        //   new PrivilegedAction[AnyRef]() {
+        //     override def run(): Void = {
+        //       Thread.currentThread().setContextClassLoader(ccl)
+        //       r.run()
+        //     }
+        //   },
+        //   acc
+        // )
+        // }
       })
-    }
   }
 
   /** A wrapper class that exposes only the ExecutorService methods of an
@@ -696,20 +692,20 @@ object Executors {
         reachabilityFence(this)
       }
     }
-    override def submit[T<: AnyRef](task: Callable[T]): Future[T] = {
+    override def submit[T <: AnyRef](task: Callable[T]): Future[T] = {
       try return executor.submit(task)
       finally {
         reachabilityFence(this)
       }
     }
-    override def submit[T<: AnyRef](task: Runnable, result: T): Future[T] = {
+    override def submit[T <: AnyRef](task: Runnable, result: T): Future[T] = {
       try return executor.submit(task, result)
       finally {
         reachabilityFence(this)
       }
     }
     @throws[InterruptedException]
-    override def invokeAll[T<: AnyRef](
+    override def invokeAll[T <: AnyRef](
         tasks: Collection[_ <: Callable[T]]
     ): List[Future[T]] = {
       try return executor.invokeAll(tasks)
@@ -718,7 +714,7 @@ object Executors {
       }
     }
     @throws[InterruptedException]
-    override def invokeAll[T<: AnyRef](
+    override def invokeAll[T <: AnyRef](
         tasks: Collection[_ <: Callable[T]],
         timeout: Long,
         unit: TimeUnit
@@ -730,7 +726,9 @@ object Executors {
     }
     @throws[InterruptedException]
     @throws[ExecutionException]
-    override def invokeAny[T<: AnyRef](tasks: Collection[_ <: Callable[T]]): T = {
+    override def invokeAny[T <: AnyRef](
+        tasks: Collection[_ <: Callable[T]]
+    ): T = {
       try return executor.invokeAny(tasks)
       finally {
         reachabilityFence(this)
@@ -739,7 +737,7 @@ object Executors {
     @throws[InterruptedException]
     @throws[ExecutionException]
     @throws[TimeoutException]
-    override def invokeAny[T<: AnyRef](
+    override def invokeAny[T <: AnyRef](
         tasks: Collection[_ <: Callable[T]],
         timeout: Long,
         unit: TimeUnit
@@ -767,10 +765,10 @@ object Executors {
         command: Runnable,
         delay: Long,
         unit: TimeUnit
-    ): ScheduledFuture[Any] = {
+    ): ScheduledFuture[AnyRef] = {
       return e.schedule(command, delay, unit)
     }
-    override def schedule[V](
+    override def schedule[V <: AnyRef](
         callable: Callable[V],
         delay: Long,
         unit: TimeUnit
@@ -782,7 +780,7 @@ object Executors {
         initialDelay: Long,
         period: Long,
         unit: TimeUnit
-    ): ScheduledFuture[Any] = {
+    ): ScheduledFuture[AnyRef] = {
       e.scheduleAtFixedRate(command, initialDelay, period, unit)
     }
     override def scheduleWithFixedDelay(
@@ -790,7 +788,7 @@ object Executors {
         initialDelay: Long,
         delay: Long,
         unit: TimeUnit
-    ): ScheduledFuture[Any] = {
+    ): ScheduledFuture[AnyRef] = {
       e.scheduleWithFixedDelay(command, initialDelay, delay, unit)
     }
   }

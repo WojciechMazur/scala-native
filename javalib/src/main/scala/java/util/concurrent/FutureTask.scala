@@ -20,7 +20,7 @@ import scalanative.runtime.{fromRawPtr, Intrinsics}
  *  computation has completed; the {@code get} methods will block if the
  *  computation has not yet completed. Once the computation has completed, the
  *  computation cannot be restarted or cancelled (unless the computation is
- *  invoked using {@link #runAndReset}).
+ *  invoked using {@link #runAndReset()}).
  *
  *  <p>A {@code FutureTask} can be used to wrap a {@link Callable} or {@link
  *  Runnable} object. Because {@code FutureTask} implements {@code Runnable}, a
@@ -252,7 +252,7 @@ class FutureTask[V <: AnyRef](private var callable: Callable[V])
    *  @return
    *    {@code true} if successfully run and reset
    */
-  protected def runAndReset: Boolean = {
+  protected def runAndReset(): Boolean = {
     if (state != NEW || !atomicRunner.compareExchangeStrong(
           null: Thread,
           Thread.currentThread()
@@ -275,7 +275,7 @@ class FutureTask[V <: AnyRef](private var callable: Callable[V])
   }
 
   /** Ensures that any interrupt from a possible cancel(true) is only delivered
-   *  to a task while in run or runAndReset.
+   *  to a task while in run or runAndReset().
    */
   private def handlePossibleCancellationInterrupt(s: Int): Unit = {
     // It is possible for our interrupter to stall before getting a

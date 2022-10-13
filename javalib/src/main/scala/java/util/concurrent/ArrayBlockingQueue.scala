@@ -94,9 +94,10 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
     extends util.AbstractQueue[E]
     with BlockingQueue[E]
     with Serializable {
+  if (capacity <= 0) throw new IllegalArgumentException
 
   /** The queued items */
-  private[concurrent] final var items: Array[AnyRef] = null
+  private[concurrent] final val items = new Array[AnyRef](capacity)
 
   /** items index for next take, poll, peek or remove */
   private[concurrent] var takeIndex = 0
@@ -108,26 +109,18 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
   private[concurrent] var count = 0
 
   /** Main lock guarding all access */
-  final private[concurrent] var lock: ReentrantLock = null
+  final private[concurrent] val lock: ReentrantLock = new ReentrantLock(fair)
 
   /** Condition for waiting takes */
-  final private var notEmpty: Condition = null
+  final private val notEmpty: Condition = lock.newCondition()
 
   /** Condition for waiting puts */
-  final private var notFull: Condition = null
+  final private val notFull: Condition = lock.newCondition()
 
   /** Shared state for currently active iterators, or null if there are known
    *  not to be any. Allows queue operations to update iterator state.
    */
   private[concurrent] var itrs: Itrs = null
-
-  locally {
-    if (capacity <= 0) throw new IllegalArgumentException
-    this.items = new Array[AnyRef](capacity)
-    lock = new ReentrantLock(fair)
-    notEmpty = lock.newCondition()
-    notFull = lock.newCondition()
-  }
 
   /** Returns item at index i.
    */
@@ -181,19 +174,16 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
       // slide over all others up through putIndex.
       var i = removeIndex
       val putIndex = this.putIndex
-      import scala.util.control.Breaks._
-      breakable {
-        while (true) {
-          val pred = i
-          i += 1
-          if (i == items.length) i = 0
-          if (i == putIndex) {
-            items(pred) = null
-            this.putIndex = pred
-            break()
-          }
-          items(pred) = items(i)
-        }
+      var break = false
+      while (!break) {
+        val pred = i
+        i += 1
+        if (i == items.length) i = 0
+        if (i == putIndex) {
+          items(pred) = null
+          this.putIndex = pred
+          break = true
+        } else items(pred) = items(i)
       }
       count -= 1
       if (itrs != null) itrs.removedAt(removeIndex)
@@ -437,7 +427,7 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
             }
             i += 1
           }
-          if (to == end) return false // todo: break is not supported
+          if (to == end) return false
 
           i = 0
           to = end
@@ -920,7 +910,7 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
     private var lastItem: E = _
 
     /** Index of lastItem, NONE if none, REMOVED if removed elsewhere */
-    private var lastRet = 0
+    private var lastRet = NONE
 
     /** Previous value of takeIndex, or DETACHED when detached */
     private var prevTakeIndex = 0
@@ -929,7 +919,6 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
     private var prevCycles = 0
 
     locally {
-      lastRet = NONE
       val lock = ArrayBlockingQueue.this.lock
       lock.lock()
       try
@@ -1040,8 +1029,7 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
      *  modifications.
      */
     override def hasNext(): Boolean = {
-      if (nextItem != null) true
-      else {
+      nextItem != null || {
         noNext()
         false
       }
@@ -1200,14 +1188,15 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
       var cursor = this.cursor
       if (cursor >= 0) {
         val x = distance(cursor, prevTakeIndex, len)
-        if (x == removedDistance)
+        if (x == removedDistance) {
           if (cursor == putIndex) {
             cursor = NONE
             this.cursor = NONE
-          } else if (x > removedDistance) { // assert cursor != prevTakeIndex;
-            this.cursor = ArrayBlockingQueue.dec(cursor, len)
-            cursor = this.cursor
           }
+        } else if (x > removedDistance) { // assert cursor != prevTakeIndex;
+          this.cursor = ArrayBlockingQueue.dec(cursor, len)
+          cursor = this.cursor
+        }
       }
       var lastRet = this.lastRet
       if (lastRet >= 0) {
@@ -1218,7 +1207,6 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
         } else if (x > removedDistance) {
           lastRet = ArrayBlockingQueue.dec(lastRet, len)
           this.lastRet = lastRet
-
         }
       }
       var nextIndex = this.nextIndex
@@ -1340,27 +1328,31 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
   private def bulkRemove(filter: Predicate[_ >: E]): Boolean = {
     val lock = this.lock
     lock.lock()
-    try
-      if (itrs == null && count > 0) { // check for active iterators
-        val items = this.items
-        // Optimize for initial run of survivors
-        val start = takeIndex
-        val end = putIndex
-        val to =
-          if (start < end) end
-          else items.length
+    val res =
+      try
+        if (itrs == null) {
+          return if (count > 0) {
+            val items = this.items
+            // Optimize for initial run of survivors
+            val start = takeIndex
+            val end = putIndex
+            val to =
+              if (start < end) end
+              else items.length
 
-        def findInRange(range: Range) = range
-          .find(i => filter.test(ArrayBlockingQueue.itemAt(items, i)))
+            def findInRange(range: Range) = range
+              .find(i => filter.test(ArrayBlockingQueue.itemAt(items, i)))
 
-        findInRange(start until to)
-          .orElse(findInRange(0 until end))
-          .map(bulkRemoveModified(filter, _))
-          .getOrElse(false)
-      } else false
-    finally lock.unlock()
+            findInRange(start until to)
+              .orElse(if (to == end) None else findInRange(0 until end))
+              .map(bulkRemoveModified(filter, _))
+              .getOrElse(false)
+          } else false
+        }
+      finally lock.unlock()
     // Active iterators are too hairy!
     // Punting (for now) to the slow n^2 algorithm ...
+    println("no active iterators")
     super.removeIf(filter)
   }
 

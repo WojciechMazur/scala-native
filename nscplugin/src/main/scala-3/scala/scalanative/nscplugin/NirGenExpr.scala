@@ -1577,22 +1577,8 @@ trait NirGenExpr(using Context) {
       val handler = fresh()
       val mergen = fresh()
 
-      // val monitor$ = scalanative.runtime.`package`.getMonitor(receiver)
-      val getMonitor = SyntheticValDef(
-        name = NameKinds.UniqueName.fresh(termName("monitor")),
-        rhs = Apply(ref(defnNir.RuntimePackage_getMonitorR), List(receiverp))
-      )
-      val monitorRef = Ident(getMonitor.namedType.withPrefix(NoPrefix))
-      genExpr(
-        Block(
-          List(
-            getMonitor,
-            // monitor$.enter()
-            Apply(Select(monitorRef, defnNir.RuntimeMonitor_enterR), Nil)
-          ),
-          EmptyTree
-        )
-      )
+      // scalanative.runtime.`package`.enterMonitor(receiver)
+      genExpr(Apply(ref(defnNir.RuntimePackage_enterMonitorR), List(receiverp)))
 
       // synchronized block
       val retty = {
@@ -1605,7 +1591,7 @@ trait NirGenExpr(using Context) {
       }
 
       // dummy exception handler,
-      // monitor$.exit() call would be added to it in genTryFinally transformer
+      // monitorExit call would be added to it in genTryFinally transformer
       locally {
         val excv = Val.Local(fresh(), Rt.Object)
         nested.label(handler, Seq(excv))
@@ -1616,13 +1602,12 @@ trait NirGenExpr(using Context) {
       // Append try/catch instructions to the outher instruction buffer.
       buf.jump(Next(normaln))
       buf ++= genTryFinally(
-        // monitor$.exit()
-        Apply(Select(monitorRef, defnNir.RuntimeMonitor_exitR), Nil),
+        // scalanative.runtime.`package`.exitMonitor(receiver)
+        Apply(ref(defnNir.RuntimePackage_exitMonitorR), List(receiverp)),
         nested.toSeq
       )
       val mergev = Val.Local(fresh(), retty)
       buf.label(mergen, Seq(mergev))
-      // buf.toSeq.map(_.show).foreach(println)
       mergev
     }
 

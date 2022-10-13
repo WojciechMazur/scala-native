@@ -8,24 +8,29 @@ package object monitor {
   type MonitorRef = Ptr[Word]
 
   private[runtime] object LockWord {
-    final val LockStatusBits = 2
-    final val LockStatusMask = (1 << LockStatusBits) - 1
+    final val RecursionOffset = 0
+    final val RecursionBits = 7
+    final val ThinMonitorMaxRecursion = (1 << RecursionBits) - 1
+    final val RecursionMask = ThinMonitorMaxRecursion // << RecursionOffset
 
-    type LockStatus = Int
-    object LockStatus {
-      final val Unlocked = 0
-      final val Locked = 1
-      final val Inflated = 2
+    final val ThreadIdOffset = 7
+    final val ThreadIdBits = 56
+    final val ThreadIdMax = (1L << ThreadIdBits) - 1
+    final val ThreadIdMask = ThreadIdMax << ThreadIdOffset
+
+    final val LockTypeOffset = 63
+    final val LockTypeBits = 1
+    final val LockTypeMask = ((1L << LockTypeBits) - 1) << LockTypeOffset
+
+    type LockType = Long
+    object LockType {
+      final val Deflated = 0L
+      final val Inflated = 1L
     }
 
-    final val ThreadIdOffset = 10
-    final val ThreadIdBits = 54
-    final val ThreadIdMask = ((1 << ThreadIdBits) - 1) << ThreadIdOffset
-
-    final val RecursionOffset = 2
-    final val RecursionBits = 8
-    final val ThinMonitorMaxRecursion = (1 << RecursionBits) - 1
-    final val RecursionMask = ThinMonitorMaxRecursion << RecursionOffset
+    // Potentially can decreased 60bits if we would need to encode additioanl flags
+    final val ObjectMonitorBits = 63
+    final val ObjectMonitorMask = (1L << ObjectMonitorBits) - 1
   }
 
   /*
@@ -37,54 +42,45 @@ package object monitor {
    * inflated.
    *
    * 64bit lock word as ThinMonitor =
-   * |------54bit-------|---8bit---|---2bit--|
-   * | threadID (owner) | recursion|lock type|
+   * |--1bit--|------56bit-------|---7bit----|
+   * |  0     | threadID (owner) | recursion |
    *
    * InflatedMonitor contains reference to heavy-weitgh ObjectMonitor
    * 64bit lock word as InflatedMonitor
-   * |------62bit------------------|---2bit--|
-   * |     ObjectMonitor ref       |lock type|
+   * |---1bit--|------63bit------------------|
+   * |    1    |     ObjectMonitor ref       |
    *
    * 32bit layout is currently not defined
    */
 
-  private[runtime] implicit class LockWord(val value: Word) extends AnyVal {
+  @inline private[runtime] implicit class LockWord(val value: RawPtr)
+      extends AnyVal {
+    @alwaysinline def longValue = castRawPtrToLong(value)
     import LockWord._
 
-    @alwaysinline
-    def lockStatus: LockStatus = (value & LockStatusMask).toInt
+    // @alwaysinline def lockType: LockType = longValue >> LockTypeMask
+    // (longValue & LockTypeMask).toInt
 
-    @alwaysinline
-    def withLockStatus(v: LockStatus): LockWord = (value & ~LockStatusMask) | v
+    @alwaysinline def withLockType(v: LockType): LockWord =
+      castLongToRawPtr((longValue & ~LockTypeMask) | v)
 
-    def isLocked: Boolean = lockStatus == LockStatus.Locked
-    def lsUnlocked: Boolean = lockStatus == LockStatus.Unlocked
-    def isInflated: Boolean = lockStatus == LockStatus.Inflated
+    @alwaysinline def isDefalted = longValue >= 0
+    @alwaysinline def isInflated = longValue < 0
+    @alwaysinline def isUnlocked = longValue == 0
 
     // Thin monitor ops
+    @alwaysinline def threadId = longValue >> ThreadIdOffset
 
-    def threadId: Long = (value & ThreadIdMask) >> ThreadIdOffset
-    def withThreadId(v: Long): Word = {
-      val threadIdBitset = (v << ThreadIdOffset) & ThreadIdMask
-      (value & ~ThreadIdMask) | threadIdBitset
-    }
-
-    def recursionCount: Int = ((value & RecursionMask) >> RecursionOffset).toInt
-    def withIncreasedRecursion(): Word = value + (1 << RecursionOffset)
-    def withDecresedRecursion(): Word = value - (1 << RecursionOffset)
+    @alwaysinline def recursionCount = (longValue & RecursionMask).toInt
+    @alwaysinline def withIncreasedRecursion: Word = longValue + 1
+    @alwaysinline def withDecresedRecursion: Word = longValue - 1
 
     // Inflated monitor ops
-    def getObjectMonitor: ObjectMonitor = {
-      assert(isInflated, "LockWord was not inflated")
-      val addr = value ^ LockStatus.Inflated
+    @alwaysinline def getObjectMonitor: ObjectMonitor = {
+      // assert(isInflated, "LockWord was not inflated")
+      val addr = longValue & ObjectMonitorMask
       castRawPtrToObject(castLongToRawPtr(addr))
         .asInstanceOf[ObjectMonitor]
-    }
-
-    def withMonitorAssigned(v: ObjectMonitor): Word = {
-      // Since pointers are always alligned we can safely override N=sizeof(Word) right most bits
-      val monitorAddress = castRawPtrToLong(castObjectToRawPtr(v))
-      value | monitorAddress
     }
   }
 

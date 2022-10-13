@@ -23,18 +23,14 @@ class _Object {
     castRawPtrToObject(rtti).asInstanceOf[_Class[_]]
   }
 
-  @inline def __notify(): Unit =
-    getMonitor(this)._notify()
+  @inline def __notify(): Unit = getMonitor(this)._notify()
 
-  @inline def __notifyAll(): Unit =
-    getMonitor(this)._notifyAll()
+  @inline def __notifyAll(): Unit = getMonitor(this)._notifyAll()
 
-  @inline def __wait(): Unit =
-    getMonitor(this)._wait()
+  @inline def __wait(): Unit = getMonitor(this)._wait()
 
   @inline def __wait(timeout: scala.Long): Unit =
     getMonitor(this)._wait(timeout)
-
   @inline def __wait(timeout: scala.Long, nanos: Int): Unit =
     getMonitor(this)._wait(timeout, nanos)
 

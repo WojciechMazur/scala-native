@@ -81,11 +81,11 @@ static inline bool Object_IsReferantOfWeakReference(Object *object,
 }
 
 static inline bool Field_isInflatedLock(Field_t field) {
-    return ((word_t)field & LOCK_STATUS_MASK) == LOCK_STATUS_INFLATED;
+    return (word_t)field & LOCK_STATUS_MASK;
 }
 
 static inline Field_t Field_allignedLockRef(Field_t field) {
-    return (Field_t)((word_t)field ^ LOCK_STATUS_INFLATED);
+    return (Field_t)((word_t)field & MONITOR_OBJECT_MASK);
 }
 
 #endif // IMMIX_OBJECTHEADER_H

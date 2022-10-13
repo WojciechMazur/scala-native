@@ -26,19 +26,19 @@ package object runtime {
   /** Used as a stub right hand of intrinsified methods. */
   def intrinsic: Nothing = throwUndefined()
 
+  /** Enter monitor of given object. */
+  @alwaysinline def enterMonitor(obj: Object): Unit = getMonitor(obj).enter(obj)
+
+  /** Enter monitor of given object. */
+  @alwaysinline def exitMonitor(obj: Object): Unit = getMonitor(obj).exit(obj)
+
   /** Get monitor for given object. */
-  @alwaysinline def getMonitor(obj: Object): Monitor = {
-    new Monitor(
-      BasicMonitor(
-        fromRawPtr(
-          elemRawPtr(
-            castObjectToRawPtr(obj),
-            MemoryLayout.Object.LockWordOffset
-          )
-        )
-      )
+  @alwaysinline def getMonitor(obj: Object) = new BasicMonitor(
+    elemRawPtr(
+      castObjectToRawPtr(obj),
+      MemoryLayout.Object.LockWordOffset
     )
-  }
+  )
 
   /** Initialize runtime with given arguments and return the rest as Java-style
    *  array.

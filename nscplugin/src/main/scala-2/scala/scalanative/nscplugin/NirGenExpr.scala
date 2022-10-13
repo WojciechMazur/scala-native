@@ -2042,27 +2042,10 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       val handler = fresh()
       val mergen = fresh()
 
-      val monitorName = TermName(currentFreshNameCreator.newName("monitor"))
-      val monitorTree = Ident(monitorName)
+      // scalanative.runtime.`package`.enterMonitor(receiver)
       genExpr(
-        Block(
-          // val monitor$ = scalanative.runtime.`package`.getMonitor(receiver)
-          ValDef(
-            mods = Modifiers(),
-            name = monitorName,
-            tpt = TypeTree(),
-            rhs = treeBuild.mkMethodCall(GetMonitorMethod, List(receiverp))
-          ),
-          // monitor$.enter()
-          treeBuild.mkMethodCall(
-            receiver = monitorTree,
-            method = RuntimeMonitorEnterMethod,
-            targs = Nil,
-            args = Nil
-          )
-        )
+        treeBuild.mkMethodCall(RuntimeEnterMonitorMethod, List(receiverp))
       )
-
       // synchronized block
       val retty = {
         scoped(curUnwindHandler := Some(handler)) {
@@ -2085,14 +2068,10 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       // Append try/catch instructions to the outher instruction buffer.
       buf.jump(Next(normaln))
       buf ++= genTryFinally(
-        // monitor$.exit()
-        treeBuild.mkMethodCall(
-          receiver = monitorTree,
-          method = RuntimeMonitorExitMethod,
-          targs = Nil,
-          args = Nil
-        ),
-        nested.toSeq
+        // scalanative.runtime.`package`.exitMonitor(receiver)
+        finallyp =
+          treeBuild.mkMethodCall(RuntimeExitMonitorMethod, List(receiverp)),
+        insts = nested.toSeq
       )
       val mergev = Val.Local(fresh(), retty)
       buf.label(mergen, Seq(mergev))

@@ -41,7 +41,7 @@ trait Opt { self: Interflow =>
     // Interflow usually infers better types on our erased type system
     // than scalac, yet we live it as a benefit of the doubt and make sure
     // that if original return type is more specific, we keep it as is.
-    val Type.Function(_, origRetTy) = origdefn.ty
+    val Type.Function(_, origRetTy) = origdefn.ty: @unchecked
 
     // Compute opaque fresh locals for the arguments. Argument types
     // are always a subtype of the original declared type, but in

@@ -67,7 +67,7 @@ abstract class LinkedHashMapTest extends HashMapTest {
     val lhm = factory.empty[jl.Integer, String]
     (0 until 100).foreach(key => lhm.put(key, s"elem $key"))
 
-    (0 until 100 by 3).foreach(key => lhm.remove(key))
+    (0 until 100 by 3).foreach(lhm.remove)
 
     val expectedKey =
       ((100 - withSizeLimit.getOrElse(100)) to 100).filter(_ % 3 != 0).toArray

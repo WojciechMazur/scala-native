@@ -1049,11 +1049,9 @@ trait NirGenExpr(using Context) {
 
       val funSym = fun.symbol
       val value = genExpr(receiverp)
-      def boxed = boxValue(receiverp.tpe, value)(using receiverp.span)
-
       if (funSym == defn.Object_synchronized)
         assert(argsp.size == 1, "synchronized with wrong number of args")
-        genSynchronized(ValTree(boxed), argsp.head)
+        genSynchronized(receiverp, argsp.head)
       else genTypeApply(tApply)
     }
 

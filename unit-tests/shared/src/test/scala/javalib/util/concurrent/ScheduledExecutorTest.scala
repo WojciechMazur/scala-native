@@ -53,13 +53,13 @@ class ScheduledExecutorTest extends JSR166Test {
       val task = new CheckedCallable[Boolean]() {
         override def realCall(): Boolean = {
           done.countDown()
-          assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+          assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
           java.lang.Boolean.TRUE
         }
       }
-      val f = p.schedule(task, timeoutMillis, MILLISECONDS)
+      val f = p.schedule(task, timeoutMillis(), MILLISECONDS)
       assertSame(java.lang.Boolean.TRUE, f.get)
-      assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+      assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
       assertEquals(0L, done.getCount)
     }
 
@@ -73,13 +73,13 @@ class ScheduledExecutorTest extends JSR166Test {
       val task = new CheckedRunnable() {
         override def realRun(): Unit = {
           done.countDown()
-          assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+          assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
         }
       }
-      val f = p.schedule(task, timeoutMillis, MILLISECONDS)
+      val f = p.schedule(task, timeoutMillis(), MILLISECONDS)
       await(done)
       assertNull(f.get(LONG_DELAY_MS, MILLISECONDS))
-      assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+      assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
     }
 
   /** scheduleAtFixedRate executes runnable after given initial delay
@@ -92,17 +92,17 @@ class ScheduledExecutorTest extends JSR166Test {
       val task = new CheckedRunnable() {
         override def realRun(): Unit = {
           done.countDown()
-          assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+          assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
         }
       }
       val f = p.scheduleAtFixedRate(
         task,
-        timeoutMillis,
+        timeoutMillis(),
         LONG_DELAY_MS,
         MILLISECONDS
       )
       await(done)
-      assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+      assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
       f.cancel(true)
     }
 
@@ -116,17 +116,17 @@ class ScheduledExecutorTest extends JSR166Test {
       val task = new CheckedRunnable() {
         override def realRun(): Unit = {
           done.countDown()
-          assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+          assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
         }
       }
       val f = p.scheduleWithFixedDelay(
         task,
-        timeoutMillis,
+        timeoutMillis(),
         LONG_DELAY_MS,
         MILLISECONDS
       )
       await(done)
-      assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+      assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
       f.cancel(true)
     }
 
@@ -211,8 +211,8 @@ class ScheduledExecutorTest extends JSR166Test {
   /** Submitting null tasks throws NullPointerException
    */
   @Test def testNullTaskSubmission(): Unit =
-    usingPoolCleaner(new ScheduledThreadPoolExecutor(1)) { p =>
-      assertNullTaskSubmissionThrowsNullPointerException(p)
+    usingPoolCleaner(new ScheduledThreadPoolExecutor(1)) {
+      assertNullTaskSubmissionThrowsNullPointerException
     }
 
   /** Submitted tasks are rejected when shutdown
@@ -798,8 +798,7 @@ class ScheduledExecutorTest extends JSR166Test {
     delayeds.add(
       p.schedule(
         task,
-        if (effectiveDelayedPolicy) delay
-        else LONG_DELAY_MS,
+        if (effectiveDelayedPolicy) delay.toLong else LONG_DELAY_MS,
         MILLISECONDS
       )
     )
@@ -821,7 +820,7 @@ class ScheduledExecutorTest extends JSR166Test {
       stream.addAll(immediates)
       stream.addAll(delayeds)
       stream.addAll(periodics)
-      stream.forEach { f: Future[_] => assertFalse(f.isDone) }
+      stream.forEach { (f: Future[_]) => assertFalse(f.isDone) }
     }
     try p.shutdown()
     catch {
@@ -884,7 +883,7 @@ class ScheduledExecutorTest extends JSR166Test {
       stream.addAll(immediates)
       stream.addAll(delayeds)
       stream.addAll(periodics)
-      stream.forEach { f: Future[_] => assertTrue(f.isDone) }
+      stream.forEach { (f: Future[_]) => assertTrue(f.isDone) }
     }
     immediates.forEach { f => assertNull(f.get) }
     assertNull(delayeds.get(0).get)
@@ -1249,7 +1248,7 @@ class ScheduledExecutorTest extends JSR166Test {
    */
   @throws[Exception]
   @Test def testTimedInvokeAll6(): Unit = {
-    var timeout = timeoutMillis
+    var timeout = timeoutMillis()
     var break = false
     while (!break) {
       val done = new CountDownLatch(1)

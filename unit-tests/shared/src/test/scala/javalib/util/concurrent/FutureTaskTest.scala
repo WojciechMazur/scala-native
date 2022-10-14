@@ -135,9 +135,9 @@ class FutureTaskTest extends JSR166Test {
     assertFalse(f.cancel(true))
     f match {
       case pf: PublicFutureTask @unchecked =>
-        assertEquals(1, pf.doneCount)
-        assertFalse(pf.doRunAndReset)
-        assertEquals(1, pf.doneCount)
+        assertEquals(1, pf.doneCount())
+        assertFalse(pf.doRunAndReset())
+        assertEquals(1, pf.doneCount())
         var r = null: AnyRef
         var exInfo = null: AnyRef
         try r = f.get
@@ -152,7 +152,7 @@ class FutureTaskTest extends JSR166Test {
         // Check that run and runAndReset have no effect.
         val savedRunCount = pf.runCount()
         pf.run()
-        pf.doRunAndReset
+        pf.doRunAndReset()
         assertEquals(savedRunCount, pf.runCount())
         var r2 = null: AnyRef
         try r2 = f.get
@@ -176,9 +176,9 @@ class FutureTaskTest extends JSR166Test {
     assertFalse(f.isCancelled)
     f match {
       case pf: PublicFutureTask @unchecked =>
-        assertEquals(0, pf.doneCount)
-        assertEquals(0, pf.setCount)
-        assertEquals(0, pf.setExceptionCount)
+        assertEquals(0, pf.doneCount())
+        assertEquals(0, pf.setCount())
+        assertEquals(0, pf.setExceptionCount())
       case _ => ()
     }
   }
@@ -191,10 +191,10 @@ class FutureTaskTest extends JSR166Test {
         ft.run()
         f match {
           case pf: PublicFutureTask =>
-            val savedRunCount = pf.runCount
+            val savedRunCount = pf.runCount()
             pf.run()
-            assertFalse(pf.doRunAndReset)
-            assertEquals(savedRunCount, pf.runCount)
+            assertFalse(pf.doRunAndReset())
+            assertEquals(savedRunCount, pf.runCount())
           case _ => ()
         }
         checkNotDone(f)
@@ -311,7 +311,7 @@ class FutureTaskTest extends JSR166Test {
     task.run()
     assertTrue(task.isDone())
     checkCompletedNormally(task, java.lang.Boolean.TRUE)
-    assertEquals(1, task.runCount)
+    assertEquals(1, task.runCount())
   }
 
   /** runAndReset of a non-cancelled task succeeds
@@ -320,12 +320,12 @@ class FutureTaskTest extends JSR166Test {
     val task =
       FutureTaskTest.PublicFutureTask(new NoOpCallable)
     for (i <- 0 until 3) {
-      assertTrue(task.doRunAndReset)
+      assertTrue(task.doRunAndReset())
       checkNotDone(task)
-      assertEquals(i + 1, task.runCount)
-      assertEquals(i + 1, task.runAndResetCount)
-      assertEquals(0, task.setCount)
-      assertEquals(0, task.setExceptionCount)
+      assertEquals(i + 1, task.runCount())
+      assertEquals(i + 1, task.runAndResetCount())
+      assertEquals(0, task.setCount())
+      assertEquals(0, task.setExceptionCount())
     }
   }
 
@@ -337,11 +337,11 @@ class FutureTaskTest extends JSR166Test {
         FutureTaskTest.PublicFutureTask(new NoOpCallable)
       assertTrue(task.cancel(mayInterruptIfRunning))
       for (i <- 0 until 3) {
-        assertFalse(task.doRunAndReset)
-        assertEquals(0, task.runCount)
-        assertEquals(i + 1, task.runAndResetCount)
-        assertEquals(0, task.setCount)
-        assertEquals(0, task.setExceptionCount)
+        assertFalse(task.doRunAndReset())
+        assertEquals(0, task.runCount())
+        assertEquals(i + 1, task.runAndResetCount())
+        assertEquals(0, task.setCount())
+        assertEquals(0, task.setExceptionCount())
       }
       tryToConfuseDoneTask(task)
       checkCancelled(task)
@@ -358,11 +358,11 @@ class FutureTaskTest extends JSR166Test {
     for (i <- 0 until 3) {
       assertSame(one, task.get)
       assertSame(one, task.get(LONG_DELAY_MS, MILLISECONDS))
-      assertEquals(1, task.setCount)
+      assertEquals(1, task.setCount())
     }
     tryToConfuseDoneTask(task)
     checkCompletedNormally(task, one)
-    assertEquals(0, task.runCount)
+    assertEquals(0, task.runCount())
   }
 
   /** setException causes get to throw ExecutionException
@@ -389,11 +389,11 @@ class FutureTaskTest extends JSR166Test {
         assertSame(nse, success.getCause)
         checkCompletedAbnormally(task, nse)
     }
-    assertEquals(1, task.setExceptionCount)
-    assertEquals(0, task.setCount)
+    assertEquals(1, task.setExceptionCount())
+    assertEquals(0, task.setCount())
     tryToConfuseDoneTask(task)
     checkCompletedAbnormally(task, nse)
-    assertEquals(0, task.runCount)
+    assertEquals(0, task.runCount())
   }
 
   /** cancel(false) before run succeeds
@@ -403,13 +403,13 @@ class FutureTaskTest extends JSR166Test {
       FutureTaskTest.PublicFutureTask(new NoOpCallable)
     assertTrue(task.cancel(false))
     task.run()
-    assertEquals(0, task.runCount)
-    assertEquals(0, task.setCount)
-    assertEquals(0, task.setExceptionCount)
+    assertEquals(0, task.runCount())
+    assertEquals(0, task.setCount())
+    assertEquals(0, task.setExceptionCount())
     assertTrue(task.isCancelled)
     assertTrue(task.isDone())
     tryToConfuseDoneTask(task)
-    assertEquals(0, task.runCount)
+    assertEquals(0, task.runCount())
     checkCancelled(task)
   }
 
@@ -420,13 +420,13 @@ class FutureTaskTest extends JSR166Test {
       FutureTaskTest.PublicFutureTask(new NoOpCallable)
     assertTrue(task.cancel(true))
     task.run()
-    assertEquals(0, task.runCount)
-    assertEquals(0, task.setCount)
-    assertEquals(0, task.setExceptionCount)
+    assertEquals(0, task.runCount())
+    assertEquals(0, task.setCount())
+    assertEquals(0, task.setExceptionCount())
     assertTrue(task.isCancelled)
     assertTrue(task.isDone())
     tryToConfuseDoneTask(task)
-    assertEquals(0, task.runCount)
+    assertEquals(0, task.runCount())
     checkCancelled(task)
   }
 
@@ -437,12 +437,12 @@ class FutureTaskTest extends JSR166Test {
       FutureTaskTest.PublicFutureTask(new NoOpCallable)
     task.run()
     assertFalse(task.cancel(false))
-    assertEquals(1, task.runCount)
-    assertEquals(1, task.setCount)
-    assertEquals(0, task.setExceptionCount)
+    assertEquals(1, task.runCount())
+    assertEquals(1, task.setCount())
+    assertEquals(0, task.setExceptionCount())
     tryToConfuseDoneTask(task)
     checkCompletedNormally(task, java.lang.Boolean.TRUE)
-    assertEquals(1, task.runCount)
+    assertEquals(1, task.runCount())
   }
 
   /** cancel(true) of a completed task fails
@@ -452,12 +452,12 @@ class FutureTaskTest extends JSR166Test {
       FutureTaskTest.PublicFutureTask(new NoOpCallable)
     task.run()
     assertFalse(task.cancel(true))
-    assertEquals(1, task.runCount)
-    assertEquals(1, task.setCount)
-    assertEquals(0, task.setExceptionCount)
+    assertEquals(1, task.runCount())
+    assertEquals(1, task.setCount())
+    assertEquals(0, task.setExceptionCount())
     tryToConfuseDoneTask(task)
     checkCompletedNormally(task, java.lang.Boolean.TRUE)
-    assertEquals(1, task.runCount)
+    assertEquals(1, task.runCount())
   }
 
   /** cancel(true) interrupts a running task that subsequently succeeds
@@ -484,9 +484,9 @@ class FutureTaskTest extends JSR166Test {
     assertTrue(task.isCancelled)
     assertTrue(task.isDone())
     awaitTermination(t)
-    assertEquals(1, task.runCount)
-    assertEquals(1, task.setCount)
-    assertEquals(0, task.setExceptionCount)
+    assertEquals(1, task.runCount())
+    assertEquals(1, task.setCount())
+    assertEquals(0, task.setExceptionCount())
     tryToConfuseDoneTask(task)
     checkCancelled(task)
   }
@@ -522,14 +522,14 @@ class FutureTaskTest extends JSR166Test {
     // its sanity, as if we had done task.cancel(false)
     assertTrue(task.isCancelled)
     assertTrue(task.isDone())
-    assertEquals(1, task.runCount)
-    assertEquals(1, task.doneCount)
-    assertEquals(0, task.setCount)
-    assertEquals(0, task.setExceptionCount)
+    assertEquals(1, task.runCount())
+    assertEquals(1, task.doneCount())
+    assertEquals(0, task.setCount())
+    assertEquals(0, task.setExceptionCount())
     cancelled.countDown()
     awaitTermination(t)
-    assertEquals(1, task.setCount)
-    assertEquals(0, task.setExceptionCount)
+    assertEquals(1, task.setCount())
+    assertEquals(0, task.setExceptionCount())
     tryToConfuseDoneTask(task)
     checkCancelled(task)
   }
@@ -556,9 +556,9 @@ class FutureTaskTest extends JSR166Test {
     assertTrue(task.cancel(true))
     assertTrue(task.isCancelled)
     awaitTermination(t)
-    assertEquals(1, task.runCount)
-    assertEquals(0, task.setCount)
-    assertEquals(1, task.setExceptionCount)
+    assertEquals(1, task.runCount())
+    assertEquals(0, task.setCount())
+    assertEquals(1, task.setExceptionCount())
     tryToConfuseDoneTask(task)
     checkCancelled(task)
   }
@@ -570,7 +570,7 @@ class FutureTaskTest extends JSR166Test {
     val cancelled = new CountDownLatch(1)
     val task = FutureTaskTest.PublicFutureTask(
       new CheckedCallable[java.lang.Boolean]() {
-        override def realCall: java.lang.Boolean = {
+        override def realCall(): java.lang.Boolean = {
           pleaseCancel.countDown()
           await(cancelled)
           assertFalse(Thread.interrupted)
@@ -584,9 +584,9 @@ class FutureTaskTest extends JSR166Test {
     assertTrue(task.isCancelled)
     cancelled.countDown()
     awaitTermination(t)
-    assertEquals(1, task.runCount)
-    assertEquals(1, task.setCount)
-    assertEquals(0, task.setExceptionCount)
+    assertEquals(1, task.runCount())
+    assertEquals(1, task.setCount())
+    assertEquals(0, task.setExceptionCount())
     tryToConfuseDoneTask(task)
     checkCancelled(task)
   }
@@ -620,9 +620,9 @@ class FutureTaskTest extends JSR166Test {
     assertTrue(t2.isAlive)
     task.run()
     checkCompletedNormally(task, two)
-    assertEquals(1, task.runCount)
-    assertEquals(1, task.setCount)
-    assertEquals(0, task.setExceptionCount)
+    assertEquals(1, task.runCount())
+    assertEquals(1, task.setCount())
+    assertEquals(0, task.setExceptionCount())
     awaitTermination(t1)
     awaitTermination(t2)
     tryToConfuseDoneTask(task)
@@ -658,9 +658,9 @@ class FutureTaskTest extends JSR166Test {
     assertTrue(t1.isAlive)
     assertTrue(t2.isAlive)
     task.doSet(two)
-    assertEquals(0, task.runCount)
-    assertEquals(1, task.setCount)
-    assertEquals(0, task.setExceptionCount)
+    assertEquals(0, task.runCount())
+    assertEquals(1, task.setCount())
+    assertEquals(0, task.setExceptionCount())
     tryToConfuseDoneTask(task)
     checkCompletedNormally(task, two)
     awaitTermination(t1)
@@ -676,7 +676,7 @@ class FutureTaskTest extends JSR166Test {
   @Test def testTimedGet_Cancellation_interrupt(): Unit = {
     testTimedGet_Cancellation(true)
   }
-  
+
   def testTimedGet_Cancellation(
       mayInterruptIfRunning: java.lang.Boolean
   ): Unit = {
@@ -722,9 +722,9 @@ class FutureTaskTest extends JSR166Test {
     awaitTermination(t2)
     cancelled.countDown()
     awaitTermination(t3)
-    assertEquals("runCount", 1, task.runCount)
-    assertEquals("setCunt", 1, task.setCount)
-    assertEquals("exceptionCount", 0, task.setExceptionCount)
+    assertEquals("runCount", 1, task.runCount())
+    assertEquals("setCunt", 1, task.setCount())
+    assertEquals("exceptionCount", 0, task.setExceptionCount())
     tryToConfuseDoneTask(task)
     checkCancelled(task)
   }
@@ -738,9 +738,9 @@ class FutureTaskTest extends JSR166Test {
       override def call = throw e
     })
     task.run()
-    assertEquals(1, task.runCount)
-    assertEquals(0, task.setCount)
-    assertEquals(1, task.setExceptionCount)
+    assertEquals(1, task.runCount())
+    assertEquals(0, task.setCount())
+    assertEquals(1, task.setExceptionCount())
     try {
       task.get
       shouldThrow()
@@ -835,7 +835,7 @@ class FutureTaskTest extends JSR166Test {
       }
     })
     await(pleaseInterrupt)
-    if (randomBoolean)
+    if (randomBoolean())
       assertThreadBlocks(t, Thread.State.TIMED_WAITING)
     t.interrupt()
     awaitTermination(t)
@@ -849,11 +849,11 @@ class FutureTaskTest extends JSR166Test {
     val task = new FutureTask(new NoOpCallable)
     val startTime = System.nanoTime
     try {
-      task.get(timeoutMillis, MILLISECONDS)
+      task.get(timeoutMillis(), MILLISECONDS)
       shouldThrow()
     } catch {
       case success: TimeoutException =>
-        assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+        assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
     }
   }
 

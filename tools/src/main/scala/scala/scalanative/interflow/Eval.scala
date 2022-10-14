@@ -445,10 +445,10 @@ trait Eval { self: Interflow =>
       case Op.Var(ty) =>
         Val.Local(state.newVar(ty), Type.Var(ty))
       case Op.Varload(slot) =>
-        val Val.Local(local, _) = eval(slot)
+        val Val.Local(local, _) = eval(slot): @unchecked
         state.loadVar(local)
       case Op.Varstore(slot, value) =>
-        val Val.Local(local, _) = eval(slot)
+        val Val.Local(local, _) = eval(slot): @unchecked
         state.storeVar(local, eval(value))
         Val.Unit
       case _ => util.unreachable
@@ -962,7 +962,7 @@ trait Eval { self: Interflow =>
     }
 
     def isPureModuleCtor(defn: Defn.Define): Boolean = {
-      val Inst.Label(_, Val.Local(self, _) +: _) = defn.insts.head
+      val Inst.Label(_, Val.Local(self, _) +: _) = defn.insts.head: @unchecked
 
       val canStoreTo = mutable.Set(self)
       val arrayLength = mutable.Map.empty[Local, Int]

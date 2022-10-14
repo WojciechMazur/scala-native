@@ -275,7 +275,30 @@ object Settings {
     // Make sure that tests run on JVM are using default defaults
     Test / javaOptions ++= Seq(
       "-Dfile.encoding=UTF-8" // Windows uses Cp1250 as default
-    )
+    ),
+    scalacOptions ++= CrossVersion
+      .partialVersion(scalaVersion.value)
+      .collect {
+        case (3, _) =>
+          Seq(
+            "constructor Short",
+            "constructor Integer in class Integer",
+            "constructor Long in class Long",
+            "constructor Float in class Float",
+            "constructor Double in class Double",
+            "constructor String in class String",
+            "method getBytes in class String",
+            "method >>",
+            "method <<",
+            "method weakCompareAndSet in class Atomic",
+            "method readLine in class DataInputStream",
+            "method divide in class BigDecimal",
+            "method setScale in class BigDecimal",
+            "method toIterator in trait IterableOnceOps",
+            "method replaceAllLiterally in class StringOps"
+          ).map(msg => s"-Wconf:cat=deprecation&msg=$msg:s")
+      }
+      .getOrElse(Nil)
   )
 
   lazy val testsExtCommonSettings = Def.settings(

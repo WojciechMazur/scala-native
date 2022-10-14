@@ -177,8 +177,8 @@ class CountDownLatchTest extends JSR166Test {
       override def realRun(): Unit = {
         assertEquals(1, l.getCount)
         val startTime = System.nanoTime
-        assertFalse(l.await(timeoutMillis, MILLISECONDS))
-        assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+        assertFalse(l.await(timeoutMillis(), MILLISECONDS))
+        assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
         assertEquals(1, l.getCount)
       }
     })

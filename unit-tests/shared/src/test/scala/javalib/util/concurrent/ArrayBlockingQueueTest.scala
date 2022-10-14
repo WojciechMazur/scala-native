@@ -674,7 +674,7 @@ class ArrayBlockingQueueTest extends JSR166Test {
     assertSame(a5, q.toArray(a5))
     val a6 = Array.fill(size + 2)(42: Integer)
     assertSame(a6, q.toArray(a6))
-    val as = Array(a1, a2, a3, a4, a5, a6)
+    val as = Seq(a1, a2, a3, a4, a5, a6)
     for (a <- as) {
       if (a.length > size) { assertNull(a(size)) }
       if (a.length > size + 1) { assertEquals(42, a(size + 1)) }

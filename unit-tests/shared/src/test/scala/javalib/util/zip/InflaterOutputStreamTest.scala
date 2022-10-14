@@ -40,9 +40,7 @@ class InflaterOutputStreamTest {
     val baos = new ByteArrayOutputStream(100)
     val ios = new InflaterOutputStream(baos, inflate)
 
-    infile.foreach { b =>
-      ios.write(b)
-    }
+    infile.foreach(ios.write(_))
     ios.close()
 
     assertArrayEquals(orgBuffer, baos.toByteArray())

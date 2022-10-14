@@ -94,8 +94,7 @@ class AbstractExecutorServiceTest extends JSR166Test {
    */
   @Test def testNullTaskSubmission(): Unit = usingPoolCleaner(
     new AbstractExecutorServiceTest.DirectExecutorService
-  ) { e =>
-    assertNullTaskSubmissionThrowsNullPointerException(e)
+  ) { assertNullTaskSubmissionThrowsNullPointerException
   }
 
   /** submit(callable).get() throws InterruptedException if interrupted

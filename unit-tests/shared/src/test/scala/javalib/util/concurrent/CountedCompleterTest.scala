@@ -550,7 +550,8 @@ class CountedCompleterTest extends JSR166Test {
   }
   final class LFCCF(val parent: CountedCompleter[Any], val n: Int)
       extends FailingCCF(parent, n) {
-    def this(n: Int) { this(null, n) }
+    def this(n: Int) = this(null, n)
+    
     override final def onCompletion(caller: CountedCompleter[_]): Unit = {
       super.onCompletion(caller)
       val p = getCompleter.asInstanceOf[FailingCCF]

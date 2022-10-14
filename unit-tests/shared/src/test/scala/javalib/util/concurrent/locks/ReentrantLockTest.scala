@@ -169,9 +169,6 @@ class ReentrantLockTest extends JSR166Test {
 
       case `awaitUntil` =>
         assertTrue(c.awaitUntil(delayedDate(timeoutMillis)))
-
-      case _ =>
-        throw new AssertionError
     }
   }
 
@@ -495,7 +492,7 @@ class ReentrantLockTest extends JSR166Test {
   def testAwait_IMSE(fair: Boolean): Unit = {
     val lock = new ReentrantLock(fair)
     val c = lock.newCondition
-    for (awaitMethod <- ReentrantLockTest.AwaitMethod.values) {
+    for (awaitMethod <- ReentrantLockTest.AwaitMethod.values()) {
       val startTime = System.nanoTime
       try {
         await(c, awaitMethod)
@@ -581,7 +578,7 @@ class ReentrantLockTest extends JSR166Test {
     lock.lock()
     // We shouldn't assume that nanoTime and currentTimeMillis
     // use the same time source, so don't use nanoTime here.
-    val delayedDate = this.delayedDate(timeoutMillis)
+    val delayedDate = this.delayedDate(timeoutMillis())
     try assertFalse(c.awaitUntil(delayedDate))
     catch {
       case fail: InterruptedException =>
@@ -1249,9 +1246,9 @@ class ReentrantLockTest extends JSR166Test {
    */
   @Test def testBlockers(): Unit = {
     if (!testImplementationDetails) return
-    val fair = randomBoolean
-    val timedAcquire = randomBoolean
-    val timedAwait = randomBoolean
+    val fair = randomBoolean()
+    val timedAcquire = randomBoolean()
+    val timedAwait = randomBoolean()
     val syncClassName =
       if (fair) "ReentrantLock$FairSync"
       else "ReentrantLock$NonfairSync"

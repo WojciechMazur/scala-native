@@ -241,8 +241,8 @@ class LockSupportTest extends JSR166Test {
         var tries = MAX_SPURIOUS_WAKEUPS
         while ({ { tries -= 1; tries + 1 } > 0 }) {
           val startTime = System.nanoTime
-          parkMethod.park(timeoutMillis)
-          if (millisElapsedSince(startTime) >= timeoutMillis) return
+          parkMethod.park(timeoutMillis())
+          if (millisElapsedSince(startTime) >= timeoutMillis()) return
         }
         fail("too many consecutive spurious wakeups?")
       }

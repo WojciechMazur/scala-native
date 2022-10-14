@@ -3,6 +3,7 @@ package scala.scalanative.linker
 import scala.collection.mutable
 import scala.scalanative.nir._
 import scala.scalanative.build._
+import scala.annotation.nowarn
 
 trait LinktimeValueResolver { self: Reach =>
   import LinktimeValueResolver._
@@ -196,6 +197,7 @@ private[linker] object LinktimeValueResolver {
   object ComparableTuple {
     type ComparableTupleType =
       (Ordering[Any], ComparableVal[Any], ComparableVal[Any])
+    @nowarn
     def unapply(vals: (ComparableVal[_], ComparableVal[_])) = {
       vals match {
         case (l: ComparableVal[_], r: ComparableVal[_])

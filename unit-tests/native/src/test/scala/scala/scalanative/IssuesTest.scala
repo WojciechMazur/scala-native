@@ -6,6 +6,7 @@ import scala.scalanative.junit.utils.AssertThrows.assertThrows
 
 import scalanative.unsigned._
 import scalanative.unsafe._
+import scala.annotation.nowarn
 
 class IssuesTest {
 
@@ -401,6 +402,7 @@ class IssuesTest {
   @Test def test_Issue2187(): Unit = {
     val args = List.empty[String]
     // In issue 2187 match with guards would not compile
+    @nowarn
     val res = "Hello, World!" match {
       case "Hello" if args.isEmpty  => "foo"
       case "Hello" if args.nonEmpty => "foo2"

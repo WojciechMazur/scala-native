@@ -33,7 +33,7 @@ class CheckedOutputStreamTest {
     val byteArray = Array[Byte](1, 2, 3, 'e', 'r', 't', 'g', 3, 6)
     val out = new ByteArrayOutputStream()
     val chkOut = new CheckedOutputStream(out, new CRC32())
-    byteArray.foreach(b => chkOut.write(b))
+    byteArray.foreach(chkOut.write(_))
     assertTrue(chkOut.getChecksum().getValue() != 0)
   }
 

@@ -184,7 +184,7 @@ class ExecutorsTest extends JSR166Test {
       val startTime = System.nanoTime
       val f = p.schedule(
         Executors.callable(task, java.lang.Boolean.TRUE),
-        timeoutMillis,
+        timeoutMillis(),
         MILLISECONDS
       )
       assertFalse(f.isDone)
@@ -193,7 +193,7 @@ class ExecutorsTest extends JSR166Test {
       assertSame(java.lang.Boolean.TRUE, f.get)
       assertTrue(f.isDone)
       assertFalse(f.isCancelled)
-      assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+      assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
     }
 
   /** a newScheduledThreadPool successfully runs delayed task
@@ -208,7 +208,7 @@ class ExecutorsTest extends JSR166Test {
       val startTime = System.nanoTime
       val f = p.schedule(
         Executors.callable(task, java.lang.Boolean.TRUE),
-        timeoutMillis,
+        timeoutMillis(),
         MILLISECONDS
       )
       assertFalse(f.isDone)
@@ -217,7 +217,7 @@ class ExecutorsTest extends JSR166Test {
       assertSame(java.lang.Boolean.TRUE, f.get)
       assertTrue(f.isDone)
       assertFalse(f.isCancelled)
-      assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+      assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
     }
 
   /** an unconfigurable newScheduledThreadPool successfully runs delayed task
@@ -236,7 +236,7 @@ class ExecutorsTest extends JSR166Test {
       val startTime = System.nanoTime
       val f = p.schedule(
         Executors.callable(task, java.lang.Boolean.TRUE),
-        timeoutMillis,
+        timeoutMillis(),
         MILLISECONDS
       )
       assertFalse(f.isDone)
@@ -245,7 +245,7 @@ class ExecutorsTest extends JSR166Test {
       assertSame(java.lang.Boolean.TRUE, f.get)
       assertTrue(f.isDone)
       assertFalse(f.isCancelled)
-      assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+      assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
     }
 
   /** Future.get on submitted tasks will time out if they compute too long.

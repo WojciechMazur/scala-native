@@ -118,8 +118,8 @@ class ExecutorCompletionServiceTest extends JSR166Test {
     cs.submit(new StringTask)
     val startTime = System.nanoTime
     var f: Future[String] = null
-    while ({ f = cs.poll(timeoutMillis, MILLISECONDS); f == null }) {
-      assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+    while ({ f = cs.poll(timeoutMillis(), MILLISECONDS); f == null }) {
+      assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
       if (millisElapsedSince(startTime) > LONG_DELAY_MS) fail("timed out")
       Thread.`yield`()
     }
@@ -145,8 +145,8 @@ class ExecutorCompletionServiceTest extends JSR166Test {
     assertNull(cs.poll(0L, MILLISECONDS))
     assertNull(cs.poll(java.lang.Long.MIN_VALUE, MILLISECONDS))
     val startTime = System.nanoTime
-    assertNull(cs.poll(timeoutMillis, MILLISECONDS))
-    assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
+    assertNull(cs.poll(timeoutMillis(), MILLISECONDS))
+    assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
     proceed.countDown()
     assertEquals(TEST_STRING, cs.take.get)
   }

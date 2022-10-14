@@ -18,7 +18,7 @@ extern int __modules_size;
 static inline void Marker_markField(Heap *heap, Stack *stack, Field_t field);
 static inline void Marker_markLockWords(Heap *heap, Stack *stack,
                                         Object *object);
-                                        
+
 void Marker_markObject(Heap *heap, Stack *stack, Bytemap *bytemap,
                        Object *object, ObjectMeta *objectMeta) {
     assert(ObjectMeta_IsAllocated(objectMeta));

@@ -694,7 +694,7 @@ class ArrayBlockingQueueTest extends JSR166Test {
     val rnd = ThreadLocalRandom.current
     val size: Int = rnd.nextInt(6)
     val capacity: Int = Math.max(1, size + rnd.nextInt(size + 1))
-    val q =      new ArrayBlockingQueue[Integer](capacity)
+    val q = new ArrayBlockingQueue[Integer](capacity)
     for (i <- 0 until size) {
       checkToArray(q)
       q.add(i)

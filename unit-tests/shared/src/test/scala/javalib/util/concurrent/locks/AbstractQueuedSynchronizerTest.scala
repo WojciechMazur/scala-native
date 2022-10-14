@@ -947,7 +947,7 @@ class AbstractQueuedSynchronizerTest extends JSR166Test {
     val condition = sync.newCondition()
     val pleaseInterrupt = new BooleanLatch()
     val t = newStartedThread(new CheckedRunnable() {
-        def realRun(): Unit = {
+      def realRun(): Unit = {
         sync.acquire()
         assertTrue(pleaseInterrupt.releaseShared(0))
         condition.awaitUninterruptibly()
@@ -976,10 +976,18 @@ class AbstractQueuedSynchronizerTest extends JSR166Test {
 
   /** await/awaitNanos/awaitUntil is interruptible
    */
-  @Test def testInterruptible_await(): Unit =     testInterruptible(AwaitMethod.await)
-  @Test def testInterruptible_awaitTimed(): Unit =     testInterruptible(AwaitMethod.awaitTimed)
-  @Test def testInterruptible_awaitNanos(): Unit =     testInterruptible(AwaitMethod.awaitNanos)
-  @Test def testInterruptible_awaitUntil(): Unit =     testInterruptible(AwaitMethod.awaitUntil)
+  @Test def testInterruptible_await(): Unit = testInterruptible(
+    AwaitMethod.await
+  )
+  @Test def testInterruptible_awaitTimed(): Unit = testInterruptible(
+    AwaitMethod.awaitTimed
+  )
+  @Test def testInterruptible_awaitNanos(): Unit = testInterruptible(
+    AwaitMethod.awaitNanos
+  )
+  @Test def testInterruptible_awaitUntil(): Unit = testInterruptible(
+    AwaitMethod.awaitUntil
+  )
   private def testInterruptible(awaitMethod: AwaitMethod) = {
     val sync = new Mutex()
     val c = sync.newCondition()
@@ -1000,9 +1008,15 @@ class AbstractQueuedSynchronizerTest extends JSR166Test {
   /** signalAll wakes up all threads
    */
   @Test def testSignalAll_await(): Unit = testSignalAll(AwaitMethod.await)
-  @Test def testSignalAll_awaitTimed(): Unit =     testSignalAll(AwaitMethod.awaitTimed)
-  @Test def testSignalAll_awaitNanos(): Unit =     testSignalAll(AwaitMethod.awaitNanos)
-  @Test def testSignalAll_awaitUntil(): Unit =     testSignalAll(AwaitMethod.awaitUntil)
+  @Test def testSignalAll_awaitTimed(): Unit = testSignalAll(
+    AwaitMethod.awaitTimed
+  )
+  @Test def testSignalAll_awaitNanos(): Unit = testSignalAll(
+    AwaitMethod.awaitNanos
+  )
+  @Test def testSignalAll_awaitUntil(): Unit = testSignalAll(
+    AwaitMethod.awaitUntil
+  )
   private def testSignalAll(awaitMethod: AwaitMethod) = {
     val sync = new Mutex()
     val c = sync.newCondition()

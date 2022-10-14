@@ -38,5 +38,4 @@ void WeakRefStack_CallHandlers(void) {
         visited = false;
         handlerFn();
     }
-
 }

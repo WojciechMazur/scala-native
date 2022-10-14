@@ -387,7 +387,12 @@ object Lower {
         case Op.Varstore(Val.Local(slot, Type.Var(ty)), value) =>
           buf.let(
             n,
-            Op.Store(ty, Val.Local(slot, Type.Ptr), genVal(buf, value), isAtomic = false),
+            Op.Store(
+              ty,
+              Val.Local(slot, Type.Ptr),
+              genVal(buf, value),
+              isAtomic = false
+            ),
             unwind
           )
         case op: Op.Arrayalloc =>

@@ -40,7 +40,7 @@ bool Allocator_CanInitCursors(Allocator *allocator) {
 void Allocator_InitCursors(Allocator *allocator) {
     // Init cursor
     bool didInit = Allocator_newBlock(allocator);
-    if(!didInit){
+    if (!didInit) {
         Heap_Collect(&heap, &stack);
         didInit = Allocator_newBlock(allocator);
     }
@@ -49,7 +49,7 @@ void Allocator_InitCursors(Allocator *allocator) {
     // Init large cursor
     BlockMeta *largeBlock =
         BlockAllocator_GetFreeBlock(allocator->blockAllocator);
-    if(largeBlock == NULL){
+    if (largeBlock == NULL) {
         Heap_Collect(&heap, &stack);
         largeBlock = BlockAllocator_GetFreeBlock(allocator->blockAllocator);
     }
@@ -106,7 +106,7 @@ word_t *Allocator_overflowAllocation(Allocator *allocator, size_t size) {
 INLINE word_t *Allocator_Alloc(Allocator *allocator, size_t size) {
     word_t *start = allocator->cursor;
     word_t *end = (word_t *)((uint8_t *)start + size);
-    assert((Allocator*)allocator->block->owner == allocator);
+    assert((Allocator *)allocator->block->owner == allocator);
     // Checks if the end of the block overlaps with the limit
     if (end > allocator->limit) {
         // If it overlaps but the block to allocate is a `medium` sized block,

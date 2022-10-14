@@ -285,9 +285,9 @@ void Heap_Collect(Heap *heap, Stack *stack) {
         }
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
         // Skip calling WeakRef handlers on thread which is being initialized
-        // If the current block is set to null it means it failed to allocate memory
-        // for allocator and forced GC
-        if(currentMutatorThread->allocator.block != NULL){
+        // If the current block is set to null it means it failed to allocate
+        // memory for allocator and forced GC
+        if (currentMutatorThread->allocator.block != NULL) {
             Safepoint_disarm(currentMutatorThread->safepoint);
             WeakRefStack_CallHandlers();
         }
@@ -299,7 +299,6 @@ void Heap_Collect(Heap *heap, Stack *stack) {
         scalanative_gc_waitUntilCollected();
     }
 #endif
-
 }
 
 bool Heap_shouldGrow(Heap *heap) {

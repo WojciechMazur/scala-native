@@ -215,21 +215,22 @@ object PriorityBlockingQueue {
 @SuppressWarnings(Array("unchecked"))
 @SerialVersionUID(5595510919245408276L)
 class PriorityBlockingQueue[E <: AnyRef] private (
-  /** Priority queue represented as a balanced binary heap: the two children of
-   *  queue[n] are queue[2*n+1] and queue[2*(n+1)]. The priority queue is
-   *  ordered by comparator, or by the elements' natural ordering, if comparator
-   *  is null: For each node n in the heap and each descendant d of n, n <= d.
-   *  The element with the lowest value is in queue[0], assuming the queue is
-   *  nonempty.
-   */
+    /** Priority queue represented as a balanced binary heap: the two children
+     *  of queue[n] are queue[2*n+1] and queue[2*(n+1)]. The priority queue is
+     *  ordered by comparator, or by the elements' natural ordering, if
+     *  comparator is null: For each node n in the heap and each descendant d of
+     *  n, n <= d. The element with the lowest value is in queue[0], assuming
+     *  the queue is nonempty.
+     */
     private var queue: Array[E],
-    /** The comparator, or null if priority queue uses elements' natural ordering.   */
+    /** The comparator, or null if priority queue uses elements' natural
+     *  ordering.
+     */
     elemComparator: Comparator[_ >: E]
 ) extends util.AbstractQueue[E]
     with BlockingQueue[E]
     with Serializable {
   import PriorityBlockingQueue._
-
 
   /** The number of elements in the priority queue.
    */
@@ -438,7 +439,7 @@ class PriorityBlockingQueue[E <: AnyRef] private (
       val cmp = comparator()
       if (cmp == null)
         PriorityBlockingQueue.siftUpComparable(n, e, es)
-      else 
+      else
         PriorityBlockingQueue.siftUpUsingComparator(n, e, es, cmp)
       curSize = n + 1
       notEmpty.signal()

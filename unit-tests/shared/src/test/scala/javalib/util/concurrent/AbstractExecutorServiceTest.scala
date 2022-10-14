@@ -94,8 +94,7 @@ class AbstractExecutorServiceTest extends JSR166Test {
    */
   @Test def testNullTaskSubmission(): Unit = usingPoolCleaner(
     new AbstractExecutorServiceTest.DirectExecutorService
-  ) { assertNullTaskSubmissionThrowsNullPointerException
-  }
+  ) { assertNullTaskSubmissionThrowsNullPointerException }
 
   /** submit(callable).get() throws InterruptedException if interrupted
    */
@@ -514,7 +513,7 @@ class AbstractExecutorServiceTest extends JSR166Test {
           val futures = e.invokeAll(tasks, timeout, MILLISECONDS)
           assertEquals(tasks.size, futures.size)
           assertTrue(millisElapsedSince(startTime) >= timeout)
-          futures.forEach{future => assertTrue(future.isDone)}
+          futures.forEach { future => assertTrue(future.isDone) }
           try {
             assertEquals("0", futures.get(0).get)
             assertEquals(TEST_STRING, futures.get(1).get)

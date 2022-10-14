@@ -173,10 +173,10 @@ class AtomicIntegerArrayTest extends JSR166Test {
     val aa = new AtomicIntegerArray(SIZE)
     for (i <- 0 until SIZE) {
       aa.set(i, 1)
-      while ( !aa.weakCompareAndSet(i, 1, 2) ) ()
-      while ( !aa.weakCompareAndSet(i, 2, -(4)) ) ()
+      while (!aa.weakCompareAndSet(i, 1, 2)) ()
+      while (!aa.weakCompareAndSet(i, 2, -(4))) ()
       assertEquals(-4, aa.get(i))
-      while ( !aa.weakCompareAndSet(i, -(4), 7) ) ()
+      while (!aa.weakCompareAndSet(i, -(4), 7)) ()
       assertEquals(7, aa.get(i))
     }
   }
@@ -317,12 +317,12 @@ class AtomicIntegerArrayTest extends JSR166Test {
   @throws[Exception]
   @Ignore("No ObjectInputStreams in Scala Native")
   @Test def testSerialization(): Unit = {
-  //   val x = new AtomicIntegerArray(SIZE)
-  //   for (i <- 0 until SIZE) { x.set(i, -i) }
-  //   val y = serialClone(x)
-  //   assertNotSame(x, y)
-  //   assertEquals(x.length, y.length)
-  //   for (i <- 0 until SIZE) { assertEquals(x.get(i), y.get(i)) }
+    //   val x = new AtomicIntegerArray(SIZE)
+    //   for (i <- 0 until SIZE) { x.set(i, -i) }
+    //   val y = serialClone(x)
+    //   assertNotSame(x, y)
+    //   assertEquals(x.length, y.length)
+    //   for (i <- 0 until SIZE) { assertEquals(x.get(i), y.get(i)) }
   }
 
   /** toString returns current value.

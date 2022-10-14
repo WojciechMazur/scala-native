@@ -127,7 +127,8 @@ class ObjectMonitorTest {
     assertTrue("done", done)
   }
 
-  @Test def `keeps recursions track after wait when already inflated`(): Unit = {
+  @Test def `keeps recursions track after wait when already inflated`()
+      : Unit = {
     @volatile var released = false
     @volatile var canRelease = false
     @volatile var done = false

@@ -95,7 +95,7 @@ abstract class AbstractExecutorService() extends ExecutorService {
 
   @throws[NullPointerException]
   @throws[java.lang.RejectedExecutionException]
-  override def submit[T<: AnyRef](task: Callable[T]): Future[T] = {
+  override def submit[T <: AnyRef](task: Callable[T]): Future[T] = {
     if (task == null) throw new NullPointerException()
     val ftask: RunnableFuture[T] = newTaskFor(task)
     execute(ftask)
@@ -105,7 +105,7 @@ abstract class AbstractExecutorService() extends ExecutorService {
   @throws[InterruptedException]
   @throws[TimeoutException]
   @throws[ExecutionException]
-  private def doInvokeAny[T<: AnyRef](
+  private def doInvokeAny[T <: AnyRef](
       tasks: util.Collection[_ <: Callable[T]],
       timed: Boolean,
       n: Long
@@ -179,20 +179,22 @@ abstract class AbstractExecutorService() extends ExecutorService {
 
   @throws[InterruptedException]
   @throws[ExecutionException]
-  override def invokeAny[T<: AnyRef](tasks: util.Collection[_ <: Callable[T]]): T =
+  override def invokeAny[T <: AnyRef](
+      tasks: util.Collection[_ <: Callable[T]]
+  ): T =
     doInvokeAny(tasks, false, 0)
 
   @throws[InterruptedException]
   @throws[ExecutionException]
   @throws[TimeoutException]
-  override def invokeAny[T<: AnyRef](
+  override def invokeAny[T <: AnyRef](
       tasks: java.util.Collection[_ <: Callable[T]],
       timeout: Long,
       unit: TimeUnit
   ): T = doInvokeAny(tasks, true, unit.toNanos(timeout))
 
   @throws[InterruptedException]
-  override def invokeAll[T<: AnyRef](
+  override def invokeAll[T <: AnyRef](
       tasks: java.util.Collection[_ <: Callable[T]]
   ): java.util.List[Future[T]] = {
     if (tasks == null) throw new NullPointerException()
@@ -226,7 +228,7 @@ abstract class AbstractExecutorService() extends ExecutorService {
   }
 
   @throws[InterruptedException]
-  override def invokeAll[T<: AnyRef](
+  override def invokeAll[T <: AnyRef](
       tasks: util.Collection[_ <: Callable[T]],
       timeout: Long,
       unit: TimeUnit
@@ -244,7 +246,7 @@ abstract class AbstractExecutorService() extends ExecutorService {
 
       // Interleave time checks and calls to execute in case
       // executor doesn't have any/much parallelism.
-      @tailrec def executeLoop(i: Int): Boolean = 
+      @tailrec def executeLoop(i: Int): Boolean =
         if (i >= size) false
         else {
           // println(s"executeLoop $i")

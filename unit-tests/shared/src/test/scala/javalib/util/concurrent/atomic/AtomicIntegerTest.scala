@@ -90,10 +90,10 @@ class AtomicIntegerTest extends JSR166Test {
    */
   @Test def testWeakCompareAndSet(): Unit = {
     val ai = new AtomicInteger(1)
-    while ( !ai.weakCompareAndSet(1, 2) ) ()
-    while ( !ai.weakCompareAndSet(2, -(4)) ) ()
+    while (!ai.weakCompareAndSet(1, 2)) ()
+    while (!ai.weakCompareAndSet(2, -(4))) ()
     assertEquals(-4, ai.get)
-    while ( !ai.weakCompareAndSet(-(4), 7) ) ()
+    while (!ai.weakCompareAndSet(-(4), 7)) ()
     assertEquals(7, ai.get)
   }
 
@@ -176,14 +176,14 @@ class AtomicIntegerTest extends JSR166Test {
   @throws[Exception]
   @Ignore("No ObjectInputStreams in Scala Native")
   @Test def testSerialization(): Unit = {
-  //   val x = new AtomicInteger
-  //   val y = serialClone(x)
-  //   assertNotSame(x, y)
-  //   x.set(22)
-  //   val z = serialClone(x)
-  //   assertEquals(22, x.get)
-  //   assertEquals(0, y.get)
-  //   assertEquals(22, z.get)
+    //   val x = new AtomicInteger
+    //   val y = serialClone(x)
+    //   assertNotSame(x, y)
+    //   x.set(22)
+    //   val z = serialClone(x)
+    //   assertEquals(22, x.get)
+    //   assertEquals(0, y.get)
+    //   assertEquals(22, z.get)
   }
 
   /** toString returns current value.

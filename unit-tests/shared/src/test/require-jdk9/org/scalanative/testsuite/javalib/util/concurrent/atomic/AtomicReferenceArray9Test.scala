@@ -194,10 +194,10 @@ class AtomicReferenceArray9Test extends JSR166Test {
       new AtomicReferenceArray[Integer](SIZE)
     for (i <- 0 until SIZE) {
       aa.set(i, one)
-      while ( !aa.weakCompareAndSetPlain(i, one, two) ) ()
-      while ( !aa.weakCompareAndSetPlain(i, two, m4) ) ()
+      while (!aa.weakCompareAndSetPlain(i, one, two)) ()
+      while (!aa.weakCompareAndSetPlain(i, two, m4)) ()
       assertEquals(m4, aa.get(i))
-      while ( !aa.weakCompareAndSetPlain(i, m4, seven) ) ()
+      while (!aa.weakCompareAndSetPlain(i, m4, seven)) ()
       assertEquals(seven, aa.get(i))
     }
   }
@@ -210,10 +210,10 @@ class AtomicReferenceArray9Test extends JSR166Test {
       new AtomicReferenceArray[Integer](SIZE)
     for (i <- 0 until SIZE) {
       aa.set(i, one)
-      while ( !aa.weakCompareAndSetVolatile(i, one, two) ) ()
-      while ( !aa.weakCompareAndSetVolatile(i, two, m4) ) ()
+      while (!aa.weakCompareAndSetVolatile(i, one, two)) ()
+      while (!aa.weakCompareAndSetVolatile(i, two, m4)) ()
       assertEquals(m4, aa.get(i))
-      while ( !aa.weakCompareAndSetVolatile(i, m4, seven) ) ()
+      while (!aa.weakCompareAndSetVolatile(i, m4, seven)) ()
       assertEquals(seven, aa.get(i))
     }
   }
@@ -226,10 +226,10 @@ class AtomicReferenceArray9Test extends JSR166Test {
       new AtomicReferenceArray[Integer](SIZE)
     for (i <- 0 until SIZE) {
       aa.set(i, one)
-      while ( !aa.weakCompareAndSetAcquire(i, one, two) ) ()
-      while ( !aa.weakCompareAndSetAcquire(i, two, m4) ) ()
+      while (!aa.weakCompareAndSetAcquire(i, one, two)) ()
+      while (!aa.weakCompareAndSetAcquire(i, two, m4)) ()
       assertEquals(m4, aa.get(i))
-      while ( !aa.weakCompareAndSetAcquire(i, m4, seven) ) ()
+      while (!aa.weakCompareAndSetAcquire(i, m4, seven)) ()
       assertEquals(seven, aa.get(i))
     }
   }
@@ -242,10 +242,10 @@ class AtomicReferenceArray9Test extends JSR166Test {
       new AtomicReferenceArray[Integer](SIZE)
     for (i <- 0 until SIZE) {
       aa.set(i, one)
-      while ( !aa.weakCompareAndSetRelease(i, one, two) ) ()
-      while ( !aa.weakCompareAndSetRelease(i, two, m4) ) ()
+      while (!aa.weakCompareAndSetRelease(i, one, two)) ()
+      while (!aa.weakCompareAndSetRelease(i, two, m4)) ()
       assertEquals(m4, aa.get(i))
-      while ( !aa.weakCompareAndSetRelease(i, m4, seven) ) ()
+      while (!aa.weakCompareAndSetRelease(i, m4, seven)) ()
       assertEquals(seven, aa.get(i))
     }
   }

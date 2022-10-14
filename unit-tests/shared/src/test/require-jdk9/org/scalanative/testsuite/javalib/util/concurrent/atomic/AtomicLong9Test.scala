@@ -129,10 +129,10 @@ class AtomicLong9Test extends JSR166Test {
    */
   @Test def testWeakCompareAndSetPlain(): Unit = {
     val ai = new AtomicLong(1)
-    while ( !ai.weakCompareAndSetPlain(1, 2) ) ()
-    while ( !ai.weakCompareAndSetPlain(2, -(4)) ) ()
+    while (!ai.weakCompareAndSetPlain(1, 2)) ()
+    while (!ai.weakCompareAndSetPlain(2, -(4))) ()
     assertEquals(-4, ai.get)
-    while ( !ai.weakCompareAndSetPlain(-(4), 7) ) ()
+    while (!ai.weakCompareAndSetPlain(-(4), 7)) ()
     assertEquals(7, ai.get)
   }
 
@@ -141,10 +141,10 @@ class AtomicLong9Test extends JSR166Test {
    */
   @Test def testWeakCompareAndSetVolatile(): Unit = {
     val ai = new AtomicLong(1)
-    while ( !ai.weakCompareAndSetVolatile(1, 2) ) ()
-    while ( !ai.weakCompareAndSetVolatile(2, -(4)) ) ()
+    while (!ai.weakCompareAndSetVolatile(1, 2)) ()
+    while (!ai.weakCompareAndSetVolatile(2, -(4))) ()
     assertEquals(-4, ai.get)
-    while ( !ai.weakCompareAndSetVolatile(-(4), 7) ) ()
+    while (!ai.weakCompareAndSetVolatile(-(4), 7)) ()
     assertEquals(7, ai.get)
   }
 
@@ -153,10 +153,10 @@ class AtomicLong9Test extends JSR166Test {
    */
   @Test def testWeakCompareAndSetAcquire(): Unit = {
     val ai = new AtomicLong(1)
-    while ( !ai.weakCompareAndSetAcquire(1, 2) ) ()
-    while ( !ai.weakCompareAndSetAcquire(2, -(4)) ) ()
+    while (!ai.weakCompareAndSetAcquire(1, 2)) ()
+    while (!ai.weakCompareAndSetAcquire(2, -(4))) ()
     assertEquals(-4, ai.get)
-    while ( !ai.weakCompareAndSetAcquire(-(4), 7) ) ()
+    while (!ai.weakCompareAndSetAcquire(-(4), 7)) ()
     assertEquals(7, ai.get)
   }
 
@@ -165,10 +165,10 @@ class AtomicLong9Test extends JSR166Test {
    */
   @Test def testWeakCompareAndSetRelease(): Unit = {
     val ai = new AtomicLong(1)
-    while ( !ai.weakCompareAndSetRelease(1, 2) ) ()
-    while ( !ai.weakCompareAndSetRelease(2, -(4)) ) ()
+    while (!ai.weakCompareAndSetRelease(1, 2)) ()
+    while (!ai.weakCompareAndSetRelease(2, -(4))) ()
     assertEquals(-4, ai.get)
-    while ( !ai.weakCompareAndSetRelease(-(4), 7) ) ()
+    while (!ai.weakCompareAndSetRelease(-(4), 7)) ()
     assertEquals(7, ai.get)
   }
 }

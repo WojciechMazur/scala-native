@@ -101,9 +101,10 @@ object Build {
         CrossVersion
           .partialVersion(scalaVersion.value)
           .collect {
-            case (2, 13)      => silencedDeprecations213
-            case (3, _)       => silencedDeprecations213
-          }.getOrElse(Nil)
+            case (2, 13) => silencedDeprecations213
+            case (3, _)  => silencedDeprecations213
+          }
+          .getOrElse(Nil)
       },
       // Running tests in parallel results in `FileSystemAlreadyExistsException`
       Test / parallelExecution := false

@@ -293,8 +293,8 @@ class ExecutorsTest extends JSR166Test {
           // val s = System.getSecurityManager
           assertSame(
             current.getThreadGroup,
-            // if (s == null) 
-              egroup
+            // if (s == null)
+            egroup
             // else s.getThreadGroup
           )
           assertTrue(current.getName.endsWith("thread-1"))

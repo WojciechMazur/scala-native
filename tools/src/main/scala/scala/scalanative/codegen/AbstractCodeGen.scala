@@ -323,7 +323,8 @@ private[codegen] abstract class AbstractCodeGen(
               str(edge.from.splitCount)
             }
             def genUnwindEdge(unwind: Next.Unwind): Unit = {
-              val Next.Unwind(Val.Local(exc, _), Next.Label(_, vals)) = unwind: @unchecked
+              val Next.Unwind(Val.Local(exc, _), Next.Label(_, vals)) =
+                unwind: @unchecked
               genJustVal(vals(n))
               str(", %")
               genLocal(exc)

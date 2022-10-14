@@ -233,11 +233,12 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
     } else {
       abstime.tv_sec = now.tv_sec + seconds.toSize
       val nanos = now.tv_nsec + (timeout % NanonsInSecond)
-      abstime.tv_nsec = if (nanos < NanonsInSecond) nanos.toSize
-      else{
-        abstime.tv_sec += 1
-        (nanos - NanonsInSecond).toSize
-      }
+      abstime.tv_nsec =
+        if (nanos < NanonsInSecond) nanos.toSize
+        else {
+          abstime.tv_sec += 1
+          (nanos - NanonsInSecond).toSize
+        }
     }
   }
 

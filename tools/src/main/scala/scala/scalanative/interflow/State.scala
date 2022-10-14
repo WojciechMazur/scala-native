@@ -264,7 +264,9 @@ final class State(block: Local) {
         emit(Op.Box(Type.Ref(cls.name), escapedVal(value)))
       case VirtualInstance(StringKind, _, values)
           if !hasEscaped(values(linked.StringValueField.index)) =>
-        val Val.Virtual(charsAddr) = values(linked.StringValueField.index): @unchecked
+        val Val.Virtual(charsAddr) = values(
+          linked.StringValueField.index
+        ): @unchecked
         val chars = derefVirtual(charsAddr).values
           .map {
             case Val.Char(v) =>

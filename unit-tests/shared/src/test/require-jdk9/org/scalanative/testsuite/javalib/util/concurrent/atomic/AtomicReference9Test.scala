@@ -129,10 +129,10 @@ class AtomicReference9Test extends JSR166Test {
    */
   @Test def testWeakCompareAndSetPlain(): Unit = {
     val ai = new AtomicReference[Integer](one)
-    while ( !ai.weakCompareAndSetPlain(one, two) ) ()
-    while ( !ai.weakCompareAndSetPlain(two, m4) ) ()
+    while (!ai.weakCompareAndSetPlain(one, two)) ()
+    while (!ai.weakCompareAndSetPlain(two, m4)) ()
     assertEquals(m4, ai.get)
-    while ( !ai.weakCompareAndSetPlain(m4, seven) ) ()
+    while (!ai.weakCompareAndSetPlain(m4, seven)) ()
     assertEquals(seven, ai.get)
   }
 
@@ -141,10 +141,10 @@ class AtomicReference9Test extends JSR166Test {
    */
   @Test def testWeakCompareAndSetVolatile(): Unit = {
     val ai = new AtomicReference[Integer](one)
-    while ( !ai.weakCompareAndSetVolatile(one, two) ) ()
-    while ( !ai.weakCompareAndSetVolatile(two, m4) ) ()
+    while (!ai.weakCompareAndSetVolatile(one, two)) ()
+    while (!ai.weakCompareAndSetVolatile(two, m4)) ()
     assertEquals(m4, ai.get)
-    while ( !ai.weakCompareAndSetVolatile(m4, seven) ) ()
+    while (!ai.weakCompareAndSetVolatile(m4, seven)) ()
     assertEquals(seven, ai.get)
   }
 
@@ -153,10 +153,10 @@ class AtomicReference9Test extends JSR166Test {
    */
   @Test def testWeakCompareAndSetAcquire(): Unit = {
     val ai = new AtomicReference[Integer](one)
-    while ( !ai.weakCompareAndSetAcquire(one, two) ) ()
-    while ( !ai.weakCompareAndSetAcquire(two, m4) ) ()
+    while (!ai.weakCompareAndSetAcquire(one, two)) ()
+    while (!ai.weakCompareAndSetAcquire(two, m4)) ()
     assertEquals(m4, ai.get)
-    while ( !ai.weakCompareAndSetAcquire(m4, seven) ) ()
+    while (!ai.weakCompareAndSetAcquire(m4, seven)) ()
     assertEquals(seven, ai.get)
   }
 
@@ -165,10 +165,10 @@ class AtomicReference9Test extends JSR166Test {
    */
   @Test def testWeakCompareAndSetRelease(): Unit = {
     val ai = new AtomicReference[Integer](one)
-    while ( !ai.weakCompareAndSetRelease(one, two) ) ()
-    while ( !ai.weakCompareAndSetRelease(two, m4) ) ()
+    while (!ai.weakCompareAndSetRelease(one, two)) ()
+    while (!ai.weakCompareAndSetRelease(two, m4)) ()
     assertEquals(m4, ai.get)
-    while ( !ai.weakCompareAndSetRelease(m4, seven) ) ()
+    while (!ai.weakCompareAndSetRelease(m4, seven)) ()
     assertEquals(seven, ai.get)
   }
 }

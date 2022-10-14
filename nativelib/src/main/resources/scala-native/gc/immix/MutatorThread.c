@@ -11,9 +11,9 @@ void MutatorThread_init(word_t **stackbottom) {
     Safepoint_init(&self->safepoint);
     MutatorThread_switchState(self, MutatorThreadState_Working);
 
-    currentMutatorThread = self; 
+    currentMutatorThread = self;
     scalanative_gc_safepoint = self->safepoint;
-    
+
     self->stackBottom = stackbottom;
     Allocator_Init(&self->allocator);
     LargeAllocator_Init(&self->largeAllocator, &blockAllocator, heap.bytemap,
@@ -63,10 +63,6 @@ void MutatorThreads_remove(MutatorThread *node) {
     MutatorThreads_unlock();
 }
 
-void MutatorThreads_lock(){
-    mutex_lock(&threadListsModifiactionLock);
-}
+void MutatorThreads_lock() { mutex_lock(&threadListsModifiactionLock); }
 
-void MutatorThreads_unlock(){
-    mutex_unlock(&threadListsModifiactionLock);
-}
+void MutatorThreads_unlock() { mutex_unlock(&threadListsModifiactionLock); }

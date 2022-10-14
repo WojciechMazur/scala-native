@@ -114,13 +114,13 @@ class AtomicBooleanTest extends JSR166Test {
   @throws[Exception]
   @Ignore("No ObjectInputStreams in Scala Native")
   @Test def testSerialization(): Unit = {
-  //   val x = new AtomicBoolean
-  //   val y = serialClone(x)
-  //   x.set(true)
-  //   val z = serialClone(x)
-  //   assertTrue(x.get)
-  //   assertFalse(y.get)
-  //   assertTrue(z.get)
+    //   val x = new AtomicBoolean
+    //   val y = serialClone(x)
+    //   x.set(true)
+    //   val z = serialClone(x)
+    //   assertTrue(x.get)
+    //   assertFalse(y.get)
+    //   assertTrue(z.get)
   }
 
   /** toString returns current value.

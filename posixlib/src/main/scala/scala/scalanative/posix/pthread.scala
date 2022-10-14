@@ -138,7 +138,7 @@ object pthread {
       attr: Ptr[pthread_condattr_t],
       clockId: Ptr[clockid_t]
   ): Int = extern
-  
+
   def pthread_condattr_setclock(
       attr: Ptr[pthread_condattr_t],
       clockId: clockid_t

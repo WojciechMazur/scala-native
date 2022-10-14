@@ -36,14 +36,14 @@ object libc {
       expected: RawPtr,
       desired: RawPtr
   ): CBool = extern
-  
+
   @name("scalanative_atomic_store_explicit_intptr")
   def atomic_store_explicit(
       ptr: RawPtr,
       v: RawPtr,
       memoryOrder: memory_order
   ): Unit = extern
-  
+
   @name("scalanative_atomic_thread_fence")
   final def atomic_thread_fence(order: memory_order): Unit = extern
 
@@ -59,7 +59,7 @@ object libc {
 
   @name("scalanative_on_spin_wait")
   def onSpinWait(): Unit = extern
-  
+
   // posix
   def usleep(usec: Int): Int = extern
 }

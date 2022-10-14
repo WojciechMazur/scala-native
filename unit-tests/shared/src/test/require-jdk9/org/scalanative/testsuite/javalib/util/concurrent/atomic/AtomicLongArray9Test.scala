@@ -183,10 +183,10 @@ class AtomicLongArray9Test extends JSR166Test {
     val aa = new AtomicLongArray(SIZE)
     for (i <- 0 until SIZE) {
       aa.set(i, 1)
-      while ( !aa.weakCompareAndSetPlain(i, 1, 2) ) ()
-      while ( !aa.weakCompareAndSetPlain(i, 2, -(4)) ) ()
+      while (!aa.weakCompareAndSetPlain(i, 1, 2)) ()
+      while (!aa.weakCompareAndSetPlain(i, 2, -(4))) ()
       assertEquals(-4, aa.get(i))
-      while ( !aa.weakCompareAndSetPlain(i, -(4), 7) ) ()
+      while (!aa.weakCompareAndSetPlain(i, -(4), 7)) ()
       assertEquals(7, aa.get(i))
     }
   }
@@ -198,10 +198,10 @@ class AtomicLongArray9Test extends JSR166Test {
     val aa = new AtomicLongArray(SIZE)
     for (i <- 0 until SIZE) {
       aa.set(i, 1)
-      while ( !aa.weakCompareAndSetVolatile(i, 1, 2) ) ()
-      while ( !aa.weakCompareAndSetVolatile(i, 2, -(4)) ) ()
+      while (!aa.weakCompareAndSetVolatile(i, 1, 2)) ()
+      while (!aa.weakCompareAndSetVolatile(i, 2, -(4))) ()
       assertEquals(-4, aa.get(i))
-      while ( !aa.weakCompareAndSetVolatile(i, -(4), 7) ) ()
+      while (!aa.weakCompareAndSetVolatile(i, -(4), 7)) ()
       assertEquals(7, aa.get(i))
     }
   }
@@ -213,10 +213,10 @@ class AtomicLongArray9Test extends JSR166Test {
     val aa = new AtomicLongArray(SIZE)
     for (i <- 0 until SIZE) {
       aa.set(i, 1)
-      while ( !aa.weakCompareAndSetAcquire(i, 1, 2) ) ()
-      while ( !aa.weakCompareAndSetAcquire(i, 2, -(4)) ) ()
+      while (!aa.weakCompareAndSetAcquire(i, 1, 2)) ()
+      while (!aa.weakCompareAndSetAcquire(i, 2, -(4))) ()
       assertEquals(-4, aa.get(i))
-      while ( !aa.weakCompareAndSetAcquire(i, -(4), 7) ) ()
+      while (!aa.weakCompareAndSetAcquire(i, -(4), 7)) ()
       assertEquals(7, aa.get(i))
     }
   }
@@ -228,10 +228,10 @@ class AtomicLongArray9Test extends JSR166Test {
     val aa = new AtomicLongArray(SIZE)
     for (i <- 0 until SIZE) {
       aa.set(i, 1)
-      while ( !aa.weakCompareAndSetRelease(i, 1, 2) ) ()
-      while ( !aa.weakCompareAndSetRelease(i, 2, -(4)) ) ()
+      while (!aa.weakCompareAndSetRelease(i, 1, 2)) ()
+      while (!aa.weakCompareAndSetRelease(i, 2, -(4))) ()
       assertEquals(-4, aa.get(i))
-      while ( !aa.weakCompareAndSetRelease(i, -(4), 7) ) ()
+      while (!aa.weakCompareAndSetRelease(i, -(4), 7)) ()
       assertEquals(7, aa.get(i))
     }
   }

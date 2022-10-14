@@ -129,7 +129,7 @@ void scalanative_register_weak_reference_handler(void *handler) {}
 // Definitions for GC specific overrides, following Boehm GC convention
 // used when multithreading support is enabled
 // In case of None GC only redirects pthread/WinApi standard function
-typedef void (*ThreadStartRoutine)(void*);
+typedef void (*ThreadStartRoutine)(void *);
 typedef void *RoutineArgs;
 #ifdef _WIN32 // windows bindings
 Handle GC_CreateThread(SecurityAttributes *threadAttributes, UWORD stackSize,

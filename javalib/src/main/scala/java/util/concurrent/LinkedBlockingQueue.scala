@@ -489,7 +489,7 @@ class LinkedBlockingQueue[E <: AnyRef](
    *  @throws NullPointerException
    *    if the specified array is null
    */
-  override def toArray[T<: AnyRef](_a: Array[T]): Array[T] = {
+  override def toArray[T <: AnyRef](_a: Array[T]): Array[T] = {
     var a = _a
     fullyLock()
     try {

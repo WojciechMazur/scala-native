@@ -786,7 +786,7 @@ class LinkedBlockingQueueTest extends JSR166Test {
    */
   @throws[Exception]
   @Ignore("No ObjectInputStream in Scala Native")
-  @Test def testSerialization(): Unit = { }
+  @Test def testSerialization(): Unit = {}
 
   /** drainTo(c) empties queue into another collection c
    */

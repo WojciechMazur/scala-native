@@ -424,7 +424,7 @@ class ThreadLocalRandomTest extends JSR166Test {
   }
 
   def checkIntBounds(b1: Int, b2: Int)(implicit
-                                       tlr: ThreadLocalRandom
+      tlr: ThreadLocalRandom
   ): Unit = {
     val least = min(b1, b2)
     val bound = max(b1, b2)
@@ -544,8 +544,8 @@ class ThreadLocalRandomTest extends JSR166Test {
   }
 
   def checkLongUpperBound(
-                           bound: Long
-                         )(implicit tlr: ThreadLocalRandom): Unit = {
+      bound: Long
+  )(implicit tlr: ThreadLocalRandom): Unit = {
     val next = tlr.nextLong(bound)
     assertTrue(next < bound)
   }
@@ -661,7 +661,7 @@ class ThreadLocalRandomTest extends JSR166Test {
   }
 
   def checkLongBounds(b1: Long, b2: Long)(implicit
-                                          tlr: ThreadLocalRandom
+      tlr: ThreadLocalRandom
   ): Unit = {
     val least = min(b1, b2)
     val bound = max(b1, b2)
@@ -782,8 +782,8 @@ class ThreadLocalRandomTest extends JSR166Test {
   }
 
   def checkDoubleUpperBound(
-                             bound: Double
-                           )(implicit tlr: ThreadLocalRandom): Unit = {
+      bound: Double
+  )(implicit tlr: ThreadLocalRandom): Unit = {
     val next = tlr.nextDouble(bound)
 
     assertTrue(next < bound)
@@ -903,7 +903,7 @@ class ThreadLocalRandomTest extends JSR166Test {
   }
 
   def checkDoubleBounds(b1: Double, b2: Double)(implicit
-                                                tlr: ThreadLocalRandom
+      tlr: ThreadLocalRandom
   ): Unit = {
     val least = min(b1, b2)
     val bound = max(b1, b2)

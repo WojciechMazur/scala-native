@@ -19,8 +19,8 @@ INLINE void Block_recycleUnmarkedBlock(BlockMeta *blockMeta,
 /**
  * recycles a block and adds it to the allocator
  */
-void Block_Recycle(BlockMeta *blockMeta,
-                   word_t *blockStart, LineMeta *lineMetas) {
+void Block_Recycle(BlockMeta *blockMeta, word_t *blockStart,
+                   LineMeta *lineMetas) {
 
     // If the block is not marked, it means that it's completely free
     if (!BlockMeta_IsMarked(blockMeta)) {
@@ -90,7 +90,7 @@ void Block_Recycle(BlockMeta *blockMeta,
             }
         }
         // If there is no recyclable line, the block is unavailable
-        Allocator* allocator = (Allocator*)blockMeta->owner;
+        Allocator *allocator = (Allocator *)blockMeta->owner;
         assert(allocator != NULL);
         if (lastRecyclable != NULL) {
             lastRecyclable->next = LAST_HOLE;

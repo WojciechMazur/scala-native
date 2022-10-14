@@ -172,7 +172,8 @@ trait Visit { self: Interflow =>
       val Sig.Duplicate(_, argtys) = sig.unmangled: @unchecked
       argtys
     case _ =>
-      val Type.Function(argtys, _) = linked.infos(name).asInstanceOf[Method].ty: @unchecked
+      val Type.Function(argtys, _) =
+        linked.infos(name).asInstanceOf[Method].ty: @unchecked
       argtys
   }
 

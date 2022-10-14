@@ -254,13 +254,13 @@ object AbstractQueuedSynchronizer { // Node status bits, also used as argument a
       statusAtomic.fetchAnd(~v)
 
     def setPrevRelaxed(p: Node): Unit = // for off-queue assignment
-    !prevPtr = p // U.putObject
+      !prevPtr = p // U.putObject
 
     def setStatusRelaxed(s: Int) = // for off-queue assignment
-    !statusPtr = s // U.putInt
+      !statusPtr = s // U.putInt
 
     def clearStatus(): Unit = // for reducing unneeded signals
-    statusAtomic.store(0, memory_order_relaxed) // U.putIntOpaque
+      statusAtomic.store(0, memory_order_relaxed) // U.putIntOpaque
   }
 
   // Concrete classes tagged by type

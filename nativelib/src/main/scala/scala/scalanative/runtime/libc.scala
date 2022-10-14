@@ -30,13 +30,23 @@ object libc {
       desired: Byte
   ): CBool = extern
 
+  @name("scalanative_atomic_compare_exchange_strong_llong")
+  def atomic_compare_exchange_strong(
+      ptr: RawPtr,
+      expected: RawPtr,
+      desired: Long
+  ): CBool = extern
+
   @name("scalanative_atomic_compare_exchange_strong_intptr")
   def atomic_compare_exchange_strong(
       ptr: RawPtr,
       expected: RawPtr,
       desired: RawPtr
   ): CBool = extern
-
+  
+  @name("scalanative_atomic_load_llong")
+  def atomic_load_explicit(ptr: RawPtr, memoryOrder: memory_order): Long = extern
+  
   @name("scalanative_atomic_store_explicit_intptr")
   def atomic_store_explicit(
       ptr: RawPtr,
@@ -49,6 +59,8 @@ object libc {
 
   type memory_order = Int
   @extern object memory_order {
+    @name("scalanative_atomic_memory_order_relaxed")
+    final def memory_order_relaxed: memory_order = extern
     @name("scalanative_atomic_memory_order_acquire")
     final def memory_order_acquire: memory_order = extern
     @name("scalanative_atomic_memory_order_release")

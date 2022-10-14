@@ -10,6 +10,7 @@ package org.scalanative.testsuite.javalib.util.concurrent.locks
 import org.junit.Assert._
 import org.junit.{Test, Ignore}
 import org.scalanative.testsuite.javalib.util.concurrent.JSR166Test
+
 import JSR166Test._
 
 import ReentrantLockTest.AwaitMethod
@@ -21,6 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks._
 
 import java.util.{ArrayList, Arrays, Collection, HashSet, Date}
+import scala.scalanative.junit.utils.AssertThrows.assertThrows
 
 object ReentrantLockTest {
 
@@ -1304,5 +1306,79 @@ class ReentrantLockTest extends JSR166Test {
     try condition.signal()
     finally lock.unlock()
     awaitTermination(thread)
+  }
+
+  // Tests ported from Scala.js
+  @Test def lockAndUnlock(): Unit = {
+    val lock = new ReentrantLock()
+    assertFalse(lock.isLocked)
+    lock.lock()
+    assertTrue(lock.isLocked)
+    lock.unlock()
+    assertFalse(lock.isLocked)
+  }
+
+  @Test def tryLock(): Unit = {
+    val lock = new ReentrantLock()
+    assertFalse(lock.isLocked)
+    lock.tryLock()
+    assertTrue(lock.isLocked)
+    lock.unlock()
+    assertFalse(lock.isLocked)
+    lock.tryLock(1L, TimeUnit.SECONDS)
+    assertTrue(lock.isLocked)
+    lock.unlock()
+    assertFalse(lock.isLocked)
+    Thread.currentThread().interrupt()
+    assertThrows(
+      classOf[InterruptedException],
+      lock.tryLock(1L, TimeUnit.SECONDS)
+    )
+  }
+
+  @Test def lockInterruptibly(): Unit = {
+    val lock = new ReentrantLock()
+    assertFalse(lock.isLocked)
+    lock.lockInterruptibly()
+    assertTrue(lock.isLocked)
+    lock.unlock()
+    assertFalse(lock.isLocked)
+    Thread.currentThread().interrupt()
+    assertThrows(classOf[InterruptedException], lock.lockInterruptibly)
+  }
+
+  @Test def isHeldByCurrentThread(): Unit = {
+    val lock = new ReentrantLock()
+    assertFalse(lock.isHeldByCurrentThread())
+    lock.lock()
+    assertTrue(lock.isHeldByCurrentThread())
+  }
+
+  @Test def isFair(): Unit = {
+    val l1 = new ReentrantLock()
+    assertFalse(l1.isFair)
+    val l2 = new ReentrantLock(false)
+    assertFalse(l2.isFair)
+    val l3 = new ReentrantLock(true)
+    assertTrue(l3.isFair)
+  }
+
+  @Test def getHoldCount(): Unit = {
+    val lock = new ReentrantLock()
+    assertFalse(lock.isLocked)
+    assertEquals(0, lock.getHoldCount())
+    lock.lock()
+    assertTrue(lock.isLocked)
+    assertEquals(1, lock.getHoldCount())
+    lock.lock()
+    assertTrue(lock.isLocked)
+    assertEquals(2, lock.getHoldCount())
+    lock.unlock()
+    assertTrue(lock.isLocked)
+    assertEquals(1, lock.getHoldCount())
+    lock.unlock()
+    assertFalse(lock.isLocked)
+    assertEquals(0, lock.getHoldCount())
+    assertThrows(classOf[IllegalMonitorStateException], lock.unlock)
   }
 }

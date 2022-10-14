@@ -1,13 +1,14 @@
-package scala.scalanative.runtime.monitor
+package scala.scalanative.runtime
+package monitor
 
 import LockWord._
 import scala.annotation.{tailrec, switch}
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe.{stackalloc => _, _}
 import scala.scalanative.runtime.Intrinsics._
-import scala.scalanative.runtime.RawPtr
 import scala.scalanative.runtime.libc._
 import scala.scalanative.runtime.libc.memory_order._
+import scala.scalanative.meta.LinktimeInfo.{is32BitPlatform => is32bit}
 
 /** Lightweight monitor used for single-threaded execution, upon detection of
  *  access from multiple threads is inflated in ObjectMonitor
@@ -17,7 +18,7 @@ import scala.scalanative.runtime.libc.memory_order._
  */
 @inline final class BasicMonitor(val lockWordRef: RawPtr) extends AnyVal {
   import BasicMonitor._
-  type ThreadId = Long
+  type ThreadId = RawPtr
 
   @alwaysinline def _notify(): Unit = {
     val current = lockWord
@@ -49,7 +50,7 @@ import scala.scalanative.runtime.libc.memory_order._
         if (threadId == current.threadId) {
           if (current.recursionCount < ThinMonitorMaxRecursion) {
             // No need for atomic operation since we already obtain the lock
-            storeLong(lockWordRef, current.withIncreasedRecursion)
+            storeRawPtr(lockWordRef, current.withIncreasedRecursion)
           } else inflate(thread)
         } else lockAndInflate(thread, threadId)
       }
@@ -64,10 +65,13 @@ import scala.scalanative.runtime.libc.memory_order._
 
     if (current.isInflated)
       current.getObjectMonitor.exit(thread)
-    else if (current.longValue == lockedOnce)
-      atomic_store_explicit(lockWordRef, 0, memory_order_release)
-    else
-      storeLong(lockWordRef, current.withDecresedRecursion)
+    else if (current == lockedOnce)
+      atomic_store_explicit(
+        lockWordRef,
+        castIntToRawPtr(0),
+        memory_order_release
+      )
+    else storeRawPtr(lockWordRef, current.withDecresedRecursion)
   }
 
   @alwaysinline private def lockWord: LockWord = loadRawPtr(lockWordRef)
@@ -78,19 +82,23 @@ import scala.scalanative.runtime.libc.memory_order._
     else inflate(Thread.currentThread())
   }
 
-  @alwaysinline private def lockedWithThreadId(threadId: ThreadId): Word =
+  @alwaysinline private def lockedWithThreadId(threadId: ThreadId): RawPtr =
     // lockType=0, recursion=0
-    threadId << ThreadIdOffset
+    if (is32bit) castIntToRawPtr(castRawPtrToInt(threadId) << ThreadIdOffset)
+    else castLongToRawPtr(castRawPtrToLong(threadId) << ThreadIdOffset)
 
-  @alwaysinline private def getThreadId(thread: Thread): ThreadId =
-    castRawPtrToLong(castObjectToRawPtr(thread)) & ThreadIdMax
+  @alwaysinline private def getThreadId(thread: Thread): ThreadId = {
+    val addr = castObjectToRawPtr(thread)
+    if (is32bit) castIntToRawPtr(castRawPtrToInt(addr) & LockWord32.ThreadIdMax)
+    else castLongToRawPtr(castRawPtrToLong(addr) & LockWord.ThreadIdMax)
+  }
 
   @inline
   private def tryLock(threadId: ThreadId) = {
-    import scala.scalanative.unsigned._
-    val expected = stackalloc(sizeof[CLong])
+    // val _ = lockWordRef.longValue.toBinaryString
+    val expected = stackalloc(SizeOfPtr)
     // ThreadId set to 0, recursion set to 0
-    storeLong(expected, 0)
+    storeRawSize(expected, castIntToRawSize(0))
     atomic_compare_exchange_strong(
       lockWordRef,
       expected,
@@ -110,7 +118,7 @@ import scala.scalanative.runtime.libc.memory_order._
           usleep(32)
           waitForOwnership(yields)
         } else {
-          Thread.onSpinWait()
+          onSpinWait()
           waitForOwnership(yields + 1)
         }
       }
@@ -129,9 +137,18 @@ import scala.scalanative.runtime.libc.memory_order._
     objectMonitor.recursion += lockWord.recursionCount
 
     // Since pointers are always alligned we can safely override N=sizeof(Word) right most bits
-    val monitorAddress = castRawPtrToLong(castObjectToRawPtr(objectMonitor))
-    val inflatedBits = LockType.Inflated << LockTypeOffset
-    storeLong(lockWordRef, inflatedBits | monitorAddress)
+    val monitorAddress = castObjectToRawPtr(objectMonitor)
+    val inflated =
+      if (is32bit) {
+        val lockMark = (LockType.Inflated: Int) << LockWord32.LockTypeOffset
+        val addr = castRawPtrToInt(monitorAddress)
+        castIntToRawSize(lockMark | addr)
+      } else {
+        val lockMark = (LockType.Inflated: Long) << LockWord.LockTypeOffset
+        val addr = castRawPtrToLong(monitorAddress)
+        castLongToRawSize(lockMark | addr)
+      }
+    storeRawSize(lockWordRef, inflated)
     atomic_thread_fence(memory_order_seq_cst)
 
     objectMonitor

@@ -12,14 +12,16 @@ memory_order scalanative_atomic_memory_order_acq_rel() { return memory_order_acq
 memory_order scalanative_atomic_memory_order_seq_cst() { return memory_order_seq_cst;}
 %{
   atomics = [
-    ('int8_t','byte'),
-    ('uint8_t','ubyte'),
-    ('int16_t','short'),
-    ('uint16_t','ushort'),
-    ('int32_t','int'),
-    ('uint32_t','uint'),
-    ('int64_t','long'),
-    ('uint64_t','ulong'),
+    ('char','byte'),
+    ('unsigned char','ubyte'),
+    ('short','short'),
+    ('unsigned short','ushort'),
+    ('int','int'),
+    ('unsigned int','uint'),
+    ('long','long'),
+    ('unsigned long','ulong'),
+    ('long long','llong'),
+    ('unsigned long long','ullong'),
     ('intptr_t', 'intptr'),
   ]
 

@@ -59,8 +59,15 @@ private[testinterface] object SignalConfig {
       str(index) = 0.toByte
     }
 
-    val signalNumberStr: Ptr[CChar] = stackalloc[CChar](8.toUInt)
-    signalToCString(signalNumberStr, sig)
+    val signalNumberStr: Ptr[CChar] =
+      if (!isWindows) {
+        import scala.scalanative.posix.string.strsignal
+        strsignal(sig)
+      } else {
+        val str: Ptr[CChar] = stackalloc[CChar](8.toUInt)
+        signalToCString(str, sig)
+        str
+      }
 
     val stackTraceHeader: Ptr[CChar] = stackalloc[CChar](2048.toUInt)
     stackTraceHeader(0.toUInt) = 0.toByte
@@ -77,7 +84,7 @@ private[testinterface] object SignalConfig {
 
     while (unwind.step(cursor) > 0) {
       val offset: Ptr[scala.Byte] = stackalloc[scala.Byte](8.toUInt)
-      val pc = stackalloc[CUnsignedLongLong]()
+      val pc = stackalloc[CUnsignedLong]()
       unwind.get_reg(cursor, unwind.UNW_REG_IP, pc)
       if (!pc == 0.toUInt) return
       val symMax = 1024

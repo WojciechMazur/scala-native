@@ -79,9 +79,10 @@ class FutureTask[V <: AnyRef](private var callable: Callable[V])
   /** Treiber stack of waiting threads */
   @volatile private var waiters: WaitNode = _
 
-  /** The result to return or exception to throw from get() */
-  private var outcome: AnyRef =
-    _ // non-volatile, protected by state reads/writes
+  /** The result to return or exception to throw from get(),non-volatile,
+   *  protected by state reads/writes
+   */
+  private var outcome: AnyRef = _
 
   private val atomicState = new CAtomicInt(
     fromRawPtr(Intrinsics.classFieldRawPtr(this, "state"))

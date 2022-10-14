@@ -1,7 +1,7 @@
 package scala.scalanative.nscplugin
 
 import scala.language.implicitConversions
-import scala.annotation._
+import scala.annotation.tailrec
 
 import dotty.tools.dotc.ast
 import ast.tpd._
@@ -102,7 +102,7 @@ trait NirGenExpr(using Context) {
             Literal(componentType: Constant),
             arrayType,
             SeqLiteral(dimensions, _)
-          ) = args
+          ) = args: @unchecked
           if (dimensions.size == 1)
             val length = genExpr(dimensions.head)
             buf.arrayalloc(genType(componentType.typeValue), length, unwind)
@@ -306,8 +306,8 @@ trait NirGenExpr(using Context) {
       }
 
       def genAnonClassMethod(sym: Symbol): nir.Defn = {
-        val Global.Member(_, funSig) = genName(sym)
-        val Sig.Method(_, sigTypes :+ retType, _) = funSig.unmangled
+        val Global.Member(_, funSig) = genName(sym): @unchecked
+        val Sig.Method(_, sigTypes :+ retType, _) = funSig.unmangled: @unchecked
 
         val selfType = Type.Ref(anonClassName)
         val methodName = anonClassName.member(funSig)
@@ -352,7 +352,7 @@ trait NirGenExpr(using Context) {
                 )
               }
             } else {
-              val thisVal :: argVals = allVals
+              val thisVal :: argVals = allVals: @unchecked
               scoped(curMethodThis := Some(thisVal.value)) {
                 buf.genApplyMethod(
                   funSym,
@@ -465,7 +465,7 @@ trait NirGenExpr(using Context) {
     }
 
     def genJavaSeqLiteral(tree: JavaSeqLiteral): Val = {
-      val JavaArrayType(elemTpe) = tree.tpe
+      val JavaArrayType(elemTpe) = tree.tpe: @unchecked
       val arrayLength = Val.Int(tree.elems.length)
 
       val elems = tree.elems
@@ -896,7 +896,7 @@ trait NirGenExpr(using Context) {
 
     def genTypeApply(tree: TypeApply): Val = {
       given nir.Position = tree.span
-      val TypeApply(fun @ Select(receiverp, _), targs) = tree
+      val TypeApply(fun @ Select(receiverp, _), targs) = tree: @unchecked
 
       val funSym = fun.symbol
       val fromty = genType(receiverp.tpe)
@@ -1005,7 +1005,7 @@ trait NirGenExpr(using Context) {
       import dotty.tools.backend.ScalaPrimitivesOps._
       given nir.Position = app.span
       val Apply(fun, args) = app
-      val Select(receiver, _) = desugarTree(fun)
+      val Select(receiver, _) = desugarTree(fun): @unchecked
 
       val sym = app.symbol
       val code = nirPrimitives.getPrimitive(app, receiver.tpe)
@@ -1019,7 +1019,8 @@ trait NirGenExpr(using Context) {
       else if (isArrayOp(code) || code == ARRAY_CLONE) genArrayOp(app, code)
       else if (isCoercion(code)) genCoercion(app, receiver, code)
       else if (NirPrimitives.isRawPtrOp(code)) genRawPtrOp(app, code)
-      else if (NirPrimitives.isRawCastOp(code)) genRawCastOp(app, code)
+      else if (NirPrimitives.isRawPtrCastOp(code)) genRawPtrCastOp(app, code)
+      else if (NirPrimitives.isRawSizeCastOp(code)) genRawSizeCastOp(app, code)
       else if (NirPrimitives.isUnsignedOp(code)) genUnsignedOp(app, code)
       else if (code == CFUNCPTR_APPLY) genCFuncPtrApply(app)
       else if (code == CFUNCPTR_FROM_FUNCTION) genCFuncFromScalaFunction(app)
@@ -1042,8 +1043,8 @@ trait NirGenExpr(using Context) {
     }
 
     private def genApplyTypeApply(app: Apply): Val = {
-      val Apply(tApply @ TypeApply(fun, targs), argsp) = app
-      val Select(receiverp, _) = desugarTree(fun)
+      val Apply(tApply @ TypeApply(fun, targs), argsp) = app: @unchecked
+      val Select(receiverp, _) = desugarTree(fun): @unchecked
       given nir.Position = fun.span
 
       val funSym = fun.symbol
@@ -1057,7 +1058,7 @@ trait NirGenExpr(using Context) {
     }
 
     private def genApplyNew(app: Apply): Val = {
-      val Apply(fun @ Select(New(tpt), nme.CONSTRUCTOR), args) = app
+      val Apply(fun @ Select(New(tpt), nme.CONSTRUCTOR), args) = app: @unchecked
       given nir.Position = app.span
 
       fromType(tpt.tpe) match {
@@ -1083,10 +1084,10 @@ trait NirGenExpr(using Context) {
       val args = genSimpleArgs(argsp)
       var res: Val = Val.Zero(ty)
 
-      for
-        ((arg, argp), idx) <- args.zip(argsp).zipWithIndex
+      for ((arg, argp), idx) <- args.zip(argsp).zipWithIndex
+      do
         given nir.Position = argp.span
-      do res = buf.insert(res, arg, Seq(idx), unwind)
+        res = buf.insert(res, arg, Seq(idx), unwind)
       res
     }
 
@@ -1143,7 +1144,7 @@ trait NirGenExpr(using Context) {
       val method =
         if (isStaticCall) Val.Global(name, nir.Type.Ptr)
         else
-          val Global.Member(_, sig) = name
+          val Global.Member(_, sig) = name: @unchecked
           buf.method(self, sig, unwind)
       val values =
         if (sym.isExtern) args
@@ -1249,6 +1250,7 @@ trait NirGenExpr(using Context) {
         case Type.Long              => Val.Long(num.toLong)
         case Type.Float             => Val.Float(num.toFloat)
         case Type.Double            => Val.Double(num.toDouble)
+        case Type.Size              => Val.Size(num.toLong)
         case _ => unsupported(s"num = $num, ty = ${ty.show}")
       }
 
@@ -1389,14 +1391,14 @@ trait NirGenExpr(using Context) {
         case (nir.Type.Ptr, _: nir.Type.RefKind) => lty
         case (_: nir.Type.RefKind, nir.Type.Ptr) => rty
         case (nir.Type.Bool, nir.Type.Bool)      => nir.Type.Bool
-        case (nir.Type.I(lwidth, _), nir.Type.I(rwidth, _))
+        case (nir.Type.FixedSizeI(lwidth, _), nir.Type.FixedSizeI(rwidth, _))
             if lwidth < 32 && rwidth < 32 =>
           nir.Type.Int
-        case (nir.Type.I(lwidth, _), nir.Type.I(rwidth, _)) =>
+        case (nir.Type.FixedSizeI(lwidth, _), nir.Type.FixedSizeI(rwidth, _)) =>
           if (lwidth >= rwidth) lty
           else rty
-        case (nir.Type.I(_, _), nir.Type.F(_)) => rty
-        case (nir.Type.F(_), nir.Type.I(_, _)) => lty
+        case (nir.Type.FixedSizeI(_, _), nir.Type.F(_)) => rty
+        case (nir.Type.F(_), nir.Type.FixedSizeI(_, _)) => lty
         case (nir.Type.F(lwidth), nir.Type.F(rwidth)) =>
           if (lwidth >= rwidth) lty
           else rty
@@ -1454,10 +1456,10 @@ trait NirGenExpr(using Context) {
       if (!sym.isExtern) genSimpleArgs(argsp)
       else {
         val res = Seq.newBuilder[Val]
-        argsp.zip(sym.denot.paramSymss.flatten).foreach {
-          case (argp, paramSym) =>
+        argsp.zip(sym.paramInfo.paramInfoss.flatten).foreach {
+          case (argp, paramTpe) =>
             given nir.Position = argp.span
-            val externType = genExternType(paramSym.info.resultType)
+            val externType = genExternType(paramTpe.finalResultType)
             res += toExtern(externType, genExpr(argp))
         }
         res.result()
@@ -1472,8 +1474,8 @@ trait NirGenExpr(using Context) {
       import NirPrimitives._
       import dotty.tools.backend.ScalaPrimitivesOps._
 
-      val Apply(Select(arrayp, _), argsp) = app
-      val Type.Array(elemty, _) = genType(arrayp.tpe)
+      val Apply(Select(arrayp, _), argsp) = app: @unchecked
+      val Type.Array(elemty, _) = genType(arrayp.tpe): @unchecked
       given nir.Position = app.span
 
       def elemcode = genArrayCode(arrayp.tpe)
@@ -1641,21 +1643,24 @@ trait NirGenExpr(using Context) {
         val conv = (fromty, toty) match {
           case (nir.Type.Ptr, _: nir.Type.RefKind) => Conv.Bitcast
           case (_: nir.Type.RefKind, nir.Type.Ptr) => Conv.Bitcast
-          case (nir.Type.I(fromw, froms), nir.Type.I(tow, tos)) =>
+          case (
+                nir.Type.FixedSizeI(fromw, froms),
+                nir.Type.FixedSizeI(tow, tos)
+              ) =>
             if (fromw < tow)
               if (froms) Conv.Sext
               else Conv.Zext
             else if (fromw > tow) Conv.Trunc
             else Conv.Bitcast
-          case (nir.Type.I(_, true), _: nir.Type.F)  => Conv.Sitofp
-          case (nir.Type.I(_, false), _: nir.Type.F) => Conv.Uitofp
-          case (_: nir.Type.F, nir.Type.I(iwidth, true)) =>
+          case (i: nir.Type.I, _: nir.Type.F) if i.signed => Conv.Sitofp
+          case (_: nir.Type.I, _: nir.Type.F)             => Conv.Uitofp
+          case (_: nir.Type.F, nir.Type.FixedSizeI(iwidth, true)) =>
             if (iwidth < 32) {
               val ivalue = genCoercion(value, fromty, Type.Int)
               return genCoercion(ivalue, Type.Int, toty)
             }
             Conv.Fptosi
-          case (_: nir.Type.F, nir.Type.I(iwidth, false)) =>
+          case (_: nir.Type.F, nir.Type.FixedSizeI(iwidth, false)) =>
             if (iwidth < 32) {
               val ivalue = genCoercion(value, fromty, Type.Int)
               return genCoercion(ivalue, Type.Int, toty)
@@ -1735,17 +1740,19 @@ trait NirGenExpr(using Context) {
 
     private def castConv(fromty: nir.Type, toty: nir.Type): Option[nir.Conv] =
       (fromty, toty) match {
-        case (_: Type.I, Type.Ptr)                   => Some(nir.Conv.Inttoptr)
-        case (Type.Ptr, _: Type.I)                   => Some(nir.Conv.Ptrtoint)
-        case (_: Type.RefKind, Type.Ptr)             => Some(nir.Conv.Bitcast)
-        case (Type.Ptr, _: Type.RefKind)             => Some(nir.Conv.Bitcast)
-        case (_: Type.RefKind, _: Type.RefKind)      => Some(nir.Conv.Bitcast)
-        case (_: Type.RefKind, _: Type.I)            => Some(nir.Conv.Ptrtoint)
-        case (_: Type.I, _: Type.RefKind)            => Some(nir.Conv.Inttoptr)
-        case (Type.I(w1, _), Type.F(w2)) if w1 == w2 => Some(nir.Conv.Bitcast)
-        case (Type.F(w1), Type.I(w2, _)) if w1 == w2 => Some(nir.Conv.Bitcast)
-        case _ if fromty == toty                     => None
-        case _ => unsupported(s"cast from $fromty to $toty")
+        case (_: Type.I, Type.Ptr)              => Some(nir.Conv.Inttoptr)
+        case (Type.Ptr, _: Type.I)              => Some(nir.Conv.Ptrtoint)
+        case (_: Type.RefKind, Type.Ptr)        => Some(nir.Conv.Bitcast)
+        case (Type.Ptr, _: Type.RefKind)        => Some(nir.Conv.Bitcast)
+        case (_: Type.RefKind, _: Type.RefKind) => Some(nir.Conv.Bitcast)
+        case (_: Type.RefKind, _: Type.I)       => Some(nir.Conv.Ptrtoint)
+        case (_: Type.I, _: Type.RefKind)       => Some(nir.Conv.Inttoptr)
+        case (Type.FixedSizeI(w1, _), Type.F(w2)) if w1 == w2 =>
+          Some(nir.Conv.Bitcast)
+        case (Type.F(w1), Type.FixedSizeI(w2, _)) if w1 == w2 =>
+          Some(nir.Conv.Bitcast)
+        case _ if fromty == toty => None
+        case _                   => unsupported(s"cast from $fromty to $toty")
       }
 
     /** Boxes a value of the given type before `elimErasedValueType`.
@@ -1851,16 +1858,17 @@ trait NirGenExpr(using Context) {
       val Apply(_, Seq(ptrp)) = app
       val ptr = genExpr(ptrp)
       val ty = code match {
-        case LOAD_BOOL    => nir.Type.Bool
-        case LOAD_CHAR    => nir.Type.Char
-        case LOAD_BYTE    => nir.Type.Byte
-        case LOAD_SHORT   => nir.Type.Short
-        case LOAD_INT     => nir.Type.Int
-        case LOAD_LONG    => nir.Type.Long
-        case LOAD_FLOAT   => nir.Type.Float
-        case LOAD_DOUBLE  => nir.Type.Double
-        case LOAD_RAW_PTR => nir.Type.Ptr
-        case LOAD_OBJECT  => Rt.Object
+        case LOAD_BOOL     => nir.Type.Bool
+        case LOAD_CHAR     => nir.Type.Char
+        case LOAD_BYTE     => nir.Type.Byte
+        case LOAD_SHORT    => nir.Type.Short
+        case LOAD_INT      => nir.Type.Int
+        case LOAD_LONG     => nir.Type.Long
+        case LOAD_FLOAT    => nir.Type.Float
+        case LOAD_DOUBLE   => nir.Type.Double
+        case LOAD_RAW_PTR  => nir.Type.Ptr
+        case LOAD_RAW_SIZE => nir.Type.Size
+        case LOAD_OBJECT   => Rt.Object
       }
       buf.load(ty, ptr, unwind, isAtomic = ptrp.symbol.isVolatile)
     }
@@ -1873,16 +1881,17 @@ trait NirGenExpr(using Context) {
       val ptr = genExpr(ptrp)
       val value = genExpr(valuep)
       val ty = code match {
-        case STORE_BOOL    => nir.Type.Bool
-        case STORE_CHAR    => nir.Type.Char
-        case STORE_BYTE    => nir.Type.Byte
-        case STORE_SHORT   => nir.Type.Short
-        case STORE_INT     => nir.Type.Int
-        case STORE_LONG    => nir.Type.Long
-        case STORE_FLOAT   => nir.Type.Float
-        case STORE_DOUBLE  => nir.Type.Double
-        case STORE_RAW_PTR => nir.Type.Ptr
-        case STORE_OBJECT  => Rt.Object
+        case STORE_BOOL     => nir.Type.Bool
+        case STORE_CHAR     => nir.Type.Char
+        case STORE_BYTE     => nir.Type.Byte
+        case STORE_SHORT    => nir.Type.Short
+        case STORE_INT      => nir.Type.Int
+        case STORE_LONG     => nir.Type.Long
+        case STORE_FLOAT    => nir.Type.Float
+        case STORE_DOUBLE   => nir.Type.Double
+        case STORE_RAW_PTR  => nir.Type.Ptr
+        case STORE_RAW_SIZE => nir.Type.Size
+        case STORE_OBJECT   => Rt.Object
       }
       buf.store(ty, ptr, value, unwind, isAtomic = ptrp.symbol.isVolatile)
     }
@@ -1896,7 +1905,7 @@ trait NirGenExpr(using Context) {
       buf.elem(Type.Byte, ptr, Seq(offset), unwind)
     }
 
-    private def genRawCastOp(app: Apply, code: Int): Val = {
+    private def genRawPtrCastOp(app: Apply, code: Int): Val = {
       given nir.Position = app.span
       val Apply(_, Seq(argp)) = app
 
@@ -1905,6 +1914,29 @@ trait NirGenExpr(using Context) {
       val value = genExpr(argp)
 
       genCastOp(fromty, toty, value)
+    }
+
+    def genRawSizeCastOp(app: Apply, code: Int): Val = {
+      import NirPrimitives._
+      given pos: nir.Position = app.span
+      val Apply(_, Seq(argp)) = app
+      val rec = genExpr(argp)
+      val (fromty, toty, conv) = code match {
+        case CAST_RAWSIZE_TO_INT =>
+          (nir.Type.Size, nir.Type.Int, Conv.SSizeCast)
+        case CAST_RAWSIZE_TO_LONG =>
+          (nir.Type.Size, nir.Type.Long, Conv.SSizeCast)
+        case CAST_RAWSIZE_TO_LONG_UNSIGNED =>
+          (nir.Type.Size, nir.Type.Long, Conv.ZSizeCast)
+        case CAST_INT_TO_RAWSIZE =>
+          (nir.Type.Int, nir.Type.Size, Conv.SSizeCast)
+        case CAST_INT_TO_RAWSIZE_UNSIGNED =>
+          (nir.Type.Int, nir.Type.Size, Conv.ZSizeCast)
+        case CAST_LONG_TO_RAWSIZE =>
+          (nir.Type.Long, nir.Type.Size, Conv.SSizeCast)
+      }
+
+      buf.conv(conv, toty, rec, unwind)
     }
 
     private def genUnsignedOp(app: Tree, code: Int): Val = {
@@ -2049,7 +2081,13 @@ trait NirGenExpr(using Context) {
       val Apply(_, Seq(sizep)) = app
 
       val size = genExpr(sizep)
-      val unboxed = buf.unbox(size.ty, size, unwind)(using sizep.span)
+      val sizeTy = Type.normalize(size.ty)
+      val unboxed =
+        if Type.isSizeBox(sizeTy) then
+          buf.unbox(sizeTy, size, unwind)(using sizep.span)
+        else
+          assert(Type.box.contains(sizeTy), s"Not a primitive type: ${sizeTy}")
+          size
 
       buf.stackalloc(nir.Type.Byte, unboxed, unwind)(using app.span)
     }
@@ -2078,7 +2116,8 @@ trait NirGenExpr(using Context) {
               _
             ) =>
           given nir.Position = app.span
-          val List(Literal(Constant(str: String))) = javaSeqLiteral.elems
+          val List(Literal(Constant(str: String))) =
+            javaSeqLiteral.elems: @unchecked
           val chars = Val.Chars(StringUtils.processEscapes(str).toIndexedSeq)
           val const = Val.Const(chars)
           buf.box(nir.Rt.BoxedPtr, const, unwind)
@@ -2091,7 +2130,7 @@ trait NirGenExpr(using Context) {
 
     def genClassFieldRawPtr(app: Apply): Val = {
       given nir.Position = app.span
-      val Apply(_, List(target, fieldName: Literal)) = app
+      val Apply(_, List(target, fieldName: Literal)) = app: @unchecked
       val fieldNameId = fieldName.const.stringValue
       val classInfo = target.tpe.finalResultType
       val classInfoSym = classInfo.typeSymbol.asClass
@@ -2183,7 +2222,7 @@ trait NirGenExpr(using Context) {
      */
     private def genCFuncPtrApply(app: Apply): Val = {
       given nir.Position = app.span
-      val Apply(appRec @ Select(receiverp, _), aargs) = app
+      val Apply(appRec @ Select(receiverp, _), aargs) = app: @unchecked
 
       val argsp = if (aargs.size > 2) aargs.take(aargs.length / 2) else Nil
       val evidences = aargs.drop(aargs.length / 2)
@@ -2228,7 +2267,7 @@ trait NirGenExpr(using Context) {
 
     private def genCFuncFromScalaFunction(app: Apply): Val = {
       given pos: nir.Position = app.span
-      val fn :: evidences = app.args
+      val fn :: evidences = app.args: @unchecked
       val paramTypes = evidences.map(unwrapTag)
 
       @tailrec
@@ -2237,7 +2276,7 @@ trait NirGenExpr(using Context) {
         case Block(_, expr) => resolveFunction(expr)
         case fn @ Closure(_, target, _) =>
           val fnRef = genClosure(fn)
-          val Type.Ref(className, _, _) = fnRef.ty
+          val Type.Ref(className, _, _) = fnRef.ty: @unchecked
 
           generatedDefns += genFuncExternForwarder(
             className,
@@ -2302,7 +2341,7 @@ trait NirGenExpr(using Context) {
         else {
           val params :+ retty = evidences
             .map(genType)
-            .map(t => nir.Type.box.getOrElse(t, t))
+            .map(t => nir.Type.box.getOrElse(t, t)): @unchecked
           Type.Function(params, retty)
         }
 
@@ -2311,7 +2350,7 @@ trait NirGenExpr(using Context) {
         else {
           val params :+ retty = evidences
             .map(genExternType)
-            .map(t => nir.Type.unbox.getOrElse(t, t))
+            .map(t => nir.Type.unbox.getOrElse(t, t)): @unchecked
           Type.Function(params, retty)
         }
 
@@ -2384,7 +2423,7 @@ trait NirGenExpr(using Context) {
         isSelectDynamic: Boolean
     ): Val = {
       given nir.Position = tree.span
-      val Apply(fun @ Select(receiver, _), args) = tree
+      val Apply(fun @ Select(receiver, _), args) = tree: @unchecked
 
       val selectedValue = genApplyMethod(
         defnNir.ReflectSelectable_selectedValue,
@@ -2436,11 +2475,22 @@ trait NirGenExpr(using Context) {
                   .zip(formalParamTypes)
                   .map { (actualArgAny, formalParamType) =>
                     val genActualArgAny = genExpr(actualArgAny)
-                    buf.as(
-                      formalParamType,
-                      genActualArgAny,
-                      unwind
-                    )
+                    (genActualArgAny.ty, formalParamType) match {
+                      case (ty: Type.Ref, formal: Type.Ref) =>
+                        if ty.name == formal.name then genActualArgAny
+                        else
+                          buf.as(
+                            formalParamType,
+                            genActualArgAny,
+                            unwind
+                          )
+
+                      case (ty: Type.Ref, formal: Type.PrimitiveKind) =>
+                        assert(Type.Ref(ty.name) == Type.box(formal))
+                        genActualArgAny
+
+                      case _ => scalanative.util.unreachable
+                    }
                   }
 
               (formalParamTypes, actualArgs)
@@ -2459,8 +2509,15 @@ trait NirGenExpr(using Context) {
         Sig.Proxy(methodNameStr, formalParamTypeRefs),
         unwind
       )
+      // Proxies operate only on boxed types, however formal param types and name of the method
+      // might contain primitive types. With current imlementation of proxies we workaround it
+      // by always using boxed types in function calls
+      val boxedFormalParamTypeRefs = formalParamTypeRefs.map {
+        case ty: Type.PrimitiveKind => Type.box(ty)
+        case ty                     => ty
+      }
       buf.call(
-        Type.Function(selectedValue.ty :: formalParamTypeRefs, Rt.Object),
+        Type.Function(selectedValue.ty :: boxedFormalParamTypeRefs, Rt.Object),
         dynMethod,
         selectedValue :: actualArgs,
         unwind

@@ -211,18 +211,20 @@ final class BinarySerializer {
   }
 
   private def putConv(conv: Conv) = conv match {
-    case Conv.Trunc    => putInt(T.TruncConv)
-    case Conv.Zext     => putInt(T.ZextConv)
-    case Conv.Sext     => putInt(T.SextConv)
-    case Conv.Fptrunc  => putInt(T.FptruncConv)
-    case Conv.Fpext    => putInt(T.FpextConv)
-    case Conv.Fptoui   => putInt(T.FptouiConv)
-    case Conv.Fptosi   => putInt(T.FptosiConv)
-    case Conv.Uitofp   => putInt(T.UitofpConv)
-    case Conv.Sitofp   => putInt(T.SitofpConv)
-    case Conv.Ptrtoint => putInt(T.PtrtointConv)
-    case Conv.Inttoptr => putInt(T.InttoptrConv)
-    case Conv.Bitcast  => putInt(T.BitcastConv)
+    case Conv.Trunc     => putInt(T.TruncConv)
+    case Conv.Zext      => putInt(T.ZextConv)
+    case Conv.Sext      => putInt(T.SextConv)
+    case Conv.Fptrunc   => putInt(T.FptruncConv)
+    case Conv.Fpext     => putInt(T.FpextConv)
+    case Conv.Fptoui    => putInt(T.FptouiConv)
+    case Conv.Fptosi    => putInt(T.FptosiConv)
+    case Conv.Uitofp    => putInt(T.UitofpConv)
+    case Conv.Sitofp    => putInt(T.SitofpConv)
+    case Conv.Ptrtoint  => putInt(T.PtrtointConv)
+    case Conv.Inttoptr  => putInt(T.InttoptrConv)
+    case Conv.Bitcast   => putInt(T.BitcastConv)
+    case Conv.SSizeCast => putInt(T.SSizeCastConv)
+    case Conv.ZSizeCast => putInt(T.ZSizeCastConv)
   }
 
   private def putDefn(value: Defn): Unit = {
@@ -510,6 +512,7 @@ final class BinarySerializer {
       putGlobal(n)
       putBool(exact)
       putBool(nullable)
+    case Type.Size => putInt(T.SizeType)
   }
 
   private def putVals(values: Seq[Val]): Unit = putSeq(values)(putVal)
@@ -540,6 +543,7 @@ final class BinarySerializer {
       v.foreach(putChar(_))
     case Val.Virtual(v)   => putInt(T.VirtualVal); putLong(v)
     case Val.ClassOf(cls) => putInt(T.ClassOfVal); putGlobal(cls)
+    case Val.Size(v)      => putInt(T.SizeVal); putLong(v)
   }
 
   private def putLinktimeCondition(cond: LinktimeCondition): Unit = cond match {

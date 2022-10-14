@@ -11,5 +11,3 @@ void scalanative_set_currentThread(JavaThread thread) {
 }
 
 JavaThread scalanative_currentThread() { return currentThread; }
-
-void scalanative_yieldProcessor() { YieldProcessor(); }

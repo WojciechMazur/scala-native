@@ -431,6 +431,106 @@ import scala.language.implicitConversions
   @name("scalanative_atomic_fetch_xor_explicit_ulong") 
   def atomic_fetch_xor_explicit(ptr: Ptr[atomic_ulong], value: CUnsignedLong, memoryOrder: memory_order): CUnsignedLong = extern
 
+  type atomic_llong = CLongLong
+  @name("scalanative_atomic_init_llong") 
+  def atomic_init(atm: Ptr[atomic_llong], initValue: CLongLong): Unit = extern
+  
+  @name("scalanative_atomic_load_llong")
+  def atomic_load(ptr: Ptr[atomic_llong]): CLongLong = extern
+  @name("scalanative_atomic_load_explicit_llong")
+  def atomic_load_explicit(ptr: Ptr[atomic_llong], memoryOrder: memory_order): CLongLong = extern
+  
+  @name("scalanative_atomic_store_llong")
+  def atomic_store(ptr: Ptr[atomic_llong], v: CLongLong): Unit = extern
+  @name("scalanative_atomic_store_explicit_llong")
+  def atomic_store_explicit(ptr: Ptr[atomic_llong], v: CLongLong, memoryOrder: memory_order): Unit = extern
+  
+  @name("scalanative_atomic_exchange_llong")
+  def atomic_exchange(ptr: Ptr[atomic_llong], v: CLongLong): CLongLong = extern
+  @name("scalanative_atomic_exchange_explicit_llong")
+  def atomic_exchange_explicit(ptr: Ptr[atomic_llong], v: CLongLong, memoryOrder: memory_order): CLongLong = extern
+  
+  @name("scalanative_atomic_compare_exchange_strong_llong")
+  def atomic_compare_exchange_strong(ptr: Ptr[atomic_llong], expected: Ptr[CLongLong], desired: CLongLong): CBool = extern
+  @name("scalanative_atomic_compare_exchange_strong_explicit_llong")
+  def atomic_compare_exchange_strong_explicit(ptr: Ptr[atomic_llong], expected: Ptr[CLongLong], desired: CLongLong, memoryOrderOnSuccess: memory_order, memoryOrderOnFailure: memory_order): CBool = extern
+  
+  @name("scalanative_atomic_compare_exchange_weak_llong")
+  def atomic_compare_exchange_weak(ptr: Ptr[atomic_llong],expected: Ptr[CLongLong], desired: CLongLong): CBool = extern
+  @name("scalanative_atomic_compare_exchange_weak_explicit_llong")
+  def atomic_compare_exchange_weak_explicit(ptr: Ptr[atomic_llong], expected: Ptr[CLongLong], desired: CLongLong, memoryOrderOnSuccess: memory_order, memoryOrderOnFailure: memory_order): CBool = extern
+  
+  @name("scalanative_atomic_fetch_add_llong")          
+  def atomic_fetch_add(ptr: Ptr[atomic_llong], value: CLongLong): CLongLong = extern
+  @name("scalanative_atomic_fetch_add_explicit_llong") 
+  def atomic_fetch_add_explicit(ptr: Ptr[atomic_llong], value: CLongLong, memoryOrder: memory_order): CLongLong = extern
+  @name("scalanative_atomic_fetch_sub_llong")          
+  def atomic_fetch_sub(ptr: Ptr[atomic_llong], value: CLongLong): CLongLong = extern
+  @name("scalanative_atomic_fetch_sub_explicit_llong") 
+  def atomic_fetch_sub_explicit(ptr: Ptr[atomic_llong], value: CLongLong, memoryOrder: memory_order): CLongLong = extern
+  @name("scalanative_atomic_fetch_or_llong")          
+  def atomic_fetch_or(ptr: Ptr[atomic_llong], value: CLongLong): CLongLong = extern
+  @name("scalanative_atomic_fetch_or_explicit_llong") 
+  def atomic_fetch_or_explicit(ptr: Ptr[atomic_llong], value: CLongLong, memoryOrder: memory_order): CLongLong = extern
+  @name("scalanative_atomic_fetch_and_llong")          
+  def atomic_fetch_and(ptr: Ptr[atomic_llong], value: CLongLong): CLongLong = extern
+  @name("scalanative_atomic_fetch_and_explicit_llong") 
+  def atomic_fetch_and_explicit(ptr: Ptr[atomic_llong], value: CLongLong, memoryOrder: memory_order): CLongLong = extern
+  @name("scalanative_atomic_fetch_xor_llong")          
+  def atomic_fetch_xor(ptr: Ptr[atomic_llong], value: CLongLong): CLongLong = extern
+  @name("scalanative_atomic_fetch_xor_explicit_llong") 
+  def atomic_fetch_xor_explicit(ptr: Ptr[atomic_llong], value: CLongLong, memoryOrder: memory_order): CLongLong = extern
+
+  type atomic_ullong = CUnsignedLongLong
+  @name("scalanative_atomic_init_ullong") 
+  def atomic_init(atm: Ptr[atomic_ullong], initValue: CUnsignedLongLong): Unit = extern
+  
+  @name("scalanative_atomic_load_ullong")
+  def atomic_load(ptr: Ptr[atomic_ullong]): CUnsignedLongLong = extern
+  @name("scalanative_atomic_load_explicit_ullong")
+  def atomic_load_explicit(ptr: Ptr[atomic_ullong], memoryOrder: memory_order): CUnsignedLongLong = extern
+  
+  @name("scalanative_atomic_store_ullong")
+  def atomic_store(ptr: Ptr[atomic_ullong], v: CUnsignedLongLong): Unit = extern
+  @name("scalanative_atomic_store_explicit_ullong")
+  def atomic_store_explicit(ptr: Ptr[atomic_ullong], v: CUnsignedLongLong, memoryOrder: memory_order): Unit = extern
+  
+  @name("scalanative_atomic_exchange_ullong")
+  def atomic_exchange(ptr: Ptr[atomic_ullong], v: CUnsignedLongLong): CUnsignedLongLong = extern
+  @name("scalanative_atomic_exchange_explicit_ullong")
+  def atomic_exchange_explicit(ptr: Ptr[atomic_ullong], v: CUnsignedLongLong, memoryOrder: memory_order): CUnsignedLongLong = extern
+  
+  @name("scalanative_atomic_compare_exchange_strong_ullong")
+  def atomic_compare_exchange_strong(ptr: Ptr[atomic_ullong], expected: Ptr[CUnsignedLongLong], desired: CUnsignedLongLong): CBool = extern
+  @name("scalanative_atomic_compare_exchange_strong_explicit_ullong")
+  def atomic_compare_exchange_strong_explicit(ptr: Ptr[atomic_ullong], expected: Ptr[CUnsignedLongLong], desired: CUnsignedLongLong, memoryOrderOnSuccess: memory_order, memoryOrderOnFailure: memory_order): CBool = extern
+  
+  @name("scalanative_atomic_compare_exchange_weak_ullong")
+  def atomic_compare_exchange_weak(ptr: Ptr[atomic_ullong],expected: Ptr[CUnsignedLongLong], desired: CUnsignedLongLong): CBool = extern
+  @name("scalanative_atomic_compare_exchange_weak_explicit_ullong")
+  def atomic_compare_exchange_weak_explicit(ptr: Ptr[atomic_ullong], expected: Ptr[CUnsignedLongLong], desired: CUnsignedLongLong, memoryOrderOnSuccess: memory_order, memoryOrderOnFailure: memory_order): CBool = extern
+  
+  @name("scalanative_atomic_fetch_add_ullong")          
+  def atomic_fetch_add(ptr: Ptr[atomic_ullong], value: CUnsignedLongLong): CUnsignedLongLong = extern
+  @name("scalanative_atomic_fetch_add_explicit_ullong") 
+  def atomic_fetch_add_explicit(ptr: Ptr[atomic_ullong], value: CUnsignedLongLong, memoryOrder: memory_order): CUnsignedLongLong = extern
+  @name("scalanative_atomic_fetch_sub_ullong")          
+  def atomic_fetch_sub(ptr: Ptr[atomic_ullong], value: CUnsignedLongLong): CUnsignedLongLong = extern
+  @name("scalanative_atomic_fetch_sub_explicit_ullong") 
+  def atomic_fetch_sub_explicit(ptr: Ptr[atomic_ullong], value: CUnsignedLongLong, memoryOrder: memory_order): CUnsignedLongLong = extern
+  @name("scalanative_atomic_fetch_or_ullong")          
+  def atomic_fetch_or(ptr: Ptr[atomic_ullong], value: CUnsignedLongLong): CUnsignedLongLong = extern
+  @name("scalanative_atomic_fetch_or_explicit_ullong") 
+  def atomic_fetch_or_explicit(ptr: Ptr[atomic_ullong], value: CUnsignedLongLong, memoryOrder: memory_order): CUnsignedLongLong = extern
+  @name("scalanative_atomic_fetch_and_ullong")          
+  def atomic_fetch_and(ptr: Ptr[atomic_ullong], value: CUnsignedLongLong): CUnsignedLongLong = extern
+  @name("scalanative_atomic_fetch_and_explicit_ullong") 
+  def atomic_fetch_and_explicit(ptr: Ptr[atomic_ullong], value: CUnsignedLongLong, memoryOrder: memory_order): CUnsignedLongLong = extern
+  @name("scalanative_atomic_fetch_xor_ullong")          
+  def atomic_fetch_xor(ptr: Ptr[atomic_ullong], value: CUnsignedLongLong): CUnsignedLongLong = extern
+  @name("scalanative_atomic_fetch_xor_explicit_ullong") 
+  def atomic_fetch_xor_explicit(ptr: Ptr[atomic_ullong], value: CUnsignedLongLong, memoryOrder: memory_order): CUnsignedLongLong = extern
+
 
   type atomic_ptr[T] = Ptr[T]
   @name("scalanative_atomic_init_intptr") 
@@ -1073,6 +1173,154 @@ import scala.language.implicitConversions
     }
     def compareExchangeWeak(expectedValue: CUnsignedLong, desired: CUnsignedLong, memoryOrder: memory_order): Boolean = {
       val expectedPtr = stackalloc[CUnsignedLong]()
+      !expectedPtr = expectedValue
+      atomic_compare_exchange_weak_explicit(underlying, expectedPtr, desired, memoryOrder, memoryOrder)
+    }
+  }
+  object CAtomicLongLong{
+    def apply(initialValue: CLongLong)(implicit zone: Zone): CAtomicLongLong = {
+      val ref = new CAtomicLongLong(zone.alloc(sizeof[CLongLong]).asInstanceOf[Ptr[atomic.atomic_llong]])
+      ref.init(initialValue)
+      ref
+    }
+  }
+  final class CAtomicLongLong(private val underlying: Ptr[atomic.atomic_llong]) extends AnyVal {
+    def init(value: CLongLong): Unit = atomic_init(underlying, value)
+
+    def load(): CLongLong = atomic_load(underlying)
+    def load(memoryOrder: memory_order): CLongLong =  atomic_load_explicit(underlying, memoryOrder)
+
+    def store(value: CLongLong): Unit = atomic_store(underlying, value)
+    def store(value: CLongLong, memoryOrder: memory_order): Unit = atomic_store_explicit(underlying, value, memoryOrder)
+
+    def exchange(value: CLongLong): CLongLong = atomic_exchange(underlying, value)
+    def exchange(value: CLongLong, memoryOrder: memory_order): CLongLong = atomic_exchange_explicit(underlying, value, memoryOrder)
+    
+    def compareExchangeStrong(expected: Ptr[CLongLong], desired: CLongLong): Boolean = atomic_compare_exchange_strong(underlying, expected, desired)
+    def compareExchangeStrong(expected: Ptr[CLongLong], desired: CLongLong, memoryOrderOnSuccess: memory_order, memoryOrderOnFailure: memory_order): Boolean = atomic_compare_exchange_strong_explicit(underlying, expected, desired, memoryOrderOnSuccess, memoryOrderOnFailure)
+    def compareExchangeStrong(expected: Ptr[CLongLong], desired: CLongLong, memoryOrder: memory_order): Boolean = atomic_compare_exchange_strong_explicit(underlying, expected, desired, memoryOrder, memoryOrder)
+
+    def compareExchangeWeak(expected: Ptr[CLongLong], desired: CLongLong): Boolean = atomic_compare_exchange_weak(underlying, expected, desired)
+    def compareExchangeWeak(expected: Ptr[CLongLong], desired: CLongLong, memoryOrderOnSuccess: memory_order, memoryOrderOnFailure: memory_order): Boolean = atomic_compare_exchange_weak_explicit(underlying, expected, desired, memoryOrderOnSuccess, memoryOrderOnFailure)
+    def compareExchangeWeak(expected: Ptr[CLongLong], desired: CLongLong, memoryOrder: memory_order): Boolean = atomic_compare_exchange_weak_explicit(underlying, expected, desired, memoryOrder, memoryOrder)
+
+    def fetchAdd(value: CLongLong): CLongLong = atomic_fetch_add(underlying, value)
+    def fetchAdd(value: CLongLong, memoryOrder: memory_order): CLongLong = atomic_fetch_add_explicit(underlying, value, memoryOrder)
+
+    def fetchSub(value: CLongLong): CLongLong = atomic_fetch_sub(underlying, value)
+    def fetchSub(value: CLongLong, memoryOrder: memory_order): CLongLong = atomic_fetch_sub_explicit(underlying, value, memoryOrder)
+
+    def fetchAnd(value: CLongLong): CLongLong = atomic_fetch_and(underlying, value)
+    def fetchAnd(value: CLongLong, memoryOrder: memory_order): CLongLong = atomic_fetch_and_explicit(underlying, value, memoryOrder)
+
+    def fetchOr(value: CLongLong): CLongLong = atomic_fetch_or(underlying, value)
+    def fetchOr(value: CLongLong, memoryOrder: memory_order): CLongLong = atomic_fetch_or_explicit(underlying, value, memoryOrder)
+
+    def fetchXor(value: CLongLong): CLongLong = atomic_fetch_xor(underlying, value)
+    def fetchXor(value: CLongLong, memoryOrder: memory_order): CLongLong = atomic_fetch_xor_explicit(underlying, value, memoryOrder)
+
+    def compareExchangeStrong(expectedValue: CLongLong, desired: CLongLong): Boolean = {
+      val expectedPtr = stackalloc[CLongLong]()
+      !expectedPtr = expectedValue
+      atomic_compare_exchange_strong(underlying, expectedPtr, desired)
+    }
+    def compareExchangeStrong(expectedValue: CLongLong, desired: CLongLong, memoryOrderOnSuccess: memory_order, memoryOrderOnFailure: memory_order): Boolean = {
+      val expectedPtr = stackalloc[CLongLong]()
+      !expectedPtr = expectedValue
+      atomic_compare_exchange_strong_explicit(underlying, expectedPtr, desired, memoryOrderOnSuccess, memoryOrderOnFailure)
+    }
+    def compareExchangeStrong(expectedValue: CLongLong, desired: CLongLong, memoryOrder: memory_order): Boolean = {
+      val expectedPtr = stackalloc[CLongLong]()
+      !expectedPtr = expectedValue
+      atomic_compare_exchange_strong_explicit(underlying, expectedPtr, desired, memoryOrder, memoryOrder)
+    }
+
+    def compareExchangeWeak(expectedValue: CLongLong, desired: CLongLong): Boolean = {
+      val expectedPtr = stackalloc[CLongLong]()
+      !expectedPtr = expectedValue
+      atomic_compare_exchange_weak(underlying, expectedPtr, desired)
+    }
+    def compareExchangeWeak(expectedValue: CLongLong, desired: CLongLong, memoryOrderOnSuccess: memory_order, memoryOrderOnFailure: memory_order): Boolean = {
+      val expectedPtr = stackalloc[CLongLong]()
+      !expectedPtr = expectedValue
+      atomic_compare_exchange_weak_explicit(underlying, expectedPtr, desired, memoryOrderOnSuccess, memoryOrderOnFailure)
+    }
+    def compareExchangeWeak(expectedValue: CLongLong, desired: CLongLong, memoryOrder: memory_order): Boolean = {
+      val expectedPtr = stackalloc[CLongLong]()
+      !expectedPtr = expectedValue
+      atomic_compare_exchange_weak_explicit(underlying, expectedPtr, desired, memoryOrder, memoryOrder)
+    }
+  }
+  object CAtomicUnsignedLongLong{
+    def apply(initialValue: CUnsignedLongLong)(implicit zone: Zone): CAtomicUnsignedLongLong = {
+      val ref = new CAtomicUnsignedLongLong(zone.alloc(sizeof[CUnsignedLongLong]).asInstanceOf[Ptr[atomic.atomic_ullong]])
+      ref.init(initialValue)
+      ref
+    }
+  }
+  final class CAtomicUnsignedLongLong(private val underlying: Ptr[atomic.atomic_ullong]) extends AnyVal {
+    def init(value: CUnsignedLongLong): Unit = atomic_init(underlying, value)
+
+    def load(): CUnsignedLongLong = atomic_load(underlying)
+    def load(memoryOrder: memory_order): CUnsignedLongLong =  atomic_load_explicit(underlying, memoryOrder)
+
+    def store(value: CUnsignedLongLong): Unit = atomic_store(underlying, value)
+    def store(value: CUnsignedLongLong, memoryOrder: memory_order): Unit = atomic_store_explicit(underlying, value, memoryOrder)
+
+    def exchange(value: CUnsignedLongLong): CUnsignedLongLong = atomic_exchange(underlying, value)
+    def exchange(value: CUnsignedLongLong, memoryOrder: memory_order): CUnsignedLongLong = atomic_exchange_explicit(underlying, value, memoryOrder)
+    
+    def compareExchangeStrong(expected: Ptr[CUnsignedLongLong], desired: CUnsignedLongLong): Boolean = atomic_compare_exchange_strong(underlying, expected, desired)
+    def compareExchangeStrong(expected: Ptr[CUnsignedLongLong], desired: CUnsignedLongLong, memoryOrderOnSuccess: memory_order, memoryOrderOnFailure: memory_order): Boolean = atomic_compare_exchange_strong_explicit(underlying, expected, desired, memoryOrderOnSuccess, memoryOrderOnFailure)
+    def compareExchangeStrong(expected: Ptr[CUnsignedLongLong], desired: CUnsignedLongLong, memoryOrder: memory_order): Boolean = atomic_compare_exchange_strong_explicit(underlying, expected, desired, memoryOrder, memoryOrder)
+
+    def compareExchangeWeak(expected: Ptr[CUnsignedLongLong], desired: CUnsignedLongLong): Boolean = atomic_compare_exchange_weak(underlying, expected, desired)
+    def compareExchangeWeak(expected: Ptr[CUnsignedLongLong], desired: CUnsignedLongLong, memoryOrderOnSuccess: memory_order, memoryOrderOnFailure: memory_order): Boolean = atomic_compare_exchange_weak_explicit(underlying, expected, desired, memoryOrderOnSuccess, memoryOrderOnFailure)
+    def compareExchangeWeak(expected: Ptr[CUnsignedLongLong], desired: CUnsignedLongLong, memoryOrder: memory_order): Boolean = atomic_compare_exchange_weak_explicit(underlying, expected, desired, memoryOrder, memoryOrder)
+
+    def fetchAdd(value: CUnsignedLongLong): CUnsignedLongLong = atomic_fetch_add(underlying, value)
+    def fetchAdd(value: CUnsignedLongLong, memoryOrder: memory_order): CUnsignedLongLong = atomic_fetch_add_explicit(underlying, value, memoryOrder)
+
+    def fetchSub(value: CUnsignedLongLong): CUnsignedLongLong = atomic_fetch_sub(underlying, value)
+    def fetchSub(value: CUnsignedLongLong, memoryOrder: memory_order): CUnsignedLongLong = atomic_fetch_sub_explicit(underlying, value, memoryOrder)
+
+    def fetchAnd(value: CUnsignedLongLong): CUnsignedLongLong = atomic_fetch_and(underlying, value)
+    def fetchAnd(value: CUnsignedLongLong, memoryOrder: memory_order): CUnsignedLongLong = atomic_fetch_and_explicit(underlying, value, memoryOrder)
+
+    def fetchOr(value: CUnsignedLongLong): CUnsignedLongLong = atomic_fetch_or(underlying, value)
+    def fetchOr(value: CUnsignedLongLong, memoryOrder: memory_order): CUnsignedLongLong = atomic_fetch_or_explicit(underlying, value, memoryOrder)
+
+    def fetchXor(value: CUnsignedLongLong): CUnsignedLongLong = atomic_fetch_xor(underlying, value)
+    def fetchXor(value: CUnsignedLongLong, memoryOrder: memory_order): CUnsignedLongLong = atomic_fetch_xor_explicit(underlying, value, memoryOrder)
+
+    def compareExchangeStrong(expectedValue: CUnsignedLongLong, desired: CUnsignedLongLong): Boolean = {
+      val expectedPtr = stackalloc[CUnsignedLongLong]()
+      !expectedPtr = expectedValue
+      atomic_compare_exchange_strong(underlying, expectedPtr, desired)
+    }
+    def compareExchangeStrong(expectedValue: CUnsignedLongLong, desired: CUnsignedLongLong, memoryOrderOnSuccess: memory_order, memoryOrderOnFailure: memory_order): Boolean = {
+      val expectedPtr = stackalloc[CUnsignedLongLong]()
+      !expectedPtr = expectedValue
+      atomic_compare_exchange_strong_explicit(underlying, expectedPtr, desired, memoryOrderOnSuccess, memoryOrderOnFailure)
+    }
+    def compareExchangeStrong(expectedValue: CUnsignedLongLong, desired: CUnsignedLongLong, memoryOrder: memory_order): Boolean = {
+      val expectedPtr = stackalloc[CUnsignedLongLong]()
+      !expectedPtr = expectedValue
+      atomic_compare_exchange_strong_explicit(underlying, expectedPtr, desired, memoryOrder, memoryOrder)
+    }
+
+    def compareExchangeWeak(expectedValue: CUnsignedLongLong, desired: CUnsignedLongLong): Boolean = {
+      val expectedPtr = stackalloc[CUnsignedLongLong]()
+      !expectedPtr = expectedValue
+      atomic_compare_exchange_weak(underlying, expectedPtr, desired)
+    }
+    def compareExchangeWeak(expectedValue: CUnsignedLongLong, desired: CUnsignedLongLong, memoryOrderOnSuccess: memory_order, memoryOrderOnFailure: memory_order): Boolean = {
+      val expectedPtr = stackalloc[CUnsignedLongLong]()
+      !expectedPtr = expectedValue
+      atomic_compare_exchange_weak_explicit(underlying, expectedPtr, desired, memoryOrderOnSuccess, memoryOrderOnFailure)
+    }
+    def compareExchangeWeak(expectedValue: CUnsignedLongLong, desired: CUnsignedLongLong, memoryOrder: memory_order): Boolean = {
+      val expectedPtr = stackalloc[CUnsignedLongLong]()
       !expectedPtr = expectedValue
       atomic_compare_exchange_weak_explicit(underlying, expectedPtr, desired, memoryOrder, memoryOrder)
     }

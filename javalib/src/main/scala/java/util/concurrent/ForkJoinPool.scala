@@ -21,7 +21,7 @@ import scala.annotation._
 import scala.scalanative.annotation._
 import scala.util.control.Breaks._
 import scala.scalanative.unsafe._
-import scala.scalanative.libc.atomic.{CAtomicInt, CAtomicLong, CAtomicRef}
+import scala.scalanative.libc.atomic.{CAtomicInt, CAtomicLongLong, CAtomicRef}
 import scala.scalanative.runtime.{fromRawPtr, Intrinsics, ObjectArray}
 
 /*
@@ -712,10 +712,10 @@ class ForkJoinPool private (
   private val modeAtomic = new CAtomicInt(
     fromRawPtr(Intrinsics.classFieldRawPtr(this, "mode"))
   )
-  private val ctlAtomic = new CAtomicLong(
+  private val ctlAtomic = new CAtomicLongLong(
     fromRawPtr(Intrinsics.classFieldRawPtr(this, "ctl"))
   )
-  private val stealCountAtomic = new CAtomicLong(
+  private val stealCountAtomic = new CAtomicLongLong(
     fromRawPtr(Intrinsics.classFieldRawPtr(this, "stealCount"))
   )
   private val threadIdsAtomic = new CAtomicInt(

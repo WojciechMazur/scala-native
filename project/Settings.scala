@@ -58,14 +58,41 @@ object Settings {
       "-unchecked",
       "-feature",
       "-Xfatal-warnings",
-      "-target:jvm-1.8",
       "-encoding",
       "utf8"
     ),
+    javaReleaseSettings,
     publishSettings,
     mimaSettings,
     docsSettings
   )
+
+  def javaReleaseSettings = {
+    def canUseRelease(scalaVersion: String) = CrossVersion
+      .partialVersion(scalaVersion)
+      .collect {
+        case (3, _) => true
+        case (2, 13) =>
+          scalaVersion.stripPrefix("2.13.").takeWhile(_.isDigit).toInt > 8
+      }
+      .getOrElse(false)
+    val javacSourceFlags = Seq("-source", "1.8")
+    val scalacReleaseFlag = "-release:8"
+
+    Def.settings(
+      Compile / scalacOptions += {
+        if (canUseRelease(scalaVersion.value)) scalacReleaseFlag
+        else "-target:jvm-1.8"
+      },
+      Compile / javacOptions ++= {
+        if (canUseRelease(scalaVersion.value)) Nil
+        else javacSourceFlags
+      },
+      // Remove -source flags from tests to allow for multi-jdk version compliance tests
+      Test / javacOptions --= javacSourceFlags,
+      Test / scalacOptions -= scalacReleaseFlag
+    )
+  }
 
   // Docs and API settings
   lazy val docsSettings: Seq[Setting[_]] = {
@@ -124,8 +151,7 @@ object Settings {
       Compile / doc / sources := {
         val prev = (Compile / doc / sources).value
         if (Platform.isWindows &&
-            sys.env.contains("CI") && // Always present in GitHub Actions
-            scalaVersion.value.startsWith("3.") // Bug in Scala 3 scaladoc
+            sys.env.contains("CI") // Always present in GitHub Actions
         ) Nil
         else prev
       }
@@ -144,33 +170,8 @@ object Settings {
     ),
     mimaPreviousArtifacts ++= {
       // The previous releases of Scala Native with which this version is binary compatible.
-      val binCompatVersions = Set("0.4.0", "0.4.1", "0.4.2", "0.4.3", "0.4.4")
-      val toolsProjects = Set("util", "tools", "nir", "test-runner")
-      lazy val neverPublishedProjects040 = Map(
-        "2.11" -> (toolsProjects ++ Set("windowslib", "scala3lib")),
-        "2.12" -> Set("windowslib", "scala3lib"),
-        "2.13" -> (toolsProjects ++ Set("windowslib", "scala3lib"))
-      )
-      lazy val neverPublishedProjects041 = neverPublishedProjects040
-        .mapValues(_.diff(Set("windowslib")))
-      lazy val neverPublishedProjects042 = neverPublishedProjects041
-        .mapValues(_.diff(toolsProjects))
-
-      def wasPublishedInRelease(
-          notPublishedProjectsInRelease: Map[String, Set[String]]
-      ): Boolean = {
-        notPublishedProjectsInRelease
-          .get(scalaBinaryVersion.value)
-          .exists(!_.contains((thisProject / name).value))
-      }
-      def wasPreviouslyPublished(version: String) = version match {
-        case "0.4.0" => wasPublishedInRelease(neverPublishedProjects040)
-        case "0.4.1" => wasPublishedInRelease(neverPublishedProjects041)
-        case "0.4.2" => wasPublishedInRelease(neverPublishedProjects042)
-        case _       => true // all projects were published
-      }
+      val binCompatVersions = Set()
       binCompatVersions
-        .filter(wasPreviouslyPublished)
         .map { version =>
           ModuleID(organization.value, moduleName.value, version)
             .cross(crossVersion.value)
@@ -351,10 +352,13 @@ object Settings {
       // baseDirectory = project/{native,jvm}/.{binVersion}
       val testsRootDir = baseDirectory.value.getParentFile.getParentFile
       val sharedTestsDir = testsRootDir / "shared/src/test"
+      def sources2_13OrAbove = sharedTestsDir / "scala-2.13+"
+      def sources3_2 = sharedTestsDir / "scala-3.2"
       val extraSharedDirectories =
         scalaVersionsDependendent(scalaVersion.value)(List.empty[File]) {
-          case (2, 13) => sharedTestsDir / "scala-2.13+" :: Nil
-          case (3, _)  => sharedTestsDir / "scala-2.13+" :: Nil
+          case (2, 13) => sources2_13OrAbove :: Nil
+          case (3, 1)  => sources2_13OrAbove :: Nil
+          case (3, _)  => sources2_13OrAbove :: sources3_2 :: Nil
         }
       val sharedScalaSources =
         scalaVersionDirectories(sharedTestsDir, "scala", scalaVersion.value)
@@ -435,6 +439,13 @@ object Settings {
     }
   )
 
+  lazy val ensureSAMSupportSetting: Setting[_] = {
+    scalacOptions ++= {
+      if (scalaBinaryVersion.value == "2.11") Seq("-Xexperimental")
+      else Nil
+    }
+  }
+
   lazy val toolSettings: Seq[Setting[_]] =
     Def.settings(
       javacOptions ++= Seq("-encoding", "utf8")
@@ -449,10 +460,11 @@ object Settings {
 
   lazy val commonJavalibSettings = Def.settings(
     disabledDocsSettings,
-    recompileAllOrNothingSettings,
+    ensureSAMSupportSetting,
     // This is required to have incremental compilation to work in javalib.
     // We put our classes on scalac's `javabootclasspath` so that it uses them
     // when compiling rather than the definitions from the JDK.
+    recompileAllOrNothingSettings,
     Compile / scalacOptions := {
       val previous = (Compile / scalacOptions).value
       val javaBootClasspath =
@@ -500,7 +512,13 @@ object Settings {
     dirs.toSeq // most specific shadow less specific
   }
 
-  def commonScalalibSettings(libraryName: String): Seq[Setting[_]] =
+  def commonScalalibSettings(
+      libraryName: String,
+      optSourcesScalaVersion: Option[String]
+  ): Seq[Setting[_]] = {
+    def sourcesVersion(scalaVersion: String) =
+      optSourcesScalaVersion.getOrElse(scalaVersion)
+
     Def.settings(
       mavenPublishSettings,
       disabledDocsSettings,
@@ -514,9 +532,11 @@ object Settings {
       // By intent, the Scala Native code below is as identical as feasible.
       // Scala Native build.sbt uses a slightly different baseDirectory
       // than Scala.js. See commented starting with "SN Port:" below.
-      libraryDependencies += "org.scala-lang" % libraryName % scalaVersion.value classifier "sources",
+      libraryDependencies += "org.scala-lang" % libraryName % scalaVersion.value,
       fetchScalaSource / artifactPath :=
-        baseDirectory.value.getParentFile / "target" / "scalaSources" / scalaVersion.value,
+        baseDirectory.value.getParentFile / "target" / "scalaSources" / sourcesVersion(
+          scalaVersion.value
+        ),
       // Scala.js original comment modified to clarify issue is Scala.js.
       /* Work around for https://github.com/scala-js/scala-js/issues/2649
        * We would like to always use `update`, but
@@ -526,24 +546,41 @@ object Settings {
        * that case.
        */
       fetchScalaSource / update := Def.taskDyn {
-        val version = scalaVersion.value
-        val usedScalaVersion = scala.util.Properties.versionNumberString
+        val version = sourcesVersion(scalaVersion.value)
+        val usedScalaVersion = scalaVersion.value
         if (version == usedScalaVersion) updateClassifiers
         else update
       }.value,
+      // Scala.js always uses the same version of sources as used in the runtime
+      // In Scala Native to 0.4.x we don't make a full cross version of Scala standard library
+      // This means we need to have only 1 version of scalalib to not break current build tools
+      // We cannot publish artifacts with 3.2.x, becouse it would not be usable from 3.1.x projects
+      // Becouse of that we compile Scala 3.2.x or newer sources with 3.1.3 compiler
+      // In theory we can enforce usage of latest version of Scala for compiling only scalalib module,
+      // as we don't store .tasty or .class files. This solution however might be more complicated and usnafe
       fetchScalaSource := {
-        val version = scalaVersion.value
+        val version = sourcesVersion(scalaVersion.value)
         val trgDir = (fetchScalaSource / artifactPath).value
         val s = streams.value
         val cacheDir = s.cacheDirectory
         val report = (fetchScalaSource / update).value
-        val scalaLibSourcesJar = report
-          .select(
-            configuration = configurationFilter("compile"),
-            module = moduleFilter(name = libraryName),
-            artifact = artifactFilter(classifier = "sources")
+        lazy val lm = {
+          import sbt.librarymanagement.ivy._
+          val ivyConfig = InlineIvyConfiguration().withLog(s.log)
+          IvyDependencyResolution(ivyConfig)
+        }
+        lazy val scalaLibSourcesJar = lm
+          .retrieve(
+            "org.scala-lang" % libraryName % sourcesVersion(
+              scalaVersion.value
+            ) classifier "sources",
+            scalaModuleInfo = None,
+            retrieveDirectory = IO.temporaryDirectory,
+            log = s.log
           )
-          .headOption
+          .map(_.find(_.name.endsWith(s"$libraryName-$version-sources.jar")))
+          .toOption
+          .flatten
           .getOrElse {
             throw new Exception(
               s"Could not fetch $libraryName sources for version $version"
@@ -567,7 +604,7 @@ object Settings {
       Compile / unmanagedSourceDirectories := scalaVersionDirectories(
         baseDirectory.value.getParentFile(),
         "overrides",
-        scalaVersion.value
+        sourcesVersion(scalaVersion.value)
       ),
       // Compute sources
       // Files in earlier src dirs shadow files in later dirs
@@ -701,6 +738,7 @@ object Settings {
       Compile / packageSrc / mappings := Seq.empty,
       exportJars := true
     )
+  }
 
   lazy val commonJUnitTestOutputsSettings = Def.settings(
     noPublishSettings,
@@ -725,17 +763,6 @@ object Settings {
       }.exists()
     )
   }
-
-// Compat
-  lazy val scala3CompatSettings = Def.settings(
-    scalacOptions := {
-      val prev = scalacOptions.value
-      prev.map {
-        case "-target:jvm-1.8" => "-Xtarget:8"
-        case v                 => v
-      }
-    }
-  )
 
   def scalaNativeCompilerOptions(options: String*): Seq[String] = {
     options.map(opt => s"-P:scalanative:$opt")

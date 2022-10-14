@@ -8,7 +8,7 @@ import scala.scalanative.annotation._
 import scala.scalanative.unsafe._
 import scala.scalanative.unsigned._
 import scala.scalanative.unsafe.CFuncPtr1.fromScalaFunction
-import scala.scalanative.runtime.{Intrinsics, fromRawPtr, toRawPtr}
+import scala.scalanative.runtime.{Intrinsics, fromRawPtr, toRawPtr, toRawSize}
 import scala.scalanative.posix.sys.types._
 import scala.scalanative.posix.time._
 import scala.scalanative.posix.timeOps._
@@ -54,7 +54,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
       fromRawPtr(
         Intrinsics.elemRawPtr(
           toRawPtr(conditions),
-          pthread_cond_t_size.toInt
+          toRawSize(pthread_cond_t_size)
         )
       )
   }
@@ -216,7 +216,7 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
     val clock = if (isAbsolute) CLOCK_REALTIME else CLOCK_MONOTONIC
     val now = stackalloc[timespec]()
     clock_gettime(clock, now)
-    if (isAbsolute) unpackAbsoluteTime(abstime, timeout, now.tv_sec)
+    if (isAbsolute) unpackAbsoluteTime(abstime, timeout, now.tv_sec.toLong)
     else calculateRelativeTime(abstime, timeout, now)
   }
 
@@ -225,18 +225,19 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
       timeout: Long,
       now: Ptr[timespec]
   ) = {
-    val maxSeconds = now.tv_sec + MaxSeconds
+    val maxSeconds = now.tv_sec.toLong + MaxSeconds
     val seconds = timeout / NanonsInSecond
     if (seconds > maxSeconds) {
-      abstime.tv_sec = maxSeconds
+      abstime.tv_sec = maxSeconds.toSize
       abstime.tv_nsec = 0
     } else {
-      abstime.tv_sec = now.tv_sec + seconds
+      abstime.tv_sec = now.tv_sec + seconds.toSize
       val nanos = now.tv_nsec + (timeout % NanonsInSecond)
-      abstime.tv_nsec = if (nanos >= NanonsInSecond) {
+      abstime.tv_nsec = if (nanos < NanonsInSecond) nanos.toSize
+      else{
         abstime.tv_sec += 1
-        nanos - NanonsInSecond
-      } else nanos
+        (nanos - NanonsInSecond).toSize
+      }
     }
   }
 
@@ -255,11 +256,11 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
     val millis = deadline % MillisInSecond
 
     if (seconds >= maxSeconds) {
-      abstime.tv_sec = maxSeconds
+      abstime.tv_sec = maxSeconds.toSize
       abstime.tv_nsec = 0
     } else {
-      abstime.tv_sec = seconds
-      abstime.tv_nsec = millis * NanosInMillisecond
+      abstime.tv_sec = seconds.toSize
+      abstime.tv_nsec = (millis * NanosInMillisecond).toSize
     }
 
     assert(abstime.tv_sec <= maxSeconds, "tvSec")

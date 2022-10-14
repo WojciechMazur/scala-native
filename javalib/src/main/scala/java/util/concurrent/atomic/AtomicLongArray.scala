@@ -10,7 +10,7 @@ import scala.annotation.tailrec
 import scala.language.implicitConversions
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
-import scala.scalanative.libc.atomic.CAtomicLong
+import scala.scalanative.libc.atomic.CAtomicLongLong
 import scala.scalanative.libc.atomic.memory_order._
 import scala.scalanative.runtime.MemoryLayout
 
@@ -26,8 +26,8 @@ class AtomicLongArray extends Serializable {
   private[concurrent] def nativeArray: LongArray = array.asInstanceOf[LongArray]
 
   @alwaysinline
-  private implicit def ptrLongToAtomicLong(ptr: Ptr[Long]): CAtomicLong =
-    new CAtomicLong(ptr)
+  private implicit def ptrLongToAtomicLong(ptr: Ptr[Long]): CAtomicLongLong =
+    new CAtomicLongLong(ptr)
 
   /** Creates a new AtomicIntegerArray of the given length, with all elements
    *  initially zero.
@@ -643,8 +643,8 @@ class AtomicLongArray extends Serializable {
       expectedValue: Long,
       newValue: Long
   ): Boolean = {
-    nativeArray
-      .at(i)
+    (nativeArray
+      .at(i))
       .compareExchangeWeak(expectedValue, newValue, memory_order_release)
   }
 }

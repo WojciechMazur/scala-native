@@ -10,7 +10,7 @@ import java.io.Serializable
 import scala.annotation.tailrec
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
-import scala.scalanative.libc.atomic.CAtomicLong
+import scala.scalanative.libc.atomic.CAtomicLongLong
 import scala.scalanative.libc.atomic.memory_order._
 import scala.scalanative.runtime.{fromRawPtr, Intrinsics}
 import java.util.function.{LongBinaryOperator, LongUnaryOperator}
@@ -22,7 +22,7 @@ class AtomicLong(private[this] var value: Long)
 
   // Pointer to field containing underlying Long.
   @alwaysinline
-  private[concurrent] def valueRef: CAtomicLong = new CAtomicLong(
+  private[concurrent] def valueRef = new CAtomicLongLong(
     fromRawPtr(Intrinsics.classFieldRawPtr(this, "value"))
   )
 

@@ -139,12 +139,6 @@ object NativeThread {
     else PosixThread.sleep(millis, nanos)
 
   @extern
-  object Intrinsics {
-    @name("scalanative_yieldProcessor")
-    def yieldProcessor(): Unit = extern
-  }
-
-  @extern
   object Config {
     @name("scalanative_get_max_priority")
     def maxPriority(): Int = extern

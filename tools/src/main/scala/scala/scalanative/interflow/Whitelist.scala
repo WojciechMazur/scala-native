@@ -9,6 +9,15 @@ object Whitelist {
   val constantModules = {
     val out = collection.mutable.Set.empty[Global]
     out += Global.Top("scala.scalanative.runtime.BoxedUnit$")
+    out += Global.Top("scala.scalanative.runtime.MemoryLayout$")
+    out += Global.Top("scala.scalanative.runtime.MemoryLayout$Array$")
+    out += Global.Top("scala.scalanative.runtime.MemoryLayout$Object$")
+    out += Global.Top("scala.scalanative.runtime.MemoryLayout$Rtti$")
+    out += Global.Top("scala.scalanative.runtime.monitor.BasicMonitor$")
+    out += Global.Top("scala.scalanative.runtime.monitor.package$LockWord")
+    out += Global.Top("scala.scalanative.runtime.monitor.package$LockWord$")
+    out += Global.Top("scala.scalanative.runtime.monitor.package$LockWord32$")
+    out += Global.Top("scala.scalanative.runtime.monitor.package$LockType$")
     out += Global.Top("scala.scalanative.unsafe.Tag$")
     out += Global.Top("scala.scalanative.unsafe.Tag$Unit$")
     out += Global.Top("scala.scalanative.unsafe.Tag$Boolean$")
@@ -23,6 +32,8 @@ object Whitelist {
     out += Global.Top("scala.scalanative.unsafe.Tag$ULong$")
     out += Global.Top("scala.scalanative.unsafe.Tag$Float$")
     out += Global.Top("scala.scalanative.unsafe.Tag$Double$")
+    out += Global.Top("scala.scalanative.unsafe.Tag$Size$")
+    out += Global.Top("scala.scalanative.unsafe.Tag$USize$")
     out += Global.Top("scala.scalanative.unsafe.Tag$Nat0$")
     out += Global.Top("scala.scalanative.unsafe.Tag$Nat1$")
     out += Global.Top("scala.scalanative.unsafe.Tag$Nat2$")
@@ -43,6 +54,8 @@ object Whitelist {
     out += Global.Top("scala.runtime.BoxesRunTime$")
     out += Global.Top("scala.scalanative.runtime.Boxes$")
     out += Global.Top("scala.scalanative.runtime.package$")
+    out += Global.Top("scala.scalanative.runtime.monitor.BasicMonitor")
+    out += Global.Top("scala.scalanative.runtime.monitor.package$")
     out += Global.Top("scala.scalanative.unsafe.package$")
     out += Global.Top("scala.collection.immutable.Range$")
     out ++= Lower.BoxTo.values

@@ -2,11 +2,11 @@ package scala.scalanative.runtime.monitor
 
 import scala.annotation.{tailrec, switch}
 import scala.scalanative.annotation.alwaysinline
-import scala.scalanative.runtime.{Intrinsics, RawPtr}
+import scala.scalanative.runtime.Intrinsics._
+import scala.scalanative.runtime.{RawPtr, SizeOfPtr}
 import scala.scalanative.runtime.libc._
 import scala.scalanative.runtime.libc.memory_order._
-import scala.scalanative.unsafe._
-// import scala.scalanative.unsigned._
+import scala.scalanative.unsafe.{stackalloc => _, _}
 import java.util.concurrent.locks.LockSupport
 
 /** Heavy weight monitor created only upon detection of access from multiple
@@ -289,22 +289,26 @@ private[scalanative] class ObjectMonitor() {
   }
 
   @alwaysinline private def ownerThreadPtr =
-    Intrinsics.classFieldRawPtr(this, "ownerThread")
+    classFieldRawPtr(this, "ownerThread")
   @alwaysinline private def arriveQueuePtr =
-    Intrinsics.classFieldRawPtr(this, "arriveQueue")
+    classFieldRawPtr(this, "arriveQueue")
   @alwaysinline private def enterQueuePtr =
-    Intrinsics.classFieldRawPtr(this, "enterQueue")
+    classFieldRawPtr(this, "enterQueue")
 
   @alwaysinline private def waitListModificationLockPtr =
-    Intrinsics.classFieldRawPtr(this, "waitListModifcationLock")
+    classFieldRawPtr(this, "waitListModifcationLock")
 
   @alwaysinline private def casOwnerThread(
       expected: Thread,
       value: Thread
   ): Boolean = {
-    val expectedPtr = Intrinsics.stackalloc(sizeof[Thread])
-    Intrinsics.storeObject(expectedPtr, expected)
-    atomic_compare_exchange_strong(ownerThreadPtr, expectedPtr, value)
+    val expectedPtr = stackalloc(SizeOfPtr)
+    storeObject(expectedPtr, expected)
+    atomic_compare_exchange_strong(
+      ownerThreadPtr,
+      expectedPtr,
+      castObjectToRawPtr(value)
+    )
   }
 
   @alwaysinline private def casWaitList(
@@ -312,15 +316,15 @@ private[scalanative] class ObjectMonitor() {
       expected: WaiterNode,
       value: WaiterNode
   ): Boolean = {
-    val expectedPtr = Intrinsics.stackalloc(sizeof[WaiterNode])
-    Intrinsics.storeObject(expectedPtr, expected)
-    atomic_compare_exchange_strong(ref, expectedPtr, value)
+    val expectedPtr = stackalloc(SizeOfPtr)
+    storeObject(expectedPtr, expected)
+    atomic_compare_exchange_strong(ref, expectedPtr, castObjectToRawPtr(value))
   }
 
   private def acquireWaitList(): Unit = {
-    val expected = Intrinsics.stackalloc(sizeof[Byte])
+    val expected = stackalloc(sizeof[Byte])
     def tryAcquire() = {
-      Intrinsics.storeByte(expected, 0)
+      storeByte(expected, 0)
       atomic_compare_exchange_strong(
         waitListModificationLockPtr,
         expected,
@@ -334,7 +338,7 @@ private[scalanative] class ObjectMonitor() {
           usleep(8)
           waitForLockRelease(yields)
         } else {
-          Thread.onSpinWait()
+          onSpinWait()
           waitForLockRelease(yields + 1)
         }
       }
@@ -365,7 +369,7 @@ private[scalanative] class ObjectMonitor() {
   ): Boolean = {
     if (tryLock(thread)) true
     else if (remainingSpins > 0) {
-      Thread.onSpinWait()
+      onSpinWait()
       trySpinAndLock(thread, remainingSpins - 1)
     } else false
   }

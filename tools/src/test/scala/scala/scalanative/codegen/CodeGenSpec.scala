@@ -3,8 +3,10 @@ package codegen
 
 import java.nio.file.{Path, Paths}
 import scalanative.io.VirtualDirectory
-import scalanative.build.{Config, ScalaNative}
+import scalanative.build.Config
+import scalanative.build.core.ScalaNative
 import scalanative.util.Scope
+import scalanative.build.IncCompilationContext
 
 /** Base class to test code generation */
 abstract class CodeGenSpec extends OptimizerSpec {
@@ -26,6 +28,8 @@ abstract class CodeGenSpec extends OptimizerSpec {
     optimize(entry, sources) {
       case (config, optimized) =>
         Scope { implicit in =>
+          implicit val incCompilationContext: IncCompilationContext =
+            new IncCompilationContext(config.workdir)
           ScalaNative.codegen(config, optimized)
           val workdir = VirtualDirectory.real(config.workdir)
           val outfile = Paths.get("out.ll")

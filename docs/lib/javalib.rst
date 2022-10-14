@@ -55,6 +55,7 @@ Here is the list of currently available classes:
 * ``java.io.StringWriter``
 * ``java.io.SyncFailedException``
 * ``java.io.UTFDataFormatException``
+* ``java.io.UncheckedIOException``
 * ``java.io.UnsupportedEncodingException``
 * ``java.io.Writer``
 * ``java.lang.AbstractMethodError``
@@ -150,8 +151,6 @@ Here is the list of currently available classes:
 * ``java.lang.ThreadLocal``
 * ``java.lang.Throwable``
 * ``java.lang.TypeNotPresentException``
-* ``java.lang.UnixProcess``
-* ``java.lang.UnixProcess$ProcessMonitor``
 * ``java.lang.UnknownError``
 * ``java.lang.UnsatisfiedLinkError``
 * ``java.lang.UnsupportedClassVersionError``
@@ -162,6 +161,8 @@ Here is the list of currently available classes:
 * ``java.lang.annotation.Annotation``
 * ``java.lang.annotation.Retention``
 * ``java.lang.annotation.RetentionPolicy``
+* ``java.lang.constant.Constable``
+* ``java.lang.constant.ConstantDesc``
 * ``java.lang.ref.PhantomReference``
 * ``java.lang.ref.Reference``
 * ``java.lang.ref.ReferenceQueue``
@@ -195,7 +196,6 @@ Here is the list of currently available classes:
 * ``java.net.InetSocketAddress``
 * ``java.net.MalformedURLException``
 * ``java.net.NoRouteToHostException``
-* ``java.net.PlainSocketImpl``
 * ``java.net.PortUnreachableException``
 * ``java.net.ServerSocket``
 * ``java.net.Socket``
@@ -214,6 +214,7 @@ Here is the list of currently available classes:
 * ``java.net.URL``
 * ``java.net.URLClassLoader``
 * ``java.net.URLConnection``
+* ``java.net.URLDecoder``
 * ``java.net.URLEncoder``
 * ``java.net.UnknownHostException``
 * ``java.net.UnknownServiceException``
@@ -278,6 +279,7 @@ Here is the list of currently available classes:
 * ``java.nio.file.FileVisitor``
 * ``java.nio.file.Files``
 * ``java.nio.file.Files$TerminateTraversalException``
+* ``java.nio.file.InvalidPathException``
 * ``java.nio.file.LinkOption``
 * ``java.nio.file.NoSuchFileException``
 * ``java.nio.file.NotDirectoryException``
@@ -359,6 +361,7 @@ Here is the list of currently available classes:
 * ``java.util.Base64$Encoder``
 * ``java.util.Base64$EncodingOutputStream``
 * ``java.util.Base64$Wrapper``
+* ``java.util.BitSet``
 * ``java.util.Calendar``
 * ``java.util.Collection``
 * ``java.util.Collections``
@@ -437,8 +440,8 @@ Here is the list of currently available classes:
 * ``java.util.NavigableView``
 * ``java.util.NoSuchElementException``
 * ``java.util.Objects``
+* ``java.util.Optional``
 * ``java.util.PriorityQueue``
-* ``java.util.PriorityQueue$BoxOrdering``
 * ``java.util.Properties``
 * ``java.util.Queue``
 * ``java.util.Random``
@@ -450,20 +453,25 @@ Here is the list of currently available classes:
 * ``java.util.SortedMap``
 * ``java.util.SortedSet``
 * ``java.util.StringTokenizer``
-* ``java.util.TimeZone``
 * ``java.util.TooManyListenersException``
 * ``java.util.TreeSet``
-* ``java.util.TreeSet$BoxOrdering``
 * ``java.util.UUID``
 * ``java.util.UnknownFormatConversionException``
 * ``java.util.UnknownFormatFlagsException``
 * ``java.util.WeakHashMap``
 * ``java.util.concurrent.Callable``
 * ``java.util.concurrent.CancellationException``
+* ``java.util.concurrent.ConcurrentHashMap``
+* ``java.util.concurrent.ConcurrentHashMap$KeySetView``
 * ``java.util.concurrent.ConcurrentLinkedQueue``
+* ``java.util.concurrent.ConcurrentMap``
+* ``java.util.concurrent.ConcurrentSkipListSet``
 * ``java.util.concurrent.ExecutionException``
 * ``java.util.concurrent.Executor``
 * ``java.util.concurrent.RejectedExecutionException``
+* ``java.util.concurrent.Semaphore``
+* ``java.util.concurrent.ThreadFactory``
+* ``java.util.concurrent.ThreadLocalRandom``
 * ``java.util.concurrent.TimeUnit``
 * ``java.util.concurrent.TimeoutException``
 * ``java.util.concurrent.atomic.AtomicBoolean``
@@ -472,14 +480,18 @@ Here is the list of currently available classes:
 * ``java.util.concurrent.atomic.AtomicLongArray``
 * ``java.util.concurrent.atomic.AtomicReference``
 * ``java.util.concurrent.atomic.AtomicReferenceArray``
+* ``java.util.concurrent.atomic.LongAdder``
 * ``java.util.concurrent.locks.AbstractOwnableSynchronizer``
 * ``java.util.concurrent.locks.AbstractQueuedSynchronizer``
+* ``java.util.concurrent.locks.Lock``
+* ``java.util.concurrent.locks.ReentrantLock``
 * ``java.util.function.BiConsumer``
 * ``java.util.function.BiFunction``
 * ``java.util.function.BiPredicate``
 * ``java.util.function.BinaryOperator``
 * ``java.util.function.Consumer``
 * ``java.util.function.Function``
+* ``java.util.function.IntUnaryOperator``
 * ``java.util.function.Predicate``
 * ``java.util.function.Supplier``
 * ``java.util.function.UnaryOperator``
@@ -653,5 +665,36 @@ would provide a meaningful inconsistency between JVM's javalib API and Scala
 Native's reimplementation, this remains not implemented for now. The added
 ``getClass().getResourceAsInputStream()`` however is able to be consistent between
 the platforms.
+
+
+Internet Protocol Version 6 (IPv6) Networking
+---------------------------------------------
+
+IPv6 provides network features which are more efficient and gradually
+replacing its worthy, but venerable, predecessor IPv4.
+
+The Scala Native Java library now supports IPv6 as it is described in the
+original `Java Networking IPv6 User Guide  <https://docs.oracle.com/javase/8/docs/technotes/guides/net/ipv6_guide/index.html/>`_. The design center is that
+a Scala Java Virtual Machine (JVM) program using networking 
+will run almost identically using Scala Native.
+
+IPv6 will be used if any network interface on a system/node/host, other
+than the loopback interface, is configured to enable IPv6. Otherwise,
+IPv4 is used as before. Java has been using this approach for decades.
+
+Most people will not be able to determine if IPv6 or IPv4 is in use.
+Networks experts will, by using specialist tools.
+
+Scala Native checks and honors the two System Properties described in
+the ipv6_guide above: ``java.net.preferIPv4Stack`` and
+``java.net.preferIPv6Addresses``. This check is done once, when the
+network is first used.
+
+* If there is ever a reason to use only IPv4, a program can
+  set the ``java.net.preferIPv4Stack``  to ``true`` at runtime
+  before the first use of the network.  There is no way to accomplish
+  this from the command line or environment.::
+
+      System.setProperty("java.net.preferIPv6Addresses", "true") 
 
 Continue to :ref:`libc`.

@@ -441,7 +441,7 @@ object ScheduledThreadPoolExecutor {
     }
 
     @SuppressWarnings(Array("unchecked"))
-    override def toArray[T](a: Array[T]): Array[T] = {
+    override def toArray[T <: AnyRef](a: Array[T]): Array[T] = {
       val lock = this.lock
       lock.lock()
       try {
@@ -464,7 +464,7 @@ object ScheduledThreadPoolExecutor {
 
     /** Snapshot iterator that works off copy of underlying q array.
      */
-    private class Itr private[concurrent] (
+    private[concurrent] class Itr private[concurrent] (
         val array: Array[RunnableScheduledFuture[AnyRef]]
     ) extends util.Iterator[Runnable] {
 

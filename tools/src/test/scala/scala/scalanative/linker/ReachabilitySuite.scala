@@ -7,7 +7,7 @@ import java.io.File
 import java.nio.file.{Files, Path, Paths}
 import scalanative.util.Scope
 import scalanative.nir.{Sig, Global}
-import scalanative.build.ScalaNative
+import scalanative.build.core.ScalaNative
 
 trait ReachabilitySuite extends AnyFunSuite {
 
@@ -21,7 +21,9 @@ trait ReachabilitySuite extends AnyFunSuite {
     Global.Top("java.lang.String"),
     Global.Top("java.lang.CharSequence"),
     Global.Top("java.lang.Comparable"),
-    Global.Top("java.io.Serializable")
+    Global.Top("java.io.Serializable"),
+    Global.Top("java.lang.constant.Constable"),
+    Global.Top("java.lang.constant.ConstantDesc")
   )
 
   def testReachable(label: String)(f: => (String, Global, Seq[Global])) =
@@ -103,6 +105,9 @@ trait ReachabilitySuite extends AnyFunSuite {
     default
       .withWorkdir(outDir)
       .withClassPath(paths.toSeq)
+      .withCompilerConfig {
+        _.withTargetTriple("x86_64-unknown-unknown")
+      }
       .withMainClass(mainClass)
   }
 }

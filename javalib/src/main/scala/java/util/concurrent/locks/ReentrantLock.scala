@@ -8,7 +8,6 @@ package java.util
 package concurrent.locks
 import java.util.concurrent.TimeUnit
 
-@SerialVersionUID(7373984872572414699L)
 class ReentrantLock extends Lock with java.io.Serializable {
   import ReentrantLock._
 
@@ -90,8 +89,6 @@ class ReentrantLock extends Lock with java.io.Serializable {
 }
 
 object ReentrantLock {
-
-  @SerialVersionUID(-5179523762034025860L)
   abstract class Sync extends AbstractQueuedSynchronizer {
     def lock(): Unit
 
@@ -142,12 +139,9 @@ object ReentrantLock {
       s.defaultReadObject()
       setState(0)
     }
-
   }
 
-  @SerialVersionUID(7316153563782823691L)
   final class NonfairSync extends Sync {
-
     def lock(): Unit = {
       if (compareAndSetState(0, 1))
         setExclusiveOwnerThread(Thread.currentThread())
@@ -159,9 +153,7 @@ object ReentrantLock {
       nonfairTryAcquire(acquires)
   }
 
-  @SerialVersionUID(-3000897897090466540L)
   final class FairSync extends Sync {
-
     def lock(): Unit = acquire(1)
 
     override protected def tryAcquire(acquires: Int): Boolean = {

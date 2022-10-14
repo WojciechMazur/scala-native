@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.{AtomicReference, AtomicLong}
 import scala.annotation.tailrec
 import java.util.concurrent.locks.LockSupport
 import scala.scalanative.meta.LinktimeInfo.isWindows
+import scala.scalanative.runtime.libc.{onSpinWait => nativeOnSpinWait}
 import java.lang.impl._
 
 // Ported from Harmony
@@ -367,7 +368,7 @@ object Thread {
   final val MIN_PRIORITY: Int = 1
   final val NORM_PRIORITY: Int = 5
 
-  def onSpinWait(): Unit = NativeThread.Intrinsics.yieldProcessor()
+  def onSpinWait(): Unit = nativeOnSpinWait()
 
   def getDefaultUncaughtExceptionHandler(): UncaughtExceptionHandler =
     defaultExceptionHandler

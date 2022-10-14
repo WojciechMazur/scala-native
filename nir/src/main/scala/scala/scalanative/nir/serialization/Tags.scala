@@ -89,6 +89,8 @@ object Tags {
   final val PtrtointConv = 1 + SitofpConv
   final val InttoptrConv = 1 + PtrtointConv
   final val BitcastConv = 1 + InttoptrConv
+  final val SSizeCastConv = 1 + BitcastConv
+  final val ZSizeCastConv = 1 + SSizeCastConv
 
   // Definitions
 
@@ -205,6 +207,7 @@ object Tags {
   final val UnitType = 1 + VarType
   final val ArrayType = 1 + UnitType
   final val RefType = 1 + ArrayType
+  final val SizeType = 1 + RefType
 
   // Values
 
@@ -233,4 +236,5 @@ object Tags {
   final val ClassOfVal = 1 + VirtualVal
 
   final val LinktimeConditionVal = 1 + ClassOfVal
+  final val SizeVal = 1 + LinktimeConditionVal
 }

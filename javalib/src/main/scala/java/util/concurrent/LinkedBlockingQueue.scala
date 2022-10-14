@@ -489,9 +489,7 @@ class LinkedBlockingQueue[E <: AnyRef](
    *  @throws NullPointerException
    *    if the specified array is null
    */
-  override def toArray[T](
-      _a: Array[T]
-  ): Array[T] = {
+  override def toArray[T<: AnyRef](_a: Array[T]): Array[T] = {
     var a = _a
     fullyLock()
     try {
@@ -608,7 +606,8 @@ class LinkedBlockingQueue[E <: AnyRef](
    *  O(n) in the worst case, whenever the saved ancestor is concurrently
    *  deleted.
    */
-  private class Itr private[concurrent] () extends util.Iterator[E] {
+  private[concurrent] class Itr private[concurrent] ()
+      extends util.Iterator[E] {
     private var nextNode: Node[E] = _
     private var nextItem: E = _
     private var lastRet: Node[E] = _
@@ -704,7 +703,7 @@ class LinkedBlockingQueue[E <: AnyRef](
     private[concurrent] val MAX_BATCH = 1 << 25 // max batch array size;
 
   }
-  final private class LBQSpliterator private[concurrent] ()
+  final private[concurrent] class LBQSpliterator private[concurrent] ()
       extends Spliterator[E] {
     private[concurrent] var current: Node[E] = _
     private[concurrent] var batch = 0 // batch size for splits

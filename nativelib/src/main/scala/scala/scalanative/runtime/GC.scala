@@ -23,12 +23,27 @@ object GC {
 
   @name("scalanative_alloc")
   def alloc(cls: Class[_], size: CSize): RawPtr = extern
+  @name("scalanative_alloc")
+  private[runtime] def alloc(cls: Class[_], size: RawSize): RawPtr = extern
+
   @name("scalanative_alloc_atomic")
   def alloc_atomic(cls: Class[_], size: CSize): RawPtr = extern
+  @name("scalanative_alloc_atomic")
+  private[runtime] def alloc_atomic(cls: Class[_], size: RawSize): RawPtr =
+    extern
+
   @name("scalanative_alloc_small")
   def alloc_small(cls: Class[_], size: CSize): RawPtr = extern
+  @name("scalanative_alloc_small")
+  private[runtime] def alloc_small(cls: Class[_], size: RawSize): RawPtr =
+    extern
+
   @name("scalanative_alloc_large")
   def alloc_large(cls: Class[_], size: CSize): RawPtr = extern
+  @name("scalanative_alloc_large")
+  private[runtime] def alloc_large(cls: Class[_], size: RawSize): RawPtr =
+    extern
+
   @name("scalanative_collect")
   def collect(): Unit = extern
   @name("scalanative_init")

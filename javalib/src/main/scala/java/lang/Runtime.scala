@@ -17,7 +17,7 @@ class Runtime private () {
       GetSystemInfo(sysInfo)
       sysInfo.numberOfProcessors.toInt
     } else {
-      val onlineCPUs = sysconf(SC_NPROCESSORS_ONLN).toInt
+      val onlineCPUs = sysconf(_SC_NPROCESSORS_ONLN).toInt
       assert(onlineCPUs > 0, "no available processors")
       onlineCPUs
     }

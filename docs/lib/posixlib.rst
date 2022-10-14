@@ -4,7 +4,7 @@ C POSIX Library
 ===============
 
 Scala Native provides bindings for a core subset of the
-`POSIX library <https://pubs.opengroup.org/onlinepubs/9699919799/idx/head.html>`_:
+`POSIX library <https://pubs.opengroup.org/onlinepubs/9699919799/idx/head.html>`_. See indicated source module for limitations, if any, and usage:
 
 ================= ==================================
 C Header          Scala Native Module
@@ -55,11 +55,11 @@ C Header          Scala Native Module
 `spawn.h`_        N/A
 `stdarg.h`_       N/A
 `stdbool.h`_      N/A
-`stddef.h`_       N/A
+`stddef.h`_       scala.scalanative.posix.stddef_
 `stdint.h`_       N/A
 `stdio.h`_        N/A
 `stdlib.h`_       scala.scalanative.posix.stdlib_
-`string.h`_       N/A
+`string.h`_       scala.scalanative.posix.string_
 `strings.h`_      N/A
 `stropts.h`_      N/A
 `sys/ipc.h`_      N/A
@@ -200,7 +200,9 @@ C Header          Scala Native Module
 .. _scala.scalanative.posix.regex: https://github.com/scala-native/scala-native/blob/main/posixlib/src/main/scala/scala/scalanative/posix/regex.scala
 .. _scala.scalanative.posix.sched: https://github.com/scala-native/scala-native/blob/main/posixlib/src/main/scala/scala/scalanative/posix/sched.scala
 .. _scala.scalanative.posix.signal: https://github.com/scala-native/scala-native/blob/main/posixlib/src/main/scala/scala/scalanative/posix/signal.scala
+.. _scala.scalanative.posix.stddef: https://github.com/scala-native/scala-native/blob/main/posixlib/src/main/scala/scala/scalanative/posix/stddef.scala
 .. _scala.scalanative.posix.stdlib: https://github.com/scala-native/scala-native/blob/main/posixlib/src/main/scala/scala/scalanative/posix/stdlib.scala
+.. _scala.scalanative.posix.string: https://github.com/scala-native/scala-native/blob/main/posixlib/src/main/scala/scala/scalanative/posix/string.scala
 .. _scala.scalanative.posix.sys.resource: https://github.com/scala-native/scala-native/blob/main/posixlib/src/main/scala/scala/scalanative/posix/sys/resource.scala
 .. _scala.scalanative.posix.sys.select: https://github.com/scala-native/scala-native/blob/main/posixlib/src/main/scala/scala/scalanative/posix/sys/select.scala
 .. _scala.scalanative.posix.sys.socket: https://github.com/scala-native/scala-native/blob/main/posixlib/src/main/scala/scala/scalanative/posix/sys/socket.scala

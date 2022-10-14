@@ -13,7 +13,8 @@ object Commands {
     "test-tools" ::
       "test-mima" ::
       "test-runtime" ::
-      "test-scripted" :: _
+      "test-scripted" ::
+      "publish-local-dev" :: _
   }
 
   lazy val testRuntime = projectVersionCommand("test-runtime") {
@@ -82,7 +83,8 @@ object Commands {
         s"""set sbtScalaNative/scriptedLaunchOpts := {
             |  (sbtScalaNative/scriptedLaunchOpts).value
             |   .filterNot(_.startsWith("-Dscala.version=")) :+
-            |   "-Dscala.version=$version"
+            |   "-Dscala.version=$version" :+
+            |   "-Dscala213.version=${ScalaVersions.scala213}"
             |}""".stripMargin
       // Scala 3 is supported since sbt 1.5.0
       // Older versions set incorrect binary version
@@ -114,6 +116,65 @@ object Commands {
           )
 
         fn(version, state)
+    }
+  }
+
+  private def projectFullVersionCommand(
+      name: String
+  )(fn: (String, State) => State): Command = {
+    Command.args(name, "<args>") {
+      case (state, args) =>
+        val version = args.headOption
+          .getOrElse(
+            "Used command needs explicit full Scala version as an argument"
+          )
+
+        fn(version, state)
+    }
+  }
+
+  lazy val publishLocalDev = {
+    projectFullVersionCommand("publish-local-dev") {
+      case (version, state) =>
+        val binaryVersion = CrossVersion.binaryScalaVersion(version)
+
+        val sbtPluginModules = List(
+          Build.util,
+          nir,
+          tools,
+          testRunner,
+          testInterface,
+          testInterfaceSbtDefs,
+          junitRuntime,
+          nativelib,
+          clib,
+          posixlib,
+          windowslib,
+          auxlib,
+          javalib,
+          scalalib
+        ).map(_.forBinaryVersion("2.12").id).map(id => s"$id/publishLocal")
+
+        val compilerPlugin = nscPlugin.forBinaryVersion(binaryVersion).id
+
+        val runtimeModules = List(
+          nativelib,
+          clib,
+          posixlib,
+          windowslib,
+          auxlib,
+          javalib,
+          scalalib,
+          testInterface,
+          junitRuntime,
+          testInterfaceSbtDefs
+        ).map(_.forBinaryVersion(binaryVersion).id)
+          .map(id => s"$id/publishLocal")
+
+        sbtPluginModules :::
+          List(s"++${version} $compilerPlugin/publishLocal") :::
+          runtimeModules :::
+          state
     }
   }
 

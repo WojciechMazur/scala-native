@@ -144,7 +144,7 @@ object WindowsThread {
   object GCExt {
     def GC_CreateThread(
         threadAttributes: Ptr[SecurityAttributes],
-        stackSize: UWord,
+        stackSize: USize,
         startRoutine: ThreadStartRoutine,
         routineArg: PtrAny,
         creationFlags: DWord,
@@ -165,7 +165,7 @@ object WindowsThread {
     val id = stackalloc[DWord]()
     val handle = GC_CreateThread(
       threadAttributes = null,
-      stackSize = 0.toUInt, // Default
+      stackSize = 0.toUSize, // Default
       startRoutine = NativeThread.threadRoutine,
       routineArg = NativeThread.threadRoutineArgs(thread),
       creationFlags = 0.toUInt, // Default, run immediately,

@@ -273,7 +273,7 @@ void Heap_Collect(Heap *heap, Stack *stack) {
         if (stats != NULL) {
             nullify_start_ns = scalanative_nano_time();
         }
-        WeakRefStack_Nullify(heap);
+        WeakRefStack_Nullify();
         if (stats != NULL) {
             sweep_start_ns = scalanative_nano_time();
         }
@@ -289,7 +289,7 @@ void Heap_Collect(Heap *heap, Stack *stack) {
         // for allocator and forced GC
         if(currentMutatorThread->allocator.block != NULL){
             Safepoint_disarm(currentMutatorThread->safepoint);
-            WeakRefStack_CallHandlers(heap);
+            WeakRefStack_CallHandlers();
         }
         scalanative_gc_onCollectEnd();
         // printf("End collect\n\n");

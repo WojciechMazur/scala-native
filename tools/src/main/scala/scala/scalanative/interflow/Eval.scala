@@ -376,7 +376,7 @@ trait Eval { self: Interflow =>
       case Op.Copy(v) =>
         eval(v)
       case Op.Sizeof(ty) =>
-        Val.Long(MemoryLayout.sizeOf(ty))
+        Val.Size(MemoryLayout.sizeOf(ty, is32BitPlatform))
       case Op.Box(boxty @ Type.Ref(boxname, _, _), value) =>
         // Pointer boxes are special because null boxes to null,
         // which breaks the invariant that all virtual allocations
@@ -752,8 +752,22 @@ trait Eval { self: Interflow =>
     def bailOut =
       throw BailOut(s"can't eval conv op: $conv[${ty.show}] ${value.show}")
     conv match {
-      case _ if ty == value.ty =>
-        value
+      case _ if ty == value.ty => value
+      case Conv.SSizeCast | Conv.ZSizeCast =>
+        def size(ty: Type) = ty match {
+          case Type.Size =>
+            if (is32BitPlatform) 32 else 64
+          case Type.FixedSizeI(s, _) => s
+          case o                     => bailOut
+        }
+        val fromSize = size(value.ty)
+        val toSize = size(ty)
+
+        if (fromSize == toSize) eval(Conv.Bitcast, ty, value)
+        else if (fromSize > toSize) eval(Conv.Trunc, ty, value)
+        else if (conv == Conv.ZSizeCast) eval(Conv.Zext, ty, value)
+        else eval(Conv.Sext, ty, value)
+
       case Conv.Trunc =>
         (value, ty) match {
           case (Val.Char(v), Type.Byte)  => Val.Byte(v.toByte)
@@ -765,7 +779,11 @@ trait Eval { self: Interflow =>
           case (Val.Long(v), Type.Short) => Val.Short(v.toShort)
           case (Val.Long(v), Type.Int)   => Val.Int(v.toInt)
           case (Val.Long(v), Type.Char)  => Val.Char(v.toChar)
-          case _                         => bailOut
+          case (Val.Size(v), Type.Byte)  => Val.Byte(v.toByte)
+          case (Val.Size(v), Type.Short) => Val.Short(v.toShort)
+          case (Val.Size(v), Type.Int) if !is32BitPlatform => Val.Int(v.toInt)
+          case (Val.Size(v), Type.Char)                    => Val.Char(v.toChar)
+          case _                                           => bailOut
         }
       case Conv.Zext =>
         (value, ty) match {
@@ -779,6 +797,10 @@ trait Eval { self: Interflow =>
             Val.Long(v.toChar.toLong)
           case (Val.Int(v), Type.Long) =>
             Val.Long(java.lang.Integer.toUnsignedLong(v))
+          case (Val.Int(v), Type.Size) if !is32BitPlatform =>
+            Val.Size(java.lang.Integer.toUnsignedLong(v))
+          case (Val.Size(v), Type.Long) if is32BitPlatform =>
+            Val.Long(java.lang.Integer.toUnsignedLong(v.toInt))
           case _ =>
             bailOut
         }
@@ -791,7 +813,10 @@ trait Eval { self: Interflow =>
           case (Val.Short(v), Type.Int)  => Val.Int(v.toInt)
           case (Val.Short(v), Type.Long) => Val.Long(v.toLong)
           case (Val.Int(v), Type.Long)   => Val.Long(v.toLong)
-          case _                         => bailOut
+          case (Val.Int(v), Type.Size) if !is32BitPlatform => Val.Size(v.toLong)
+          case (Val.Size(v), Type.Long) if is32BitPlatform =>
+            Val.Long(v.toInt.toLong)
+          case _ => bailOut
         }
       case Conv.Fptrunc =>
         (value, ty) match {
@@ -838,11 +863,13 @@ trait Eval { self: Interflow =>
       case Conv.Ptrtoint =>
         (value, ty) match {
           case (Val.Null, Type.Long) => Val.Long(0L)
+          case (Val.Null, Type.Int)  => Val.Int(0)
           case _                     => bailOut
         }
       case Conv.Inttoptr =>
         (value, ty) match {
           case (Val.Long(0L), Type.Ptr) => Val.Null
+          case (Val.Int(0L), Type.Ptr)  => Val.Null
           case _                        => bailOut
         }
       case Conv.Bitcast =>
@@ -861,6 +888,14 @@ trait Eval { self: Interflow =>
             Val.Int(java.lang.Float.floatToRawIntBits(value))
           case (Val.Double(value), Type.Long) =>
             Val.Long(java.lang.Double.doubleToRawLongBits(value))
+          case (Val.Size(value), Type.Int) if is32BitPlatform =>
+            Val.Int(value.toInt)
+          case (Val.Int(value), Type.Size) if is32BitPlatform =>
+            Val.Size(value.toLong)
+          case (Val.Size(value), Type.Long) if !is32BitPlatform =>
+            Val.Long(value)
+          case (Val.Long(value), Type.Size) if !is32BitPlatform =>
+            Val.Size(value)
           case (Val.Null, Type.Ptr) =>
             Val.Null
           case _ =>

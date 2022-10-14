@@ -4,6 +4,7 @@ import java.lang.ref.{Reference, WeakReference}
 import java.util.concurrent.atomic.AtomicInteger
 
 // Ported from Harmony
+import java.util.function.Supplier
 
 class ThreadLocal[T] {
 
@@ -42,6 +43,10 @@ class ThreadLocal[T] {
 }
 
 object ThreadLocal {
+  def withInitial[S](supplier: Supplier[S]): ThreadLocal[S] =
+    new ThreadLocal[S] {
+      override protected def initialValue(): S = supplier.get()
+    }
 
   private val hashCounter: AtomicInteger = new AtomicInteger(0)
 

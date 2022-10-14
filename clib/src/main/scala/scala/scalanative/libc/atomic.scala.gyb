@@ -32,7 +32,9 @@ import scala.language.implicitConversions
     ('atomic_int', 'CInt', 'int'),
     ('atomic_uint', 'CUnsignedInt', 'uint'),
     ('atomic_long', 'CLong', 'long'),
-    ('atomic_ulong', 'CUnsignedLong', 'ulong')
+    ('atomic_ulong', 'CUnsignedLong', 'ulong'),
+    ('atomic_llong', 'CLongLong', 'llong'),
+    ('atomic_ullong', 'CUnsignedLongLong', 'ullong')
   ]
   }%
   % for (C, T, N) in defs:
@@ -121,7 +123,9 @@ import scala.language.implicitConversions
     ('CAtomicInt', 'atomic_int', 'CInt'),
     ('CAtomicUnsignedInt', 'atomic_uint', 'CUnsignedInt'),
     ('CAtomicLong', 'atomic_long', 'CLong'),
-    ('CAtomicUnsignedLong', 'atomic_ulong', 'CUnsignedLong')
+    ('CAtomicUnsignedLong', 'atomic_ulong', 'CUnsignedLong'),
+    ('CAtomicLongLong', 'atomic_llong', 'CLongLong'),
+    ('CAtomicUnsignedLongLong', 'atomic_ullong', 'CUnsignedLongLong')
     ]
   }%
 

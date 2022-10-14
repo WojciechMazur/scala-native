@@ -2,6 +2,7 @@ package scala.scalanative
 package build
 
 import java.nio.file.{Path, Paths}
+import scala.scalanative.nir.Val
 
 /** An object describing how to configure the Scala Native toolchain. */
 sealed trait NativeConfig {
@@ -43,14 +44,47 @@ sealed trait NativeConfig {
   /** Shall linker dump intermediate NIR after every phase? */
   def dump: Boolean
 
+  /** Should address sanitizer be used? */
+  def asan: Boolean
+
   /** Shall we optimize the resulting NIR code? */
   def optimize: Boolean
+
+  /** Shall we use the incremental compilation? */
+  def useIncrementalCompilation: Boolean
 
   /** Shall be compiled with multithreading support */
   def multithreadingSupport: Boolean
 
   /** Map of user defined properties resolved at linktime */
   def linktimeProperties: NativeConfig.LinktimeProperites
+
+  private lazy val detectedTriple = Discover.targetTriple(clang)
+
+  /** Are we targeting a 32-bit platform?
+   *
+   *  This should perhaps list known 32-bit architectures and search for others
+   *  containing "32" and assume everything else is 64-bit. Printing the
+   *  architecture for a name that is not found seems excessive perhaps?
+   */
+  def is32BitPlatform = {
+    targetTriple
+      .getOrElse(detectedTriple)
+      .split('-')
+      .headOption
+      .getOrElse("") match {
+      case "x86_64"  => false
+      case "aarch64" => false
+      case "arm64"   => false
+      case "i386"    => true
+      case "i686"    => true
+      case o =>
+        println(
+          s"Unexpected architecture in target triple: ${o}, defaulting to 64-bit"
+        )
+        false
+    }
+  }
 
   /** Shall the resource files be embedded in the resulting binary file? Allows
    *  the use of getClass().getResourceAsStream() on the included files. Will
@@ -98,8 +132,14 @@ sealed trait NativeConfig {
   /** Create a new config with given dump value. */
   def withDump(value: Boolean): NativeConfig
 
+  /** Create a new config with given asan value. */
+  def withASAN(value: Boolean): NativeConfig
+
   /** Create a new config with given optimize value */
   def withOptimize(value: Boolean): NativeConfig
+
+  /** Create a new config with given incrementalCompilation value */
+  def withIncrementalCompilation(value: Boolean): NativeConfig
 
   /** Create a new config with given linktime properites */
   def withLinktimeProperties(
@@ -131,8 +171,10 @@ object NativeConfig {
       check = false,
       checkFatalWarnings = false,
       dump = false,
+      asan = false,
       linkStubs = false,
       optimize = true,
+      useIncrementalCompilation = true,
       multithreadingSupport = false,
       linktimeProperties = Map.empty,
       embedResources = false
@@ -151,7 +193,9 @@ object NativeConfig {
       check: Boolean,
       checkFatalWarnings: Boolean,
       dump: Boolean,
+      asan: Boolean,
       optimize: Boolean,
+      useIncrementalCompilation: Boolean,
       multithreadingSupport: Boolean,
       linktimeProperties: LinktimeProperites,
       embedResources: Boolean
@@ -197,8 +241,14 @@ object NativeConfig {
     def withDump(value: Boolean): NativeConfig =
       copy(dump = value)
 
+    def withASAN(value: Boolean): NativeConfig =
+      copy(asan = value)
+
     def withOptimize(value: Boolean): NativeConfig =
       copy(optimize = value)
+
+    override def withIncrementalCompilation(value: Boolean): NativeConfig =
+      copy(useIncrementalCompilation = value)
 
     def withMultithreadingSupport(enabled: Boolean): NativeConfig =
       copy(multithreadingSupport = enabled)
@@ -240,10 +290,12 @@ object NativeConfig {
         | - check:              $check
         | - checkFatalWarnings: $checkFatalWarnings
         | - dump:               $dump
-        | - optimize:           $optimize
+        | - asan:               $asan
+        | - optimize            $optimize
         | - multithreading      $multithreadingSupport
         | - linktimeProperties: $listLinktimeProperties
         | - embedResources:     $embedResources
+        | - incrementalCompilation: $useIncrementalCompilation
         |)""".stripMargin
     }
   }
@@ -252,7 +304,7 @@ object NativeConfig {
     def isNumberOrString(value: Any) = {
       value match {
         case _: Boolean | _: Byte | _: Char | _: Short | _: Int | _: Long |
-            _: Float | _: Double | _: String =>
+            _: Float | _: Double | _: String | _: Val =>
           true
         case _ => false
       }

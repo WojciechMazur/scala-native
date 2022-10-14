@@ -14,6 +14,7 @@ object Platform {
   final val hasCompliantArrayIndexOutOfBounds = true
 
   final val executingInJVMOnJDK8OrLower = jdkVersion <= 8
+  final val executingInJVMOnJDK17 = jdkVersion == 17
 
   private lazy val jdkVersion = {
     val v = System.getProperty("java.version")
@@ -25,13 +26,16 @@ object Platform {
 
   private val osNameProp = System.getProperty("os.name")
   final val isFreeBSD = osNameProp.equals("FreeBSD")
-  final val isWindows = osNameProp.toLowerCase.startsWith("windows")
+  final val isLinux = osNameProp.toLowerCase.contains("linux")
   final val isMacOs = osNameProp.toLowerCase.contains("mac")
+  final val isWindows = osNameProp.toLowerCase.startsWith("windows")
 
   private val osArch = System.getProperty("os.arch").toLowerCase(Locale.ROOT)
   final val isArm64 = {
     osArch == "arm64" || osArch == "aarch64"
   }
 
+  final val is32BitPlatform = false
+  final val asanEnabled = false
   final val hasArm64SignalQuirk = false
 }

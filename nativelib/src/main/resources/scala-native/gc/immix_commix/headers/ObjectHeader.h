@@ -81,7 +81,7 @@ static inline bool Object_IsReferantOfWeakReference(Object *object,
 }
 
 static inline bool Field_isInflatedLock(Field_t field) {
-    return (word_t)field & LOCK_STATUS_MASK;
+    return (word_t)field & MONITOR_INFLATION_MARK_MASK;
 }
 
 static inline Field_t Field_allignedLockRef(Field_t field) {

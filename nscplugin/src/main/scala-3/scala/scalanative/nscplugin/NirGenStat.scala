@@ -112,7 +112,7 @@ trait NirGenStat(using Context) {
       val isStatic = f.is(JavaStatic) || f.isScalaStatic
       val isExtern = f.isExtern
       val mutable = isStatic || f.is(Mutable)
-      val attrs = nir.Attrs(isExtern = f.isExtern)
+      val attrs = nir.Attrs(isExtern = f.isExtern, isVolatile = f.isVolatile)
       val ty = genType(f.info.resultType)
       val fieldName @ Global.Member(owner, sig) = genFieldName(f): @unchecked
       generatedDefns += Defn.Var(attrs, fieldName, ty, Val.Zero(ty))

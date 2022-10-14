@@ -219,16 +219,13 @@ final class BinaryDeserializer(buffer: ByteBuffer, bufferName: String) {
   }
 
   private def getOp(): Op = {
-    def isAtomicOp() = if (prelude.supportsAtomicOps) getBool() else false
-
     getInt match {
-      case T.CallOp => Op.Call(getType(), getVal(), getVals())
-      case T.LoadOp =>
-        Op.Load(getType(), getVal(), isAtomicOp())
-      case T.StoreOp   => Op.Store(getType(), getVal(), getVal(), isAtomicOp())
-      case T.ElemOp    => Op.Elem(getType(), getVal(), getVals())
-      case T.ExtractOp => Op.Extract(getVal(), getInts())
-      case T.InsertOp  => Op.Insert(getVal(), getVal(), getInts())
+      case T.CallOp       => Op.Call(getType(), getVal(), getVals())
+      case T.LoadOp       => Op.Load(getType(), getVal(), getBool())
+      case T.StoreOp      => Op.Store(getType(), getVal(), getVal(), getBool())
+      case T.ElemOp       => Op.Elem(getType(), getVal(), getVals())
+      case T.ExtractOp    => Op.Extract(getVal(), getInts())
+      case T.InsertOp     => Op.Insert(getVal(), getVal(), getInts())
       case T.StackallocOp => Op.Stackalloc(getType(), getVal())
       case T.BinOp        => Op.Bin(getBin(), getType(), getVal(), getVal())
       case T.CompOp       => Op.Comp(getComp(), getType(), getVal(), getVal())

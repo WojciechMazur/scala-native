@@ -3,196 +3,159 @@ package java.lang.impl
 import scala.scalanative.annotation._
 import scala.scalanative.unsafe._
 import scala.scalanative.unsigned._
-import scala.scalanative.runtime.{fromRawPtr, toRawPtr, Intrinsics, ByteArray}
+
+import scala.scalanative.runtime._
+import scala.scalanative.runtime.GC._
+import scala.scalanative.runtime.GC.MutatorThread.Ext.withGCSafeZone
+import scala.scalanative.runtime.Intrinsics._
+
 import scala.scalanative.windows._
 import scala.scalanative.windows.HandleApi._
 import scala.scalanative.windows.ErrorHandlingApi._
 import scala.scalanative.windows.ProcessThreadsApi._
+import scala.scalanative.windows.ProcessThreadsApiExt._
 import scala.scalanative.windows.SynchApi._
+import scala.scalanative.windows.SynchApiExt._
 import scala.scalanative.windows.WinBaseApi._
 import scala.annotation.tailrec
+import scala.annotation.switch
 
-private[java] case class WindowsThread(handle: Handle, id: UInt, thread: Thread)
+private[java] class WindowsThread(val thread: Thread, stackSize: Long)
     extends NativeThread {
   import WindowsThread._
+  import NativeThread._
 
-  private[this] val internalBuffer = new Array[scala.Byte](InnerBufferSize)
-    .asInstanceOf[ByteArray]
+  private[this] val parkEvent: Handle = CreateEventW(
+    eventAttributes = null,
+    manualReset = true,
+    initialState = false,
+    name = null
+  )
 
-  final val threadParkingSection: CriticalSection =
-    internalBuffer
-      .at(ThreadParkingSectionOffset)
+  private[this] val sleepEvent: Handle = CreateEventW(
+    eventAttributes = null,
+    manualReset = false,
+    initialState = false,
+    name = null
+  )
 
-  final val isUnparked: ConditionVariable =
-    internalBuffer
-      .at(IsUnparkedConditionOffset)
-
-  {
-    assert(internalBuffer != null, "internal buffer not initialized")
-    InitializeCriticalSectionAndSpinCount(threadParkingSection, 4.toUInt)
-    InitializeConditionVariable(isUnparked)
-  }
+  private[this] val handle: Handle =
+    if (isMainThread) 0.toPtr
+    else
+      GC.CreateThread(
+        threadAttributes = null,
+        stackSize = stackSize.max(0L).toUSize, // Default
+        startRoutine = NativeThread.threadRoutine,
+        routineArg = NativeThread.threadRoutineArgs(this),
+        creationFlags = 0.toUInt, // Default, run immediately,
+        threadId = null
+      )
+  if (handle == null || parkEvent == null || sleepEvent == null)
+    throw new RuntimeException(s"Failed to initialize new thread")
 
   override protected def onTermination() = {
     super.onTermination()
-    DeleteCriticalSection(threadParkingSection)
+    CloseHandle(parkEvent)
+    CloseHandle(sleepEvent)
     CloseHandle(handle)
   }
 
-  @stub def setPriority(priority: CInt): Unit = () // TODO
+  override def setPriority(priority: CInt): Unit =
+    SetThreadPriority(handle, priorityMapping(priority))
 
-  @inline
-  def resume(): Unit = {
-    ResumeThread(handle).toInt match {
-      case -1 =>
-        throw new RuntimeException(
-          s"Failed to resume thread: errCode=${GetLastError()}"
-        )
-      case prev => ()
+  // java.lang.Thread priority to OS priority mapping
+  private def priorityMapping(threadPriority: Int): Int =
+    (threadPriority: @switch) match {
+      case 0     => THREAD_PRIORITY_IDLE
+      case 1 | 2 => THREAD_PRIORITY_LOWEST
+      case 3 | 4 => THREAD_PRIORITY_BELOW_NORMAL
+      case 5     => THREAD_PRIORITY_NORMAL
+      case 6 | 7 => THREAD_PRIORITY_ABOVE_NORMAL
+      case 8 | 9 => THREAD_PRIORITY_HIGHEST
+      case 10    => THREAD_PRIORITY_TIME_CRITICAL
+      case _ =>
+        throw new IllegalArgumentException("Not a valid java thread priority")
     }
+
+  override def interrupt(): Unit = {
+    // For JSR-166 / LockSupport
+    SetEvent(parkEvent)
+    // For Sleep
+    SetEvent(sleepEvent)
   }
 
-  @inline
-  def suspend(): Unit = {
-    SuspendThread(handle).toInt match {
-      case -1 =>
-        throw new RuntimeException(
-          s"Failed to suspend thread: errCode=${GetLastError()}"
-        )
-      case prev => ()
-    }
-  }
-
-  @inline
-  def stop(): Unit = ExitThread(0.toUInt)
-
-  def interrupt(): Unit = ()
-
-  @inline
-  def tryPark(): Unit = {
-    if (!SleepConditionVariableCS(isUnparked, threadParkingSection, Infinite)) {
-      GetLastError() match {
-        case ErrorCodes.ERROR_TIMEOUT =>
-          state = NativeThread.State.Running
-        case errCode =>
-          throw new RuntimeException(s"Failed to park thread: errCode=$errCode")
-      }
-    }
-  }
-
-  @alwaysinline
-  def tryParkUntil(deadline: scala.Long): Unit = tryParkTimed(deadline)
-
-  @alwaysinline
-  def tryParkNanos(nanos: scala.Long): Unit = {
-    val NanosecondsInMillisecond = 1000000
-    val deadline = (System.nanoTime() + nanos) / NanosecondsInMillisecond
-    tryParkTimed(deadline)
-  }
-
-  @alwaysinline
-  def tryUnpark(): Unit = {
-    WakeConditionVariable(isUnparked)
-  }
-
-  @inline @tailrec
-  private def tryParkTimed(deadline: scala.Long): Unit = {
-    val milliseconds = System.currentTimeMillis() - deadline
-    val successfull =
-      if (milliseconds > 0L) {
-        SleepConditionVariableCS(
-          isUnparked,
-          threadParkingSection,
-          milliseconds.toUInt
-        )
+  override protected def park(time: Long, isAbsolute: Boolean): Unit = {
+    val parkTime =
+      if (time < 0) -1.toUInt
+      else if (time == 0 && !isAbsolute) Infinite
+      else if (isAbsolute) {
+        val relTime = time - System.currentTimeMillis()
+        if (relTime <= 0) -1.toUInt
+        else relTime.toUInt
       } else {
-        state = NativeThread.State.Running
-        true
+        val millis = time / NanosInMillisecond
+        millis.max(1).toUInt
       }
 
-    if (successfull) {
-      if (state.isInstanceOf[NativeThread.State.Parked]) {
-        // spurious wakeup, retry
-        tryParkTimed(deadline)
+    if (parkTime.toInt > 0) {
+      def isTriggered =
+        WaitForSingleObject(parkEvent, 0.toUInt) == WAIT_OBJECT_0
+      if (thread.isInterrupted() || isTriggered) ()
+      else {
+        state =
+          if (parkTime == Infinite) State.ParkedWaiting
+          else State.ParkedWaitingTimed
+        WaitForSingleObject(parkEvent, parkTime)
+        state = State.Running
       }
-    } else {
-      GetLastError() match {
-        case ErrorCodes.ERROR_TIMEOUT =>
-          state = NativeThread.State.Running
-        case errCode =>
-          throw new RuntimeException(s"Failed to park thread: errCode=$errCode")
-      }
+      ResetEvent(parkEvent)
     }
   }
 
-  @alwaysinline
-  def withParkingLock(fn: => Unit): Unit = {
-    EnterCriticalSection(threadParkingSection)
-    try {
-      fn
-    } finally {
-      LeaveCriticalSection(threadParkingSection)
+  @inline override def unpark(): Unit = SetEvent(parkEvent)
+
+  override def sleep(millis: scala.Long): Unit = {
+    @inline def loop(startTime: Long, millisRemaining: Long): Unit = {
+      if (thread.isInterrupted()) throw new InterruptedException()
+      if (millisRemaining > 0L) {
+        state = State.ParkedWaitingTimed
+        withGCSafeZone {
+          WaitForSingleObject(sleepEvent, millisRemaining.toUInt)
+        }
+        state = State.Running
+        val now = System.nanoTime()
+        val deltaMillis = (now - startTime) / NanosInMillisecond
+        loop(
+          startTime = now,
+          millisRemaining = millisRemaining - deltaMillis
+        )
+      }
     }
+    ResetEvent(sleepEvent)
+    loop(startTime = System.nanoTime(), millisRemaining = millis)
+  }
+
+  override def sleepNanos(nanos: Int): Unit = {
+    val deadline = System.nanoTime() + nanos
+    while ({
+      if (!SwitchToThread()) Thread.onSpinWait()
+      val now = System.nanoTime()
+      now < deadline
+    }) Thread.onSpinWait()
   }
 }
 
-object WindowsThread {
+object WindowsThread extends NativeThread.Companion {
   import NativeThread._
-  @extern
-  @link("user32")
-  object GCExt {
-    def GC_CreateThread(
-        threadAttributes: Ptr[SecurityAttributes],
-        stackSize: USize,
-        startRoutine: ThreadStartRoutine,
-        routineArg: PtrAny,
-        creationFlags: DWord,
-        threadId: Ptr[DWord]
-    ): Handle = extern
-    def GC_ExitThread(exitCode: DWord): Unit = extern
-  }
 
-  private val InnerBufferSize = {
-    SizeOfCriticalSection + SizeOfConditionVariable
-  }.toInt
+  type Impl = WindowsThread
 
-  private final val ThreadParkingSectionOffset = 0
-  private final val IsUnparkedConditionOffset = SizeOfCriticalSection.toInt
+  @alwaysinline
+  def create(thread: Thread, stackSize: Long) =
+    new WindowsThread(thread, stackSize)
 
-  def apply(thread: Thread): WindowsThread = {
-    import GCExt._
-    val id = stackalloc[DWord]()
-    val handle = GC_CreateThread(
-      threadAttributes = null,
-      stackSize = 0.toUSize, // Default
-      startRoutine = NativeThread.threadRoutine,
-      routineArg = NativeThread.threadRoutineArgs(thread),
-      creationFlags = 0.toUInt, // Default, run immediately,
-      threadId = id
-    )
+  @alwaysinline
+  override def yieldThread(): Unit = SwitchToThread()
 
-    if (handle == null) {
-      throw new RuntimeException(
-        s"Failed to create new thread, errCode=${GetLastError()}"
-      )
-    }
-    new WindowsThread(handle, !id, thread)
-  }
-
-  def sleep(millis: scala.Long, nanos: scala.Int): Unit = {
-    // No support for nanos sleep on Windows,
-    // assume minimal granularity equal to 1ms
-    val sleepForMillis = nanos match {
-      case 0 => millis
-      case _ => millis + 1
-    }
-    // Make sure that we don't pass 0 as argument, otherwise it would
-    // sleep infinitely.
-    Sleep(sleepForMillis.max(1L).toUInt)
-    if (Thread.interrupted()) {
-      throw new InterruptedException("Sleep was interrupted")
-    }
-  }
-
-  def yieldThread(): Unit = SwitchToThread()
+  @alwaysinline private def NanosInMillisecond = 1000000
 }

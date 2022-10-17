@@ -8,7 +8,12 @@ import scala.scalanative.annotation._
 import scala.scalanative.unsafe._
 import scala.scalanative.unsigned._
 import scala.scalanative.unsafe.CFuncPtr1.fromScalaFunction
-import scala.scalanative.runtime.{Intrinsics, fromRawPtr, toRawPtr, toRawSize}
+import scala.scalanative.runtime._
+import scala.scalanative.runtime.Intrinsics.{elemRawPtr, classFieldRawPtr}
+import scala.scalanative.runtime.GC.MutatorThread.Ext.withGCSafeZone
+import scala.scalanative.runtime.GC
+
+import scala.scalanative.posix
 import scala.scalanative.posix.sys.types._
 import scala.scalanative.posix.time._
 import scala.scalanative.posix.timeOps._
@@ -21,52 +26,73 @@ import scala.scalanative.posix.errno.{ETIMEDOUT, EINTR}
 import scala.scalanative.posix.sys.eventfd._
 import scala.scalanative.posix.poll._
 import scala.scalanative.posix.unistd._
+
 import scala.scalanative.libc.errno
 import scala.scalanative.libc.signal.{SIGUSR1 => _, _}
-import scala.scalanative.posix
-import scala.scalanative.runtime.ByteArray
 import scala.scalanative.libc.string.strerror
-import scala.scalanative.runtime.GC.MutatorThread
 import scala.scalanative.libc.stdlib.malloc
+import scala.scalanative.libc.atomic._
 
-private[java] case class PosixThread(handle: pthread_t, thread: Thread)
+private[java] class PosixThread(val thread: Thread, stackSize: Long)
     extends NativeThread {
+  import NativeThread._
   import PosixThread._
 
+  private[this] val _state = new scala.Array[scala.Byte](StateSize)
   @volatile private[impl] var sleepEvent = UnsetEvent
+  @volatile private var counter: Int = 0
+  @volatile private var conditionIdx = -1 // index of currently used condition
 
-  private[this] val nativeArray = new Array[scala.Byte](InnerBufferSize)
-    .asInstanceOf[ByteArray]
-
-  private[java] val lock: Ptr[pthread_mutex_t] =
-    nativeArray
-      .at(LockOffset)
-      .asInstanceOf[Ptr[pthread_mutex_t]]
-
-  private[java] val conditions =
-    nativeArray
-      .at(ConditionsOffset)
-      .asInstanceOf[Ptr[pthread_cond_t]]
-
-  def condition(idx: Int): Ptr[pthread_cond_t] = idx match {
-    case 0 => conditions
-    case 1 =>
-      fromRawPtr(
-        Intrinsics.elemRawPtr(
-          toRawPtr(conditions),
-          toRawSize(pthread_cond_t_size)
-        )
-      )
-  }
-
-  assert(0 == pthread_mutex_init(lock, mutexAttr))
+  assert(
+    0 == pthread_mutex_init(lock, mutexAttr),
+    "PosixThread: mutext init failed"
+  )
   assert(
     0 == pthread_cond_init(
       condition(ConditionRelativeIdx),
-      clockMonotonicCondAttr
-    )
+      clockMonotionicCondAttr
+    ),
+    "PosixThread: condition relative init failed"
   )
-  assert(0 == pthread_cond_init(condition(ConditionAbsoluteIdx), null))
+  assert(
+    0 == pthread_cond_init(condition(ConditionAbsoluteIdx), null),
+    "PosixThread: condition abs init failed"
+  )
+
+  private val handle: pthread_t =
+    if (isMainThread) 0.toULong // main thread
+    else {
+      val id = stackalloc[pthread_t]()
+      val attrs = stackalloc[Byte](pthread_attr_t_size)
+        .asInstanceOf[Ptr[pthread_attr_t]]
+
+      assert(0 == pthread_attr_init(attrs), "PosixThread: attr init failed")
+      assert(
+        0 == pthread_attr_setdetachstate(attrs, PTHREAD_CREATE_DETACHED),
+        "PosixThread: detach failed"
+      )
+      if (stackSize > 0L) {
+        assert(
+          0 == pthread_attr_setstacksize(attrs, stackSize.toUInt),
+          "PosixThread: set stack size failed"
+        )
+      }
+      try
+        GC.pthread_create(
+          thread = id,
+          attr = attrs,
+          startroutine = NativeThread.threadRoutine,
+          args = NativeThread.threadRoutineArgs(this)
+        ) match {
+          case 0 =>
+            !id
+          case status =>
+            throw new RuntimeException(
+              "Failed to create new thread, pthread error " + status
+            )
+        }
+      finally if (attrs != null) pthread_attr_destroy(attrs)
+    }
 
   override def onTermination(): Unit = {
     super.onTermination()
@@ -75,44 +101,16 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
     pthread_mutex_destroy(lock)
   }
 
-  def setPriority(priority: CInt): Unit = {
+  override def setPriority(priority: CInt): Unit = if (isMainThread) {
     val schedParam = stackalloc[sched_param]()
     val policy = stackalloc[CInt]()
-    pthread_getschedparam(handle, policy, schedParam)
-    schedParam.priority = priority
-    pthread_setschedparam(handle, !policy, schedParam)
-  }
-
-  @alwaysinline def withGCSafeZone[T](fn: => T) = {
-    val prev = MutatorThread.switchState(MutatorThread.State.InSafeZone)
-    try fn
-    finally MutatorThread.switchState(MutatorThread.State.Running)
-  }
-
-  def resume(): Unit = withGCSafeZone {
-    pthread_mutex_lock(lock)
-    while (state == NativeThread.State.Waiting) {
-      state = NativeThread.State.Running
-      pthread_cond_signal(condition(ConditionRelativeIdx))
+    if (0 == pthread_getschedparam(handle, policy, schedParam)) {
+      schedParam.priority = priorityMapping(priority, !policy)
+      pthread_setschedparam(handle, !policy, schedParam)
     }
-    pthread_mutex_unlock(lock)
   }
 
-  def suspend(): Unit = withGCSafeZone {
-    pthread_mutex_lock(lock)
-    state = NativeThread.State.Waiting
-    while (state == NativeThread.State.Waiting) {
-      pthread_cond_wait(condition(ConditionRelativeIdx), lock)
-    }
-    pthread_mutex_unlock(lock)
-  }
-
-  def stop(): Unit = GCExt.GC_pthread_cancel(handle) match {
-    case 0   => state = NativeThread.State.Terminated
-    case err => throw new RuntimeException("Failed to stop thread")
-  }
-
-  def interrupt(): Unit = {
+  override def interrupt(): Unit = {
     // for LockSupport.park
     this.unpark()
     // for Thread.sleep
@@ -120,29 +118,12 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
       val eventSize = 8.toUInt
       val buf = stackalloc[Byte](eventSize)
       !buf = 1
-
       val res = write(sleepEvent, buf, eventSize)
-      assert(res != -1)
+      assert(res != -1, "PosixThread, sleep interrupt")
     }
   }
 
-  @volatile private var counter: Int = 0
-  @volatile private var conditionIdx = -1 // index of currently used condition
-
-  import scala.scalanative.libc.atomic._
-  import scala.scalanative.runtime.Intrinsics
-  final private val counterAtromic = new CAtomicInt(
-    fromRawPtr(Intrinsics.classFieldRawPtr(this, "counter"))
-  )
-  override def park(): Unit =
-    park(0, isAbsolute = false)
-  override def parkNanos(nanos: Long): Unit = if (nanos > 0) {
-    park(nanos, isAbsolute = false)
-  }
-  override def parkUntil(deadline: scala.Long): Unit =
-    park(deadline, isAbsolute = true)
-
-  private def park(time: Long, isAbsolute: Boolean): Unit = {
+  override protected def park(time: Long, isAbsolute: Boolean): Unit = {
     // fast-path check, return if can skip parking
     if (counterAtromic.exchange(0) > 0) return
     // Avoid parking if there's an interrupt pending
@@ -207,6 +188,94 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
     }
   }
 
+  override def sleep(_millis: Long): Unit = {
+    var millis = _millis
+    if (millis <= 0) return
+    val deadline = System.currentTimeMillis() + millis
+
+    import scala.scalanative.posix.pollOps._
+    import scala.scalanative.posix.pollEvents._
+
+    val sleepEvent = eventfd(0.toUInt, 0)
+    assert(sleepEvent != -1, "sleep event")
+    this.sleepEvent = sleepEvent
+    try {
+      val fds = stackalloc[struct_pollfd]()
+      fds.fd = sleepEvent
+      fds.events = POLLIN
+
+      if (Thread.interrupted()) throw new InterruptedException()
+
+      try
+        while (millis > 0) {
+          state = State.ParkedWaitingTimed
+          val status = withGCSafeZone {
+            poll(fds, 1.toUInt, (millis min Int.MaxValue).toInt)
+          }
+          state = State.Running
+          assert(
+            status >= 0 || errno.errno == EINTR,
+            s"sleep, errno=${errno.errno}"
+          )
+          if (Thread.interrupted()) throw new InterruptedException()
+
+          millis = deadline - System.currentTimeMillis()
+        }
+      finally this.sleepEvent = UnsetEvent
+    } finally close(sleepEvent)
+  }
+
+  override def sleepNanos(nanos: Int): Unit = {
+    val spec = stackalloc[timespec]()
+    spec.tv_nsec = nanos
+    state = State.ParkedWaitingTimed
+    nanosleep(spec, null)
+    state = State.Running
+  }
+
+  @alwaysinline private def lock: Ptr[pthread_mutex_t] = _state
+    .at(LockOffset)
+    .asInstanceOf[Ptr[pthread_mutex_t]]
+
+  @alwaysinline private def conditions =
+    _state
+      .at(ConditionsOffset)
+      .asInstanceOf[Ptr[pthread_cond_t]]
+
+  @alwaysinline private def condition(idx: Int): Ptr[pthread_cond_t] =
+    (idx: @switch) match {
+      case 0 => conditions
+      case 1 =>
+        val base = toRawPtr(conditions)
+        val offset = toRawSize(pthread_cond_t_size)
+        fromRawPtr(elemRawPtr(base, offset))
+    }
+
+  @alwaysinline private def counterAtromic = new CAtomicInt(
+    fromRawPtr(classFieldRawPtr(this, "counter"))
+  )
+
+  @inline def priorityMapping(
+      threadPriority: Int,
+      schedulerPolicy: CInt
+  ): Int = {
+    val minPriority = sched_get_priority_min(schedulerPolicy)
+    val maxPriority = sched_get_priority_max(schedulerPolicy)
+    assert(
+      minPriority >= 0 && maxPriority >= 0,
+      "Failed to resolve priority range"
+    )
+    val priorityRange = maxPriority - minPriority
+    val javaPriorityRange = Thread.MAX_PRIORITY - Thread.MIN_PRIORITY
+    val priority =
+      (((threadPriority - Thread.MIN_PRIORITY) * priorityRange) / javaPriorityRange) + minPriority
+    assert(
+      priority >= minPriority && priority <= maxPriority,
+      "priority out of range"
+    )
+    priority
+  }
+
   private def toAbsoluteTime(
       abstime: Ptr[timespec],
       _timeout: Long,
@@ -242,10 +311,10 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
     }
   }
 
-  private final val MaxSeconds = 100000000
-  private final val MillisInSecond = 1000
-  private final val NanonsInSecond = 1000000000
-  private final val NanosInMillisecond = NanonsInSecond / MillisInSecond
+  @alwaysinline private def MillisInSecond = 1000
+  @alwaysinline private def NanosInMillisecond = 1000000
+  @alwaysinline private def NanonsInSecond = 1000000000
+  @alwaysinline private def MaxSeconds = 100000000
 
   private def unpackAbsoluteTime(
       abstime: Ptr[timespec],
@@ -267,117 +336,52 @@ private[java] case class PosixThread(handle: pthread_t, thread: Thread)
     assert(abstime.tv_sec <= maxSeconds, "tvSec")
     assert(abstime.tv_nsec <= NanonsInSecond, "tvNSec")
   }
-
-  @inline def tryPark(): Unit = ???
-  @inline def tryParkUntil(deadline: scala.Long): Unit = ???
-  @inline def tryParkNanos(nanos: scala.Long): Unit = ???
-  @inline def tryUnpark(): Unit = ???
-
-  @inline
-  def withParkingLock(fn: => Unit): Unit = ???
 }
 
-private[lang] object PosixThread {
+private[lang] object PosixThread extends NativeThread.Companion {
   import NativeThread._
-  @extern
-  @link("pthread")
-  object GCExt {
-    def GC_pthread_create(
-        thread: Ptr[pthread_t],
-        attr: Ptr[pthread_attr_t],
-        startroutine: ThreadStartRoutine,
-        args: PtrAny
-    ): CInt = extern
-    def GC_pthread_join(thread: pthread_t, value_ptr: Ptr[Ptr[Byte]]): CInt =
-      extern
-    def GC_pthread_detach(thread: pthread_t): CInt = extern
-    def GC_pthread_cancel(thread: pthread_t): CInt = extern
-    def GC_pthread_exit(retVal: Ptr[Byte]): Unit = extern
-  }
+  type Impl = PosixThread
 
-  private final val LockOffset = 0
-  private final val ConditionsOffset = LockOffset + pthread_mutex_t_size.toInt
+  private[this] val _state = new scala.Array[scala.Byte](CompanionStateSize)
+  assert(
+    0 == pthread_condattr_init(clockMonotionicCondAttr) &&
+      0 == pthread_condattr_setclock(
+        clockMonotionicCondAttr,
+        CLOCK_MONOTONIC
+      ) &&
+      0 == pthread_mutexattr_init(mutexAttr) &&
+      0 == pthread_mutexattr_settype(mutexAttr, PTHREAD_MUTEX_NORMAL),
+    "PosixThread$, attrs init"
+  )
 
-  private final val ConditionRelativeIdx = 0
-  private final val ConditionAbsoluteIdx = 1
+  @alwaysinline def clockMonotionicCondAttr = _state
+    .at(ClockMonotionicCondAttrOffset)
+    .asInstanceOf[Ptr[pthread_condattr_t]]
 
-  private final val InnerBufferSize =
+  @alwaysinline def mutexAttr =
+    _state
+      .at(MutexAttrOffset)
+      .asInstanceOf[Ptr[pthread_mutexattr_t]]
+
+  @alwaysinline private def UnsetEvent = -1
+
+  @alwaysinline def create(thread: Thread, stackSize: Long): PosixThread =
+    new PosixThread(thread, stackSize)
+
+  @alwaysinline def yieldThread(): Unit = sched_yield()
+
+  // PosixThread class state
+  @alwaysinline private def LockOffset = 0
+  @alwaysinline private def ConditionsOffset = pthread_mutex_t_size.toInt
+  @alwaysinline private def ConditionRelativeIdx = 0
+  @alwaysinline private def ConditionAbsoluteIdx = 1
+  private def StateSize =
     (pthread_mutex_t_size + pthread_cond_t_size * 2.toUInt).toInt
 
-  private lazy val clockMonotonicCondAttr = {
-    val condAttr = malloc(sizeof[pthread_condattr_t])
-      .asInstanceOf[Ptr[pthread_condattr_t]]
-    assert(condAttr != null)
-    assert(0 == pthread_condattr_init(condAttr))
-    assert(0 == pthread_condattr_setclock(condAttr, CLOCK_MONOTONIC))
-    condAttr
-  }
+  // PosixThread companion class state
+  @alwaysinline private def ClockMonotionicCondAttrOffset = 0
+  @alwaysinline private def MutexAttrOffset = pthread_condattr_t_size.toInt
+  def CompanionStateSize =
+    (pthread_condattr_t_size + pthread_mutexattr_t_size).toInt
 
-  private lazy val mutexAttr = {
-    val attr = malloc(sizeof[pthread_mutexattr_t])
-      .asInstanceOf[Ptr[pthread_mutexattr_t]]
-    assert(0 == pthread_mutexattr_init(attr))
-    assert(0 == pthread_mutexattr_settype(attr, PTHREAD_MUTEX_NORMAL))
-    attr
-  }
-  def apply(thread: Thread): PosixThread = {
-    import GCExt._
-    val id = stackalloc[pthread_t]()
-
-    GC_pthread_create(
-      thread = id,
-      attr = null: Ptr[pthread_attr_t],
-      startroutine = NativeThread.threadRoutine,
-      args = NativeThread.threadRoutineArgs(thread)
-    ) match {
-      case 0 => ()
-      case status =>
-        throw new RuntimeException(
-          "Failed to create new thread, pthread error " + status
-        )
-    }
-    new PosixThread(!id, thread)
-  }
-
-  private val UnsetEvent = -1
-
-  def sleep(_millis: scala.Long, nanos: scala.Int): Unit = {
-    val nativeThread =
-      Thread.currentThread().nativeThread.asInstanceOf[PosixThread]
-
-    var millis = if (nanos > 0) _millis + 1 else _millis
-    if (millis <= 0) return
-    val deadline = System.currentTimeMillis() + millis
-
-    import scala.scalanative.posix.pollOps._
-    import scala.scalanative.posix.pollEvents._
-
-    val sleepEvent = eventfd(0.toUInt, 0)
-    assert(sleepEvent != -1, "sleep event")
-    nativeThread.sleepEvent = sleepEvent
-
-    val fds = stackalloc[struct_pollfd]()
-    fds.fd = sleepEvent
-    fds.events = POLLIN
-
-    try
-      while (true) {
-        if (Thread.interrupted())
-          throw new InterruptedException("Sleep was interrupted")
-        if (millis <= 0) return ()
-
-        val status = nativeThread.withGCSafeZone {
-          poll(fds, 1.toUInt, (millis min Int.MaxValue).toInt)
-        }
-        assert(
-          status >= 0 || errno.errno == EINTR,
-          s"sleep, errno=${errno.errno}"
-        )
-
-        millis = deadline - System.currentTimeMillis()
-      }
-    finally nativeThread.sleepEvent = UnsetEvent
-  }
-
-  def yieldThread(): Unit = sched_yield()
 }

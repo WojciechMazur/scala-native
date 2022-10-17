@@ -16,7 +16,9 @@ import scala.scalanative.meta.LinktimeInfo.{is32BitPlatform => is32bit}
  *  @param lockWordRef
  *    Pointer to LockWord, internal field of every object header
  */
-@inline final class BasicMonitor(val lockWordRef: RawPtr) extends AnyVal {
+@inline
+private[runtime] final class BasicMonitor(val lockWordRef: RawPtr)
+    extends AnyVal {
   import BasicMonitor._
   type ThreadId = RawPtr
 
@@ -44,6 +46,8 @@ import scala.scalanative.meta.LinktimeInfo.{is32BitPlatform => is32bit}
     val threadId = getThreadId(thread)
 
     if (!tryLock(threadId)) {
+      import NativeThread._
+      currentNativeThread.state = State.WaitingOnMonitorEnter
       val current = lockWord
       if (current.isInflated) lockWord.getObjectMonitor.enter(thread)
       else {
@@ -54,6 +58,7 @@ import scala.scalanative.meta.LinktimeInfo.{is32BitPlatform => is32bit}
           } else inflate(thread)
         } else lockAndInflate(thread, threadId)
       }
+      currentNativeThread.state = State.Running
     }
   }
 
@@ -62,7 +67,6 @@ import scala.scalanative.meta.LinktimeInfo.{is32BitPlatform => is32bit}
     val threadId = getThreadId(thread)
     val current = lockWord
     val lockedOnce = lockedWithThreadId(threadId)
-
     if (current.isInflated)
       current.getObjectMonitor.exit(thread)
     else if (current == lockedOnce)
@@ -71,7 +75,17 @@ import scala.scalanative.meta.LinktimeInfo.{is32BitPlatform => is32bit}
         castIntToRawPtr(0),
         memory_order_release
       )
-    else storeRawPtr(lockWordRef, current.withDecresedRecursion)
+    else if (current.isUnlocked)
+      // can happen only in main-thread init
+      assert(thread.getId() == 0, "exiting unlocked monitor")
+    else
+      storeRawPtr(lockWordRef, current.withDecresedRecursion)
+  }
+
+  @alwaysinline def isLockedBy(thread: Thread): Boolean = {
+    val current = lockWord
+    if (current.isInflated) current.getObjectMonitor.isLockedBy(thread)
+    else current.threadId == getThreadId(thread)
   }
 
   @alwaysinline private def lockWord: LockWord = loadRawPtr(lockWordRef)
@@ -95,7 +109,6 @@ import scala.scalanative.meta.LinktimeInfo.{is32BitPlatform => is32bit}
 
   @inline
   private def tryLock(threadId: ThreadId) = {
-    // val _ = lockWordRef.longValue.toBinaryString
     val expected = stackalloc(SizeOfPtr)
     // ThreadId set to 0, recursion set to 0
     storeRawSize(expected, castIntToRawSize(0))

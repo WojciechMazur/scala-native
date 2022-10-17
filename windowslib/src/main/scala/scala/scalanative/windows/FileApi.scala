@@ -47,7 +47,7 @@ object FileApi {
       filename: CString,
       desiredAccess: DWord,
       shareMode: DWord,
-      securityAttributes: SecurityAttributes,
+      securityAttributes: Ptr[SecurityAttributes],
       creationDisposition: DWord,
       flagsAndAttributes: UInt,
       templateFile: Handle
@@ -57,7 +57,7 @@ object FileApi {
       filename: CWString,
       desiredAccess: DWord,
       shareMode: DWord,
-      securityAttributes: SecurityAttributes,
+      securityAttributes: Ptr[SecurityAttributes],
       creationDisposition: DWord,
       flagsAndAttributes: UInt,
       templateFile: Handle

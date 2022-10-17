@@ -1481,7 +1481,7 @@ object Lower {
     Type.Function(Nil, Type.Unit)
   )
   val GcSwitchMutatorState = Val.Global(
-    extern("scalanative_gc_switch_mutator_thread_state"),
+    extern("scalanative_switch_mutator_thread_state"),
     Type.Function(Seq(Type.Int), Type.Int)
   )
 

@@ -2,6 +2,7 @@ package scala.scalanative
 package runtime
 
 import scalanative.unsafe._
+import scala.scalanative.annotation.alwaysinline
 
 /** The Boehm GC conservative garbage collector
  *
@@ -51,10 +52,58 @@ object GC {
   @name("scalanative_register_weak_reference_handler")
   def registerWeakReferenceHandler(handler: Ptr[Byte]): Unit = extern
 
+  /*  Multihreading awareness for GC Every implementation of GC supported in
+   *  ScalaNative needs to register a given thread The main thread is
+   *  automatically registered. Every additional thread needs to explicitlly
+   *  notify GC about it's creation and termination. For that purpuse we follow
+   *  the Boehm GC convention for overloading the pthread_create/CreateThread
+   *  functions respectively for POSIX and Windows. Respectivelly after the last
+   *  object allocation and before termination the thread needs to call
+   *  pthread_exit/ExitThread to unregister itself from the GC.
+   */
+  private type pthread_t = CUnsignedLongLong
+  private type pthread_attr_t = CUnsignedLongLong
+  private type Handle = Ptr[Byte]
+  private type DWord = CUnsignedInt
+  private type SecurityAttributes = CStruct3[DWord, Ptr[Byte], Boolean]
+  type PtrAny = Ptr[Byte]
+  type ThreadRoutineArg = PtrAny
+  type ThreadStartRoutine = CFuncPtr1[PtrAny, PtrAny]
+
+  @name("scalanative_pthread_create")
+  def pthread_create(
+      thread: Ptr[pthread_t],
+      attr: Ptr[pthread_attr_t],
+      startroutine: ThreadStartRoutine,
+      args: PtrAny
+  ): CInt = extern
+  @name("scalanative_pthread_exit")
+  def pthread_exit(retVal: Ptr[Byte]): Unit = extern
+
+  @name("scalanative_CreateThread")
+  def CreateThread(
+      threadAttributes: Ptr[SecurityAttributes],
+      stackSize: CSize,
+      startRoutine: ThreadStartRoutine,
+      routineArg: PtrAny,
+      creationFlags: DWord,
+      threadId: Ptr[DWord]
+  ): Handle = extern
+
+  @name("scalanative_ExitThread")
+  def ExitThread(exitCode: DWord): Unit = extern
+
   @extern
   object MutatorThread {
+    object Ext {
+      @alwaysinline def withGCSafeZone[T](fn: => T) = {
+        val prev = switchState(State.InSafeZone)
+        try fn
+        finally switchState(State.Running)
+      }
+    }
     type State = Int
-    @name("scalanative_gc_switch_mutator_thread_state")
+    @name("scalanative_switch_mutator_thread_state")
     def switchState(newState: State): State = extern
 
     object State {

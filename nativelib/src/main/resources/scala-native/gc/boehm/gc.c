@@ -8,11 +8,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#if defined(_WIN32) || defined(WIN32)
-// Boehm on Windows needs User32.lib linked
-#pragma comment(lib, "User32.lib")
-#endif
-
 // At the moment we rely on the conservative
 // mode of Boehm GC as our garbage collector.
 
@@ -47,6 +42,24 @@ void scalanative_collect() { GC_gcollect(); }
 
 void scalanative_register_weak_reference_handler(void *handler) {}
 
-INLINE void *scalanative_gc_switch_mutator_thread_state(void *newState) {
+void *scalanative_switch_mutator_thread_state(void *newState) {
     return newState;
 }
+#ifdef _WIN32
+Handle scalanative_CreateThread(SecurityAttributes *threadAttributes,
+                                UWORD stackSize, ThreadStartRoutine routine,
+                                RoutineArgs args, DWORD, creationFlags,
+                                DWORD *threadId) {
+    return GC_CreateThread(threadAttributes, stackSize, routine, args,
+                           creationFlags, threadId)
+}
+void scalanative_ExitThread(DWORD exitCode) { GC_ExitThread(exitCode); }
+#else
+int scalanative_pthread_create(pthread_t *thread, pthread_attr_t *attr,
+                               ThreadStartRoutine routine, RoutineArgs args) {
+    return GC_pthread_create(thread, attr, routine, args);
+}
+void scalanative_pthread_exit(void *returnValue) {
+    GC_pthread_exit(returnValue);
+}
+#endif

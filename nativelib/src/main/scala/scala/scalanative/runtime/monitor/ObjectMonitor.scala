@@ -12,7 +12,7 @@ import java.util.concurrent.locks.LockSupport
 /** Heavy weight monitor created only upon detection of access from multiple
  *  threads is inflated in ObjectMonitor
  */
-private[scalanative] class ObjectMonitor() {
+private[monitor] class ObjectMonitor() {
   import ObjectMonitor._
 
   /** Thread currently locking ownership over given object */
@@ -82,6 +82,8 @@ private[scalanative] class ObjectMonitor() {
       )
     waitImpl(timeoutMillis * 1000000 + nanos)
   }
+
+  @alwaysinline def isLockedBy(thread: Thread): Boolean = ownerThread eq thread
 
   // enter slow-path
   private def enterMonitor(currentThread: Thread): Unit = {

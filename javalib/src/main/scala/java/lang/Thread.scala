@@ -183,6 +183,7 @@ class Thread private[lang] (
         "ScalaNative application linked with disabled multithreading support"
       )
     nativeThread = Thread.nativeCompanion.create(this, stackSize)
+    while (nativeThread.getState == New) Thread.onSpinWait()
     nativeThread.setPriority(priority)
   }
 
@@ -261,12 +262,12 @@ object Thread {
   }
 
   object State {
-    object NEW extends State("NEW", 0)
-    object RUNNABLE extends State("RUNNABLE", 1)
-    object BLOCKED extends State("BLOCKED", 2)
-    object WAITING extends State("WAITING", 3)
-    object TIMED_WAITING extends State("TIMED_WAITING", 4)
-    object TERMINATED extends State("TERMINATED", 5)
+    final val NEW = new State("NEW", 0)
+    final val RUNNABLE = new State("RUNNABLE", 1)
+    final val BLOCKED = new State("BLOCKED", 2)
+    final val WAITING = new State("WAITING", 3)
+    final val TIMED_WAITING = new State("TIMED_WAITING", 4)
+    final val TERMINATED = new State("TERMINATED", 5)
 
     private[this] val cachedValues =
       Array(NEW, RUNNABLE, BLOCKED, WAITING, TIMED_WAITING, TERMINATED)
@@ -278,7 +279,7 @@ object Thread {
     }
   }
 
-  final val MainThread = new Thread(
+  object MainThread extends Thread(
     group = new ThreadGroup(ThreadGroup.System, "main"),
     target = null: Runnable,
     stackSize = 0L,
@@ -296,15 +297,6 @@ object Thread {
   final val MAX_PRIORITY: Int = 10
   final val MIN_PRIORITY: Int = 1
   final val NORM_PRIORITY: Int = 5
-
-  // Counter used to generate thread's ID, 0 resevered for main
-  final protected var threadId = 1L
-  private def getNextThreadId(): scala.Long = {
-    val threadIdRef = new atomic.CAtomicLongLong(
-      fromRawPtr(classFieldRawPtr(this, "threadId"))
-    )
-    threadIdRef.fetchAdd(1L)
-  }
 
   def activeCount(): Int = currentThread()
     .getThreadGroup()
@@ -363,4 +355,14 @@ object Thread {
   }
 
   @alwaysinline def `yield`(): Unit = nativeCompanion.yieldThread()
+
+  // Counter used to generate thread's ID, 0 resevered for main
+  final protected var threadId = 1L
+  private def getNextThreadId(): scala.Long = {
+    val threadIdRef = new atomic.CAtomicLongLong(
+      fromRawPtr(classFieldRawPtr(this, "threadId"))
+    )
+    threadIdRef.fetchAdd(1L)
+  }
+
 }

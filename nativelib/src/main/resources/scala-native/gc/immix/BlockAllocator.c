@@ -3,8 +3,9 @@
 #include "utils/MathUtils.h"
 #include <stdio.h>
 #include "ThreadUtil.h"
+#include <stdatomic.h>
 
-mutex_t allocationLock;
+static mutex_t allocationLock;
 
 void BlockAllocator_addFreeBlocksInternal(BlockAllocator *blockAllocator,
                                           BlockMeta *block, uint32_t count);
@@ -22,6 +23,15 @@ void BlockAllocator_Init(BlockAllocator *blockAllocator, word_t *blockMetaStart,
     mutex_init(&allocationLock);
 }
 
+inline static void BlockAllocator_acquire() {
+    mutex_lock(&allocationLock);
+    atomic_thread_fence(memory_order_acquire);
+}
+inline static void BlockAllocator_release() {
+    atomic_thread_fence(memory_order_release);
+    mutex_unlock(&allocationLock);
+}
+
 inline static int BlockAllocator_sizeToLinkedListIndex(uint32_t size) {
     int result = MathUtils_Log2Floor((size_t)size);
     assert(result >= 0);
@@ -31,21 +41,18 @@ inline static int BlockAllocator_sizeToLinkedListIndex(uint32_t size) {
 
 inline static BlockMeta *
 BlockAllocator_pollSuperblock(BlockAllocator *blockAllocator, int first) {
-    mutex_lock(&allocationLock);
-
     int maxNonEmptyIndex = blockAllocator->maxNonEmptyIndex;
     for (int i = first; i <= maxNonEmptyIndex; i++) {
         BlockMeta *superblock =
             BlockList_Poll(&blockAllocator->freeSuperblocks[i]);
         if (superblock != NULL) {
             assert(BlockMeta_SuperblockSize(superblock) > 0);
-            mutex_unlock(&allocationLock);
+            BlockMeta_AssertOwnerEquals(superblock, NULL);
             return superblock;
         } else {
             blockAllocator->minNonEmptyIndex = i + 1;
         }
     }
-    mutex_unlock(&allocationLock);
     return NULL;
 }
 
@@ -58,6 +65,7 @@ BlockAllocator_getFreeBlockSlow(BlockAllocator *blockAllocator) {
         blockAllocator->smallestSuperblock.limit =
             superblock + BlockMeta_SuperblockSize(superblock);
         // it might be safe to remove this
+        BlockMeta_AssertOwnerEquals(superblock, NULL);
         BlockMeta_SetSuperblockSize(superblock, 0);
         BlockMeta_SetFlag(superblock, block_simple);
         return superblock;
@@ -67,27 +75,28 @@ BlockAllocator_getFreeBlockSlow(BlockAllocator *blockAllocator) {
 }
 
 INLINE BlockMeta *BlockAllocator_GetFreeBlock(BlockAllocator *blockAllocator) {
-    mutex_lock(&allocationLock);
+    BlockMeta *block;
+    BlockAllocator_acquire();
     if (blockAllocator->smallestSuperblock.cursor >=
         blockAllocator->smallestSuperblock.limit) {
-        BlockMeta *ret = BlockAllocator_getFreeBlockSlow(blockAllocator);
-        mutex_unlock(&allocationLock);
-        assert(ret == NULL || ret->owner == NULL);
-        return ret;
+        block = BlockAllocator_getFreeBlockSlow(blockAllocator);
+    } else {
+        block = blockAllocator->smallestSuperblock.cursor;
+        BlockMeta_SetFlag(block, block_simple);
+        blockAllocator->smallestSuperblock.cursor++;
     }
-    BlockMeta *block = blockAllocator->smallestSuperblock.cursor;
-    BlockMeta_SetFlag(block, block_simple);
-    blockAllocator->smallestSuperblock.cursor++;
-    mutex_unlock(&allocationLock);
+    BlockAllocator_release();
+    if (block != NULL) {
+        BlockMeta_AssertOwnerEquals(block, NULL);
+    }
 
     // not decrementing freeBlockCount, because it is only used after sweep
-    assert(block == NULL || block->owner == NULL);
     return block;
 }
 
 BlockMeta *BlockAllocator_GetFreeSuperblock(BlockAllocator *blockAllocator,
                                             uint32_t size) {
-    mutex_lock(&allocationLock);
+    BlockAllocator_acquire();
     BlockMeta *superblock;
     if (blockAllocator->smallestSuperblock.limit -
             blockAllocator->smallestSuperblock.cursor >=
@@ -102,9 +111,10 @@ BlockMeta *BlockAllocator_GetFreeSuperblock(BlockAllocator *blockAllocator,
         int first = (minNonEmptyIndex > target) ? minNonEmptyIndex : target;
         superblock = BlockAllocator_pollSuperblock(blockAllocator, first);
         if (superblock == NULL) {
-            mutex_unlock(&allocationLock);
+            BlockAllocator_release();
             return NULL;
         }
+        BlockMeta_AssertOwnerEquals(superblock, NULL);
         if (BlockMeta_SuperblockSize(superblock) > size) {
             BlockMeta *leftover = superblock + size;
             BlockAllocator_addFreeBlocksInternal(
@@ -112,6 +122,7 @@ BlockMeta *BlockAllocator_GetFreeSuperblock(BlockAllocator *blockAllocator,
                 BlockMeta_SuperblockSize(superblock) - size);
         }
     }
+    BlockAllocator_release();
 
     BlockMeta_SetFlag(superblock, block_superblock_start);
     BlockMeta_SetSuperblockSize(superblock, size);
@@ -119,7 +130,6 @@ BlockMeta *BlockAllocator_GetFreeSuperblock(BlockAllocator *blockAllocator,
     for (BlockMeta *current = superblock + 1; current < limit; current++) {
         BlockMeta_SetFlag(current, block_superblock_middle);
     }
-    mutex_unlock(&allocationLock);
 
     // not decrementing freeBlockCount, because it is only used after sweep
     return superblock;
@@ -137,6 +147,7 @@ BlockAllocator_addFreeBlocksInternal0(BlockAllocator *blockAllocator,
     }
     BlockMeta *limit = superblock + count;
     for (BlockMeta *current = superblock; current < limit; current++) {
+        BlockMeta_SetOwner(current, NULL);
         BlockMeta_SetFlag(current, block_free);
     }
     BlockMeta_SetSuperblockSize(superblock, count);
@@ -149,7 +160,6 @@ void BlockAllocator_addFreeBlocksInternal(BlockAllocator *blockAllocator,
     uint32_t remaining_count = count;
     uint32_t powerOf2 = 1;
     BlockMeta *current = superblock;
-    mutex_lock(&allocationLock);
     // splits the superblock into smaller superblocks that are a powers of 2
     while (remaining_count > 0) {
         if ((powerOf2 & remaining_count) > 0) {
@@ -160,13 +170,13 @@ void BlockAllocator_addFreeBlocksInternal(BlockAllocator *blockAllocator,
         }
         powerOf2 <<= 1;
     }
-    mutex_unlock(&allocationLock);
 }
 
 void BlockAllocator_AddFreeBlocks(BlockAllocator *blockAllocator,
                                   BlockMeta *block, uint32_t count) {
+    // Executed only on sweep phase during StopTheWorld, no need for
+    // synchronization
     assert(count > 0);
-    mutex_lock(&allocationLock);
     if (blockAllocator->coalescingSuperblock.first == NULL) {
         blockAllocator->coalescingSuperblock.first = block;
         blockAllocator->coalescingSuperblock.limit = block + count;
@@ -181,11 +191,10 @@ void BlockAllocator_AddFreeBlocks(BlockAllocator *blockAllocator,
         blockAllocator->coalescingSuperblock.limit = block + count;
     }
     blockAllocator->freeBlockCount += count;
-    mutex_unlock(&allocationLock);
 }
 
 void BlockAllocator_SweepDone(BlockAllocator *blockAllocator) {
-    mutex_lock(&allocationLock);
+    // Executed during StopTheWorld, no need for synchronization
     if (blockAllocator->coalescingSuperblock.first != NULL) {
         uint32_t size = (uint32_t)(blockAllocator->coalescingSuperblock.limit -
                                    blockAllocator->coalescingSuperblock.first);
@@ -194,11 +203,10 @@ void BlockAllocator_SweepDone(BlockAllocator *blockAllocator) {
         blockAllocator->coalescingSuperblock.first = NULL;
         blockAllocator->coalescingSuperblock.limit = NULL;
     }
-    mutex_unlock(&allocationLock);
 }
 
 void BlockAllocator_Clear(BlockAllocator *blockAllocator) {
-    mutex_lock(&allocationLock);
+    // Executed during StopTheWorld, no need for synchronization
 
     for (int i = 0; i < SUPERBLOCK_LIST_SIZE; i++) {
         BlockList_Clear(&blockAllocator->freeSuperblocks[i]);
@@ -210,5 +218,4 @@ void BlockAllocator_Clear(BlockAllocator *blockAllocator) {
     blockAllocator->coalescingSuperblock.limit = NULL;
     blockAllocator->minNonEmptyIndex = SUPERBLOCK_LIST_SIZE;
     blockAllocator->maxNonEmptyIndex = -1;
-    mutex_unlock(&allocationLock);
 }

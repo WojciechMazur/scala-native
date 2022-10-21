@@ -1,5 +1,6 @@
 #include <threads.h>
 #include <pthread.h>
+#include <ScalaNativeGC.h>
 #include "GCTypes.h"
 #include "Allocator.h"
 #include "LargeAllocator.h"
@@ -11,25 +12,15 @@
 #ifndef MUTATOR_THREAD_H
 #define MUTATOR_THREAD_H
 
-typedef enum MutatorThreadState {
-    MutatorThreadState_Working = 0,
-    // Thread is performing of waiting for end of garbage collection
-    MutatorThreadState_Synchronized = 1,
-    // Thread is inside unmanaged zone and can run alongside GC
-    MutatorThreadState_InSafeZone = 2
-} MutatorThreadState;
-// _StaticAssert(sizeof(MutatorThreadState) == 1, "Expecting enum to take 1
-// byte")
-
-thread_local static safepoint_t *scalanative_gc_safepoint;
-
 typedef struct {
     volatile MutatorThreadState state;
-    word_t **stackTop;
+    volatile word_t **stackTop;
+    atomic_bool isWaiting;
+    // immutable fields
     word_t **stackBottom;
-    safepoint_t *safepoint;
     Allocator allocator;
     LargeAllocator largeAllocator;
+    pthread_t thread;
 } MutatorThread;
 
 typedef struct MutatorThreadNode {
@@ -41,20 +32,8 @@ typedef MutatorThreadNode *MutatorThreads;
 
 void MutatorThread_init(word_t **stackBottom);
 void MutatorThread_delete(MutatorThread *self);
-
-INLINE static MutatorThreadState
-MutatorThread_switchState(MutatorThread *self, MutatorThreadState newState) {
-    if (newState == MutatorThreadState_InSafeZone) {
-        // Dumps registers into 'regs' which is on stack
-        jmp_buf regs;
-        setjmp(regs);
-        word_t *dummy;
-        self->stackTop = &dummy;
-    }
-    MutatorThreadState prev = self->state;
-    self->state = newState;
-    return prev;
-}
+void MutatorThread_switchState(MutatorThread *self,
+                               MutatorThreadState newState);
 
 void MutatorThreads_init();
 void MutatorThreads_add(MutatorThread *node);

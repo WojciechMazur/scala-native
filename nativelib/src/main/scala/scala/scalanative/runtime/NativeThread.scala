@@ -2,7 +2,6 @@ package scala.scalanative.runtime
 
 import scala.scalanative.runtime.Intrinsics._
 import scala.scalanative.runtime.GC.{
-  MutatorThread,
   ThreadRoutineArg,
   ThreadStartRoutine,
   PtrAny
@@ -78,6 +77,8 @@ object NativeThread {
 
   @alwaysinline def currentThread: Thread = TLS.currentThread
   @alwaysinline def currentNativeThread: NativeThread = TLS.currentNativeThread
+
+  @alwaysinline def onSpinWait(): Unit = libc.onSpinWait()
 
   @inline def holdsLock(obj: Object) =
     getMonitor(obj).isLockedBy(currentThread)

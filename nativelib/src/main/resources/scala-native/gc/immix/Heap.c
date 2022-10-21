@@ -13,10 +13,10 @@
 #include "MemoryMap.h"
 #include <time.h>
 #include "WeakRefStack.h"
-#include "MultithreadingSupport.h"
+#include "Synchronizer.h"
 
-void Heap_exitWithOutOfMemory() {
-    fprintf(stderr, "Out of heap space\n");
+void Heap_exitWithOutOfMemory(const char *details) {
+    fprintf(stderr, "Out of heap space %s\n", details);
     StackTrace_PrintStackTrace();
     exit(1);
 }
@@ -136,7 +136,7 @@ void Heap_Init(Heap *heap, size_t minHeapSize, size_t maxHeapSize) {
         // demand when growing the heap.
         memoryCommit(heapStart, minHeapSize);
     if (!commitStatus) {
-        Heap_exitWithOutOfMemory();
+        Heap_exitWithOutOfMemory("commit memmory");
     }
 #endif // _WIN32
 
@@ -194,6 +194,7 @@ NOINLINE word_t *Heap_allocSmallSlow(Heap *heap, uint32_t size) {
     if (object != NULL)
         goto done;
 
+    // for (int i = 0; i < 3; i++) {
     Heap_Collect(heap, &stack);
     object = (Object *)Allocator_Alloc(allocator, size);
 
@@ -204,10 +205,11 @@ NOINLINE word_t *Heap_allocSmallSlow(Heap *heap, uint32_t size) {
     // because it is no larger than 8K while the block is 32K.
     Heap_Grow(heap, 1);
     object = (Object *)Allocator_Alloc(allocator, size);
+    // }
 
 done:
-    assert(Heap_IsWordInHeap(heap, (word_t *)object));
     assert(object != NULL);
+    assert(Heap_IsWordInHeap(heap, (word_t *)object));
     ObjectMeta *objectMeta = Bytemap_Get(allocator->bytemap, (word_t *)object);
     ObjectMeta_SetAllocated(objectMeta);
     return (word_t *)object;
@@ -251,53 +253,42 @@ word_t *Heap_Alloc(Heap *heap, uint32_t objectSize) {
     }
 }
 
-void onAlreadyCollect() {
-    // printf("Already collecting, skip in %lu\n", pthread_self());
-}
-
 void Heap_Collect(Heap *heap, Stack *stack) {
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
-    bool alreadyCollecting = scalanative_gc_onCollectStart();
-    if (!alreadyCollecting) {
+    if (!Synchronizer_acquire())
+        return;
 #endif
-        uint64_t start_ns, nullify_start_ns, sweep_start_ns, end_ns;
-        Stats *stats = heap->stats;
+    uint64_t start_ns, nullify_start_ns, sweep_start_ns, end_ns;
+    Stats *stats = heap->stats;
 #ifdef DEBUG_PRINT
-        printf("\nCollect\n");
-        fflush(stdout);
+    printf("\nCollect\n");
+    fflush(stdout);
 #endif
-        if (stats != NULL) {
-            start_ns = scalanative_nano_time();
-        }
-        Marker_MarkRoots(heap, stack);
-        if (stats != NULL) {
-            nullify_start_ns = scalanative_nano_time();
-        }
-        WeakRefStack_Nullify();
-        if (stats != NULL) {
-            sweep_start_ns = scalanative_nano_time();
-        }
-        Heap_Recycle(heap);
-        if (stats != NULL) {
-            end_ns = scalanative_nano_time();
-            Stats_RecordCollection(stats, start_ns, nullify_start_ns,
-                                   sweep_start_ns, end_ns);
-        }
-#ifdef SCALANATIVE_MULTITHREADING_ENABLED
-        // Skip calling WeakRef handlers on thread which is being initialized
-        // If the current block is set to null it means it failed to allocate
-        // memory for allocator and forced GC
-        if (currentMutatorThread->allocator.block != NULL) {
-            Safepoint_disarm(currentMutatorThread->safepoint);
-            WeakRefStack_CallHandlers();
-        }
-        scalanative_gc_onCollectEnd();
-        // printf("End collect\n\n");
-        // fflush(stdout);
-    } else {
-        onAlreadyCollect();
-        scalanative_gc_waitUntilCollected();
+    if (stats)
+        start_ns = scalanative_nano_time();
+    Marker_MarkRoots(heap, stack);
+    if (stats)
+        nullify_start_ns = scalanative_nano_time();
+    WeakRefStack_Nullify();
+    if (stats)
+        sweep_start_ns = scalanative_nano_time();
+    Heap_Recycle(heap);
+    if (stats) {
+        end_ns = scalanative_nano_time();
+        Stats_RecordCollection(stats, start_ns, nullify_start_ns,
+                               sweep_start_ns, end_ns);
     }
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
+    Synchronizer_release();
+#endif
+    // Skip calling WeakRef handlers on thread which is being initialized
+    // If the current block is set to null it means it failed to allocate
+    // memory for allocator and forced GC
+    if (currentMutatorThread->allocator.block)
+        WeakRefStack_CallHandlers();
+#ifdef DEBUG_PRINT
+    printf("End collect\n\n");
+    fflush(stdout);
 #endif
 }
 
@@ -344,8 +335,13 @@ void Heap_Recycle(Heap *heap) {
             Block_Recycle(current, currentBlockStart, lineMetas);
         } else if (BlockMeta_IsSuperblockStart(current)) {
             size = BlockMeta_SuperblockSize(current);
-            LargeAllocator_Sweep((LargeAllocator *)current->owner, current,
-                                 currentBlockStart);
+            LargeAllocator *allocator;
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
+            allocator = (LargeAllocator *)BlockMeta_GetOwner(current);
+#else
+            allocator = &currentMutatorThread->largeAllocator;
+#endif
+            LargeAllocator_Sweep(allocator, current, currentBlockStart);
         } else {
             assert(BlockMeta_IsFree(current));
             BlockAllocator_AddFreeBlocks(&blockAllocator, current, 1);
@@ -377,7 +373,7 @@ void Heap_Recycle(Heap *heap) {
     MutatorThreads_foreach(mutatorThreads, node) {
         MutatorThread *thread = node->value;
         if (!Allocator_CanInitCursors(&thread->allocator)) {
-            Heap_exitWithOutOfMemory();
+            Heap_exitWithOutOfMemory("re-init cursors");
         }
         Allocator_InitCursors(&thread->allocator);
     }
@@ -385,7 +381,7 @@ void Heap_Recycle(Heap *heap) {
 
 void Heap_Grow(Heap *heap, uint32_t incrementInBlocks) {
     if (!Heap_isGrowingPossible(heap, incrementInBlocks)) {
-        Heap_exitWithOutOfMemory();
+        Heap_exitWithOutOfMemory("grow heap");
     }
     size_t incrementInBytes = incrementInBlocks * SPACE_USED_PER_BLOCK;
 
@@ -411,7 +407,7 @@ void Heap_Grow(Heap *heap, uint32_t incrementInBlocks) {
     // other processes. Also when using UNLIMITED heap size it might try to
     // commit more memory than is available.
     if (!memoryCommit(heapEnd, incrementInBytes)) {
-        Heap_exitWithOutOfMemory();
+        Heap_exitWithOutOfMemory("commit memory");
     };
 #endif // WIN32
 

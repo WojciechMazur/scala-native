@@ -10,7 +10,6 @@ import scala.scalanative.unsigned._
 import scala.scalanative.unsafe.CFuncPtr1.fromScalaFunction
 import scala.scalanative.runtime._
 import scala.scalanative.runtime.Intrinsics.{elemRawPtr, classFieldRawPtr}
-import scala.scalanative.runtime.GC.MutatorThread.Ext.withGCSafeZone
 import scala.scalanative.runtime.GC
 
 import scala.scalanative.posix
@@ -85,6 +84,7 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
           args = NativeThread.threadRoutineArgs(this)
         ) match {
           case 0 =>
+            state = State.Running
             !id
           case status =>
             throw new RuntimeException(
@@ -146,7 +146,7 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
         conditionIdx = 0
         state = NativeThread.State.ParkedWaiting
         val cond = condition(conditionIdx)
-        val status = withGCSafeZone(pthread_cond_wait(cond, lock))
+        val status = pthread_cond_wait(cond, lock)
         assert(
           status == 0 ||
             (scalanative.runtime.Platform.isMac() && status == ETIMEDOUT),
@@ -157,9 +157,8 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
         conditionIdx =
           if (isAbsolute) ConditionAbsoluteIdx else ConditionRelativeIdx
         state = NativeThread.State.ParkedWaitingTimed
-        val status = withGCSafeZone {
+        val status =
           pthread_cond_timedwait(condition(conditionIdx), lock, absTime)
-        }
         assert(status == 0 || status == ETIMEDOUT, "park, timed-wait")
       }
 
@@ -174,7 +173,7 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
   }
 
   override def unpark(): Unit = {
-    assert(withGCSafeZone(pthread_mutex_lock(lock)) == 0, "unpark, lock")
+    assert(pthread_mutex_lock(lock) == 0, "unpark, lock")
     val s = counter
     counter = 1
     val index = conditionIdx
@@ -209,9 +208,7 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
       try
         while (millis > 0) {
           state = State.ParkedWaitingTimed
-          val status = withGCSafeZone {
-            poll(fds, 1.toUInt, (millis min Int.MaxValue).toInt)
-          }
+          val status = poll(fds, 1.toUInt, (millis min Int.MaxValue).toInt)
           state = State.Running
           assert(
             status >= 0 || errno.errno == EINTR,

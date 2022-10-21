@@ -13,14 +13,17 @@
 #include "Constants.h"
 #include "Settings.h"
 #include "WeakRefStack.h"
+
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
-#include "MultithreadingSupport.h"
+#include "Synchronizer.h"
 #endif
 #include "MutatorThread.h"
 #include <stdatomic.h>
 
-// TODO IT should probalby thread-local
+// Stack boottom of the main thread
 extern word_t **__stack_bottom;
+
+volatile safepoint_t *scalanative_gc_safepoint;
 
 void scalanative_collect();
 
@@ -31,7 +34,7 @@ NOINLINE void scalanative_init() {
     Stack_Init(&stack, INITIAL_STACK_SIZE);
     Stack_Init(&weakRefStack, INITIAL_STACK_SIZE);
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
-    scalanative_init_yieldpoint();
+    Synchronizer_init();
 #endif
     MutatorThreads_init();
     MutatorThread_init(__stack_bottom);
@@ -67,11 +70,55 @@ INLINE void *scalanative_alloc_atomic(void *info, size_t size) {
 
 INLINE void scalanative_collect() { Heap_Collect(&heap, &stack); }
 
-INLINE MutatorThreadState
-scalanative_gc_switch_mutator_thread_state(MutatorThreadState newState) {
-    return MutatorThread_switchState(currentMutatorThread, newState);
-}
-
 INLINE void scalanative_register_weak_reference_handler(void *handler) {
     WeakRefStack_SetHandler(handler);
+}
+
+typedef void *(*ThreadStartRoutine)(void *);
+typedef void *RoutineArgs;
+typedef struct {
+    ThreadStartRoutine fn;
+    RoutineArgs args;
+} WrappedFunctionCallArgs;
+
+static void ProxyThreadStartRoutine(void *args) {
+    WrappedFunctionCallArgs *wrapped = (WrappedFunctionCallArgs *)args;
+    ThreadStartRoutine originalFn = wrapped->fn;
+    RoutineArgs originalArgs = wrapped->args;
+    int stackBottom = 0;
+
+    MutatorThread_init((Field_t *)&stackBottom);
+    originalFn(originalArgs);
+    MutatorThread_delete(currentMutatorThread);
+    free(args);
+}
+
+#ifdef _WIN32
+Handle scalanative_CreateThread(SecurityAttributes *threadAttributes,
+                                UWORD stackSize, ThreadStartRoutine routine,
+                                RoutineArgs args, DWORD, creationFlags,
+                                DWORD *threadId) {
+    WrappedFunctionCallArgs *proxyArgs =
+        (WrappedFunctionCallArgs *)malloc(sizeof(WrappedFunctionCallArgs));
+    proxyArgs->fn = routine;
+    proxyArgs->args = args;
+    return CreateThread(threadAttributes, stackSize,
+                        (ThreadStartRoutine)&ProxyThreadStartRoutine,
+                        (RoutineArgs)proxyArgs, creationFlags, threadId)
+}
+#else
+int scalanative_pthread_create(pthread_t *thread, pthread_attr_t *attr,
+                               ThreadStartRoutine routine, RoutineArgs args) {
+    WrappedFunctionCallArgs *proxyArgs =
+        (WrappedFunctionCallArgs *)malloc(sizeof(WrappedFunctionCallArgs));
+    proxyArgs->fn = routine;
+    proxyArgs->args = args;
+    return pthread_create(thread, attr,
+                          (ThreadStartRoutine)&ProxyThreadStartRoutine,
+                          (RoutineArgs)proxyArgs);
+}
+#endif
+
+void scalanative_setMutatorThreadState(MutatorThreadState state) {
+    MutatorThread_switchState(currentMutatorThread, state);
 }

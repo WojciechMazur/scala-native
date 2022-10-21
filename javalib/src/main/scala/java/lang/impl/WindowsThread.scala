@@ -6,7 +6,6 @@ import scala.scalanative.unsigned._
 
 import scala.scalanative.runtime._
 import scala.scalanative.runtime.GC._
-import scala.scalanative.runtime.GC.MutatorThread.Ext.withGCSafeZone
 import scala.scalanative.runtime.Intrinsics._
 
 import scala.scalanative.windows._
@@ -50,8 +49,11 @@ private[java] class WindowsThread(val thread: Thread, stackSize: Long)
         creationFlags = 0.toUInt, // Default, run immediately,
         threadId = null
       )
+
   if (handle == null || parkEvent == null || sleepEvent == null)
     throw new RuntimeException(s"Failed to initialize new thread")
+  else
+    state = State.Running
 
   override protected def onTermination() = {
     super.onTermination()
@@ -119,9 +121,7 @@ private[java] class WindowsThread(val thread: Thread, stackSize: Long)
       if (thread.isInterrupted()) throw new InterruptedException()
       if (millisRemaining > 0L) {
         state = State.ParkedWaitingTimed
-        withGCSafeZone {
-          WaitForSingleObject(sleepEvent, millisRemaining.toUInt)
-        }
+        WaitForSingleObject(sleepEvent, millisRemaining.toUInt)
         state = State.Running
         val now = System.nanoTime()
         val deltaMillis = (now - startTime) / NanosInMillisecond

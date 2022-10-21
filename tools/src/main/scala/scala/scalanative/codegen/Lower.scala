@@ -127,6 +127,9 @@ object Lower {
           ()
       }
 
+      val Inst.Label(firstLabel, _) = insts.head: @unchecked
+      var lastLabelId = firstLabel.id
+
       insts.tail.foreach {
         case inst @ Inst.Let(n, op, unwind) =>
           ScopedVar.scoped(
@@ -139,7 +142,7 @@ object Lower {
           ScopedVar.scoped(
             unwindHandler := newUnwindHandler(unwind)(inst.pos)
           ) {
-            genPollGC(buf)(inst.pos)
+            genGCYieldpoint(buf)(inst.pos)
             genThrow(buf, v)(inst.pos)
           }
 
@@ -152,13 +155,22 @@ object Lower {
 
         case inst @ Inst.Ret(v) =>
           implicit val pos: Position = inst.pos
-          genPollGC(buf)
+          genGCYieldpoint(buf)
           buf += Inst.Ret(genVal(buf, v))
 
         case inst @ Inst.Jump(next) =>
           implicit val pos: Position = inst.pos
+          // Gen yieldpoint for backward jumps, eg. loops
+          next match {
+            case Next.Label(target, _) if (target.id <= lastLabelId) =>
+              genGCYieldpoint(buf)
+            case _ => ()
+          }
           buf += Inst.Jump(genNext(buf, next))
 
+        case inst @ Inst.Label(name, _) =>
+          lastLabelId = name.id
+          buf += inst
         case inst =>
           buf += inst
       }
@@ -508,44 +520,29 @@ object Lower {
       buf.let(n, Op.Comp(comp, ty, left, right), unwind)
     }
 
-    private def genPollGC(buf: Buffer)(implicit pos: Position): Unit = {
+    private def genGCYieldpoint(buf: Buffer, genUnwind: Boolean = true)(implicit
+        pos: Position
+    ): Unit = {
       import scalanative.build.GC._
       val multithreadingEnabled = meta.config.multithreadingSupport
-      val supportedGC = meta.config.gc match {
-        case Immix | Commix | None => true
-        case _                     => false
+      def supportedGC = meta.config.gc match {
+        case Immix => true
+        case _     => false
       }
       val shallGeneratate = multithreadingEnabled && supportedGC
       if (shallGeneratate) {
-        val handler = if (unwindHandler.isInitialized) unwind else Next.None
-        buf.call(Type.Function(Nil, Type.Unit), gcYieldpoint, Nil, handler)
+        val handler =
+          if (genUnwind && unwindHandler.isInitialized) unwind
+          else Next.None
+        buf.call(Type.Function(Nil, Type.Unit), GCYieldpoint, Nil, handler)
       }
     }
 
     def genCallOp(buf: Buffer, n: Local, op: Op.Call)(implicit
         pos: Position
     ): Unit = {
-      def switchGCSafeZone(value: Val) = buf.call(
-        Type.Function(Seq(Type.Int), Type.Int),
-        GcSwitchMutatorState,
-        Seq(value),
-        if (unwindHandler.isInitialized) unwind else Next.None
-      )
-
       val Op.Call(ty, ptr, args) = op
-      val previousGCState = ptr match {
-        case Val.Global(Global.Member(_, sig), _) if sig.isExtern =>
-          sig.mangle match {
-            case "C16scalanative_init"                      => None
-            case sym if sym.contains("scalanative_atomic_") => None
-            case sym if sym.contains("scalanative_alloc")   => None
-            case _ =>
-              Some(switchGCSafeZone(Val.Int(2)))
-            // None
-          }
-        case _ => None
-      }
-      buf.let(
+      def genCall() = buf.let(
         n,
         Op.Call(
           ty = ty,
@@ -554,9 +551,35 @@ object Lower {
         ),
         unwind
       )
-      previousGCState.foreach { prev =>
-        genPollGC(buf)
-        switchGCSafeZone(Val.Int(0))
+
+      def switchThreadState(managed: Boolean) = buf.call(
+        GCSetMutatorThreadStateSig,
+        GCSetMutatorThreadState,
+        Seq(Val.Int(if (managed) 0 else 1)),
+        if (unwindHandler.isInitialized) unwind else Next.None
+      )
+
+      def shouldSwitchThreadState(sig: Sig) = {
+        meta.config.multithreadingSupport &&
+        sig.isExtern && {
+          sig.mangle match {
+            case "C16scalanative_init"                      => false
+            case sym if sym.contains("scalanative_atomic_") => false
+            case sym if sym.contains("scalanative_alloc")   => false
+            case _                                          => true
+          }
+        }
+      }
+
+      ptr match {
+        case Val.Global(Global.Member(_, sig), _)
+            if shouldSwitchThreadState(sig) =>
+          switchThreadState(managed = false)
+          genCall()
+          genGCYieldpoint(buf, genUnwind = false)
+          switchThreadState(managed = true)
+
+        case _ => genCall()
       }
     }
 
@@ -1469,22 +1492,15 @@ object Lower {
   val throwNoSuchMethodVal =
     Val.Global(throwNoSuchMethod, Type.Ptr)
 
-  val gcIsCollecting =
-    Val.Global(extern("scalanative_gc_isCollecting"), Type.Ptr)
-  val gcPollSlowpath = Val.Global(
-    extern("scalanative_gc_waitUntilCollected"),
-    Type.Function(Nil, Type.Unit)
-  )
+  val GCYieldpointName = "scalanative_gc_safepoint"
+  val GCYieldpoint =
+    Val.Global(extern(GCYieldpointName), Type.Function(Nil, Type.Unit))
 
-  val gcYieldpoint = Val.Global(
-    extern("scalanative_yieldpoint"),
-    Type.Function(Nil, Type.Unit)
+  val GCSetMutatorThreadStateSig = Type.Function(Seq(Type.Int), Type.Unit)
+  val GCSetMutatorThreadState = Val.Global(
+    extern("scalanative_setMutatorThreadState"),
+    Type.Ptr
   )
-  val GcSwitchMutatorState = Val.Global(
-    extern("scalanative_switch_mutator_thread_state"),
-    Type.Function(Seq(Type.Int), Type.Int)
-  )
-
   val RuntimeNull = Type.Ref(Global.Top("scala.runtime.Null$"))
   val RuntimeNothing = Type.Ref(Global.Top("scala.runtime.Nothing$"))
 
@@ -1495,21 +1511,10 @@ object Lower {
     buf += Defn.Declare(Attrs.None, largeAllocName, allocSig)
     buf += Defn.Declare(Attrs.None, dyndispatchName, dyndispatchSig)
     buf += Defn.Declare(Attrs.None, throwName, throwSig)
-    buf += Defn.Var(Attrs.None, gcIsCollecting.name, Type.Bool, Val.False)
     buf += Defn.Declare(
-      Attrs.None,
-      gcPollSlowpath.name,
-      Type.Function(Nil, Type.Unit)
-    )
-    buf += Defn.Declare(
-      Attrs.None,
-      gcYieldpoint.name,
-      Type.Function(Nil, Type.Unit)
-    )
-    buf += Defn.Declare(
-      Attrs.None,
-      GcSwitchMutatorState.name,
-      GcSwitchMutatorState.valty
+      Attrs(isExtern = true),
+      GCSetMutatorThreadState.name,
+      GCSetMutatorThreadStateSig
     )
     buf.toSeq
   }

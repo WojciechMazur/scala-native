@@ -98,25 +98,21 @@ void Marker_Mark(Heap *heap, Stack *stack) {
     }
 }
 
-void Marker_markProgramStack(Heap *heap, Stack *stack) {
-    // Dumps registers into 'regs' which is on stack
-    jmp_buf regs;
-    setjmp(regs);
-    word_t *dummy;
-    currentMutatorThread->stackTop = &dummy;
-    MutatorThreads_foreach(mutatorThreads, node) {
-        MutatorThread *thread = node->value;
-        word_t **stackBottom = thread->stackBottom;
-        assert(thread->stackTop != NULL);
-        word_t **current = thread->stackTop;
-        assert(current != NULL);
-        while (current <= stackBottom) {
-            word_t *stackObject = *current;
-            if (Heap_IsWordInHeap(heap, stackObject)) {
-                Marker_markConservative(heap, stack, stackObject);
-            }
-            current += 1;
+void Marker_markProgramStack(MutatorThread *thread, Heap *heap, Stack *stack) {
+    word_t **stackBottom = thread->stackBottom;
+    word_t **stackTop;
+    // do {
+    stackTop = (word_t **)atomic_load_explicit(
+        (atomic_uintptr_t *)&thread->stackTop, memory_order_acquire);
+    // } while (stackTop == NULL);
+    assert(stackTop != NULL);
+    word_t **current = stackTop;
+    while (current <= stackBottom) {
+        word_t *stackObject = *current;
+        if (Heap_IsWordInHeap(heap, stackObject)) {
+            Marker_markConservative(heap, stack, stackObject);
         }
+        current += 1;
     }
 }
 
@@ -135,9 +131,12 @@ void Marker_markModules(Heap *heap, Stack *stack) {
 
 void Marker_MarkRoots(Heap *heap, Stack *stack) {
     atomic_thread_fence(memory_order_seq_cst);
-    Marker_markProgramStack(heap, stack);
-
+    // printf("Mark roots\n");
+    MutatorThreadNode *head = mutatorThreads;
+    MutatorThreads_foreach(mutatorThreads, node) {
+        MutatorThread *thread = node->value;
+        Marker_markProgramStack(thread, heap, stack);
+    }
     Marker_markModules(heap, stack);
-
     Marker_Mark(heap, stack);
 }

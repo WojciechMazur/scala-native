@@ -32,7 +32,9 @@ typedef struct {
         } superblock;
     } block;
     int32_t nextBlock;
-    void *owner;
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
+    volatile void *owner;
+#endif
 } BlockMeta;
 
 #define sizeof_field(s, m) (sizeof((((s *)0)->m)))
@@ -98,6 +100,30 @@ static inline void BlockMeta_Unmark(BlockMeta *blockMeta) {
 static inline void BlockMeta_Mark(BlockMeta *blockMeta) {
     blockMeta->block.simple.flags = block_marked;
 }
+
+static inline void BlockMeta_AssertOwnerEquals(BlockMeta *blockMeta,
+                                               void *expectedOwner) {
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
+
+    assert(blockMeta->owner == expectedOwner);
+#endif
+}
+
+static inline void BlockMeta_SetOwner(BlockMeta *blockMeta, void *owner) {
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
+
+    if (owner != NULL) {
+        BlockMeta_AssertOwnerEquals(blockMeta, NULL);
+    }
+    blockMeta->owner = owner;
+#endif
+}
+
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
+static inline void *BlockMeta_GetOwner(BlockMeta *blockMeta) {
+    return (void *)blockMeta->owner;
+}
+#endif
 
 // Block specific
 

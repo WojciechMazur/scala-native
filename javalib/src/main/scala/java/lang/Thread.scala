@@ -13,13 +13,13 @@ import scala.scalanative.unsigned._
 import scala.scalanative.meta.LinktimeInfo.isWindows
 
 import scala.scalanative.annotation.alwaysinline
-import scala.scalanative.runtime.libc.{onSpinWait => nativeOnSpinWait}
 import scala.scalanative.runtime.Intrinsics._
 import scala.scalanative.runtime.{fromRawPtr, NativeThread}
 import scala.scalanative.runtime.NativeThread.{State => _, _}
 import scala.scalanative.runtime.NativeThread.State._
 import scala.scalanative.libc.atomic
 import scala.scalanative.meta.LinktimeInfo
+import java.lang.annotation.Native
 
 class Thread private[lang] (
     group: ThreadGroup,
@@ -188,7 +188,10 @@ class Thread private[lang] (
   }
 
   final def join(): Unit = synchronized {
-    while (isAlive()) wait()
+    while (isAlive()) {
+      if (interrupted()) throw new InterruptedException()
+      wait()
+    }
   }
 
   final def join(millis: scala.Long): Unit = join(millis, 0)
@@ -201,6 +204,7 @@ class Thread private[lang] (
     if (millis == 0 && nanos == 0) join()
     else
       synchronized {
+        if (interrupted()) throw new InterruptedException()
         val end = System.nanoTime() + 1000000 * millis + nanos.toLong
         var rest = 0L
         var continue = true
@@ -279,12 +283,13 @@ object Thread {
     }
   }
 
-  object MainThread extends Thread(
-    group = new ThreadGroup(ThreadGroup.System, "main"),
-    target = null: Runnable,
-    stackSize = 0L,
-    inheritableValues = new ThreadLocal.Values()
-  ) {
+  object MainThread
+      extends Thread(
+        group = new ThreadGroup(ThreadGroup.System, "main"),
+        target = null: Runnable,
+        stackSize = 0L,
+        inheritableValues = new ThreadLocal.Values()
+      ) {
     override private[java] val threadId: scala.Long = 0L
     nativeThread = nativeCompanion.create(this, 0L)
     setName("main")
@@ -334,7 +339,7 @@ object Thread {
     isInterrupted
   }
 
-  def onSpinWait(): Unit = nativeOnSpinWait()
+  def onSpinWait(): Unit = NativeThread.onSpinWait()
 
   def sleep(millis: scala.Long): Unit = sleep(millis, 0)
 

@@ -24,41 +24,42 @@ object libc {
 
   // Glue layer defined in libc
   @name("scalanative_atomic_compare_exchange_strong_byte")
-  def atomic_compare_exchange_strong(
+  private[runtime] def atomic_compare_exchange_strong(
       ptr: RawPtr,
       expected: RawPtr,
       desired: Byte
   ): CBool = extern
 
   @name("scalanative_atomic_compare_exchange_strong_llong")
-  def atomic_compare_exchange_strong(
+  private[runtime] def atomic_compare_exchange_strong(
       ptr: RawPtr,
       expected: RawPtr,
       desired: Long
   ): CBool = extern
 
   @name("scalanative_atomic_compare_exchange_strong_intptr")
-  def atomic_compare_exchange_strong(
+  private[runtime] def atomic_compare_exchange_strong(
       ptr: RawPtr,
       expected: RawPtr,
       desired: RawPtr
   ): CBool = extern
   
   @name("scalanative_atomic_load_llong")
-  def atomic_load_explicit(ptr: RawPtr, memoryOrder: memory_order): Long = extern
+  private[runtime] def atomic_load_explicit(ptr: RawPtr, memoryOrder: memory_order): Long = extern
   
   @name("scalanative_atomic_store_explicit_intptr")
-  def atomic_store_explicit(
+  private[runtime] def atomic_store_explicit(
       ptr: RawPtr,
       v: RawPtr,
       memoryOrder: memory_order
   ): Unit = extern
 
   @name("scalanative_atomic_thread_fence")
-  final def atomic_thread_fence(order: memory_order): Unit = extern
+  private[runtime] final def atomic_thread_fence(order: memory_order): Unit = extern
 
-  type memory_order = Int
-  @extern object memory_order {
+  private[runtime] type memory_order = Int
+  @extern 
+  private[runtime] object memory_order {
     @name("scalanative_atomic_memory_order_relaxed")
     final def memory_order_relaxed: memory_order = extern
     @name("scalanative_atomic_memory_order_acquire")
@@ -70,8 +71,8 @@ object libc {
   }
 
   @name("scalanative_on_spin_wait")
-  def onSpinWait(): Unit = extern
+  private[runtime] def onSpinWait(): Unit = extern
 
   // posix
-  def usleep(usec: Int): Int = extern
+  private[runtime] def usleep(usec: Int): Int = extern
 }

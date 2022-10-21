@@ -3,6 +3,7 @@ package runtime
 
 import scalanative.unsafe._
 import scala.scalanative.annotation.alwaysinline
+import scala.scalanative.meta.LinktimeInfo
 
 /** The Boehm GC conservative garbage collector
  *
@@ -57,9 +58,7 @@ object GC {
    *  automatically registered. Every additional thread needs to explicitlly
    *  notify GC about it's creation and termination. For that purpuse we follow
    *  the Boehm GC convention for overloading the pthread_create/CreateThread
-   *  functions respectively for POSIX and Windows. Respectivelly after the last
-   *  object allocation and before termination the thread needs to call
-   *  pthread_exit/ExitThread to unregister itself from the GC.
+   *  functions respectively for POSIX and Windows.
    */
   private type pthread_t = CUnsignedLongLong
   private type pthread_attr_t = CUnsignedLongLong
@@ -77,8 +76,6 @@ object GC {
       startroutine: ThreadStartRoutine,
       args: PtrAny
   ): CInt = extern
-  @name("scalanative_pthread_exit")
-  def pthread_exit(retVal: Ptr[Byte]): Unit = extern
 
   @name("scalanative_CreateThread")
   def CreateThread(
@@ -90,27 +87,22 @@ object GC {
       threadId: Ptr[DWord]
   ): Handle = extern
 
-  @name("scalanative_ExitThread")
-  def ExitThread(exitCode: DWord): Unit = extern
+  type MutatorThreadState = CInt
+  object MutatorThreadState {
 
-  @extern
-  object MutatorThread {
-    object Ext {
-      @alwaysinline def withGCSafeZone[T](fn: => T) = {
-        val prev = switchState(State.InSafeZone)
-        try fn
-        finally switchState(State.Running)
-      }
-    }
-    type State = Int
-    @name("scalanative_switch_mutator_thread_state")
-    def switchState(newState: State): State = extern
+    /** Thread executes Scala Native code using GC following cooperative mode -
+     *  it periodically polls for synchronization events.
+     */
+    @alwaysinline final def Managed = 0
 
-    object State {
-      final val Running = 0
-      final val WaitingForGC = 1
-      final val InSafeZone = 2
-    }
+    /** Thread executes foreign code (syscalls, C functions) and is not able to
+     *  modify the state of the GC. Upon synchronization event garbage collector
+     *  would ignore this thread. Upon returning from foreign execution thread
+     *  would stop until synchronization event would finish.
+     */
+    @alwaysinline final def Unmanaged = 1
   }
+  @name("scalanative_setMutatorThreadState")
+  def setMutatorThreadState(newState: MutatorThreadState): Unit = extern
 
 }

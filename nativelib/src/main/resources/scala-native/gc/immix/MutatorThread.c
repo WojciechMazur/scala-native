@@ -4,27 +4,41 @@
 #include <stdatomic.h>
 #include <ThreadUtil.h>
 
-mutex_t threadListsModifiactionLock;
+static mutex_t threadListsModifiactionLock;
 
-void MutatorThread_init(word_t **stackbottom) {
+void MutatorThread_init(Field_t *stackbottom) {
     MutatorThread *self = (MutatorThread *)malloc(sizeof(MutatorThread));
-    Safepoint_init(&self->safepoint);
-    MutatorThread_switchState(self, MutatorThreadState_Working);
-
     currentMutatorThread = self;
-    scalanative_gc_safepoint = self->safepoint;
 
     self->stackBottom = stackbottom;
+    self->thread = pthread_self();
+    MutatorThread_switchState(self, MutatorThreadState_Managed);
+    MutatorThreads_add(self);
     Allocator_Init(&self->allocator);
     LargeAllocator_Init(&self->largeAllocator, &blockAllocator, heap.bytemap,
                         heap.blockMetaStart, heap.heapStart);
-    MutatorThreads_add(self);
 }
 
 void MutatorThread_delete(MutatorThread *self) {
-    MutatorThread_switchState(self, MutatorThreadState_InSafeZone);
+    MutatorThread_switchState(self, MutatorThreadState_Unmanaged);
     MutatorThreads_remove(self);
     free(self);
+}
+
+// extern atomic_bool wantsToCollect;
+void MutatorThread_switchState(MutatorThread *self,
+                               MutatorThreadState newState) {
+    if (newState == MutatorThreadState_Unmanaged) {
+        // Dumps registers into 'regs' which is on stack
+        jmp_buf regs;
+        setjmp(regs);
+        word_t *dummy;
+        atomic_store_explicit((atomic_uintptr_t *)&self->stackTop,
+                              (uintptr_t)&dummy, memory_order_release);
+    } else { // if newState == Managed
+        self->stackTop = NULL;
+    }
+    self->state = newState;
 }
 
 void MutatorThreads_init() { mutex_init(&threadListsModifiactionLock); }

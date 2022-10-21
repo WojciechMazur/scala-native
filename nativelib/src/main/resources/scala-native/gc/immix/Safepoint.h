@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-typedef int8_t safepoint_t;
+typedef volatile int8_t safepoint_t;
 typedef safepoint_t *safepoint_ref;
 
 void Safepoint_init(safepoint_ref *ref);

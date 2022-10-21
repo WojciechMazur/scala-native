@@ -24,7 +24,7 @@ void Block_Recycle(BlockMeta *blockMeta, word_t *blockStart,
 
     // If the block is not marked, it means that it's completely free
     if (!BlockMeta_IsMarked(blockMeta)) {
-        blockMeta->owner = NULL;
+        BlockMeta_SetOwner(blockMeta, NULL);
         Block_recycleUnmarkedBlock(blockMeta, blockStart);
     } else {
         // If the block is marked, we need to recycle line by line
@@ -90,7 +90,12 @@ void Block_Recycle(BlockMeta *blockMeta, word_t *blockStart,
             }
         }
         // If there is no recyclable line, the block is unavailable
-        Allocator *allocator = (Allocator *)blockMeta->owner;
+        Allocator *allocator;
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
+        allocator = (Allocator *)BlockMeta_GetOwner(blockMeta);
+#else
+        allocator = &currentMutatorThread->allocator;
+#endif
         assert(allocator != NULL);
         if (lastRecyclable != NULL) {
             lastRecyclable->next = LAST_HOLE;

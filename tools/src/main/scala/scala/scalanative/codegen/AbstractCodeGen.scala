@@ -111,6 +111,10 @@ private[codegen] abstract class AbstractCodeGen(
       str("\"")
       newline()
     }
+    str("@")
+    str(Lower.GCYieldpointName)
+    str(" = external global i8*, align 8")
+    newline()
     os.genPrelude()
   }
 
@@ -839,6 +843,14 @@ private[codegen] abstract class AbstractCodeGen(
   )(implicit fresh: Fresh, sb: ShowBuilder): Unit = {
     import sb._
     call match {
+      case Op.Call(_, Lower.GCYieldpoint, _) =>
+        val safepoint, pollResult = fresh().id
+        val name = Lower.GCYieldpointName
+        newline()
+        str(s"%_$safepoint = load i8*, i8** @$name, align 8")
+        newline()
+        str(s"%_$pollResult = load volatile i8, i8* %_$safepoint, align 1")
+
       case Op.Call(ty, Val.Global(pointee, _), args) if lookup(pointee) == ty =>
         val Type.Function(argtys, _) = ty: @unchecked
 

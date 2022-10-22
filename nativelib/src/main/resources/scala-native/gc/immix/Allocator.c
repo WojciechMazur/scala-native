@@ -39,20 +39,14 @@ bool Allocator_CanInitCursors(Allocator *allocator) {
 
 void Allocator_InitCursors(Allocator *allocator) {
     // Init cursor
-    bool didInit = Allocator_newBlock(allocator);
-    BlockMeta *largeBlock =
-        BlockAllocator_GetFreeBlock(allocator->blockAllocator);
-    didInit = didInit && largeBlock != NULL;
-
-    while (!didInit) {
+    BlockMeta *largeBlock;
+    while (true) {
+        bool didInit = Allocator_newBlock(allocator);
+        largeBlock = BlockAllocator_GetFreeBlock(allocator->blockAllocator);
+        if (didInit && largeBlock != NULL)
+            break;
         Heap_Collect(&heap, &stack);
-        didInit = Allocator_newBlock(allocator);
-        BlockMeta *largeBlock =
-            BlockAllocator_GetFreeBlock(allocator->blockAllocator);
-        didInit = didInit && largeBlock != NULL;
     }
-    assert(didInit);
-    assert(largeBlock != NULL);
     BlockMeta_SetOwner(largeBlock, allocator);
     allocator->largeBlock = largeBlock;
     word_t *largeBlockStart = BlockMeta_GetBlockStart(

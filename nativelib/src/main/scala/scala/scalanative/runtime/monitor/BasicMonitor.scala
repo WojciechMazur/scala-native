@@ -75,9 +75,8 @@ private[runtime] final class BasicMonitor(val lockWordRef: RawPtr)
         castIntToRawPtr(0),
         memory_order_release
       )
-    else if (current.isUnlocked)
-      // can happen only in main-thread init
-      assert(thread.getId() == 0, "exiting unlocked monitor")
+    // should happen only in main-thread init
+    else if (current.isUnlocked) ()
     else
       storeRawPtr(lockWordRef, current.withDecresedRecursion)
   }

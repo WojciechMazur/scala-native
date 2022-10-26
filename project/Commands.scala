@@ -144,7 +144,8 @@ object Commands {
     import ScalaVersions._
     val publishEachVersion = for {
       v <- List(scala211, scala212, scala213, scala3)
-    } yield s"++$version publishSigned; crossPublishSigned"
+    } yield s"++$version publishLocal; crossPublishLocal"
+
     "clean" :: publishEachVersion ::: _
   }
 

@@ -1,0 +1,62 @@
+name: Publish
+on:
+  push:
+    tags:
+      - v0.4.*
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    steps:
+      # Wait for successfull result of tests
+      - name: Wait for Linux tests to succeed
+        uses: lewagon/wait-on-check-action@v1.2.0
+        with:
+          ref: ${{ github.ref }}
+          check-name: "Run tests Linux"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 60 #seconds
+
+      - name: Wait for MacOs tests to succeed
+        uses: lewagon/wait-on-check-action@v1.2.0
+        with:
+          ref: ${{ github.ref }}
+          check-name: "Run tests MacOs"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 60 #seconds
+
+      - name: Wait for Windows tests to succeed
+        uses: lewagon/wait-on-check-action@v1.2.0
+        with:
+          ref: ${{ github.ref }}
+          check-name: "Run tests Windows"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 60 #seconds
+
+      - name: Wait for multi-arch tests to succeed
+        uses: lewagon/wait-on-check-action@v1.2.0
+        with:
+          ref: ${{ github.ref }}
+          check-name: "Run tests Linux multiarch"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 60 #seconds
+
+      - name: Wait for JDK compliance tests to succeed
+        uses: lewagon/wait-on-check-action@v1.2.0
+        with:
+          ref: ${{ github.ref }}
+          check-name: "Run tests JDK compliance tests"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 60 #seconds
+
+      # Actual publish logic
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/linux-setup-env
+        with:
+          scala-version: "2.13.10" #Unused, any version can be placed here
+          java-version: 8
+
+      - name: Test tools
+        run: sbt "-v" "-no-colors" "-J-Xmx5G" "publish-signed-all"

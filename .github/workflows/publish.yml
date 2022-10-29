@@ -6,15 +6,15 @@ on:
 
 jobs:
   test-linux:
-    uses: ./github/workflows/run-tests-linux.yml
+    uses: ./.github/workflows/run-tests-linux.yml
   test-windows:
-    uses: ./github/workflows/run-tests-windows.yml
+    uses: ./.github/workflows/run-tests-windows.yml
   test-macos:
-    uses: ./github/workflows/run-tests-macos.yml
+    uses: ./.github/workflows/run-tests-macos.yml
   test-jdk-compliance:
-    uses: ./github/workflows/run-jdk-compliance-tests.yml
+    uses: ./.github/workflows/run-jdk-compliance-tests.yml
   test-multiarch:
-    uses: ./github/workflows/run-tests-linux-multiarch.yml
+    uses: ./.github/workflows/run-tests-linux-multiarch.yml
 
   publish:
     name: Publish

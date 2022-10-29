@@ -230,11 +230,14 @@ object Settings {
     },
     credentials ++= {
       for {
-        realm <- sys.env.get("MAVEN_REALM")
-        domain <- sys.env.get("MAVEN_DOMAIN")
         user <- sys.env.get("MAVEN_USER")
         password <- sys.env.get("MAVEN_PASSWORD")
-      } yield Credentials(realm, domain, user, password)
+      } yield Credentials(
+        realm = "Sonatype Nexus Repository Manager",
+        host = "oss.sonatype.org",
+        userName = user,
+        passwd = password
+      )
     }.toSeq
   )
 
@@ -437,7 +440,9 @@ object Settings {
     val selfRef = thisProjectRef.value
     val _ = crossScalaVersions.value.foldLeft(s) {
       case (state, `currentVersion`) =>
-        println(s"Skip publish $id ${currentVersion} - it should be already published")
+        println(
+          s"Skip publish $id ${currentVersion} - it should be already published"
+        )
         state
       case (state, crossVersion) =>
         println(s"Try publish $id ${crossVersion}")

@@ -3,6 +3,7 @@ package build
 import sbt._
 import sbt.Keys._
 import sbt.nio.Keys.fileTreeView
+import com.typesafe.tools.mima.core._
 import com.typesafe.tools.mima.plugin.MimaPlugin.autoImport._
 import com.jsuereth.sbtpgp.PgpKeys.publishSigned
 import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport._
@@ -414,12 +415,6 @@ object Settings {
     Test / unmanagedSourceDirectories += baseDirectory.value
       .getParentFile()
       .getParentFile() / "test-interface-common/src/test/scala",
-    scalacOptions --= scalaVersionsDependendent(scalaVersion.value)(
-      Seq.empty[String]
-    ) {
-      // In Scala 2 enum `Status.value` is defined as `values()`, however in Scala 3 it's `values`
-      case (2, 13) => Seq("-Xfatal-warnings")
-    }
   )
 
   // Projects

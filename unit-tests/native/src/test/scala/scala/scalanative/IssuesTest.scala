@@ -217,7 +217,7 @@ class IssuesTest {
     val bytes = new Array[Byte](2)
     bytes(0) = 'b'.toByte
     bytes(1) = 'a'.toByte
-    val p: Ptr[Byte] = bytes.asInstanceOf[ByteArray].at(0)
+    val p: Ptr[Byte] = bytes.at(0)
     assertEquals('b'.toByte, !p)
     assertEquals('a'.toByte, !(p + 1))
   }
@@ -547,6 +547,22 @@ class IssuesTest {
     assertEquals("case 0", 0, issue2552.foo(0))
     assertEquals("case 1", 0, baz())
     assertEquals("case 2", 0, Bar.bar())
+  }
+
+  @Test def test_Issue2858() = {
+    // In the reported issue symbols for scala.Nothing and scala.Null
+    assertEquals("class scala.runtime.Nothing$", classOf[Nothing].toString())
+    assertEquals("class scala.runtime.Null$", classOf[Null].toString())
+  }
+
+  @Test def test_Issue2866() = {
+    // In the issue the calls to malloc and srand would fail
+    // becouse null would be passed to extern method taking unboxed type Size/Int
+    import scala.scalanative.libc.stdlib.{malloc, free, srand}
+    val ptr = malloc(null) // CSize -> RawSize should equal to malloc(0)
+    free(ptr) // memory allocated by malloc(0) should always be safe to free
+    srand(null) // CUnsignedInt -> Int should equal to srand(0UL)
+    free(null)
   }
 
 }

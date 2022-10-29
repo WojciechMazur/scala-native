@@ -3,6 +3,7 @@ package java.lang
 import scalanative.unsafe._
 import scalanative.unsigned._
 import scalanative.libc.errno
+import scalanative.libc.string.memcpy
 
 import scalanative.posix.errno.ERANGE
 
@@ -26,26 +27,28 @@ private[java] object IEEE754Helpers {
   //     https://github.com/scala/scala/pull/8830
   // The second is yet unmerged for Scala 2.13.x.
 
-  private def exceptionMsg(s: String) = "For input string \"" + s + "\""
+  private def exceptionMsg(s: String) = "For input string: \"" + s + "\""
 
   private def bytesToCString(bytes: Array[scala.Byte], n: Int)(implicit
       z: Zone
   ): CString = {
-    val cStr = z.alloc((n + 1).toUInt) // z.alloc() does not clear bytes.
+    val cStr = z.alloc((n + 1).toUSize) // z.alloc() does not clear bytes.
 
-    var c = 0
-    while (c < n) {
-      !(cStr + c) = bytes(c)
-      c += 1
-    }
+    // memcpy bytes from Array to CString
+    val bytesPtr = bytes.at(0)
+    memcpy(cStr, bytesPtr, n.toUSize)
 
-    !(cStr + n) = 0.toByte
+    // add NUL-terminator to CString
+    cStr(n) = 0.toByte
 
     cStr
   }
 
   def parseIEEE754[T](s: String, f: (CString, Ptr[CString]) => T): T = {
     Zone { implicit z =>
+      if (s.isEmpty)
+        throw new NumberFormatException(exceptionMsg(s))
+
       val bytes = s.getBytes(java.nio.charset.Charset.defaultCharset())
       val bytesLen = bytes.length
 
@@ -54,7 +57,8 @@ private[java] object IEEE754Helpers {
       val end = stackalloc[CString]() // Address one past last parsed cStr byte.
 
       errno.errno = 0
-      var res = f(cStr, end)
+
+      val res = f(cStr, end)
 
       if (errno.errno != 0) {
         if (errno.errno == ERANGE) {

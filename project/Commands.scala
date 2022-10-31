@@ -149,8 +149,8 @@ object Commands {
     val publishEachVersion = for {
       version <- List(scala211, scala212, scala213, scala3)
     } yield
-      if (isSnapshot) s"++$version; publish; crossPublish"
-      else s"++$version; publishSigned; crossPublishSigned"
+      if (isSnapshot) s"++$version; publishLocalSigned; crossPublish"
+      else s"++$version; publishLocalSigned; crossPublishSigned"
 
     "clean" :: publishEachVersion ::: state
   }

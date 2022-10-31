@@ -5,7 +5,7 @@ import sbt.Keys._
 import sbt.nio.Keys.fileTreeView
 import com.typesafe.tools.mima.core._
 import com.typesafe.tools.mima.plugin.MimaPlugin.autoImport._
-import com.jsuereth.sbtpgp.PgpKeys.publishSigned
+import com.jsuereth.sbtpgp.PgpKeys.{publishSigned, publishLocalSigned}
 import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport._
 import org.portablescala.sbtplatformdeps.PlatformDepsPlugin.autoImport._
 
@@ -436,8 +436,8 @@ object Settings {
     libraryDependencies ++= Deps.compilerPluginDependencies(scalaVersion.value),
     mavenPublishSettings,
     exportJars := true,
-    crossPublish := crossPublishCompilerPlugin(publish).value,
-    crossPublishSigned := crossPublishCompilerPlugin(publishSigned).value
+    crossPublish := crossPublishCompilerPlugin(publishLocalSigned).value,
+    crossPublishSigned := crossPublishCompilerPlugin(publishLocalSigned).value
   )
 
   /** Builds a given project across all crossScalaVersion values. It does not

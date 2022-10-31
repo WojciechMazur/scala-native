@@ -49,7 +49,7 @@ trait NativeThread {
 
   protected def onTermination(): Unit = {
     state = NativeThread.State.Terminated
-    // Registry.remove(this)
+    Registry.remove(this)
   }
 }
 
@@ -90,28 +90,22 @@ object NativeThread {
     import scala.collection.mutable
 
     private val _aliveThreads = mutable.Set(currentNativeThread)
-    private var mainThreadIsAlive = true
 
     private[NativeThread] def add(thread: NativeThread): Unit = synchronized {
       _aliveThreads += thread
+      notifyAll()
     }
     private[NativeThread] def remove(thread: NativeThread): Unit =
       synchronized {
-        tryUnregisterMainThread()
         _aliveThreads -= thread
+        notifyAll()
       }
+
     def aliveThreads: scala.Array[NativeThread] = synchronized {
-      tryUnregisterMainThread()
       _aliveThreads.toArray
     }
-    private def tryUnregisterMainThread() = if (mainThreadIsAlive) {
-      _aliveThreads.find(_.isMainThread).foreach { main =>
-        if (!main.thread.isAlive()) {
-          remove(main)
-          mainThreadIsAlive = false
-        }
-      }
-    }
+
+    def onMainThreadTermination(mainThread: NativeThread) = remove(mainThread)
   }
 
   val threadRoutine: ThreadStartRoutine = {

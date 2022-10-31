@@ -17,6 +17,7 @@ import scala.scalanative.runtime.Intrinsics._
 import scala.scalanative.runtime.{fromRawPtr, NativeThread}
 import scala.scalanative.runtime.NativeThread.{State => _, _}
 import scala.scalanative.runtime.NativeThread.State._
+import scala.scalanative.runtime.JoinNonDeamonThreads
 import scala.scalanative.libc.atomic
 import scala.scalanative.meta.LinktimeInfo
 import java.lang.annotation.Native
@@ -291,8 +292,10 @@ object Thread {
         inheritableValues = new ThreadLocal.Values()
       ) {
     override private[java] val threadId: scala.Long = 0L
+    def getNativeThread = nativeThread
     nativeThread = nativeCompanion.create(this, 0L)
     setName("main")
+    JoinNonDeamonThreads.registerExitHook()
   }
 
   @alwaysinline def nativeCompanion: NativeThread.Companion =

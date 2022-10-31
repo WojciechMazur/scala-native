@@ -11,10 +11,11 @@ import org.portablescala.sbtplatformdeps.PlatformDepsPlugin.autoImport._
 
 import sbtbuildinfo.BuildInfoPlugin.autoImport._
 import ScriptedPlugin.autoImport._
-import Build.{crossPublishSigned, crossPublishLocal}
+import com.jsuereth.sbtpgp.PgpKeys
 
 import scala.collection.mutable
 import scala.scalanative.build.Platform
+import Build.{crossPublish, crossPublishSigned}
 
 object Settings {
   lazy val fetchScalaSource = taskKey[File](
@@ -218,7 +219,8 @@ object Settings {
       </issueManagement>
     ),
     Compile / publishArtifact := true,
-    Test / publishArtifact := false
+    Test / publishArtifact := false,
+    versionScheme := Some("early-semver")
   ) ++ mimaSettings
 
   lazy val mavenPublishSettings = Def.settings(
@@ -242,7 +244,8 @@ object Settings {
         userName = user,
         passwd = password
       )
-    }.toSeq
+    }.toSeq,
+    PgpKeys.pgpPassphrase := sys.env.get("PGP_PASSWORD").map(_.toCharArray())
   )
 
   lazy val noPublishSettings = Def.settings(
@@ -433,8 +436,8 @@ object Settings {
     libraryDependencies ++= Deps.compilerPluginDependencies(scalaVersion.value),
     mavenPublishSettings,
     exportJars := true,
-    crossPublishSigned := crossPublishCompilerPlugin(publishSigned).value,
-    crossPublishLocal := crossPublishCompilerPlugin(publishLocal).value
+    crossPublish := crossPublishCompilerPlugin(publish).value,
+    crossPublishSigned := crossPublishCompilerPlugin(publishSigned).value
   )
 
   /** Builds a given project across all crossScalaVersion values. It does not

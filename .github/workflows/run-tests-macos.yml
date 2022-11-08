@@ -26,7 +26,7 @@ jobs:
 
       - name: Test scripted
         run: |
-          LLVM_BIN=$(brew --prefix clang)
+          LLVM_BIN=$(brew --prefix llvm@14)/bin
           echo $LLVM_BIN
           ls -l $LLVM_BIN
           where llvm-ar

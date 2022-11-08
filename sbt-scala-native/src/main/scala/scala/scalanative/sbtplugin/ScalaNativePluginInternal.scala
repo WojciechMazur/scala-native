@@ -108,6 +108,8 @@ object ScalaNativePluginInternal {
 
   def scalaNativeConfigSettings(testConfig: Boolean): Seq[Setting[_]] = Seq(
     nativeConfig := {
+      val llvmAR = Discover.discover("llvm-ar", "LLVM_BIN")
+      println(llvmAR)
       val config = nativeConfig.value
       config
         // Use overrides defined in legacy setting keys

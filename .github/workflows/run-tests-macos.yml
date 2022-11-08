@@ -26,9 +26,6 @@ jobs:
 
       - name: Test scripted
         run: |
-          LLVM_BIN=$(brew --prefix llvm@14)/bin
+          export LLVM_BIN=$(brew --prefix llvm@14)/bin
           echo $LLVM_BIN
-          ls -l $LLVM_BIN
-          where llvm-ar
-
-          sbt "test-scripted ${{matrix.scala}}"
+          sbt "show sandbox2_12/nativeConfig;test-scripted ${{matrix.scala}}"

@@ -30,6 +30,7 @@ object Discover {
 
   /** Use the clang binary on the path or via LLVM_BIN env var. */
   def clang(): Path = {
+    println("llvm-ar" -> discover("llvm-ar", "LLVM_BIN"))
     val path = discover("clang", "LLVM_BIN")
     checkClangVersion(path)
     path

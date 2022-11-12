@@ -232,9 +232,7 @@ class ForkJoinPoolTest extends JSR166Test {
   @Test def testSetUncaughtExceptionHandler(): Unit = {
     val uehInvoked = new CountDownLatch(1)
     val ueh: Thread.UncaughtExceptionHandler = (t: Thread, e: Throwable) => {
-      println("handling ex: " + e)
       threadAssertTrue(e.isInstanceOf[MyError])
-      println(t)
       threadAssertTrue(t.isInstanceOf[FailingFJWSubclass])
       uehInvoked.countDown()
     }

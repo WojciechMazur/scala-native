@@ -128,7 +128,7 @@ object NativeThread {
     TLS.assignCurrentThread(thread, nativeThread)
     try thread.run()
     catch {
-      case ex: Exception =>
+      case ex: Throwable =>
         val handler = thread.getUncaughtExceptionHandler() match {
           case null    => Thread.getDefaultUncaughtExceptionHandler()
           case handler => handler

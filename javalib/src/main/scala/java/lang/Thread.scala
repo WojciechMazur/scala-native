@@ -130,7 +130,7 @@ class Thread private[lang] (
     import NativeThread.State._
     if (nativeThread == null) State.NEW
     else
-      nativeThread.getState match {
+      nativeThread.state match {
         case New                                     => State.NEW
         case Running                                 => State.RUNNABLE
         case WaitingOnMonitorEnter                   => State.BLOCKED
@@ -150,7 +150,7 @@ class Thread private[lang] (
     exceptionHandler = eh
 
   final def isAlive(): scala.Boolean = nativeThread != null && {
-    nativeThread.getState match {
+    nativeThread.state match {
       case New | Terminated => false
       case _                => true
     }
@@ -165,7 +165,7 @@ class Thread private[lang] (
   def isInterrupted(): scala.Boolean = interruptedState
   def interrupt(): Unit = synchronized {
     interruptedState = true
-    nativeThread.interrupt()
+    if (nativeThread != null) nativeThread.interrupt()
   }
 
   def run(): Unit = {
@@ -183,7 +183,7 @@ class Thread private[lang] (
         "ScalaNative application linked with disabled multithreading support"
       )
     nativeThread = Thread.nativeCompanion.create(this, stackSize)
-    while (nativeThread.getState == New) Thread.onSpinWait()
+    while (nativeThread.state == New) Thread.onSpinWait()
     nativeThread.setPriority(priority)
   }
 

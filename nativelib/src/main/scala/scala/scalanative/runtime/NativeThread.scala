@@ -14,8 +14,12 @@ trait NativeThread {
 
   val thread: Thread
 
-  @volatile protected[runtime] var state: State = State.New
-  def getState: State = state
+  @volatile private[this] var _state: State = State.New
+  def state: State = _state
+  protected[runtime] def state_=(newState: State): Unit = _state match {
+    case State.Terminated => ()
+    case _          => _state = newState
+  }
 
   if (isMainThread) {
     TLS.assignCurrentThread(thread, this)
@@ -49,7 +53,7 @@ trait NativeThread {
 
   protected def onTermination(): Unit = {
     state = NativeThread.State.Terminated
-    // Registry.remove(this)
+    Registry.remove(this)
   }
 }
 

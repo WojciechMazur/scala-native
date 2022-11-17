@@ -205,7 +205,6 @@ abstract class AbstractExecutorService() extends ExecutorService {
       val it = tasks.iterator()
       while (it.hasNext()) {
         val f: RunnableFuture[T] = newTaskFor(it.next())
-        // println(s"f=$f")
         futures.add(f)
         execute(f)
       }
@@ -249,9 +248,9 @@ abstract class AbstractExecutorService() extends ExecutorService {
       @tailrec def executeLoop(i: Int): Boolean =
         if (i >= size) false
         else {
-          // println(s"executeLoop $i")
           val remainingTime =
-            if (i == 0) nanos else deadline - System.nanoTime()
+            if (i == 0) nanos
+            else deadline - System.nanoTime()
           if (remainingTime <= 0) true // timeout
           else {
             execute(futures.get(i).asInstanceOf[Runnable])
@@ -262,7 +261,6 @@ abstract class AbstractExecutorService() extends ExecutorService {
       @tailrec def awaitLoop(i: Int): Boolean =
         if (i >= size) false
         else {
-          // println(s"executeLoop $i")
           val f = futures.get(i)
           val timedOut =
             if (f.isDone()) false

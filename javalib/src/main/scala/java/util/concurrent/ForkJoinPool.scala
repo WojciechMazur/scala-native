@@ -823,7 +823,6 @@ class ForkJoinPool private (
             }
             VarHandle.releaseFence() // fill before publish
             queues = as
-            println(s"2: $queues")
           }
         }
       } finally lock.unlock()
@@ -1629,10 +1628,7 @@ class ForkJoinPool private (
     def loop(r: Int): WorkQueue = {
       val qs = queues
       val n = if (qs != null) qs.length else 0
-      if ((mode & SHUTDOWN) != 0 || n <= 0) {
-        println(s"submisisonQueue shutdown=${(mode & SHUTDOWN)}, n=$n, qs=$qs")
-        return null
-      }
+      if ((mode & SHUTDOWN) != 0 || n <= 0) return null
 
       val id = r << 1
       val i = (n - 1) & id

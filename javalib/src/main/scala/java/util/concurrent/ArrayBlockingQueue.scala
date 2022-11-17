@@ -10,6 +10,7 @@ import java.util
 import java.util._
 import java.util.concurrent.locks._
 import java.util.function._
+import scala.annotation.tailrec
 
 /** A bounded {@linkplain BlockingQueue blocking queue} backed by an array. This
  *  queue orders elements FIFO (first-in-first-out). The <em>head</em> of the
@@ -78,13 +79,17 @@ object ArrayBlockingQueue {
     // assert 0 <= end && end < items.length;
     val to = if (i < end) end else items.length
     for (i <- i until to) items(i) = null
-    for (i <- 0 until end) items(i) = null
+    if (to != end)
+      for (i <- 0 until end) items(i) = null
   }
 
-  private def nBits(n: Int) = new Array[Long](((n - 1) >> 6) + 1)
+  private def nBits(n: Int) =
+    new Array[Long](((n - 1) >> 6) + 1)
+
   private def setBit(bits: Array[Long], i: Int): Unit = {
     bits(i >> 6) |= 1L << i
   }
+
   private def isClear(bits: Array[Long], i: Int) =
     (bits(i >> 6) & (1L << i)) == 0
 }
@@ -94,6 +99,8 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
     extends util.AbstractQueue[E]
     with BlockingQueue[E]
     with Serializable {
+  import ArrayBlockingQueue._
+
   if (capacity <= 0) throw new IllegalArgumentException
 
   /** The queued items */
@@ -108,6 +115,11 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
   /** Number of elements in the queue */
   private[concurrent] var count = 0
 
+  /** Shared state for currently active iterators, or null if there are known
+   *  not to be any. Allows queue operations to update iterator state.
+   */
+  private[concurrent] var itrs: Itrs = _
+
   /** Main lock guarding all access */
   final private[concurrent] val lock: ReentrantLock = new ReentrantLock(fair)
 
@@ -116,11 +128,6 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
 
   /** Condition for waiting puts */
   final private val notFull: Condition = lock.newCondition()
-
-  /** Shared state for currently active iterators, or null if there are known
-   *  not to be any. Allows queue operations to update iterator state.
-   */
-  private[concurrent] var itrs: Itrs = null
 
   /** Returns item at index i.
    */
@@ -144,8 +151,7 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
   /** Extracts element at current take position, advances, and signals. Call
    *  only when holding lock.
    */
-  private def dequeue = {
-    // assert items[takeIndex] != null;
+  private def dequeue() = {
     val items = this.items
     val e = items(takeIndex).asInstanceOf[E]
     items(takeIndex) = null
@@ -328,18 +334,20 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
     lock.lock()
     try
       if (count == 0) null.asInstanceOf[E]
-      else dequeue
+      else dequeue()
     finally lock.unlock()
   }
+
   @throws[InterruptedException]
   override def take(): E = {
     val lock = this.lock
     lock.lockInterruptibly()
     try {
-      while ({ count == 0 }) notEmpty.await()
-      dequeue
+      while (count == 0) notEmpty.await()
+      dequeue()
     } finally lock.unlock()
   }
+
   @throws[InterruptedException]
   override def poll(timeout: Long, unit: TimeUnit): E = {
     var nanos = unit.toNanos(timeout)
@@ -350,7 +358,7 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
         if (nanos <= 0L) return null.asInstanceOf[E]
         nanos = notEmpty.awaitNanos(nanos)
       }
-      dequeue
+      dequeue()
     } finally lock.unlock()
   }
 
@@ -567,7 +575,7 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
     try {
       var k = count
       if (k > 0) {
-        ArrayBlockingQueue.circularClear(items, takeIndex, putIndex)
+        circularClear(items, takeIndex, putIndex)
         takeIndex = putIndex
         count = 0
         if (itrs != null) itrs.queueIsEmpty()
@@ -689,8 +697,17 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
     private val SHORT_SWEEP_PROBES = 4
     private val LONG_SWEEP_PROBES = 16
   }
-  private[concurrent] class Itrs private[concurrent] (val initial: Itr) {
+  private[concurrent] class Itrs private[concurrent] (initial: Itr) {
     register(initial)
+
+    /** Linked list of weak iterator references */
+    private var head: Node = _
+
+    /** Used to expunge stale iterators */
+    private var sweeper: Node = _
+
+    /** Incremented whenever takeIndex wraps around to 0 */
+    private[concurrent] var cycles = 0
 
     /** Node in a linked list of weak iterator references.
      */
@@ -698,15 +715,6 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
         val iterator: Itr,
         var next: Node
     ) extends WeakReference[Itr](iterator) {}
-
-    /** Incremented whenever takeIndex wraps around to 0 */
-    private[concurrent] var cycles = 0
-
-    /** Linked list of weak iterator references */
-    private var head: Node = null
-
-    /** Used to expunge stale iterators */
-    private var sweeper: Node = null
 
     /** Sweeps itrs, looking for and expunging stale iterators. If at least one
      *  was found, tries harder to find more. Called only from iterating thread.
@@ -794,7 +802,8 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
       while (p != null) {
         val it = p.get()
         val next = p.next
-        if (it == null || it.takeIndexWrapped) { // assert it == null || it.isDetached();
+        if (it == null || it.takeIndexWrapped) {
+          // assert it == null || it.isDetached();
           p.clear()
           p.next = null
           if (o == null) head = next
@@ -858,7 +867,7 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
     }
   }
 
-  /** Iterator for ArrayBlockingQueue.
+  /** Iterator for
    *
    *  To maintain weak consistency with respect to puts and takes, we read ahead
    *  one slot, so as to not report hasNext true but then not have an element to
@@ -898,25 +907,25 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
     import Itr._
 
     /** Index to look for new nextItem; NONE at end */
-    private var cursor = 0
+    private var cursor: Int = 0
 
     /** Element to be returned by next call to next(); null if none */
     private var nextItem: E = _
 
     /** Index of nextItem; NONE if none, REMOVED if removed elsewhere */
-    private var nextIndex = 0
+    private var nextIndex: Int = 0
 
     /** Last element returned; null if none or not detached. */
     private var lastItem: E = _
 
     /** Index of lastItem, NONE if none, REMOVED if removed elsewhere */
-    private var lastRet = NONE
+    private var lastRet: Int = NONE
 
     /** Previous value of takeIndex, or DETACHED when detached */
-    private var prevTakeIndex = 0
+    private var prevTakeIndex: Int = 0
 
     /** Previous value of iters.cycles */
-    private var prevCycles = 0
+    private var prevCycles: Int = 0
 
     locally {
       val lock = ArrayBlockingQueue.this.lock
@@ -1038,8 +1047,10 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
     private def noNext(): Unit = {
       val lock = ArrayBlockingQueue.this.lock
       lock.lock()
-      try // assert nextIndex == NONE;
-        if (!isDetached) { // assert lastRet >= 0;
+      // assert nextIndex == NONE;
+      try
+        if (!isDetached) {
+          // assert lastRet >= 0;
           incorporateDequeues() // might update lastRet
 
           if (lastRet >= 0) {
@@ -1193,8 +1204,9 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
             cursor = NONE
             this.cursor = NONE
           }
-        } else if (x > removedDistance) { // assert cursor != prevTakeIndex;
-          this.cursor = ArrayBlockingQueue.dec(cursor, len)
+        } else if (x > removedDistance) {
+          // assert cursor != prevTakeIndex;
+          this.cursor = dec(cursor, len)
           cursor = this.cursor
         }
       }
@@ -1205,7 +1217,7 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
           lastRet = REMOVED
           this.lastRet = lastRet
         } else if (x > removedDistance) {
-          lastRet = ArrayBlockingQueue.dec(lastRet, len)
+          lastRet = dec(lastRet, len)
           this.lastRet = lastRet
         }
       }
@@ -1216,7 +1228,7 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
           nextIndex = REMOVED
           this.nextIndex = nextIndex
         } else if (x > removedDistance) {
-          nextIndex = ArrayBlockingQueue.dec(nextIndex, len)
+          nextIndex = dec(nextIndex, len)
           this.nextIndex = nextIndex
         }
       }
@@ -1242,7 +1254,7 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
     }
 
     // /** Uncomment for debugging. */
-    // def toString(): String = {
+    // override def toString(): String = {
     //   "cursor=" + cursor + " " +
     //     "nextIndex=" + nextIndex + " " +
     //     "lastRet=" + lastRet + " " +
@@ -1291,8 +1303,8 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
         var to =
           if (i < end) end
           else items.length
-        @annotation.tailrec
-        def loop(): Unit = {
+
+        @tailrec def loop(): Unit = {
           while (i < to) {
             action.accept(ArrayBlockingQueue.itemAt(items, i))
             i += 1
@@ -1328,41 +1340,38 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
   private def bulkRemove(filter: Predicate[_ >: E]): Boolean = {
     val lock = this.lock
     lock.lock()
-    val res =
-      try
-        if (itrs == null) {
-          return if (count > 0) {
-            val items = this.items
-            // Optimize for initial run of survivors
-            val start = takeIndex
-            val end = putIndex
-            val to =
-              if (start < end) end
-              else items.length
-
-            def findInRange(range: Range) = range
-              .find(i => filter.test(ArrayBlockingQueue.itemAt(items, i)))
-
-            findInRange(start until to)
-              .orElse(if (to == end) None else findInRange(0 until end))
-              .map(bulkRemoveModified(filter, _))
-              .getOrElse(false)
-          } else false
+    try
+      if (itrs == null) return { // check for active iterators
+        if (count <= 0) false
+        else {
+          val items = this.items
+          // Optimize for initial run of survivors
+          val start = takeIndex
+          val end = putIndex
+          val to =
+            if (start < end) end
+            else items.length
+          def findInRange(range: Range) = range.find { i =>
+            filter.test(ArrayBlockingQueue.itemAt(items, i))
+          }
+          findInRange(start until to)
+            .orElse(if (to == end) None else findInRange(0 until end))
+            .map(bulkRemoveModified(filter, _))
+            .getOrElse(false)
         }
-      finally lock.unlock()
+      }
+    finally lock.unlock()
     // Active iterators are too hairy!
     // Punting (for now) to the slow n^2 algorithm ...
-    println("no active iterators")
     super.removeIf(filter)
   }
 
   /** Returns circular distance from i to j, disambiguating i == j to
    *  items.length; never returns 0.
    */
-  private def distanceNonEmpty(i: Int, _j: Int) = {
-    var j = i - _j
-    if (j <= 0) j += items.length
-    j
+  private def distanceNonEmpty(i: Int, j: Int) = (j - i) match {
+    case n if n <= 0 => n + items.length
+    case n           => n
   }
 
   /** Helper for bulkRemove, in case of at least one deletion. Tolerate
@@ -1377,72 +1386,59 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
     val es = items
     val capacity = items.length
     val end = putIndex
-    val deathRow = ArrayBlockingQueue.nBits(distanceNonEmpty(beg, putIndex))
+    val deathRow = nBits(distanceNonEmpty(beg, putIndex))
     deathRow(0) = 1L // set bit 0
 
-    var i = beg + 1
-    var to =
-      if (i <= end) end
-      else es.length
-    var k = beg
-    @annotation.tailrec
-    def loop(): Unit = {
-      while (i < to) {
-        if (filter.test(ArrayBlockingQueue.itemAt(es, i)))
-          ArrayBlockingQueue.setBit(deathRow, i - k)
-        i += 1
+    val from = beg + 1
+    val to = if (from <= end) end else es.length
+
+    setBits(from, to, beg)
+    def setBits(from: Int, to: Int, k: Int): Unit = {
+      for (i <- from until to) {
+        if (filter.test(ArrayBlockingQueue.itemAt(es, i))) {
+          setBit(deathRow, i - k)
+        }
       }
-      if (to == end) ()
-      else {
-        i = 0
-        to = end
-        k -= capacity
-        loop()
+      if (to != end) {
+        setBits(from = 0, to = end, k = k - capacity)
       }
     }
-    loop()
+
     // a two-finger traversal, with hare i reading, tortoise w writing
     var w = beg
-    i = beg + 1
-    to =
-      if (i <= end) end
-      else es.length
-    k = beg
-    import scala.util.control.Breaks._
-    breakable {
-      while (true) { // w rejoins i on second leg
-        // In this loop, i and w are on the same leg, with i > w
-        while (i < to) {
-          if (ArrayBlockingQueue.isClear(deathRow, i - k)) {
-            es(w) = es(i)
-            w += 1
-          }
-          i += 1
+    traverse(from, to, beg)
+    def traverse(from: Int, to: Int, k: Int): Unit = {
+      // In this loop, i and w are on the same leg, with i > w
+      for (i <- from until to)
+        if (isClear(deathRow, i - k)) {
+          es(w) = es(i)
+          w += 1
         }
-        if (to == end) break()
-        // In this loop, w is on the first leg, i on the second
-        i = 0
-        to = end
-        k -= capacity
+
+      if (to != end) {
+        var i = 0
+        val to = end
+        val cap = k - capacity
         while (i < to && w < capacity) {
-          if (ArrayBlockingQueue.isClear(deathRow, i - k)) {
+          if (isClear(deathRow, i - cap)) {
             es(w) = es(i)
             w += 1
           }
           i += 1
         }
         if (i >= to) {
-          if (w == capacity) w = 0 // "corner" case
-          break()
-
+          if (w == capacity) w = 0
+          // break
+        } else {
+          // w rejoins i on second leg
+          w = 0
+          traverse(from = i, to = to, k = cap)
         }
-
-        w = 0
       }
     }
     count -= distanceNonEmpty(w, end)
     putIndex = w
-    ArrayBlockingQueue.circularClear(es, putIndex, end)
+    circularClear(es, putIndex, end)
     true
   }
 

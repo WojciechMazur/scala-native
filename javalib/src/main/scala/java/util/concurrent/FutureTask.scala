@@ -133,18 +133,15 @@ class FutureTask[V <: AnyRef](private var callable: Callable[V])
   override def isCancelled(): Boolean = state >= CANCELLED
   override def isDone(): Boolean = state != NEW
   override def cancel(mayInterruptIfRunning: Boolean): Boolean = {
-    if (!(state == NEW && atomicState.compareExchangeStrong(
-          NEW,
-          if (mayInterruptIfRunning) INTERRUPTING else CANCELLED
-        ))) return false
-    try // in case call to interrupt throws exception
+    def newState = if (mayInterruptIfRunning) INTERRUPTING else CANCELLED
+    if (!(state == NEW &&
+          atomicState.compareExchangeStrong(NEW, newState))) return false
+    try { // in case call to interrupt throws exception
       if (mayInterruptIfRunning) try {
         val t = runner
-        // println(s"cancel $this with runner $t")
         if (t != null) t.interrupt()
-        // println("interrupeted")
       } finally atomicState.store(INTERRUPTED, memory_order_release)
-    finally finishCompletion()
+    } finally finishCompletion()
     true
   }
 
@@ -300,16 +297,13 @@ class FutureTask[V <: AnyRef](private var callable: Callable[V])
   private def finishCompletion(): Unit = {
     // assert state > COMPLETING;
     var q = waiters
-    // println(s"finish completin, waiters: $q")
     var break = false
     while (!break && { q = waiters; q != null })
       if (atomicWaiters.compareExchangeWeak(q, null: WaitNode)) {
         while (!break) {
           val t = q.thread
-          // println(q -> t)
           if (t != null) {
             q.thread = null
-            // println(s"unpark $t")
             LockSupport.unpark(t)
           }
           val next = q.next

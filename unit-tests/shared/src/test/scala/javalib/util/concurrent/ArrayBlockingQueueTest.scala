@@ -354,32 +354,34 @@ class ArrayBlockingQueueTest extends JSR166Test {
     val t: Thread = newStartedThread(new CheckedRunnable() {
       @throws[InterruptedException]
       override def realRun(): Unit = {
-        for (i <- 0 until capacity) { q.put(i) }
+        for (i <- 0 until capacity) q.put(i)
         pleaseTake.countDown()
         q.put(86)
+
         Thread.currentThread.interrupt()
         try {
           q.put(99)
           shouldThrow()
         } catch {
-          case success: InterruptedException =>
-
+          case success: InterruptedException => ()
         }
-        assertFalse(Thread.interrupted)
+        assertFalse(Thread.interrupted())
+
         pleaseInterrupt.countDown()
         try {
           q.put(99)
           shouldThrow()
         } catch {
-          case success: InterruptedException =>
-
+          case success: InterruptedException => ()
         }
-        assertFalse(Thread.interrupted)
+        assertFalse(Thread.interrupted())
       }
     })
+
     await(pleaseTake)
-    assertEquals(0, q.remainingCapacity)
-    assertEquals(0, q.take)
+    assertEquals(0, q.remainingCapacity())
+    assertEquals(0, q.take())
+
     await(pleaseInterrupt)
     if (randomBoolean()) { assertThreadBlocks(t, Thread.State.WAITING) }
     t.interrupt()
@@ -397,18 +399,20 @@ class ArrayBlockingQueueTest extends JSR166Test {
       override def realRun(): Unit = {
         q.put(new Object {})
         q.put(new Object {})
+
         val startTime: Long = System.nanoTime()
         assertFalse(q.offer(new Object {}, timeoutMillis(), MILLISECONDS))
         assertTrue(millisElapsedSince(startTime) >= timeoutMillis())
+
         Thread.currentThread.interrupt()
         try {
           q.offer(new Object {}, randomTimeout(), randomTimeUnit())
           shouldThrow()
         } catch {
-          case success: InterruptedException =>
-
+          case success: InterruptedException => ()
         }
         assertFalse(Thread.interrupted)
+
         pleaseInterrupt.countDown()
         try {
           q.offer(new Object {}, LONGER_DELAY_MS, MILLISECONDS)
@@ -660,6 +664,7 @@ class ArrayBlockingQueueTest extends JSR166Test {
       }
     }
   }
+
   def checkToArray(q: ArrayBlockingQueue[Integer]): Unit = {
     val size: Int = q.size
     val a1 = q.toArray().asInstanceOf[Array[Object]]

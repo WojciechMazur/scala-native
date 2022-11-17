@@ -1566,15 +1566,9 @@ class ThreadPoolExecutor(
     try {
       val it: util.Iterator[Runnable] = q.iterator()
       while (it.hasNext()) {
-        println("---------")
-        println(s"hasNext=${it.hasNext()}")
         it.next() match {
-          case r: Future[_] if r.isCancelled() =>
-            println(s"got $r, hasNext=${it.hasNext()}")
-            it.remove()
-          case _ =>
-            println("not cancelled")
-            ()
+          case r: Future[_] if r.isCancelled() => it.remove()
+          case _                               => ()
         }
       }
     } catch {

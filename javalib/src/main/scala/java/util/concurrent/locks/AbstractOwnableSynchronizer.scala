@@ -22,7 +22,6 @@ import java.util.concurrent.atomic.AtomicReference
  */
 abstract class AbstractOwnableSynchronizer protected ()
     extends java.io.Serializable {
-
   /** The current owner of exclusive mode synchronization.
    */
   private var exclusiveOwnerThread: Thread = _

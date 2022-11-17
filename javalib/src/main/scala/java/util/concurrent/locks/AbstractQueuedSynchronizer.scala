@@ -1532,17 +1532,16 @@ abstract class AbstractQueuedSynchronizer protected ()
 
       var cancelled = false
       var interrupted = false
-      breakable {
-        while (!canReacquire(node)) {
-          interrupted |= Thread.interrupted()
-          if (interrupted || {
-                nanos = deadline - System.nanoTime()
-                nanos <= 0L
-              }) {
-            cancelled = (node.getAndUnsetStatus(COND) & COND) != 0
-            if (cancelled) break()
-          } else LockSupport.parkNanos(this, nanos)
-        }
+      var break = false
+      while (!break && !canReacquire(node)) {
+        interrupted |= Thread.interrupted()
+        if (interrupted || {
+              nanos = deadline - System.nanoTime()
+              nanos <= 0L
+            }) {
+          cancelled = (node.getAndUnsetStatus(COND) & COND) != 0
+          if (cancelled) break = true
+        } else LockSupport.parkNanos(this, nanos)
       }
 
       node.clearStatus()

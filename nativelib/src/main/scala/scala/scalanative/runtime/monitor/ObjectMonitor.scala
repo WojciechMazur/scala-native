@@ -18,10 +18,16 @@ private[monitor] class ObjectMonitor() {
   /** Thread currently locking ownership over given object */
   @volatile private var ownerThread: Thread = _
 
-  /** Thread nominated to be the next owner of the monitor If not null
+  /** Thread nominated to be the next owner of the monitor. If not null
    *  successorThread would be unparked upon exit
    */
   @volatile private var successorThread: Thread = _
+
+  /** Thread selected for active acquiring the lock. A selected thread is the
+   *  only thread which would be parked in a timed manner. It is done to prevent
+   *  rare cases of deadlocks.
+   */
+  @volatile private var activeWaiterThread: Thread = _
 
   /** Linked list of threads waiting to enter the monitor. It's head would be
    *  modified using CAS from InEnterQueue threads. Can be detached and
@@ -103,14 +109,24 @@ private[monitor] class ObjectMonitor() {
       tryLock(currentThread) || trySpinAndLock(currentThread)
 
     // Try to lock upon spinning, otherwise park the thread and try again upon wake up
-    @tailrec def awaitLock(): Unit =
-      if (tryLockThenSpin()) {
-        if (successorThread eq currentThread) successorThread = null
-        atomic_thread_fence(memory_order_seq_cst)
-      } else {
-        LockSupport.park(this)
-        awaitLock()
+    def awaitLock(): Unit = {
+      var isActive = false
+      var pollInterval = 25000L // ns, 0.25ms
+      @alwaysinline def MaxPoolInterval = 1000000000L // ns = 1s
+
+      while (!tryLockThenSpin()) {
+        isActive ||= casActiveWaiterThread(null, currentThread)
+        if (!isActive) LockSupport.park(this)
+        else {
+          LockSupport.parkNanos(this, pollInterval)
+          pollInterval = (pollInterval * 8) min MaxPoolInterval
+        }
       }
+
+      if (successorThread eq currentThread) successorThread = null
+      if (activeWaiterThread eq currentThread) activeWaiterThread = null
+      atomic_thread_fence(memory_order_seq_cst)
+    }
 
     if (!tryLock(currentThread)) awaitLock()
 
@@ -145,7 +161,6 @@ private[monitor] class ObjectMonitor() {
   }
 
   @tailrec private def exitMonitor(currentThread: Thread): Unit = {
-    // assert(recursion == 0, "exiting recursed monitor")
     @alwaysinline def releaseOwnerThread() = {
       atomic_store_explicit(ownerThreadPtr, null, memory_order_release)
       atomic_thread_fence(memory_order_seq_cst)
@@ -163,8 +178,7 @@ private[monitor] class ObjectMonitor() {
     val queuesAreEmpty = enterQueue == null && arriveQueue == null
     if (queuesAreEmpty || successorThread != null) ()
     // If other thread has already taken ownership over monitor it would be responsible for selecting successor
-    else if (!casOwnerThread(null, currentThread)) ()
-    else {
+    else if (tryLock(currentThread)) {
       enterQueue match {
         case null =>
           // enterQueue is empty, try to detach and transfer arriveQueue to it
@@ -300,6 +314,9 @@ private[monitor] class ObjectMonitor() {
   @alwaysinline private def waitListModificationLockPtr =
     classFieldRawPtr(this, "waitListModifcationLock")
 
+  @alwaysinline private def activeWaiterThreadPtr =
+    classFieldRawPtr(this, "activeWaiterThread")
+
   @alwaysinline private def casOwnerThread(
       expected: Thread,
       value: Thread
@@ -308,6 +325,19 @@ private[monitor] class ObjectMonitor() {
     storeObject(expectedPtr, expected)
     atomic_compare_exchange_strong(
       ownerThreadPtr,
+      expectedPtr,
+      castObjectToRawPtr(value)
+    )
+  }
+
+  @alwaysinline private def casActiveWaiterThread(
+      expected: Thread,
+      value: Thread
+  ): Boolean = {
+    val expectedPtr = stackalloc(SizeOfPtr)
+    storeObject(expectedPtr, expected)
+    atomic_compare_exchange_strong(
+      activeWaiterThreadPtr,
       expectedPtr,
       castObjectToRawPtr(value)
     )

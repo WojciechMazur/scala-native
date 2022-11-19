@@ -97,29 +97,21 @@ object NativeThread {
     import scala.collection.mutable
 
     private val _aliveThreads = new ConcurrentHashMap[Long, NativeThread]()
-    private var mainThreadIsAlive = true
 
-    private[NativeThread] def add(thread: NativeThread): Unit = {
+    private[NativeThread] def add(thread: NativeThread): Unit =
       _aliveThreads.put(thread.thread.getId(), thread)
-    }
 
-    private[NativeThread] def remove(thread: NativeThread): Unit = {
-      tryUnregisterMainThread()
+    private[NativeThread] def remove(thread: NativeThread): Unit =
       _aliveThreads.remove(thread.thread.getId())
-    }
 
-    def aliveThreads: scala.Array[NativeThread] = {
-      tryUnregisterMainThread()
-      _aliveThreads.values().toArray().asInstanceOf[scala.Array[NativeThread]]
-    }
+    def aliveThreads: scala.Array[NativeThread] =
+      _aliveThreads
+        .values()
+        .toArray()
+        .asInstanceOf[scala.Array[NativeThread]]
 
-    private def tryUnregisterMainThread() = if (mainThreadIsAlive) {
-      val mainThreadId = 0L
-      val mainThread = _aliveThreads.get(mainThreadId)
-      if (mainThread != null && !mainThread.thread.isAlive()) {
-        _aliveThreads.remove(mainThreadId)
-        mainThreadIsAlive = false
-      }
+    def onMainThreadTermination() = {
+      _aliveThreads.remove(0L)
     }
   }
 

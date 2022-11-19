@@ -23,6 +23,7 @@ import scala.scalanative.libc.atomic.memory_order.{
   memory_order_release
 }
 
+import scala.scalanative.runtime.JoinNonDeamonThreads
 import scala.scalanative.meta.LinktimeInfo
 import java.lang.annotation.Native
 
@@ -300,6 +301,7 @@ object Thread {
     override private[java] val threadId: scala.Long = 0L
     nativeThread = nativeCompanion.create(this, 0L)
     setName("main")
+    JoinNonDeamonThreads.registerExitHook()
   }
 
   @alwaysinline def nativeCompanion: NativeThread.Companion =

@@ -347,7 +347,7 @@ object ThreadLocalRandom {
   private[concurrent] val BAD_SIZE = "size must be non-negative"
 
   /** Rarely-used holder for the second of a pair of Gaussians */
-  private val nextLocalGaussian = new ThreadLocal[Double]
+  private val nextLocalGaussian = new ThreadLocal[java.lang.Double]
 
   /** Generates per-thread initialization/probe field */
   private val probeGenerator = new AtomicInteger

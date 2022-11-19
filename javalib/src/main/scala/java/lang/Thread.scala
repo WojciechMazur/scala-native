@@ -17,7 +17,12 @@ import scala.scalanative.runtime.Intrinsics._
 import scala.scalanative.runtime.{fromRawPtr, NativeThread}
 import scala.scalanative.runtime.NativeThread.{State => _, _}
 import scala.scalanative.runtime.NativeThread.State._
-import scala.scalanative.libc.atomic
+import scala.scalanative.libc.atomic.{CAtomicLongLong, atomic_thread_fence}
+import scala.scalanative.libc.atomic.memory_order.{
+  memory_order_acquire,
+  memory_order_release
+}
+
 import scala.scalanative.meta.LinktimeInfo
 import java.lang.annotation.Native
 
@@ -25,7 +30,7 @@ class Thread private[lang] (
     group: ThreadGroup,
     target: Runnable,
     stackSize: Long,
-    private[java] val inheritableValues: ThreadLocal.Values
+    private[java] val inheritableThreadLocals: ThreadLocal.Values
 ) extends Runnable {
   private[java] val threadId = getNextThreadId()
   @volatile private var interruptedState = false
@@ -36,7 +41,7 @@ class Thread private[lang] (
   private var exceptionHandler: Thread.UncaughtExceptionHandler = _
 
   // ThreadLocal values : local and inheritable
-  private[java] lazy val localValues: ThreadLocal.Values =
+  private[java] lazy val threadLocals: ThreadLocal.Values =
     new ThreadLocal.Values()
   private[java] var threadLocalRandomSeed: Long = 0
   private[java] var threadLocalRandomProbe: Int = 0
@@ -61,9 +66,9 @@ class Thread private[lang] (
         else Thread.currentThread().getThreadGroup(),
       target = target,
       stackSize = stacksize,
-      inheritableValues =
+      inheritableThreadLocals =
         if (inheritThreadLocals)
-          new ThreadLocal.Values(Thread.currentThread().inheritableValues)
+          new ThreadLocal.Values(Thread.currentThread().inheritableThreadLocals)
         else new ThreadLocal.Values()
     )
     val parent = Thread.currentThread()
@@ -173,7 +178,7 @@ class Thread private[lang] (
   }
 
   def start(): Unit = synchronized {
-    if (isAlive()) {
+    if (nativeThread != null) {
       throw new IllegalThreadStateException(
         "This thread was already started!"
       )
@@ -182,7 +187,9 @@ class Thread private[lang] (
       throw new IllegalStateException(
         "ScalaNative application linked with disabled multithreading support"
       )
+    atomic_thread_fence(memory_order_acquire)
     nativeThread = Thread.nativeCompanion.create(this, stackSize)
+    atomic_thread_fence(memory_order_release)
     while (nativeThread.state == New) Thread.onSpinWait()
     nativeThread.setPriority(priority)
   }
@@ -288,7 +295,7 @@ object Thread {
         group = new ThreadGroup(ThreadGroup.System, "main"),
         target = null: Runnable,
         stackSize = 0L,
-        inheritableValues = new ThreadLocal.Values()
+        inheritableThreadLocals = new ThreadLocal.Values()
       ) {
     override private[java] val threadId: scala.Long = 0L
     nativeThread = nativeCompanion.create(this, 0L)
@@ -364,7 +371,7 @@ object Thread {
   // Counter used to generate thread's ID, 0 resevered for main
   final protected var threadId = 1L
   private def getNextThreadId(): scala.Long = {
-    val threadIdRef = new atomic.CAtomicLongLong(
+    val threadIdRef = new CAtomicLongLong(
       fromRawPtr(classFieldRawPtr(this, "threadId"))
     )
     threadIdRef.fetchAdd(1L)

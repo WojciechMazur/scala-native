@@ -67,11 +67,7 @@ class ThreadLocalTest extends JSR166Test {
 
   /** InheritableThreadLocal propagates generic values.
    */
-  @throws[InterruptedException]
-  @Ignore("Incorrect method dispatch")
   @Test def testGenericITL(): Unit = {
-    // It seems that currently we have some isssue with virtual method dispatch
-    // Method childValue defined in itl points to default implementation in InheritableThreadLocal
     val threadCount = 10
     val x = new Array[Int](threadCount)
     val progenitor = new ITLThread(x)

@@ -1263,18 +1263,14 @@ class ReentrantLockTest extends JSR166Test {
     val condition = lock.newCondition
     val conditionSatisfied = new AtomicBoolean(false)
     lock.lock()
-    val thread = newStartedThread(() =>
-      {
-        def foo() = {
-          if (timedAcquire) lock.tryLock(LONGER_DELAY_MS, MILLISECONDS)
-          else lock.lock()
-          while ({ !conditionSatisfied.get })
-            if (timedAwait) condition.await(LONGER_DELAY_MS, MILLISECONDS)
-            else condition.await()
-        }
-        foo()
-      }.asInstanceOf[Action]
-    )
+    val thread = newStartedThread({ () =>
+      if (timedAcquire) lock.tryLock(LONGER_DELAY_MS, MILLISECONDS)
+      else lock.lock()
+      while ({ !conditionSatisfied.get })
+        if (timedAwait) condition.await(LONGER_DELAY_MS, MILLISECONDS)
+        else condition.await()
+    }: Action)
+
     // Needs MxBeasns to check Thread Info
     // val waitingForLock: Runnable = () => {
     //   def foo() = {

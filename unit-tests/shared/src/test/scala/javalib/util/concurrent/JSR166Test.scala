@@ -7,39 +7,6 @@
 //  * Pat Fisher, Mike Judd.
 //  */
 
-// /*
-//  * @test
-//  * @summary JSR-166 tck tests, in a number of variations.
-//  *          The first is the conformance testing variant,
-//  *          while others also test implementation details.
-//  * @build *
-//  * @modules java.management
-//  * @run junit/othervm/timeout=1000 JSR166TestCase
-//  * @run junit/othervm/timeout=1000
-//  *      --add-opens java.base/java.util.concurrent=ALL-UNNAMED
-//  *      --add-opens java.base/java.lang=ALL-UNNAMED
-//  *      -Djsr166.testImplementationDetails=true
-//  *      JSR166TestCase
-//  * @run junit/othervm/timeout=1000
-//  *      --add-opens java.base/java.util.concurrent=ALL-UNNAMED
-//  *      --add-opens java.base/java.lang=ALL-UNNAMED
-//  *      -Djsr166.testImplementationDetails=true
-//  *      -Djava.util.concurrent.ForkJoinPool.common.parallelism=0
-//  *      JSR166TestCase
-//  * @run junit/othervm/timeout=1000
-//  *      --add-opens java.base/java.util.concurrent=ALL-UNNAMED
-//  *      --add-opens java.base/java.lang=ALL-UNNAMED
-//  *      -Djsr166.testImplementationDetails=true
-//  *      -Djava.util.concurrent.ForkJoinPool.common.parallelism=1
-//  *      -Djava.util.secureRandomSeed=true
-//  *      JSR166TestCase
-//  * @run junit/othervm/timeout=1000/policy=tck.policy
-//  *      --add-opens java.base/java.util.concurrent=ALL-UNNAMED
-//  *      --add-opens java.base/java.lang=ALL-UNNAMED
-//  *      -Djsr166.testImplementationDetails=true
-//  *      JSR166TestCase
-//  */
-
 package org.scalanative.testsuite.javalib.util.concurrent
 
 import java.util.concurrent.TimeUnit._
@@ -137,12 +104,10 @@ trait JSR166Test {
     choices(ThreadLocalRandom.current().nextInt(choices.length))
   }
 
-//     /**
-//      * Returns the shortest timed delay. This can be scaled up for
-//      * slow machines using the jsr166.delay.factor system property,
-//      * or via jtreg's -timeoutFactor: flag.
-//      * http://openjdk.java.net/jtreg/command-help.html
-//      */
+  /** Returns the shortest timed delay. This can be scaled up for slow machines
+   *  using the jsr166.delay.factor system property, or via jtreg's
+   *  -timeoutFactor: flag. http://openjdk.java.net/jtreg/command-help.html
+   */
   protected def getShortDelay(): Long = SHORT_DELAY_MS
 
   /** Returns a new Date instance representing a time at least delayMillis
@@ -166,68 +131,6 @@ trait JSR166Test {
     System.err.println(t)
     if (threadFailure.compareAndSet(null, t)) () // dumpTestThreads()
   }
-
-//     public void setUp() {
-//         setDelays()
-//     }
-
-//     void tearDownFail(String format, Object... args) {
-//         String msg = toString() + ": " + String.format(format, args)
-//         System.err.println(msg)
-//         dumpTestThreads()
-//         throw new AssertionError(msg)
-//     }
-
-//     /**
-//      * Extra checks that get done for all test cases.
-//      *
-//      * Triggers test case failure if any thread assertions have failed,
-//      * by rethrowing, in the test harness thread, any exception recorded
-//      * earlier by threadRecordFailure.
-//      *
-//      * Triggers test case failure if interrupt status is set in the main thread.
-//      */
-//     public void tearDown() throws Exception {
-//         Throwable t = threadFailure.getAndSet(null)
-//         if (t != null) {
-//             if (t instanceof Error)
-//                 throw (Error) t
-//             else if (t instanceof RuntimeException)
-//                 throw (RuntimeException) t
-//             else if (t instanceof Exception)
-//                 throw (Exception) t
-//             else
-//                 throw new AssertionError(t.toString(), t)
-//         }
-
-//         if (Thread.interrupted())
-//             tearDownFail("interrupt status set in main thread")
-
-//         checkForkJoinPoolThreadLeaks()
-//     }
-
-//     /**
-//      * Finds missing PoolCleaners
-//      */
-//     void checkForkJoinPoolThreadLeaks() throws InterruptedException {
-//         Thread[] survivors = new Thread[7]
-//         int count = Thread.enumerate(survivors)
-//         for (int i = 0 i < count i++) {
-//             Thread thread = survivors[i]
-//             String name = thread.getName()
-//             if (name.startsWith("ForkJoinPool-")) {
-//                 // give thread some time to terminate
-//                 thread.join(LONG_DELAY_MS)
-//                 if (thread.isAlive())
-//                     tearDownFail("Found leaked ForkJoinPool thread thread=%s",
-//                                  thread)
-//             }
-//         }
-
-//         if (!ForkJoinPool.commonPool()
-//             .awaitQuiescence(LONG_DELAY_MS, MILLISECONDS))
-//             tearDownFail("ForkJoin common pool thread stuck")
-//     }
 
   /** Just like fail(reason), but additionally recording (using
    *  threadRecordFailure) any AssertionError thrown, so that the current
@@ -268,49 +171,43 @@ trait JSR166Test {
     }
   }
 
-//     /**
-//      * Just like assertNull(x), but additionally recording (using
-//      * threadRecordFailure) any AssertionError thrown, so that the
-//      * current testcase will fail.
-//      */
-//     public void threadAssertNull(Object x) {
-//         try {
-//             assertNull(x)
-//         } catch (AssertionError fail) {
-//             threadRecordFailure(fail)
-//             throw fail
-//         }
-//     }
+  /** Just like assertNull(x), but additionally recording (using
+   *  threadRecordFailure) any AssertionError thrown, so that the current
+   *  testcase will fail.
+   */
+  def threadAssertNull(x: Object): Unit =
+    try assertNull(x)
+    catch {
+      case fail: AssertionError =>
+        threadRecordFailure(fail)
+        throw fail
+    }
 
-//     /**
-//      * Just like assertEquals(x, y), but additionally recording (using
-//      * threadRecordFailure) any AssertionError thrown, so that the
-//      * current testcase will fail.
-//      */
-//     public void threadAssertEquals(long x, long y) {
-//         try {
-//             assertEquals(x, y)
-//         } catch (AssertionError fail) {
-//             threadRecordFailure(fail)
-//             throw fail
-//         }
-//     }
+  /** Just like assertEquals(x, y), but additionally recording (using
+   *  threadRecordFailure) any AssertionError thrown, so that the current
+   *  testcase will fail.
+   */
+  def threadAssertEquals(x: Long, y: Long): Unit =
+    try assertEquals(x, y)
+    catch {
+      case fail: AssertionError =>
+        threadRecordFailure(fail)
+        throw fail
+    }
 
-//     /**
-//      * Just like assertEquals(x, y), but additionally recording (using
-//      * threadRecordFailure) any AssertionError thrown, so that the
-//      * current testcase will fail.
-//      */
-//     public void threadAssertEquals(Object x, Object y) {
-//         try {
-//             assertEquals(x, y)
-//         } catch (AssertionError fail) {
-//             threadRecordFailure(fail)
-//             throw fail
-//         } catch (Throwable fail) {
-//             threadUnexpectedException(fail)
-//         }
-//     }
+  /** Just like assertEquals(x, y), but additionally recording (using
+   *  threadRecordFailure) any AssertionError thrown, so that the current
+   *  testcase will fail.
+   */
+  def threadAssertEquals(x: Object, y: Object): Unit =
+    try assertEquals(x, y)
+    catch {
+      case fail: AssertionError =>
+        threadRecordFailure(fail)
+        throw fail
+      case fail: Throwable =>
+        threadUnexpectedException(fail)
+    }
 
   /** Fails with message "should throw exception".
    */
@@ -318,19 +215,17 @@ trait JSR166Test {
     s"Should throw $exceptionName"
   )
 
-//     /**
-//      * Just like assertSame(x, y), but additionally recording (using
-//      * threadRecordFailure) any AssertionError thrown, so that the
-//      * current testcase will fail.
-//      */
-//     public void threadAssertSame(Object x, Object y) {
-//         try {
-//             assertSame(x, y)
-//         } catch (AssertionError fail) {
-//             threadRecordFailure(fail)
-//             throw fail
-//         }
-//     }
+  /** Just like assertSame(x, y), but additionally recording (using
+   *  threadRecordFailure) any AssertionError thrown, so that the current
+   *  testcase will fail.
+   */
+  def threadAssertSame(x: Object, y: Object): Unit =
+    try assertSame(x, y)
+    catch {
+      case fail: AssertionError =>
+        threadRecordFailure(fail)
+        throw fail
+    }
 
   /** Calls threadFail with message "should throw exception".
    */
@@ -440,28 +335,27 @@ trait JSR166Test {
    */
   trait Action { def run(): Unit }
 
-//     /**
-//      * Runs all the given actions in parallel, failing if any fail.
-//      * Useful for running multiple variants of tests that are
-//      * necessarily individually slow because they must block.
-//      */
-//     void testInParallel(Action ... actions) {
-//         ExecutorService pool = Executors.newCachedThreadPool()
-//         try (PoolCleaner cleaner = cleaner(pool)) {
-//             ArrayList<Future<?>> futures = new ArrayList<>(actions.length)
-//             for (final Action action : actions)
-//                 futures.add(pool.submit(new CheckedRunnable() {
-//                     public void realRun() throws Throwable { action.run()}}))
-//             for (Future<?> future : futures)
-//                 try {
-//                     assertNull(future.get(LONG_DELAY_MS, MILLISECONDS))
-//                 } catch (ExecutionException ex) {
-//                     threadUnexpectedException(ex.getCause())
-//                 } catch (Exception ex) {
-//                     threadUnexpectedException(ex)
-//                 }
-//         }
-//     }
+  /** Runs all the given actions in parallel, failing if any fail. Useful for
+   *  running multiple variants of tests that are necessarily individually slow
+   *  because they must block.
+   */
+  def testInParallel(actions: Action*): Unit =
+    usingPoolCleaner(Executors.newCachedThreadPool()) { pool =>
+      actions
+        .map { action =>
+          pool.submit(new CheckedRunnable() {
+            def realRun(): Unit = action.run()
+          })
+        }
+        .foreach { future =>
+          try assertNull(future.get(LONG_DELAY_MS, MILLISECONDS))
+          catch {
+            case ex: ExecutionException =>
+              threadUnexpectedException(ex.getCause())
+            case ex: Exception => threadUnexpectedException(ex)
+          }
+        }
+    }
 
   /** Checks that thread eventually enters the expected blocked thread state.
    */
@@ -502,76 +396,6 @@ trait JSR166Test {
     assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
     assertFalse(future.isDone())
   }
-
-//     /**
-//      * Fails with message "should throw exception".
-//      */
-//     public void shouldThrow() {
-//         fail("Should throw exception")
-//     }
-
-//     /**
-//      * Fails with message "should throw " + exceptionName.
-//      */
-//     public void shouldThrow(String exceptionName) {
-//         fail("Should throw " + exceptionName)
-//     }
-
-//     /**
-//      * Runs Runnable r with a security policy that permits precisely
-//      * the specified permissions.  If there is no current security
-//      * manager, the runnable is run twice, both with and without a
-//      * security manager.  We require that any security manager permit
-//      * getPolicy/setPolicy.
-//      */
-//     public void runWithPermissions(Runnable r, Permission... permissions) {
-//         SecurityManager sm = System.getSecurityManager()
-//         if (sm == null) {
-//             r.run()
-//         }
-//         runWithSecurityManagerWithPermissions(r, permissions)
-//     }
-
-//     /**
-//      * Runs Runnable r with a security policy that permits precisely
-//      * the specified permissions.  If there is no current security
-//      * manager, a temporary one is set for the duration of the
-//      * Runnable.  We require that any security manager permit
-//      * getPolicy/setPolicy.
-//      */
-//     public void runWithSecurityManagerWithPermissions(Runnable r,
-//                                                       Permission... permissions) {
-//         SecurityManager sm = System.getSecurityManager()
-//         if (sm == null) {
-//             Policy savedPolicy = Policy.getPolicy()
-//             try {
-//                 Policy.setPolicy(permissivePolicy())
-//                 System.setSecurityManager(new SecurityManager())
-//                 runWithSecurityManagerWithPermissions(r, permissions)
-//             } finally {
-//                 System.setSecurityManager(null)
-//                 Policy.setPolicy(savedPolicy)
-//             }
-//         } else {
-//             Policy savedPolicy = Policy.getPolicy()
-//             AdjustablePolicy policy = new AdjustablePolicy(permissions)
-//             Policy.setPolicy(policy)
-
-//             try {
-//                 r.run()
-//             } finally {
-//                 policy.addPermission(new SecurityPermission("setPolicy"))
-//                 Policy.setPolicy(savedPolicy)
-//             }
-//         }
-//     }
-
-//     /**
-//      * Runs a runnable without any permissions.
-//      */
-//     public void runWithoutPermissions(Runnable r) {
-//         runWithPermissions(r)
-//     }
 
   /** Spin-waits up to the specified number of milliseconds for the given thread
    *  to enter a wait state: BLOCKED, WAITING, or TIMED_WAITING.
@@ -643,24 +467,28 @@ trait JSR166Test {
     }
   }
 
-//     /**
-//      * Checks that timed f.get() returns the expected value, and does not
-//      * wait for the timeout to elapse before returning.
-//      */
-//     <T> void checkTimedGet(Future<T> f, T expectedValue, long timeoutMillis) {
-//         long startTime = System.nanoTime()
-//         T actual = null
-//         try {
-//             actual = f.get(timeoutMillis, MILLISECONDS)
-//         } catch (Throwable fail) { threadUnexpectedException(fail) }
-//         assertEquals(expectedValue, actual)
-//         if (millisElapsedSince(startTime) > timeoutMillis/2)
-//             throw new AssertionError("timed get did not return promptly")
-//     }
-
-//     <T> void checkTimedGet(Future<T> f, T expectedValue) {
-//         checkTimedGet(f, expectedValue, LONG_DELAY_MS)
-//     }
+  /** Checks that timed f.get() returns the expected value, and does not wait
+   *  for the timeout to elapse before returning.
+   */
+  def checkTimedGet[T](
+      f: Future[T],
+      expectedValue: T,
+      timeoutMillis: Long
+  ): Unit = {
+    val startTime = System.nanoTime()
+    val actual =
+      try f.get(timeoutMillis, MILLISECONDS)
+      catch {
+        case fail: Throwable =>
+          threadUnexpectedException(fail)
+          null
+      }
+    assertEquals(expectedValue, actual)
+    if (millisElapsedSince(startTime) > timeoutMillis / 2)
+      throw new AssertionError("timed get did not return promptly")
+  }
+  def checkTimedGet[T](f: Future[T], expectedValue: T): Unit =
+    checkTimedGet(f, expectedValue, LONGER_DELAY_MS)
 
   /** Returns a new started daemon Thread running the given runnable.
    */
@@ -671,13 +499,12 @@ trait JSR166Test {
     t
   }
 
-//     /**
-//      * Returns a new started daemon Thread running the given action,
-//      * wrapped in a CheckedRunnable.
-//      */
-//     Thread newStartedThread(Action action) {
-//         return newStartedThread(checkedRunnable(action))
-//     }
+  /** Returns a new started daemon Thread running the given action, wrapped in a
+   *  CheckedRunnable.
+   */
+  def newStartedThread(action: Action): Thread = newStartedThread(
+    checkedRunnable(action)
+  )
 
   /** Waits for the specified time (in milliseconds) for the thread to terminate
    *  (using {@link Thread#join(long)}), else interrupts the thread (in the hope
@@ -710,12 +537,9 @@ trait JSR166Test {
     }
   }
 
-//     Runnable checkedRunnable(Action action) {
-//         return new CheckedRunnable() {
-//             public void realRun() throws Throwable {
-//                 action.run()
-//             }}
-//     }
+  def checkedRunnable(action: Action): Runnable = new CheckedRunnable() {
+    def realRun(): Unit = action.run()
+  }
 
   abstract class ThreadShouldThrow[T](val exceptionClass: Class[T])
       extends Thread {
@@ -784,12 +608,9 @@ trait JSR166Test {
       }
     }
 
-//     public Runnable countDowner(final CountDownLatch latch) {
-//         return new CheckedRunnable() {
-//             public void realRun() throws InterruptedException {
-//                 latch.countDown()
-//             }}
-//     }
+  def countDowner(latch: CountDownLatch): Runnable = new CheckedRunnable() {
+    protected def realRun(): Unit = latch.countDown()
+  }
 
   object LatchAwaiter {
     final val NEW = 0
@@ -822,44 +643,43 @@ trait JSR166Test {
     }
   }
 
-//     public void await(Semaphore semaphore) {
-//         boolean timedOut = false
-//         try {
-//             timedOut = !semaphore.tryAcquire(LONG_DELAY_MS, MILLISECONDS)
-//         } catch (Throwable fail) {
-//             threadUnexpectedException(fail)
-//         }
-//         if (timedOut)
-//             fail("timed out waiting for Semaphore for "
-//                  + (LONG_DELAY_MS/1000) + " sec")
-//     }
+  def await(semaphore: Semaphore): Unit = {
+    val timedOut =
+      try !semaphore.tryAcquire(LONG_DELAY_MS, MILLISECONDS)
+      catch {
+        case fail: Throwable =>
+          threadUnexpectedException(fail)
+          false
+      }
+    if (timedOut)
+      fail(
+        "timed out waiting for Semaphore for "
+          + (LONG_DELAY_MS / 1000) + " sec"
+      )
+  }
 
-//     public void await(CyclicBarrier barrier) {
-//         try {
-//             barrier.await(LONG_DELAY_MS, MILLISECONDS)
-//         } catch (Throwable fail) {
-//             threadUnexpectedException(fail)
-//         }
-//     }
+  def await(barrier: CyclicBarrier): Unit =
+    try barrier.await(LONG_DELAY_MS, MILLISECONDS)
+    catch {
+      case fail: Throwable =>
+        threadUnexpectedException(fail)
 
-// //     /**
-// //      * Spin-waits up to LONG_DELAY_MS until flag becomes true.
-// //      */
-// //     public void await(AtomicBoolean flag) {
-// //         await(flag, LONG_DELAY_MS)
-// //     }
+    }
 
-// //     /**
-// //      * Spin-waits up to the specified timeout until flag becomes true.
-// //      */
-// //     public void await(AtomicBoolean flag, long timeoutMillis) {
-// //         long startTime = System.nanoTime()
-// //         while (!flag.get()) {
-// //             if (millisElapsedSince(startTime) > timeoutMillis)
-// //                 throw new AssertionError("timed out")
-// //             Thread.yield()
-// //         }
-// //     }
+  /** Spin-waits up to LONG_DELAY_MS until flag becomes true.
+   */
+  def await(flag: AtomicBoolean): Unit = await(flag, LONG_DELAY_MS)
+
+  /** Spin-waits up to the specified timeout until flag becomes true.
+   */
+  def await(flag: AtomicBoolean, timeoutMillis: Long) = {
+    val startTime = System.nanoTime()
+    while (!flag.get()) {
+      if (millisElapsedSince(startTime) > timeoutMillis)
+        throw new AssertionError("timed out")
+      Thread.`yield`()
+    }
+  }
 
   class NPETask extends Callable[String] {
     override def call(): String = throw new NullPointerException()
@@ -961,29 +781,6 @@ trait JSR166Test {
     }
   }
 
-//     void assertSerialEquals(Object x, Object y) {
-//         assertTrue(Arrays.equals(serialBytes(x), serialBytes(y)))
-//     }
-
-//     void assertNotSerialEquals(Object x, Object y) {
-//         assertFalse(Arrays.equals(serialBytes(x), serialBytes(y)))
-//     }
-
-  def serialBytes(o: Object): Array[Byte] = {
-    try {
-      val bos = new ByteArrayOutputStream()
-      val oos = new ObjectOutputStream(bos)
-      oos.writeObject(o)
-      oos.flush()
-      oos.close()
-      bos.toByteArray()
-    } catch {
-      case fail: Throwable =>
-        threadUnexpectedException(fail)
-        Array.empty
-    }
-  }
-
   def assertImmutable(o: Object): Unit = {
     o match {
       case c: Collection[Any] @unchecked =>
@@ -995,81 +792,25 @@ trait JSR166Test {
     }
   }
 
-  def serialClone[T <: AnyRef](o: T): T = {
-    val clone =
-      try {
-        val ois = new ObjectInputStream(
-          new ByteArrayInputStream(serialBytes(o))
-        )
-        ois.readObject().asInstanceOf[T]
-      } catch {
-        case fail: Throwable =>
-          threadUnexpectedException(fail)
-          null.asInstanceOf[T]
-      }
-    if (o == clone) assertImmutable(o)
-    else assertSame(o.getClass(), clone.getClass())
-
-    clone
-  }
-
-//     /**
-//      * A version of serialClone that leaves error handling (for
-//      * e.g. NotSerializableException) up to the caller.
-//      */
-//     @SuppressWarnings("unchecked")
-//     <T> T serialClonePossiblyFailing(T o)
-//         throws ReflectiveOperationException, java.io.IOException {
-//         ByteArrayOutputStream bos = new ByteArrayOutputStream()
-//         ObjectOutputStream oos = new ObjectOutputStream(bos)
-//         oos.writeObject(o)
-//         oos.flush()
-//         oos.close()
-//         ObjectInputStream ois = new ObjectInputStream
-//             (new ByteArrayInputStream(bos.toByteArray()))
-//         T clone = (T) ois.readObject()
-//         if (o == clone) assertImmutable(o)
-//         else assertSame(o.getClass(), clone.getClass())
-//         return clone
-//     }
-
-//     /**
-//      * If o implements Cloneable and has a public clone method,
-//      * returns a clone of o, else null.
-//      */
-//     @SuppressWarnings("unchecked")
-//     <T> T cloneableClone(T o) {
-//         if (!(o instanceof Cloneable)) return null
-//         final T clone
-//         try {
-//             clone = (T) o.getClass().getMethod("clone").invoke(o)
-//         } catch (NoSuchMethodException ok) {
-//             return null
-//         } catch (ReflectiveOperationException unexpected) {
-//             throw new Error(unexpected)
-//         }
-//         assertNotSame(o, clone) // not 100% guaranteed by spec
-//         assertSame(o.getClass(), clone.getClass())
-//         return clone
-//     }
-
-//     public void assertThrows(Class<? extends Throwable> expectedExceptionClass,
-//                              Action... throwingActions) {
-//         for (Action throwingAction : throwingActions) {
-//             boolean threw = false
-//             try { throwingAction.run() }
-//             catch (Throwable t) {
-//                 threw = true
-//                 if (!expectedExceptionClass.isInstance(t))
-//                     throw new AssertionError(
-//                             "Expected " + expectedExceptionClass.getName() +
-//                             ", got " + t.getClass().getName(),
-//                             t)
-//             }
-//             if (!threw)
-//                 shouldThrow(expectedExceptionClass.getName())
-//         }
-//     }
+  // def assertThrows(
+  //     expectedExceptionClass: Class[_ <: Throwable],
+  //     throwingActions: Action*
+  // ): Unit = {
+  //   for (throwingAction <- throwingActions) {
+  //     try {
+  //       throwingAction.run()
+  //       shouldThrow(expectedExceptionClass.getName())
+  //     } catch {
+  //       case t: Throwable =>
+  //         if (!expectedExceptionClass.isInstance(t))
+  //           throw new AssertionError(
+  //             "Expected " + expectedExceptionClass.getName() +
+  //               ", got " + t.getClass().getName(),
+  //             t
+  //           )
+  //     }
+  //   }
+  // }
 
   def assertIteratorExhausted(it: Iterator[_]): Unit = {
     try {
@@ -1101,23 +842,19 @@ trait JSR166Test {
     Collections.shuffle(Arrays.asList(array), ThreadLocalRandom.current())
   }
 
-//     /**
-//      * Returns the same String as would be returned by {@link
-//      * Object#toString}, whether or not the given object's class
-//      * overrides toString().
-//      *
-//      * @see System#identityHashCode
-//      */
+  /** Returns the same String as would be returned by {@link Object#toString},
+   *  whether or not the given object's class overrides toString().
+   *
+   *  @see
+   *    System#identityHashCode
+   */
   def identityString(x: AnyRef): String = {
     x.getClass().getName() + "@" +
       Integer.toHexString(System.identityHashCode(x))
   }
 
-//     // --- Shared assertions for Executor tests ---
+  // --- Shared assertions for Executor tests ---
 
-//     }
-
-  // @SuppressWarnings("FutureReturnValueIgnored")
   def assertNullTaskSubmissionThrowsNullPointerException(e: Executor): Unit = {
     val nullRunnable: Runnable = null
     val nullCallable: Callable[Any] = null
@@ -1305,48 +1042,55 @@ trait JSR166Test {
     assertEquals(savedQueueSize, p.getQueue().size())
   }
 
-//     void assertCollectionsEquals(Collection<?> x, Collection<?> y) {
-//         assertEquals(x, y)
-//         assertEquals(y, x)
-//         assertEquals(x.isEmpty(), y.isEmpty())
-//         assertEquals(x.size(), y.size())
-//         if (x instanceof List) {
-//             assertEquals(x.toString(), y.toString())
-//         }
-//         if (x instanceof List || x instanceof Set) {
-//             assertEquals(x.hashCode(), y.hashCode())
-//         }
-//         if (x instanceof List || x instanceof Deque) {
-//             assertTrue(Arrays.equals(x.toArray(), y.toArray()))
-//             assertTrue(Arrays.equals(x.toArray(new Object[0]),
-//                                      y.toArray(new Object[0])))
-//         }
-//     }
+  def assertCollectionsEquals(x: Collection[_], y: Collection[_]): Unit = {
+    assertEquals(x, y)
+    assertEquals(y, x)
+    assertEquals(x.isEmpty(), y.isEmpty())
+    assertEquals(x.size(), y.size())
+    if (x.isInstanceOf[List[_]]) {
+      assertEquals(x.toString(), y.toString())
+    }
+    if (x.isInstanceOf[List[_]] || x.isInstanceOf[Set[_]]) {
+      assertEquals(x.hashCode(), y.hashCode())
+    }
+    if (x.isInstanceOf[List[_]] || x.isInstanceOf[Deque[_]]) {
+      assertTrue(Arrays.equals(x.toArray(), y.toArray()))
+      assertTrue(
+        Arrays.equals(
+          x.toArray(new Array[Object](0)),
+          y.toArray(new Array[Object](0))
+        )
+      )
+    }
+  }
 
-//     /**
-//      * A weaker form of assertCollectionsEquals which does not insist
-//      * that the two collections satisfy Object#equals(Object), since
-//      * they may use identity semantics as Deques do.
-//      */
-//     void assertCollectionsEquivalent(Collection<?> x, Collection<?> y) {
-//         if (x instanceof List || x instanceof Set)
-//             assertCollectionsEquals(x, y)
-//         else {
-//             assertEquals(x.isEmpty(), y.isEmpty())
-//             assertEquals(x.size(), y.size())
-//             assertEquals(new HashSet(x), new HashSet(y))
-//             if (x instanceof Deque) {
-//                 assertTrue(Arrays.equals(x.toArray(), y.toArray()))
-//                 assertTrue(Arrays.equals(x.toArray(new Object[0]),
-//                                          y.toArray(new Object[0])))
-//             }
-//         }
-//     }
+  /** A weaker form of assertCollectionsEquals which does not insist that the
+   *  two collections satisfy Object#equals(Object), since they may use identity
+   *  semantics as Deques do.
+   */
+  def assertCollectionsEquivalent(x: Collection[_], y: Collection[_]): Unit = {
+    if (x.isInstanceOf[List[_]] || x.isInstanceOf[Set[_]])
+      assertCollectionsEquals(x, y)
+    else {
+      assertEquals(x.isEmpty(), y.isEmpty())
+      assertEquals(x.size(), y.size())
+      assertEquals(new HashSet(x), new HashSet(y))
+      if (x.isInstanceOf[Deque[_]]) {
+        assertTrue(Arrays.equals(x.toArray(), y.toArray()))
+        assertTrue(
+          Arrays.equals(
+            x.toArray(new Array[Object](0)),
+            y.toArray(new Array[Object](0))
+          )
+        )
+      }
+    }
+  }
 }
 
 object JSR166Test {
-//     protected static final boolean expensiveTests =
-//         Boolean.getBoolean("jsr166.expensiveTests")
+  final val expensiveTests =
+    java.lang.Boolean.getBoolean("jsr166.expensiveTests")
 
   /** If true, also run tests that are not part of the official tck because they
    *  test unspecified implementation details.
@@ -1354,421 +1098,32 @@ object JSR166Test {
   final val testImplementationDetails =
     java.lang.Boolean.getBoolean("jsr166.testImplementationDetails")
 
-//     /**
-//      * If true, report on stdout all "slow" tests, that is, ones that
-//      * take more than profileThreshold milliseconds to execute.
-//      */
-//     private static final boolean profileTests =
-//         Boolean.getBoolean("jsr166.profileTests")
+  /** If true, report on stdout all "slow" tests, that is, ones that take more
+   *  than profileThreshold milliseconds to execute.
+   */
+  final val profileTests = java.lang.Boolean.getBoolean("jsr166.profileTests")
 
-//     /**
-//      * The number of milliseconds that tests are permitted for
-//      * execution without being reported, when profileTests is set.
-//      */
-//     private static final long profileThreshold =
-//         Long.getLong("jsr166.profileThreshold", 100)
+  /** The number of milliseconds that tests are permitted for execution without
+   *  being reported, when profileTests is set.
+   */
+  final val profileThreshold =
+    java.lang.Long.getLong("jsr166.profileThreshold", 100)
 
-//     /**
-//      * The number of repetitions per test (for tickling rare bugs).
-//      */
-//     private static final int runsPerTest =
-//         Integer.getInteger("jsr166.runsPerTest", 1)
-
-//     /**
-//      * The number of repetitions of the test suite (for finding leaks?).
-//      */
-//     private static final int suiteRuns =
-//         Integer.getInteger("jsr166.suiteRuns", 1)
-
-//     /**
-//      * Returns the value of the system property, or NaN if not defined.
-//      */
-//     private static float systemPropertyValue(String name) {
-//         String floatString = System.getProperty(name)
-//         if (floatString == null)
-//             return Float.NaN
-//         try {
-//             return Float.parseFloat(floatString)
-//         } catch (NumberFormatException ex) {
-//             throw new IllegalArgumentException(
-//                 String.format("Bad float value in system property %s=%s",
-//                               name, floatString))
-//         }
-//     }
-
-//     private static final ThreadMXBean THREAD_MXBEAN
-//         = ManagementFactory.getThreadMXBean()
-
-//     /**
-//      * The scaling factor to apply to standard delays used in tests.
-//      * May be initialized from any of:
-//      * - the "jsr166.delay.factor" system property
-//      * - the "test.timeout.factor" system property (as used by jtreg)
-//      *   See: http://openjdk.java.net/jtreg/tag-spec.html
-//      * - hard-coded fuzz factor when using a known slowpoke VM
-//      */
+  /** The scaling factor to apply to standard delays used in tests. May be
+   *  initialized from any of:
+   *    - the "jsr166.delay.factor" system property
+   *    - the "test.timeout.factor" system property (as used by jtreg) See:
+   *      http://openjdk.java.net/jtreg/tag-spec.html
+   *    - hard-coded fuzz factor when using a known slowpoke VM
+   */
   private lazy val delayFactor = {
-//         float x
-//         if (!Float.isNaN(x = systemPropertyValue("jsr166.delay.factor")))
-//             return x
-//         if (!Float.isNaN(x = systemPropertyValue("test.timeout.factor")))
-//             return x
-//         String prop = System.getProperty("java.vm.version")
-//         if (prop != null && prop.matches(".*debug.*"))
-//             return 4.0f // How much slower is fastdebug than product?!
-    1.0f
+    sys.props
+      .get("jsr166.delay.factor")
+      .orElse(sys.props.get("test.timeout.factor"))
+      .map(java.lang.Float.parseFloat)
+      .filterNot(java.lang.Float.isNaN)
+      .getOrElse(1.0f)
   }
-
-//     /**
-//          * A filter for tests to run, matching strings of the form
-//          * methodName(className), e.g. "testInvokeAll5(ForkJoinPoolTest)"
-//          * Usefully combined with jsr166.runsPerTest.
-//          */
-//         private static final Pattern methodFilter = methodFilter()
-
-//         private static Pattern methodFilter() {
-//             String regex = System.getProperty("jsr166.methodFilter")
-//             return (regex == null) ? null : Pattern.compile(regex)
-//         }
-
-//         // Instrumentation to debug very rare, but very annoying hung test runs.
-//         static volatile TestCase currentTestCase
-//         // static volatile int currentRun = 0
-//         static {
-//             Runnable wedgedTestDetector = new Runnable() { public void run() {
-//                 // Avoid spurious reports with enormous runsPerTest.
-//                 // A single test case run should never take more than 1 second.
-//                 // But let's cap it at the high end too ...
-//                 final int timeoutMinutesMin = Math.max(runsPerTest / 60, 1)
-//                     * Math.max((int) delayFactor, 1)
-//                 final int timeoutMinutes = Math.min(15, timeoutMinutesMin)
-//                 for (TestCase lastTestCase = currentTestCase) {
-//                     try { MINUTES.sleep(timeoutMinutes) }
-//                     catch (InterruptedException unexpected) { break }
-//                     if (lastTestCase == currentTestCase) {
-//                         System.err.printf(
-//                             "Looks like we're stuck running test: %s%n",
-//                             lastTestCase)
-//     //                     System.err.printf(
-//     //                         "Looks like we're stuck running test: %s (%d/%d)%n",
-//     //                         lastTestCase, currentRun, runsPerTest)
-//     //                     System.err.println("availableProcessors=" +
-//     //                         Runtime.getRuntime().availableProcessors())
-//     //                     System.err.printf("cpu model = %s%n", cpuModel())
-//                         dumpTestThreads()
-//                         // one stack dump is probably enough more would be spam
-//                         break
-//                     }
-//                     lastTestCase = currentTestCase
-//                 }}}
-//             Thread thread = new Thread(wedgedTestDetector, "WedgedTestDetector")
-//             thread.setDaemon(true)
-//             thread.start()
-//         }
-
-//     //     public static String cpuModel() {
-//     //         try {
-//     //             java.util.regex.Matcher matcher
-//     //               = Pattern.compile("model name\\s*: (.*)")
-//     //                 .matcher(new String(
-//     //                     java.nio.file.Files.readAllBytes(
-//     //                         java.nio.file.Paths.get("/proc/cpuinfo")), "UTF-8"))
-//     //             matcher.find()
-//     //             return matcher.group(1)
-//     //         } catch (Exception ex) { return null }
-//     //     }
-
-//     /**
-//       * Runs all JSR166 unit tests using junit.textui.TestRunner.
-//       */
-//      public static void main(String[] args) {
-//          main(suite(), args)
-//      }
-
-//      static class PithyResultPrinter extends junit.textui.ResultPrinter {
-//          PithyResultPrinter(java.io.PrintStream writer) { super(writer) }
-//          long runTime
-//          public void startTest(Test test) {}
-//          protected void printHeader(long runTime) {
-//              this.runTime = runTime // defer printing for later
-//          }
-//          protected void printFooter(TestResult result) {
-//              if (result.wasSuccessful()) {
-//                  getWriter().println("OK (" + result.runCount() + " tests)"
-//                      + "  Time: " + elapsedTimeAsString(runTime))
-//              } else {
-//                  getWriter().println("Time: " + elapsedTimeAsString(runTime))
-//                  super.printFooter(result)
-//              }
-//          }
-//      }
-
-//      /**
-//       * Returns a TestRunner that doesn't bother with unnecessary
-//       * fluff, like printing a "." for each test case.
-//       */
-//      static junit.textui.TestRunner newPithyTestRunner() {
-//          junit.textui.TestRunner runner = new junit.textui.TestRunner()
-//          runner.setPrinter(new PithyResultPrinter(System.out))
-//          return runner
-//      }
-
-//      /**
-//       * Runs all unit tests in the given test suite.
-//       * Actual behavior influenced by jsr166.* system properties.
-//       */
-//      static void main(Test suite, String[] args) {
-//          if (useSecurityManager) {
-//              System.err.println("Setting a permissive security manager")
-//              Policy.setPolicy(permissivePolicy())
-//              System.setSecurityManager(new SecurityManager())
-//          }
-//          for (int i = 0 i < suiteRuns i++) {
-//              TestResult result = newPithyTestRunner().doRun(suite)
-//              if (!result.wasSuccessful())
-//                  System.exit(1)
-//              System.gc()
-//              System.runFinalization()
-//          }
-//      }
-
-//      public static TestSuite newTestSuite(Object... suiteOrClasses) {
-//          TestSuite suite = new TestSuite()
-//          for (Object suiteOrClass : suiteOrClasses) {
-//              if (suiteOrClass instanceof TestSuite)
-//                  suite.addTest((TestSuite) suiteOrClass)
-//              else if (suiteOrClass instanceof Class)
-//                  suite.addTest(new TestSuite((Class<?>) suiteOrClass))
-//              else
-//                  throw new ClassCastException("not a test suite or class")
-//          }
-//          return suite
-//      }
-
-//      public static void addNamedTestClasses(TestSuite suite,
-//                                             String... testClassNames) {
-//          for (String testClassName : testClassNames) {
-//              try {
-//                  Class<?> testClass = Class.forName(testClassName)
-//                  Method m = testClass.getDeclaredMethod("suite")
-//                  suite.addTest(newTestSuite((Test)m.invoke(null)))
-//              } catch (ReflectiveOperationException e) {
-//                  throw new AssertionError("Missing test class", e)
-//              }
-//          }
-//      }
-
-//      public static final double JAVA_CLASS_VERSION
-//      public static final String JAVA_SPECIFICATION_VERSION
-//      static {
-//          try {
-//              JAVA_CLASS_VERSION = java.security.AccessController.doPrivileged(
-//                  new java.security.PrivilegedAction<Double>() {
-//                  public Double run() {
-//                      return Double.valueOf(System.getProperty("java.class.version"))}})
-//              JAVA_SPECIFICATION_VERSION = java.security.AccessController.doPrivileged(
-//                  new java.security.PrivilegedAction<String>() {
-//                  public String run() {
-//                      return System.getProperty("java.specification.version")}})
-//          } catch (Throwable t) {
-//              throw new Error(t)
-//          }
-//      }
-
-//      public static boolean atLeastJava6()  { return JAVA_CLASS_VERSION >= 50.0 }
-//      public static boolean atLeastJava7()  { return JAVA_CLASS_VERSION >= 51.0 }
-//      public static boolean atLeastJava8()  { return JAVA_CLASS_VERSION >= 52.0 }
-//      public static boolean atLeastJava9()  { return JAVA_CLASS_VERSION >= 53.0 }
-//      public static boolean atLeastJava10() { return JAVA_CLASS_VERSION >= 54.0 }
-//      public static boolean atLeastJava11() { return JAVA_CLASS_VERSION >= 55.0 }
-//      public static boolean atLeastJava12() { return JAVA_CLASS_VERSION >= 56.0 }
-//      public static boolean atLeastJava13() { return JAVA_CLASS_VERSION >= 57.0 }
-//      public static boolean atLeastJava14() { return JAVA_CLASS_VERSION >= 58.0 }
-//      public static boolean atLeastJava15() { return JAVA_CLASS_VERSION >= 59.0 }
-//      public static boolean atLeastJava16() { return JAVA_CLASS_VERSION >= 60.0 }
-//      public static boolean atLeastJava17() { return JAVA_CLASS_VERSION >= 61.0 }
-
-//      /**
-//       * Collects all JSR166 unit tests as one suite.
-//       */
-//      public static Test suite() {
-//          // Java7+ test classes
-//          TestSuite suite = newTestSuite(
-//              ForkJoinPoolTest.suite(),
-//              ForkJoinTaskTest.suite(),
-//              RecursiveActionTest.suite(),
-//              RecursiveTaskTest.suite(),
-//              LinkedTransferQueueTest.suite(),
-//              PhaserTest.suite(),
-//              ThreadLocalRandomTest.suite(),
-//              AbstractExecutorServiceTest.suite(),
-//              AbstractQueueTest.suite(),
-//              AbstractQueuedSynchronizerTest.suite(),
-//              AbstractQueuedLongSynchronizerTest.suite(),
-//              ArrayBlockingQueueTest.suite(),
-//              ArrayDequeTest.suite(),
-//              ArrayListTest.suite(),
-//              AtomicBooleanTest.suite(),
-//              AtomicIntegerArrayTest.suite(),
-//              AtomicIntegerFieldUpdaterTest.suite(),
-//              AtomicIntegerTest.suite(),
-//              AtomicLongArrayTest.suite(),
-//              AtomicLongFieldUpdaterTest.suite(),
-//              AtomicLongTest.suite(),
-//              AtomicMarkableReferenceTest.suite(),
-//              AtomicReferenceArrayTest.suite(),
-//              AtomicReferenceFieldUpdaterTest.suite(),
-//              AtomicReferenceTest.suite(),
-//              AtomicStampedReferenceTest.suite(),
-//              ConcurrentHashMapTest.suite(),
-//              ConcurrentLinkedDequeTest.suite(),
-//              ConcurrentLinkedQueueTest.suite(),
-//              ConcurrentSkipListMapTest.suite(),
-//              ConcurrentSkipListSubMapTest.suite(),
-//              ConcurrentSkipListSetTest.suite(),
-//              ConcurrentSkipListSubSetTest.suite(),
-//              CopyOnWriteArrayListTest.suite(),
-//              CopyOnWriteArraySetTest.suite(),
-//              CountDownLatchTest.suite(),
-//              CountedCompleterTest.suite(),
-//              CyclicBarrierTest.suite(),
-//              DelayQueueTest.suite(),
-//              EntryTest.suite(),
-//              ExchangerTest.suite(),
-//              ExecutorsTest.suite(),
-//              ExecutorCompletionServiceTest.suite(),
-//              FutureTaskTest.suite(),
-//              HashtableTest.suite(),
-//              LinkedBlockingDequeTest.suite(),
-//              LinkedBlockingQueueTest.suite(),
-//              LinkedListTest.suite(),
-//              LockSupportTest.suite(),
-//              PriorityBlockingQueueTest.suite(),
-//              PriorityQueueTest.suite(),
-//              ReentrantLockTest.suite(),
-//              ReentrantReadWriteLockTest.suite(),
-//              ScheduledExecutorTest.suite(),
-//              ScheduledExecutorSubclassTest.suite(),
-//              SemaphoreTest.suite(),
-//              SynchronousQueueTest.suite(),
-//              SystemTest.suite(),
-//              ThreadLocalTest.suite(),
-//              ThreadPoolExecutorTest.suite(),
-//              ThreadPoolExecutorSubclassTest.suite(),
-//              ThreadTest.suite(),
-//              TimeUnitTest.suite(),
-//              TreeMapTest.suite(),
-//              TreeSetTest.suite(),
-//              TreeSubMapTest.suite(),
-//              TreeSubSetTest.suite(),
-//              VectorTest.suite())
-
-//          // Java8+ test classes
-//          if (atLeastJava8()) {
-//              String[] java8TestClassNames = {
-//                  "ArrayDeque8Test",
-//                  "Atomic8Test",
-//                  "CompletableFutureTest",
-//                  "ConcurrentHashMap8Test",
-//                  "CountedCompleter8Test",
-//                  "DoubleAccumulatorTest",
-//                  "DoubleAdderTest",
-//                  "ForkJoinPool8Test",
-//                  "ForkJoinTask8Test",
-//                  "HashMapTest",
-//                  "LinkedBlockingDeque8Test",
-//                  "LinkedBlockingQueue8Test",
-//                  "LinkedHashMapTest",
-//                  "LongAccumulatorTest",
-//                  "LongAdderTest",
-//                  "SplittableRandomTest",
-//                  "StampedLockTest",
-//                  "SubmissionPublisherTest",
-//                  "ThreadLocalRandom8Test",
-//                  "TimeUnit8Test",
-//              }
-//              addNamedTestClasses(suite, java8TestClassNames)
-//          }
-
-//          // Java9+ test classes
-//          if (atLeastJava9()) {
-//              String[] java9TestClassNames = {
-//                  "AtomicBoolean9Test",
-//                  "AtomicInteger9Test",
-//                  "AtomicIntegerArray9Test",
-//                  "AtomicLong9Test",
-//                  "AtomicLongArray9Test",
-//                  "AtomicReference9Test",
-//                  "AtomicReferenceArray9Test",
-//                  "ExecutorCompletionService9Test",
-//                  "ForkJoinPool9Test",
-//              }
-//              addNamedTestClasses(suite, java9TestClassNames)
-//          }
-
-//          return suite
-//      }
-
-//      /** Returns list of junit-style test method names in given class. */
-//      public static ArrayList<String> testMethodNames(Class<?> testClass) {
-//          Method[] methods = testClass.getDeclaredMethods()
-//          ArrayList<String> names = new ArrayList<>(methods.length)
-//          for (Method method : methods) {
-//              if (method.getName().startsWith("test")
-//                  && Modifier.isPublic(method.getModifiers())
-//                  // method.getParameterCount() requires jdk8+
-//                  && method.getParameterTypes().length == 0) {
-//                  names.add(method.getName())
-//              }
-//          }
-//          return names
-//      }
-
-//      /**
-//       * Returns junit-style testSuite for the given test class, but
-//       * parameterized by passing extra data to each test.
-//       */
-//      public static <ExtraData> Test parameterizedTestSuite
-//          (Class<? extends JSR166TestCase> testClass,
-//           Class<ExtraData> dataClass,
-//           ExtraData data) {
-//          try {
-//              TestSuite suite = new TestSuite()
-//              Constructor c =
-//                  testClass.getDeclaredConstructor(dataClass, String.class)
-//              for (String methodName : testMethodNames(testClass))
-//                  suite.addTest((Test) c.newInstance(data, methodName))
-//              return suite
-//          } catch (ReflectiveOperationException e) {
-//              throw new AssertionError(e)
-//          }
-//      }
-
-//      /**
-//       * Returns junit-style testSuite for the jdk8 extension of the
-//       * given test class, but parameterized by passing extra data to
-//       * each test.  Uses reflection to allow compilation in jdk7.
-//       */
-//      public static <ExtraData> Test jdk8ParameterizedTestSuite
-//          (Class<? extends JSR166TestCase> testClass,
-//           Class<ExtraData> dataClass,
-//           ExtraData data) {
-//          if (atLeastJava8()) {
-//              String name = testClass.getName()
-//              String name8 = name.replaceAll("Test$", "8Test")
-//              if (name.equals(name8)) throw new AssertionError(name)
-//              try {
-//                  return (Test)
-//                      Class.forName(name8)
-//                      .getMethod("testSuite", dataClass)
-//                      .invoke(null, data)
-//              } catch (ReflectiveOperationException e) {
-//                  throw new AssertionError(e)
-//              }
-//          } else {
-//              return new TestSuite()
-//          }
-//      }
 
   // Delays for timing-dependent tests, in milliseconds.
   final val SHORT_DELAY_MS = (50 * delayFactor).toLong
@@ -1826,122 +1181,13 @@ object JSR166Test {
     }) ()
   }
 
-//     /** Returns true if thread info might be useful in a thread dump. */
-//        static boolean threadOfInterest(ThreadInfo info) {
-//            final String name = info.getThreadName()
-//            String lockName
-//            if (name == null)
-//                return true
-//            if (name.equals("Signal Dispatcher")
-//                || name.equals("WedgedTestDetector"))
-//                return false
-//            if (name.equals("Reference Handler")) {
-//                // Reference Handler stacktrace changed in JDK-8156500
-//                StackTraceElement[] stackTrace String methodName
-//                if ((stackTrace = info.getStackTrace()) != null
-//                    && stackTrace.length > 0
-//                    && (methodName = stackTrace[0].getMethodName()) != null
-//                    && methodName.equals("waitForReferencePendingList"))
-//                    return false
-//                // jdk8 Reference Handler stacktrace
-//                if ((lockName = info.getLockName()) != null
-//                    && lockName.startsWith("java.lang.ref"))
-//                    return false
-//            }
-//            if ((name.equals("Finalizer") || name.equals("Common-Cleaner"))
-//                && (lockName = info.getLockName()) != null
-//                && lockName.startsWith("java.lang.ref"))
-//                return false
-//            if (name.startsWith("ForkJoinPool.commonPool-worker")
-//                && (lockName = info.getLockName()) != null
-//                && lockName.startsWith("java.util.concurrent.ForkJoinPool"))
-//                return false
-//            return true
-//        }
-
-//        /**
-//         * A debugging tool to print stack traces of most threads, as jstack does.
-//         * Uninteresting threads are filtered out.
-//         */
-//        static void dumpTestThreads() {
-//            SecurityManager sm = System.getSecurityManager()
-//            if (sm != null) {
-//                try {
-//                    System.setSecurityManager(null)
-//                } catch (SecurityException giveUp) {
-//                    return
-//                }
-//            }
-
-//            System.err.println("------ stacktrace dump start ------")
-//            for (ThreadInfo info : THREAD_MXBEAN.dumpAllThreads(true, true))
-//                if (threadOfInterest(info))
-//                    System.err.print(info)
-//            System.err.println("------ stacktrace dump end ------")
-
-//            if (sm != null) System.setSecurityManager(sm)
-//        }
-
-// /**
-//    * A security policy where new permissions can be dynamically added
-//    * or all cleared.
-//    */
-//   public static class AdjustablePolicy extends java.security.Policy {
-//       Permissions perms = new Permissions()
-//       AdjustablePolicy(Permission... permissions) {
-//           for (Permission permission : permissions)
-//               perms.add(permission)
-//       }
-//       void addPermission(Permission perm) { perms.add(perm) }
-//       void clearPermissions() { perms = new Permissions() }
-//       public PermissionCollection getPermissions(CodeSource cs) {
-//           return perms
-//       }
-//       public PermissionCollection getPermissions(ProtectionDomain pd) {
-//           return perms
-//       }
-//       public boolean implies(ProtectionDomain pd, Permission p) {
-//           return perms.implies(p)
-//       }
-//       public void refresh() {}
-//       public String toString() {
-//           List<Permission> ps = new ArrayList<>()
-//           for (Enumeration<Permission> e = perms.elements() e.hasMoreElements())
-//               ps.add(e.nextElement())
-//           return "AdjustablePolicy with permissions " + ps
-//       }
-//   }
-
-//   /**
-//    * Returns a policy containing all the permissions we ever need.
-//    */
-//   public static Policy permissivePolicy() {
-//       return new AdjustablePolicy
-//           // Permissions j.u.c. needs directly
-//           (new RuntimePermission("modifyThread"),
-//            new RuntimePermission("getClassLoader"),
-//            new RuntimePermission("setContextClassLoader"),
-//            // Permissions needed to change permissions!
-//            new SecurityPermission("getPolicy"),
-//            new SecurityPermission("setPolicy"),
-//            new RuntimePermission("setSecurityManager"),
-//            // Permissions needed by the junit test harness
-//            new RuntimePermission("accessDeclaredMembers"),
-//            new PropertyPermission("*", "read"),
-//            new java.io.FilePermission("<<ALL FILES>>", "read"))
-//   }
-
-//   /**
-//    * Sleeps until the given time has elapsed.
-//    * Throws AssertionError if interrupted.
-//    */
-//   static void sleep(long millis) {
-//       try {
-//           delay(millis)
-//       } catch (InterruptedException fail) {
-//           throw new AssertionError("Unexpected InterruptedException", fail)
-//       }
-//   }
+  def sleep(millis: Long): Unit = {
+    try delay(millis)
+    catch {
+      case fail: InterruptedException =>
+        throw new AssertionError("Unexpected InterruptedException", fail)
+    }
+  }
 
   /** The maximum number of consecutive spurious wakeups we should tolerate
    *  (from APIs like LockSupport.park) before failing a test.

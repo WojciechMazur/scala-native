@@ -36,7 +36,7 @@ object TestMain {
 
     bridge.start()
 
-    if (LinktimeInfo.isMultithreadingEnabled) {
+    if (!LinktimeInfo.isMultithreadingEnabled) {
       SignalConfig.setDefaultHandlers()
     }
 

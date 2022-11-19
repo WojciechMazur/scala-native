@@ -16,49 +16,40 @@ import scala.scalanative.posix
 import scala.scalanative.posix.errno.ETIMEDOUT
 import scala.scalanative.libc.string
 import java.lang.impl._
+import scala.scalanative.runtime.NativeThread
 
 object LockSupport {
   def getBlocker(t: Thread): Object = t.parkBlocker.get()
 
-  def park(): Unit = {
-    Thread
-      .currentThread()
-      .nativeThread
-      .park()
-  }
+  def park(): Unit = NativeThread.currentNativeThread.park()
 
   def park(blocker: Object): Unit = {
-    val thread = Thread.currentThread()
+    val nativeThread = NativeThread.currentNativeThread
+    val thread = nativeThread.thread
     setBlocker(thread, blocker)
-    park()
+    nativeThread.park()
     setBlocker(thread, null: Object)
   }
 
-  def parkNanos(nanos: Long): Unit = {
-    Thread
-      .currentThread()
-      .nativeThread
-      .parkNanos(nanos)
-  }
+  def parkNanos(nanos: Long): Unit =
+    NativeThread.currentNativeThread.parkNanos(nanos)
 
   def parkNanos(blocker: Object, nanos: Long): Unit = if (nanos > 0) {
-    val thread = Thread.currentThread()
+    val nativeThread = NativeThread.currentNativeThread
+    val thread = nativeThread.thread
     setBlocker(thread, blocker)
-    parkNanos(nanos)
+    nativeThread.parkNanos(nanos)
     setBlocker(thread, null: Object)
   }
 
-  def parkUntil(deadline: Long): Unit = {
-    Thread
-      .currentThread()
-      .nativeThread
-      .parkUntil(deadline)
-  }
+  def parkUntil(deadline: Long): Unit =
+    NativeThread.currentNativeThread.parkUntil(deadline)
 
   def parkUntil(blocker: Object, deadline: Long): Unit = {
-    val thread = Thread.currentThread()
+    val nativeThread = NativeThread.currentNativeThread
+    val thread = nativeThread.thread
     setBlocker(thread, blocker)
-    parkUntil(deadline)
+    nativeThread.parkUntil(deadline)
     setBlocker(thread, null: Object)
   }
 

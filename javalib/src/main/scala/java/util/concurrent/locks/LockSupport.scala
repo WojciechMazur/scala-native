@@ -53,9 +53,10 @@ object LockSupport {
     setBlocker(thread, null: Object)
   }
 
-  def unpark(thread: Thread): Unit = if (thread != null) {
-    thread.nativeThread.unpark()
-  }
+  def unpark(thread: Thread): Unit =
+    if (thread != null && thread.nativeThread != null) {
+      thread.nativeThread.unpark()
+    }
 
   @alwaysinline private def setBlocker(
       thread: Thread,

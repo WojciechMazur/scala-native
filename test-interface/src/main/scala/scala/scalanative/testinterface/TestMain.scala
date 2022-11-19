@@ -3,6 +3,7 @@ package testinterface
 
 import java.net.Socket
 import signalhandling.SignalConfig
+import scala.scalanative.meta.LinktimeInfo
 
 object TestMain {
 
@@ -35,7 +36,9 @@ object TestMain {
 
     bridge.start()
 
-    SignalConfig.setDefaultHandlers()
+    if (LinktimeInfo.isMultithreadingEnabled) {
+      SignalConfig.setDefaultHandlers()
+    }
 
     val exitCode = nativeRPC.loop()
     sys.exit(exitCode)

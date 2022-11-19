@@ -131,7 +131,6 @@ void Marker_markModules(Heap *heap, Stack *stack) {
 
 void Marker_MarkRoots(Heap *heap, Stack *stack) {
     atomic_thread_fence(memory_order_seq_cst);
-    // printf("Mark roots\n");
     MutatorThreadNode *head = mutatorThreads;
     MutatorThreads_foreach(mutatorThreads, node) {
         MutatorThread *thread = node->value;

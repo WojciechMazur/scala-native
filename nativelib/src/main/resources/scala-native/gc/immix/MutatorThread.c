@@ -8,15 +8,18 @@ static mutex_t threadListsModifiactionLock;
 
 void MutatorThread_init(Field_t *stackbottom) {
     MutatorThread *self = (MutatorThread *)malloc(sizeof(MutatorThread));
+    memset(self, 0, sizeof(MutatorThread));
     currentMutatorThread = self;
 
     self->stackBottom = stackbottom;
     self->thread = pthread_self();
     MutatorThread_switchState(self, MutatorThreadState_Managed);
-    MutatorThreads_add(self);
     Allocator_Init(&self->allocator);
-    LargeAllocator_Init(&self->largeAllocator, &blockAllocator, heap.bytemap,
-                        heap.blockMetaStart, heap.heapStart);
+    LargeAllocator_Init(&self->largeAllocator);
+    MutatorThreads_add(self);
+    // Following init operations might trigger GC, needs to be executed after
+    // acknownleding the new thread in MutatorThreads_add
+    Allocator_InitCursors(&self->allocator);
 }
 
 void MutatorThread_delete(MutatorThread *self) {

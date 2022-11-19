@@ -87,10 +87,10 @@ static void ProxyThreadStartRoutine(void *args) {
     RoutineArgs originalArgs = wrapped->args;
     int stackBottom = 0;
 
+    free(args);
     MutatorThread_init((Field_t *)&stackBottom);
     originalFn(originalArgs);
     MutatorThread_delete(currentMutatorThread);
-    free(args);
 }
 
 #ifdef _WIN32

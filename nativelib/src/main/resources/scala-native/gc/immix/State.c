@@ -1,8 +1,8 @@
 #include "State.h"
 
-Heap heap;
-Stack stack;
-Stack weakRefStack;
-BlockAllocator blockAllocator;
-MutatorThreads mutatorThreads;
-thread_local MutatorThread *currentMutatorThread;
+Heap heap = {};
+Stack stack = {};
+Stack weakRefStack = {};
+BlockAllocator blockAllocator = {};
+MutatorThreads mutatorThreads = NULL;
+thread_local MutatorThread *currentMutatorThread = NULL;

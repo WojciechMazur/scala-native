@@ -46,13 +46,10 @@ void LargeAllocator_freeListInit(FreeList *freeList) {
     freeList->last = NULL;
 }
 
-void LargeAllocator_Init(LargeAllocator *allocator,
-                         BlockAllocator *blockAllocator, Bytemap *bytemap,
-                         word_t *blockMetaStart, word_t *heapStart) {
-    allocator->heapStart = heapStart;
-    allocator->blockMetaStart = blockMetaStart;
-    allocator->bytemap = bytemap;
-    allocator->blockAllocator = blockAllocator;
+void LargeAllocator_Init(LargeAllocator *allocator) {
+    allocator->blockMetaStart = heap.blockMetaStart;
+    allocator->bytemap = heap.bytemap;
+    allocator->heapStart = heap.heapStart;
 
     for (int i = 0; i < FREE_LIST_COUNT; i++) {
         LargeAllocator_freeListInit(&allocator->freeLists[i]);
@@ -104,8 +101,8 @@ Object *LargeAllocator_GetBlock(LargeAllocator *allocator,
     if (chunk == NULL) {
         uint32_t superblockSize = (uint32_t)MathUtils_DivAndRoundUp(
             actualBlockSize, BLOCK_TOTAL_SIZE);
-        BlockMeta *superblock = BlockAllocator_GetFreeSuperblock(
-            allocator->blockAllocator, superblockSize);
+        BlockMeta *superblock =
+            BlockAllocator_GetFreeSuperblock(&blockAllocator, superblockSize);
         if (superblock != NULL) {
             BlockMeta_SetOwner(superblock, allocator);
             chunk = (Chunk *)BlockMeta_GetBlockStart(
@@ -203,7 +200,7 @@ void LargeAllocator_Sweep(LargeAllocator *allocator, BlockMeta *blockMeta,
     if (chunkStart == lastBlockStart) {
         // free chunk covers the entire last block, released it to the block
         // allocator
-        BlockAllocator_AddFreeBlocks(allocator->blockAllocator, lastBlock, 1);
+        BlockAllocator_AddFreeBlocks(&blockAllocator, lastBlock, 1);
         BlockMeta_SetOwner(lastBlock, NULL);
     } else if (chunkStart != NULL) {
         size_t currentSize = (current - chunkStart) * WORD_SIZE;

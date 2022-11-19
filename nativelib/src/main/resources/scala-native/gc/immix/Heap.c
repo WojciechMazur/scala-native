@@ -297,8 +297,6 @@ bool Heap_shouldGrow(Heap *heap) {
     uint32_t blockCount = heap->blockCount;
     uint32_t recycledBlockCount = 0;
     MutatorThreads_foreach(mutatorThreads, node) {
-        // printf("Recycled from %p -> %d\n", node->value,
-        // node->value->allocator.recycledBlockCount);
         recycledBlockCount += node->value->allocator.recycledBlockCount;
     }
     uint32_t unavailableBlockCount =

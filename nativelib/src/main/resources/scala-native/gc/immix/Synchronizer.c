@@ -63,31 +63,17 @@ void Synchronizer_wait() {
     if (signum == THREAD_WAKUP_SIGNAL) {
         atomic_store_explicit(&self->isWaiting, false, memory_order_release);
     }
-    // onReceivedSignal(sig);
-    // }
     MutatorThread_switchState(self, MutatorThreadState_Managed);
-}
-
-void onSegFault(void *addr) {
-    MutatorThread *self = currentMutatorThread;
-    // printf("Seg fault at %p\n", addr);
 }
 
 static void Synchronizer_SafepointTrapHandler(int signal, siginfo_t *siginfo,
                                               void *uap) {
-    switch (signal) {
-    case SIGSEGV:
-        if (siginfo->si_addr == SafepointInstance) {
-            Synchronizer_wait();
-        } else {
-            onSegFault(siginfo->si_addr);
-            defaultAction.sa_handler(signal);
-        }
-        break;
-
-    default:
-        fprintf(stderr, "Caught unexpected signal: %d\n", signal);
-        exit(1);
+    if (siginfo->si_addr == SafepointInstance) {
+        Synchronizer_wait();
+    } else {
+        fprintf(stderr, "Unexpected SIGSEGV signal at address %p\n",
+                siginfo->si_addr);
+        defaultAction.sa_handler(signal);
     }
 }
 
@@ -132,8 +118,10 @@ void Synchronizer_release() {
             if (atomic_load_explicit(&thread->isWaiting,
                                      memory_order_acquire)) {
                 int status = pthread_kill(thread->thread, THREAD_WAKUP_SIGNAL);
-                if (status < 0) {
-                    perror("pthread_kill failed");
+                if (status != 0) {
+                    fprintf(stderr,
+                            "Failed to resume thread %lu after GC, errno: %d\n",
+                            thread->thread, status);
                 }
             }
         }
@@ -146,9 +134,6 @@ void Synchronizer_release() {
                 stoppedThreads++;
             }
         }
-        // if (stoppedThreads > 0) {
-        //     printf("restart wait %d\n", stoppedThreads);
-        // }
     } while (stoppedThreads > 0);
     MutatorThread_switchState(currentMutatorThread, MutatorThreadState_Managed);
     MutatorThreads_unlock();

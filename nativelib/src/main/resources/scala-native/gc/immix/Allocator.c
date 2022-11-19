@@ -12,15 +12,12 @@ bool Allocator_newBlock(Allocator *allocator);
 
 void Allocator_Init(Allocator *allocator) {
     allocator->blockMetaStart = heap.blockMetaStart;
-    allocator->blockAllocator = &blockAllocator;
     allocator->bytemap = heap.bytemap;
     allocator->heapStart = heap.heapStart;
 
     BlockList_Init(&allocator->recycledBlocks, heap.blockMetaStart);
 
     allocator->recycledBlockCount = 0;
-
-    Allocator_InitCursors(allocator);
 }
 
 /**
@@ -32,7 +29,7 @@ void Allocator_Init(Allocator *allocator) {
  * otherwise.
  */
 bool Allocator_CanInitCursors(Allocator *allocator) {
-    uint64_t freeBlockCount = allocator->blockAllocator->freeBlockCount;
+    uint64_t freeBlockCount = blockAllocator.freeBlockCount;
     return freeBlockCount >= 2 ||
            (freeBlockCount == 1 && allocator->recycledBlockCount > 0);
 }
@@ -42,7 +39,7 @@ void Allocator_InitCursors(Allocator *allocator) {
     BlockMeta *largeBlock;
     while (true) {
         bool didInit = Allocator_newBlock(allocator);
-        largeBlock = BlockAllocator_GetFreeBlock(allocator->blockAllocator);
+        largeBlock = BlockAllocator_GetFreeBlock(&blockAllocator);
         if (didInit && largeBlock != NULL)
             break;
         Heap_Collect(&heap, &stack);
@@ -71,8 +68,7 @@ word_t *Allocator_overflowAllocation(Allocator *allocator, size_t size) {
     word_t *end = (word_t *)((uint8_t *)start + size);
 
     if (end > allocator->largeLimit) {
-        BlockMeta *block =
-            BlockAllocator_GetFreeBlock(allocator->blockAllocator);
+        BlockMeta *block = BlockAllocator_GetFreeBlock(&blockAllocator);
         if (block == NULL) {
             return NULL;
         }
@@ -173,7 +169,7 @@ bool Allocator_newBlock(Allocator *allocator) {
         allocator->limit = line + (size * WORDS_IN_LINE);
         assert(allocator->limit <= Block_GetBlockEnd(blockStart));
     } else {
-        block = BlockAllocator_GetFreeBlock(allocator->blockAllocator);
+        block = BlockAllocator_GetFreeBlock(&blockAllocator);
         if (block == NULL) {
             return false;
         }

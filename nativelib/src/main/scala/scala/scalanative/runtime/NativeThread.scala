@@ -8,6 +8,9 @@ import scala.scalanative.runtime.GC.{
 }
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
+import scala.scalanative.runtime.libc.atomic_thread_fence
+import scala.scalanative.runtime.libc.memory_order._
+import java.util.concurrent.ConcurrentHashMap
 
 trait NativeThread {
   import NativeThread._
@@ -18,7 +21,7 @@ trait NativeThread {
   def state: State = _state
   protected[runtime] def state_=(newState: State): Unit = _state match {
     case State.Terminated => ()
-    case _          => _state = newState
+    case _                => _state = newState
   }
 
   if (isMainThread) {
@@ -93,43 +96,50 @@ object NativeThread {
   object Registry {
     import scala.collection.mutable
 
-    private val _aliveThreads = mutable.Set(currentNativeThread)
+    private val _aliveThreads = new ConcurrentHashMap[Long, NativeThread]()
     private var mainThreadIsAlive = true
 
-    private[NativeThread] def add(thread: NativeThread): Unit = synchronized {
-      _aliveThreads += thread
+    private[NativeThread] def add(thread: NativeThread): Unit = {
+      _aliveThreads.put(thread.thread.getId(), thread)
     }
-    private[NativeThread] def remove(thread: NativeThread): Unit =
-      synchronized {
-        tryUnregisterMainThread()
-        _aliveThreads -= thread
-      }
-    def aliveThreads: scala.Array[NativeThread] = synchronized {
+
+    private[NativeThread] def remove(thread: NativeThread): Unit = {
       tryUnregisterMainThread()
-      _aliveThreads.toArray
+      _aliveThreads.remove(thread.thread.getId())
     }
+
+    def aliveThreads: scala.Array[NativeThread] = {
+      tryUnregisterMainThread()
+      _aliveThreads.values().toArray().asInstanceOf[scala.Array[NativeThread]]
+    }
+
     private def tryUnregisterMainThread() = if (mainThreadIsAlive) {
-      _aliveThreads.find(_.isMainThread).foreach { main =>
-        if (!main.thread.isAlive()) {
-          remove(main)
-          mainThreadIsAlive = false
-        }
+      val mainThreadId = 0L
+      val mainThread = _aliveThreads.get(mainThreadId)
+      if (mainThread != null && !mainThread.thread.isAlive()) {
+        _aliveThreads.remove(mainThreadId)
+        mainThreadIsAlive = false
       }
     }
   }
 
-  val threadRoutine: ThreadStartRoutine = {
-    CFuncPtr1.fromScalaFunction { (arg: PtrAny) =>
+  val threadRoutine: ThreadStartRoutine = CFuncPtr1.fromScalaFunction {
+    (arg: PtrAny) =>
       val thread = castRawPtrToObject(toRawPtr(arg))
         .asInstanceOf[NativeThread]
-      NativeThread.threadEntryPoint(thread)
+      try NativeThread.threadEntryPoint(thread)
+      catch {
+        case ex: Throwable =>
+          println(s">>>Cought unhandled exception in ${thread.thread}")
+          ex.printStackTrace()
+      }
       null: PtrAny
-    }
   }
 
   private def threadEntryPoint(nativeThread: NativeThread): Unit = {
     import nativeThread.thread
     TLS.assignCurrentThread(thread, nativeThread)
+    atomic_thread_fence(memory_order_seq_cst)
     try thread.run()
     catch {
       case ex: Throwable =>
@@ -140,9 +150,9 @@ object NativeThread {
         if (handler != null) handler.uncaughtException(thread, ex)
     } finally
       thread.synchronized {
-        nativeThread.state = NativeThread.State.Terminated
         try nativeThread.onTermination()
         catch { case ex: Throwable => () }
+        nativeThread.state = NativeThread.State.Terminated
         thread.notifyAll()
       }
   }

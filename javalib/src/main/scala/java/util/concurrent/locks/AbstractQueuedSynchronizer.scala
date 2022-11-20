@@ -552,9 +552,10 @@ abstract class AbstractQueuedSynchronizer protected ()
    *  none are found. Unparks nodes that may have been relinked to be next
    *  eligible acquirer.
    */
-  private def cleanQueue(): Unit = while (true) {
-    // restart point
-    breakable {
+  private def cleanQueue(): Unit = {
+    var break = false
+    while (!break) {
+      // restart point
       var q = tail
       var s: Node = null
       var n: Node = null
@@ -565,9 +566,8 @@ abstract class AbstractQueuedSynchronizer protected ()
         val isIncosisient =
           if (s == null) tail ne q
           else (s.prev ne q) || s.status < 0
-        if (isIncosisient) break()
-
-        if (q.status < 0) { // canceled
+        if (isIncosisient) break = true
+        else if (q.status < 0) { // canceled
           val casNode =
             if (s == null) casTail(q, p)
             else s.casPrev(q, p)
@@ -575,16 +575,16 @@ abstract class AbstractQueuedSynchronizer protected ()
             p.casNext(q, s) // OK if fails
             if (p.prev == null) signalNext(p)
           }
-          break()
-        }
-
-        n = p.next
-        if (n != q) { // help finish
-          if (n != null && q.prev == p) {
-            p.casNext(n, q)
-            if (p.prev == null) signalNext(p)
+          break = true
+        } else {
+          n = p.next
+          if (n != q) { // help finish
+            if (n != null && q.prev == p) {
+              p.casNext(n, q)
+              if (p.prev == null) signalNext(p)
+            }
+            break = true
           }
-          break()
         }
 
         s = q

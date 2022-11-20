@@ -596,43 +596,43 @@ object SynchronousQueue {
        * first. At least one of node s or the node previously
        * saved can always be deleted, so this always terminates.
        */
-      while (pred.next eq s) {
-        import scala.util.control.Breaks._
-        breakable {
-          // Return early if already unlinked
-          val h = head
-          val hn = h.next // Absorb cancelled first node as head
-          if (hn != null && hn.isCancelled()) {
-            advanceHead(h, hn)
-            break()
-          }
+      var break = false
+      while (!break && (pred.next eq s)) {
+        // Return early if already unlinked
+        val h = head
+        val hn = h.next // Absorb cancelled first node as head
+        if (hn != null && hn.isCancelled()) {
+          advanceHead(h, hn)
+          break = true
+        } else {
           val t = tail // Ensure consistent read for tail
           if (t eq h) return ()
           val tn = t.next
-          if (t ne tail) break()
-          if (tn != null) {
+          if (t ne tail) break = true
+          else if (tn != null) {
             advanceTail(t, tn)
-            break()
-          }
-          if (s ne t) { // If not tail, try to unsplice
-            val sn = s.next
-            if ((sn eq s) || pred.casNext(s, sn)) return ()
-          }
-          val dp = cleanMe
-          if (dp != null) { // Try unlinking previous cancelled node
-            val d = dp.next
-            lazy val dn = d.next
-            if (d == null || // d is gone or
-                (d eq dp) || // d is off list or
-                !d.isCancelled() || // d not cancelled or
-                ((d ne t) && // d not tail and
-                  dn != null && //   has successor
-                  (dn ne d) && //   that is on list
-                  dp.casNext(d, dn))) { // d unspliced
-              casCleanMe(dp, null)
+            break = true
+          } else {
+            if (s ne t) { // If not tail, try to unsplice
+              val sn = s.next
+              if ((sn eq s) || pred.casNext(s, sn)) return ()
             }
-            if (dp eq pred) return // s is already saved node
-          } else if (casCleanMe(null, pred)) return // Postpone cleaning s
+            val dp = cleanMe
+            if (dp != null) { // Try unlinking previous cancelled node
+              val d = dp.next
+              lazy val dn = d.next
+              if (d == null || // d is gone or
+                  (d eq dp) || // d is off list or
+                  !d.isCancelled() || // d not cancelled or
+                  ((d ne t) && // d not tail and
+                    dn != null && //   has successor
+                    (dn ne d) && //   that is on list
+                    dp.casNext(d, dn))) { // d unspliced
+                casCleanMe(dp, null)
+              }
+              if (dp eq pred) return // s is already saved node
+            } else if (casCleanMe(null, pred)) return // Postpone cleaning s
+          }
         }
       }
     }

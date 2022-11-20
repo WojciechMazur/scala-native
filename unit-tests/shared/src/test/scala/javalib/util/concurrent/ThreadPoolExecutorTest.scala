@@ -487,12 +487,12 @@ class ThreadPoolExecutorTest extends JSR166Test {
     )
     usingPoolCleaner(p) { p =>
       assertFalse(p.isShutdown)
-      try p.shutdown()
-      catch {
-        case ok: SecurityException =>
-          return
+      try {
+        p.shutdown()
+        assertTrue(p.isShutdown)
+      } catch {
+        case ok: SecurityException => ()
       }
-      assertTrue(p.isShutdown)
     }
   }
 
@@ -524,13 +524,11 @@ class ThreadPoolExecutorTest extends JSR166Test {
       assertFalse(p.awaitTermination(timeoutMillis, MILLISECONDS))
       assertTrue(millisElapsedSince(startTime) >= timeoutMillis)
       assertFalse(p.isTerminated())
-      try p.shutdown()
-      catch {
-        case ok: SecurityException =>
-          return
-      }
-      assertTrue(p.awaitTermination(LONG_DELAY_MS, MILLISECONDS))
-      assertTrue(p.isTerminated())
+      try {
+        p.shutdown()
+        assertTrue(p.awaitTermination(LONG_DELAY_MS, MILLISECONDS))
+        assertTrue(p.isTerminated())
+      } catch { case ok: SecurityException => () }
     }
   }
 
@@ -560,14 +558,12 @@ class ThreadPoolExecutorTest extends JSR166Test {
       await(threadStarted)
       assertFalse(p.isTerminating)
       done.countDown()
-      try p.shutdown()
-      catch {
-        case ok: SecurityException =>
-          return
-      }
-      assertTrue(p.awaitTermination(LONG_DELAY_MS, MILLISECONDS))
-      assertTrue(p.isTerminated)
-      assertFalse(p.isTerminating)
+      try {
+        p.shutdown()
+        assertTrue(p.awaitTermination(LONG_DELAY_MS, MILLISECONDS))
+        assertTrue(p.isTerminated)
+        assertFalse(p.isTerminating)
+      } catch { case ok: SecurityException => () }
     }
   }
 
@@ -597,14 +593,12 @@ class ThreadPoolExecutorTest extends JSR166Test {
       await(threadStarted)
       assertFalse(p.isTerminating)
       done.countDown()
-      try p.shutdown()
-      catch {
-        case ok: SecurityException =>
-          return
-      }
-      assertTrue(p.awaitTermination(LONG_DELAY_MS, MILLISECONDS))
-      assertTrue(p.isTerminated)
-      assertFalse(p.isTerminating)
+      try {
+        p.shutdown()
+        assertTrue(p.awaitTermination(LONG_DELAY_MS, MILLISECONDS))
+        assertTrue(p.isTerminated)
+        assertFalse(p.isTerminating)
+      } catch { case ok: SecurityException => () }
     }
   }
 

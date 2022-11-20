@@ -371,10 +371,12 @@ class ThreadLocalRandomTest extends JSR166Test {
     awaitTermination(first)
     firstRand = rand.get
     firstThreadLocalRandom = threadLocalRandom.get
-    for (i <- 0 until ThreadLocalRandomTest.NCALLS) {
+    var i = 0
+    while (i < ThreadLocalRandomTest.NCALLS) {
       val t = newStartedThread(getRandomState)
       awaitTermination(t)
       if (firstRand != rand.get) return
+      i += 1
     }
     fail("all threads generate the same pseudo-random sequence")
   }

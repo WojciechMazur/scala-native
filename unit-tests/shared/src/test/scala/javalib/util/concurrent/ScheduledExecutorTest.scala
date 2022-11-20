@@ -500,13 +500,11 @@ class ScheduledExecutorTest extends JSR166Test {
       await(threadStarted)
       assertFalse(p.isTerminating)
       done.countDown()
-      try p.shutdown()
-      catch {
-        case ok: SecurityException =>
-          return
-      }
-      assertTrue(p.awaitTermination(LONG_DELAY_MS, MILLISECONDS))
-      assertTrue(p.isTerminated)
+      try {
+        p.shutdown()
+        assertTrue(p.awaitTermination(LONG_DELAY_MS, MILLISECONDS))
+        assertTrue(p.isTerminated)
+      } catch { case ok: SecurityException => () }
     }
 
   /** isTerminating is not true when running or when terminated
@@ -528,14 +526,12 @@ class ScheduledExecutorTest extends JSR166Test {
       await(threadStarted)
       assertFalse(p.isTerminating)
       done.countDown()
-      try p.shutdown()
-      catch {
-        case ok: SecurityException =>
-          return
-      }
-      assertTrue(p.awaitTermination(LONG_DELAY_MS, MILLISECONDS))
-      assertTrue(p.isTerminated)
-      assertFalse(p.isTerminating)
+      try {
+        p.shutdown()
+        assertTrue(p.awaitTermination(LONG_DELAY_MS, MILLISECONDS))
+        assertTrue(p.isTerminated)
+        assertFalse(p.isTerminating)
+      } catch { case ok: SecurityException => () }
     }
 
   /** getQueue returns the work queue, which contains queued tasks

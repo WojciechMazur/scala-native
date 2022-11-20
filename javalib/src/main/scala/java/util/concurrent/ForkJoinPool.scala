@@ -2333,10 +2333,12 @@ class ForkJoinPool private (
     VarHandle.acquireFence()
     val qs = queues
     if (qs != null) {
-      for {
-        i <- 0 until qs.length by 2
-        q = qs(i) if q != null
-      } if (!q.isEmpty()) return true
+      var i = 0
+      while (i < qs.length) {
+        val q = qs(i)
+        if (q != null && !q.isEmpty()) return true
+        i += 2
+      }
     }
     false
   }

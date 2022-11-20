@@ -222,7 +222,11 @@ object ScheduledThreadPoolExecutor {
         if (i >= 0 && i < _size && (queue(i) == x)) i
         else -1
       case _ =>
-        for (i <- 0 until _size) if (x == queue(i)) return i
+        var i = 0
+        while (i < _size) {
+          if (x == queue(i)) return i
+          i += 1
+        }
         -1
     }
 

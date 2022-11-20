@@ -362,7 +362,8 @@ trait JSR166Test {
   def assertThreadBlocks(thread: Thread, expected: Thread.State): Unit = {
     // always sleep at least 1 ms, with high probability avoiding
     // transitory states
-    for (retries <- LONG_DELAY_MS * 3 / 4 until 0 by -1) {
+    var retries = LONG_DELAY_MS * 3 / 4
+    while (retries > 0) {
       try delay(1)
       catch {
         case fail: InterruptedException =>
@@ -372,6 +373,7 @@ trait JSR166Test {
       if (s == expected) return ()
       else if (s == Thread.State.TERMINATED)
         fail("Unexpected thread termination")
+      retries -= 1
     }
     fail("timed out waiting for thread to enter thread state " + expected)
   }

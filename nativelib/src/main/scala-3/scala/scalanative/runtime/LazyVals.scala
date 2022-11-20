@@ -16,17 +16,11 @@ private object LazyVals {
 
   @alwaysinline def LAZY_VAL_MASK = 3L
 
-  /** Cache allowing us to make LazyVals a pure module and though allow to
-   *  remove it in the optimizer
-   */
-  // object Cache {
   final val base: Int = {
     val processors = java.lang.Runtime.getRuntime().nn.availableProcessors()
     8 * processors * processors
   }
   final val monitors = scala.Array.tabulate(base)(_ => new Object)
-  // }
-  // import Cache._
 
   private def getMonitor(bitMap: RawPtr, fieldId: Int = 0) = {
     var id = (castRawPtrToInt(bitMap) + fieldId) % base

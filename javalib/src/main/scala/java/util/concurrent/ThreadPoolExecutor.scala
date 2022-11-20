@@ -652,18 +652,20 @@ class ThreadPoolExecutor(
   private def interruptIdleWorkers(onlyOne: Boolean): Unit = {
     val mainLock: ReentrantLock = this.mainLock
     mainLock.lock()
-    try
-      workers.forEach { w =>
-        val t: Thread = w.thread
-        if (!t.isInterrupted() && w.tryLock()) {
-          try t.interrupt()
-          catch {
-            case ignore: SecurityException =>
-          } finally w.unlock()
-        }
-        if (onlyOne) return
+    def interruptWorker(w: Worker) = {
+      val t: Thread = w.thread
+      if (!t.isInterrupted() && w.tryLock()) {
+        try t.interrupt()
+        catch { case ignore: SecurityException => () }
+        finally w.unlock()
       }
-    finally mainLock.unlock()
+    }
+    val it = workers.iterator()
+    try {
+      if (onlyOne) {
+        if (it.hasNext()) interruptWorker(it.next())
+      } else it.forEachRemaining(interruptWorker(_))
+    } finally mainLock.unlock()
   }
 
   /** Common form of interruptIdleWorkers, to avoid having to remember what the
@@ -726,26 +728,24 @@ class ThreadPoolExecutor(
     import scala.util.control.Breaks
     // retry
     var c: Int = ctl.get()
-    import Breaks._
-    breakable {
-      while (true) {
-        val retry = new Breaks()
-        retry.breakable {
-          // Check if queue empty only if necessary.
-          if (runStateAtLeast(c, SHUTDOWN) && {
-                runStateAtLeast(c, STOP) ||
-                firstTask != null ||
-                workQueue.isEmpty()
-              }) return false
+    var break = false
+    while (!break) {
+      // Check if queue empty only if necessary.
+      if (runStateAtLeast(c, SHUTDOWN) && {
+            runStateAtLeast(c, STOP) ||
+            firstTask != null ||
+            workQueue.isEmpty()
+          }) return false
 
-          while (true) {
-            val maxSize = if (core) corePoolSize else maximumPoolSize
-            if (workerCountOf(c) >= (maxSize & COUNT_MASK)) return false
-            if (compareAndIncrementWorkerCount(c)) break()
-            c = ctl.get() // Re-read ctl
-            if (runStateAtLeast(c, SHUTDOWN)) retry.break()
-            // else CAS failed due to workerCount change; retry inner loop
-          }
+      var retry = true
+      while (retry && !break) {
+        val maxSize = if (core) corePoolSize else maximumPoolSize
+        if (workerCountOf(c) >= (maxSize & COUNT_MASK)) return false
+        if (compareAndIncrementWorkerCount(c)) break = true
+        else {
+          c = ctl.get() // Re-read ctl
+          if (runStateAtLeast(c, SHUTDOWN)) retry = false
+          // else CAS failed due to workerCount change; retry inner loop
         }
       }
     }

@@ -672,7 +672,7 @@ private[codegen] abstract class AbstractCodeGen(
         genLocal(loaded)
         str(" = load atomic volatile i8, i8* %")
         genLocal(pointee)
-        str(" seq_cst, align 1")
+        str(" acquire, align 1")
 
         newline()
         genBind()
@@ -704,7 +704,7 @@ private[codegen] abstract class AbstractCodeGen(
         // Currently we don't support explicit memory order for load/store ops
         // Assume sequentially consistent to much Java volatile behaviour
         if (isAtomic) {
-          str(" seq_cst, align ")
+          str(" acquire, align ")
           str(MemoryLayout.alignmentOf(ty, is32BitPlatform))
         } else {
           ty match {
@@ -748,7 +748,7 @@ private[codegen] abstract class AbstractCodeGen(
         genLocal(extended)
         str(", i8* %")
         genLocal(pointee)
-        str(" seq_cst, align 1")
+        str(" release, align 1")
 
       case Op.Store(ty, ptr, value, isAtomic) =>
         val pointee = fresh()
@@ -772,7 +772,7 @@ private[codegen] abstract class AbstractCodeGen(
         str("* %")
         genLocal(pointee)
         if (isAtomic) {
-          str(" seq_cst, align ")
+          str(" release, align ")
           str(MemoryLayout.alignmentOf(ty, is32BitPlatform))
         }
 

@@ -172,7 +172,9 @@ class LinkedBlockingQueue[E <: AnyRef](
 
     try {
       var n = 0
-      c.forEach { e =>
+      val it = c.iterator()
+      while (it.hasNext()) {
+        val e = it.next()
         if (e == null) throw new NullPointerException
         if (n == capacity) throw new IllegalStateException("Queue full")
         enqueue(new Node[E](e))

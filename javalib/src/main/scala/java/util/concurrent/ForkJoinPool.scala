@@ -19,7 +19,6 @@ import java.util.concurrent.locks.ReentrantLock
 import java.util.concurrent.locks.Condition
 import scala.annotation._
 import scala.scalanative.annotation._
-import scala.util.control.Breaks._
 import scala.scalanative.unsafe._
 import scala.scalanative.libc.atomic.{CAtomicInt, CAtomicLongLong, CAtomicRef}
 import scala.scalanative.runtime.{fromRawPtr, Intrinsics, ObjectArray}
@@ -2061,8 +2060,9 @@ class ForkJoinPool private (
   ): List[Future[T]] = {
     val futures = new ArrayList[Future[T]](tasks.size())
     try {
-      tasks.forEach { t =>
-        val f = new ForkJoinTask.AdaptedInterruptibleCallable[T](t)
+      val it = tasks.iterator()
+      while (it.hasNext()) {
+        val f = new ForkJoinTask.AdaptedInterruptibleCallable[T](it.next())
         futures.add(f)
         externalSubmit(f)
       }
@@ -2072,7 +2072,8 @@ class ForkJoinPool private (
       futures
     } catch {
       case t: Throwable =>
-        futures.forEach(ForkJoinTask.cancelIgnoringExceptions(_))
+        val it = futures.iterator()
+        while (it.hasNext()) ForkJoinTask.cancelIgnoringExceptions(it.next())
         throw t
     }
   }
@@ -2086,8 +2087,9 @@ class ForkJoinPool private (
     val nanos = unit.toNanos(timeout)
     val futures = new ArrayList[Future[T]](tasks.size())
     try {
-      tasks.forEach { t =>
-        val f = new ForkJoinTask.AdaptedInterruptibleCallable[T](t)
+      val it = tasks.iterator()
+      while (it.hasNext()) {
+        val f = new ForkJoinTask.AdaptedInterruptibleCallable[T](it.next())
         futures.add(f)
         externalSubmit(f)
       }
@@ -2113,7 +2115,8 @@ class ForkJoinPool private (
       futures
     } catch {
       case t: Throwable =>
-        futures.forEach(ForkJoinTask.cancelIgnoringExceptions(_))
+        val it = futures.iterator()
+        while (it.hasNext()) ForkJoinTask.cancelIgnoringExceptions(it.next())
         throw t
     }
   }
@@ -2125,19 +2128,24 @@ class ForkJoinPool private (
     val n = tasks.size()
     val root = new InvokeAnyRoot[T](n)
     val fs = new ArrayList[InvokeAnyTask[T]](n)
-    breakable {
-      tasks.forEach {
+    var break = false
+    val it = tasks.iterator()
+    while (!break && it.hasNext()) {
+      it.next() match {
         case null => throw new NullPointerException()
         case c =>
           val f = new InvokeAnyTask[T](root, c)
           fs.add(f)
           if (isSaturated()) f.doExec()
           else externalSubmit(f)
-          if (root.isDone()) break()
+          if (root.isDone()) break = true
       }
     }
     try root.get()
-    finally fs.forEach(ForkJoinTask.cancelIgnoringExceptions(_))
+    finally {
+      val it = fs.iterator()
+      while (it.hasNext()) ForkJoinTask.cancelIgnoringExceptions(it.next())
+    }
   }
 
   @throws[InterruptedException]
@@ -2153,19 +2161,24 @@ class ForkJoinPool private (
     if (n <= 0) throw new IllegalArgumentException()
     val root = new InvokeAnyRoot[T](n)
     val fs = new ArrayList[InvokeAnyTask[T]](n)
-    breakable {
-      tasks.forEach {
+    var break = false
+    val it = tasks.iterator()
+    while (it.hasNext()) {
+      it.next() match {
         case null => throw new NullPointerException()
         case c =>
           val f = new InvokeAnyTask(root, c)
           fs.add(f)
           if (isSaturated()) f.doExec()
           else externalSubmit(f)
-          if (root.isDone()) break()
+          if (root.isDone()) break = true
       }
     }
     try root.get(nanos, TimeUnit.NANOSECONDS)
-    finally fs.forEach(ForkJoinTask.cancelIgnoringExceptions(_))
+    finally {
+      val it = fs.iterator()
+      while (it.hasNext()) ForkJoinTask.cancelIgnoringExceptions(it.next())
+    }
   }
 
   /** Returns the factory used for constructing new workers.

@@ -1278,9 +1278,9 @@ class AbstractQueuedSynchronizerTest extends JSR166Test {
       throw new RuntimeException(
         String.format(
           "Broken: hasQueuedPredecessors=%s hasQueuedThreads=%s queueLength=%d firstQueuedThread=%s",
-          s.hasQueuedPredecessors(),
-          s.hasQueuedThreads(),
-          s.getQueueLength(),
+          s.hasQueuedPredecessors(): java.lang.Boolean,
+          s.hasQueuedThreads(): java.lang.Boolean,
+          s.getQueueLength(): Integer,
           s.getFirstQueuedThread()
         )
       )

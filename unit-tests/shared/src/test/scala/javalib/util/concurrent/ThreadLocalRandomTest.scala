@@ -11,7 +11,6 @@ import java.util.concurrent.atomic.AtomicReference
 
 import JSR166Test._
 import scala.scalanative.junit.utils.AssertThrows.assertThrows
-import org.scalanative.testsuite.javalib.util.concurrent.JSR166Test
 import org.scalanative.testsuite.utils.Platform._
 
 import org.junit.{Test, Ignore}

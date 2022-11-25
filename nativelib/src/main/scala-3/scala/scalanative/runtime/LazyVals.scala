@@ -14,19 +14,19 @@ import scala.scalanative.unsafe.sizeof
  */
 private object LazyVals {
 
-  @alwaysinline def LAZY_VAL_MASK = 3L
-
-  final val base: Int = {
+  private[this] val base: Int = {
     val processors = java.lang.Runtime.getRuntime().nn.availableProcessors()
     8 * processors * processors
   }
-  final val monitors = scala.Array.tabulate(base)(_ => new Object)
+  private[this] val monitors = scala.Array.tabulate(base)(_ => new Object)
 
   private def getMonitor(bitMap: RawPtr, fieldId: Int = 0) = {
     var id = (castRawPtrToInt(bitMap) + fieldId) % base
     if (id < 0) id += base
     monitors(id)
   }
+
+  @alwaysinline def LAZY_VAL_MASK = 3L
 
   /* ------------- Start of public API ------------- */
 

@@ -725,7 +725,6 @@ class ThreadPoolExecutor(
    *    true if successful
    */
   private def addWorker(firstTask: Runnable, core: Boolean): Boolean = {
-    import scala.util.control.Breaks
     // retry
     var c: Int = ctl.get()
     var break = false

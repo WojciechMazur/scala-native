@@ -363,7 +363,7 @@ class PriorityBlockingQueue[E <: AnyRef] private (
         if (cmp == null)
           PriorityBlockingQueue.siftDownComparable(0, x, es, n)
         else
-          PriorityBlockingQueue.siftDownUsingComparator(0, x, es, n, cmp)
+          PriorityBlockingQueue.siftDownUsingComparator[E](0, x, es, n, cmp)
       }
     }
     result
@@ -384,7 +384,7 @@ class PriorityBlockingQueue[E <: AnyRef] private (
     }
     else
       while (i >= 0) {
-        PriorityBlockingQueue.siftDownUsingComparator(
+        PriorityBlockingQueue.siftDownUsingComparator[E](
           i,
           es(i).asInstanceOf[E],
           es,
@@ -440,7 +440,7 @@ class PriorityBlockingQueue[E <: AnyRef] private (
       if (cmp == null)
         PriorityBlockingQueue.siftUpComparable(n, e, es)
       else
-        PriorityBlockingQueue.siftUpUsingComparator(n, e, es, cmp)
+        PriorityBlockingQueue.siftUpUsingComparator[E](n, e, es, cmp)
       curSize = n + 1
       notEmpty.signal()
     } finally lock.unlock()
@@ -567,10 +567,11 @@ class PriorityBlockingQueue[E <: AnyRef] private (
       val cmp = comparator()
       if (cmp == null)
         PriorityBlockingQueue.siftDownComparable(i, moved, es, n)
-      else PriorityBlockingQueue.siftDownUsingComparator(i, moved, es, n, cmp)
+      else
+        PriorityBlockingQueue.siftDownUsingComparator[E](i, moved, es, n, cmp)
       if (es(i) eq moved)
         if (cmp == null) PriorityBlockingQueue.siftUpComparable(i, moved, es)
-        else PriorityBlockingQueue.siftUpUsingComparator(i, moved, es, cmp)
+        else PriorityBlockingQueue.siftUpUsingComparator[E](i, moved, es, cmp)
     }
     curSize = n
   }

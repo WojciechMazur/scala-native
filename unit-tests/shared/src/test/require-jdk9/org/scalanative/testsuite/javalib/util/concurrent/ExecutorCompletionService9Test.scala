@@ -72,7 +72,7 @@ class ExecutorCompletionService9Test extends JSR166Test {
     // results.sort(Comparator.naturalOrder)
     // assertEquals(List.of(1, 2, 3), results)
     val resultsList = collection.mutable.ListBuffer.empty[Integer]
-    results.iterator().forEachRemaining(resultsList.addOne(_))
+    results.iterator().forEachRemaining(resultsList.append(_))
     assertEquals(
       resultsList.toList.sorted,
       scala.List(1, 2, 3)

@@ -156,9 +156,9 @@ class CopyOnWriteArrayList[E <: AnyRef] private (
 
   def addAllAbsent(c: Collection[_ <: E]): Int = {
     var added = 0
-    c.forEach { e =>
-      if (addIfAbsent(e))
-        added += 1
+    val it = c.iterator()
+    while (it.hasNext()) {
+      if (addIfAbsent(it.next())) added += 1
     }
     added
   }

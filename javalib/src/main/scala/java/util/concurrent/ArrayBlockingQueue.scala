@@ -232,8 +232,10 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
     try {
       val items = this.items
       var i = 0
+      val it = c.iterator()
       try
-        c.forEach { e =>
+        while (it.hasNext()) {
+          val e = it.next()
           items(i) = Objects.requireNonNull(e)
           i += 1
         }
@@ -1447,10 +1449,10 @@ class ArrayBlockingQueue[E <: AnyRef](val capacity: Int, val fair: Boolean)
     if (!invariantsSatisfied) {
       val detail = String.format(
         "takeIndex=%d putIndex=%d count=%d capacity=%d items=%s",
-        takeIndex,
-        putIndex,
-        count,
-        items.length,
+        takeIndex: Integer,
+        putIndex: Integer,
+        count: Integer,
+        items.length: Integer,
         util.Arrays.toString(items)
       )
       System.err.println(detail)

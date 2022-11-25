@@ -3,13 +3,12 @@
  * Expert Group and released to the public domain, as explained at
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
-package org.scalanative.testsuite.javalib.util.concurrent.ThreadLocalRandom
+package org.scalanative.testsuite.javalib.util.concurrent
 
 import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.LongAdder
 
-import org.scalanative.testsuite.javalib.util.concurrent.JSR166Test
 import JSR166Test._
 
 import org.junit.{Test, Ignore}

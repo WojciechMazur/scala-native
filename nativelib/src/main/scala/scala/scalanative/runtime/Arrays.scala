@@ -30,7 +30,6 @@ package runtime
 import scalanative.unsafe._
 import scalanative.unsigned._
 import scalanative.runtime.Intrinsics.{castIntToRawSizeUnsigned => intToUSize, _}
-import scala.scalanative.runtime.SizeOfPtr
 
 
 sealed abstract class Array[T]

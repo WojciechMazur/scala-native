@@ -20,8 +20,6 @@ import java.util.regex.Pattern
 import org.junit.Assert._
 import scala.scalanative.junit.utils.AssertThrows.assertThrows
 
-import scala.util.Using
-
 /** Base class for JSR166 Junit TCK tests. Defines some constants, utility
  *  methods and classes, as well as a simple framework for helping to make sure
  *  that assertions failing in generated threads cause the associated test that
@@ -764,7 +762,7 @@ trait JSR166Test {
       assertNull(q.poll())
       assertNull(q.poll(randomExpiredTimeout(), randomTimeUnit()))
       assertEquals(q.toString(), "[]")
-      assertTrue(Arrays.equals(q.toArray(), Array.empty[Any]))
+      assertTrue(Arrays.equals(q.toArray(), Array.empty[AnyRef]))
       assertFalse(q.iterator().hasNext())
       try {
         q.element()

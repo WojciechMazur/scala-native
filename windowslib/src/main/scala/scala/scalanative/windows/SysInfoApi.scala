@@ -1,7 +1,6 @@
 package scala.scalanative.windows
 
-import scala.scalanative.unsafe._
-import scala.scalanative.windows.Word
+import scala.scalanative.unsafe.{Word => _, _}
 
 @extern
 object SysInfoApi {

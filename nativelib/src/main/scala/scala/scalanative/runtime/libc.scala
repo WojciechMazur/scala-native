@@ -43,10 +43,13 @@ object libc {
       expected: RawPtr,
       desired: RawPtr
   ): CBool = extern
-  
+
   @name("scalanative_atomic_load_llong")
-  private[runtime] def atomic_load_explicit(ptr: RawPtr, memoryOrder: memory_order): Long = extern
-  
+  private[runtime] def atomic_load_explicit(
+      ptr: RawPtr,
+      memoryOrder: memory_order
+  ): Long = extern
+
   @name("scalanative_atomic_store_explicit_intptr")
   private[runtime] def atomic_store_explicit(
       ptr: RawPtr,
@@ -55,10 +58,11 @@ object libc {
   ): Unit = extern
 
   @name("scalanative_atomic_thread_fence")
-  private[runtime] final def atomic_thread_fence(order: memory_order): Unit = extern
+  private[runtime] final def atomic_thread_fence(order: memory_order): Unit =
+    extern
 
   private[runtime] type memory_order = Int
-  @extern 
+  @extern
   private[runtime] object memory_order {
     @name("scalanative_atomic_memory_order_relaxed")
     final def memory_order_relaxed: memory_order = extern

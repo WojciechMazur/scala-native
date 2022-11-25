@@ -1,5 +1,7 @@
 package scala.scalanative
 
+import scala.language.higherKinds
+
 import org.junit.Test
 import org.junit.Assert._
 import scala.scalanative.junit.utils.AssertThrows.assertThrows

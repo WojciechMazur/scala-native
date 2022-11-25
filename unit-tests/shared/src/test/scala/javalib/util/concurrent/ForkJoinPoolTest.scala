@@ -17,8 +17,6 @@ import org.junit.Assert._
 import scala.scalanative.junit.utils.AssertThrows.assertThrows
 import scala.scalanative.junit.utils.ThrowsHelper.assertThrowsAnd
 
-import scala.util.Using
-
 object ForkJoinPoolTest {
   class MyError extends Error {}
 

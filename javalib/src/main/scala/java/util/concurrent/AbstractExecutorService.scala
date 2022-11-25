@@ -240,7 +240,10 @@ abstract class AbstractExecutorService() extends ExecutorService {
     var lastIdx = 0
 
     try {
-      tasks.forEach(t => futures.add(newTaskFor(t)))
+      val it = tasks.iterator()
+      while (it.hasNext()) {
+        futures.add(newTaskFor(it.next()))
+      }
       val size = futures.size()
 
       // Interleave time checks and calls to execute in case

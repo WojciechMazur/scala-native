@@ -47,7 +47,6 @@ BlockAllocator_pollSuperblock(BlockAllocator *blockAllocator, int first) {
             BlockList_Poll(&blockAllocator->freeSuperblocks[i]);
         if (superblock != NULL) {
             assert(BlockMeta_SuperblockSize(superblock) > 0);
-            BlockMeta_AssertOwnerEquals(superblock, NULL);
             return superblock;
         } else {
             blockAllocator->minNonEmptyIndex = i + 1;
@@ -65,7 +64,6 @@ BlockAllocator_getFreeBlockSlow(BlockAllocator *blockAllocator) {
         blockAllocator->smallestSuperblock.limit =
             superblock + BlockMeta_SuperblockSize(superblock);
         // it might be safe to remove this
-        BlockMeta_AssertOwnerEquals(superblock, NULL);
         BlockMeta_SetSuperblockSize(superblock, 0);
         BlockMeta_SetFlag(superblock, block_simple);
         return superblock;
@@ -86,9 +84,6 @@ INLINE BlockMeta *BlockAllocator_GetFreeBlock(BlockAllocator *blockAllocator) {
         blockAllocator->smallestSuperblock.cursor++;
     }
     BlockAllocator_release();
-    if (block != NULL) {
-        BlockMeta_AssertOwnerEquals(block, NULL);
-    }
 
     // not decrementing freeBlockCount, because it is only used after sweep
     return block;
@@ -114,7 +109,6 @@ BlockMeta *BlockAllocator_GetFreeSuperblock(BlockAllocator *blockAllocator,
             BlockAllocator_release();
             return NULL;
         }
-        BlockMeta_AssertOwnerEquals(superblock, NULL);
         if (BlockMeta_SuperblockSize(superblock) > size) {
             BlockMeta *leftover = superblock + size;
             BlockAllocator_addFreeBlocksInternal(
@@ -147,7 +141,6 @@ BlockAllocator_addFreeBlocksInternal0(BlockAllocator *blockAllocator,
     }
     BlockMeta *limit = superblock + count;
     for (BlockMeta *current = superblock; current < limit; current++) {
-        BlockMeta_SetOwner(current, NULL);
         BlockMeta_SetFlag(current, block_free);
     }
     BlockMeta_SetSuperblockSize(superblock, count);

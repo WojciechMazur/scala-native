@@ -19,12 +19,11 @@ INLINE void Block_recycleUnmarkedBlock(BlockMeta *blockMeta,
 /**
  * recycles a block and adds it to the allocator
  */
-void Block_Recycle(BlockMeta *blockMeta, word_t *blockStart,
-                   LineMeta *lineMetas) {
+void Block_Recycle(Allocator *allocator, BlockMeta *blockMeta,
+                   word_t *blockStart, LineMeta *lineMetas) {
 
     // If the block is not marked, it means that it's completely free
     if (!BlockMeta_IsMarked(blockMeta)) {
-        BlockMeta_SetOwner(blockMeta, NULL);
         Block_recycleUnmarkedBlock(blockMeta, blockStart);
     } else {
         // If the block is marked, we need to recycle line by line
@@ -90,13 +89,6 @@ void Block_Recycle(BlockMeta *blockMeta, word_t *blockStart,
             }
         }
         // If there is no recyclable line, the block is unavailable
-        Allocator *allocator;
-#ifdef SCALANATIVE_MULTITHREADING_ENABLED
-        allocator = (Allocator *)BlockMeta_GetOwner(blockMeta);
-#else
-        allocator = &currentMutatorThread->allocator;
-#endif
-        assert(allocator != NULL);
         if (lastRecyclable != NULL) {
             lastRecyclable->next = LAST_HOLE;
             BlockList_AddLast(&allocator->recycledBlocks, blockMeta);

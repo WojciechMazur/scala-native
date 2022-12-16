@@ -104,7 +104,6 @@ Object *LargeAllocator_GetBlock(LargeAllocator *allocator,
         BlockMeta *superblock =
             BlockAllocator_GetFreeSuperblock(&blockAllocator, superblockSize);
         if (superblock != NULL) {
-            BlockMeta_SetOwner(superblock, allocator);
             chunk = (Chunk *)BlockMeta_GetBlockStart(
                 allocator->blockMetaStart, allocator->heapStart, superblock);
             chunk->nothing = NULL;
@@ -157,11 +156,9 @@ void LargeAllocator_Sweep(LargeAllocator *allocator, BlockMeta *blockMeta,
     BlockMeta *lastBlock = blockMeta + superblockSize - 1;
     if (superblockSize > 1 && !ObjectMeta_IsMarked(firstObject)) {
         // release free superblock starting from the first object
-        BlockMeta_SetOwner(blockMeta, NULL);
         BlockAllocator_AddFreeBlocks(&blockAllocator, blockMeta,
                                      superblockSize - 1);
 
-        BlockMeta_SetOwner(lastBlock, allocator);
         BlockMeta_SetFlag(lastBlock, block_superblock_start);
         BlockMeta_SetSuperblockSize(lastBlock, 1);
     }
@@ -201,7 +198,6 @@ void LargeAllocator_Sweep(LargeAllocator *allocator, BlockMeta *blockMeta,
         // free chunk covers the entire last block, released it to the block
         // allocator
         BlockAllocator_AddFreeBlocks(&blockAllocator, lastBlock, 1);
-        BlockMeta_SetOwner(lastBlock, NULL);
     } else if (chunkStart != NULL) {
         size_t currentSize = (current - chunkStart) * WORD_SIZE;
         LargeAllocator_AddChunk(allocator, (Chunk *)chunkStart, currentSize);

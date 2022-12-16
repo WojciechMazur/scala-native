@@ -194,18 +194,19 @@ NOINLINE word_t *Heap_allocSmallSlow(Heap *heap, uint32_t size) {
     if (object != NULL)
         goto done;
 
-    // for (int i = 0; i < 3; i++) {
-    Heap_Collect(heap, &stack);
-    object = (Object *)Allocator_Alloc(allocator, size);
+    do {
+        Heap_Collect(heap, &stack);
+        object = (Object *)Allocator_Alloc(allocator, size);
 
-    if (object != NULL)
-        goto done;
+        if (object != NULL)
+            goto done;
 
-    // A small object can always fit in a single free block
-    // because it is no larger than 8K while the block is 32K.
-    Heap_Grow(heap, 1);
-    object = (Object *)Allocator_Alloc(allocator, size);
-    // }
+        // A small object can always fit in a single free block
+        // because it is no larger than 8K while the block is 32K.
+        Heap_Grow(heap, 1);
+        object = (Object *)Allocator_Alloc(allocator, size);
+    } while (Heap_isGrowingPossible(heap, 1));
+    Heap_exitWithOutOfMemory("alloc-small cannot grow");
 
 done:
     assert(object != NULL);
@@ -320,6 +321,7 @@ void Heap_Recycle(Heap *heap) {
         Allocator_Clear(&thread->allocator);
         LargeAllocator_Clear(&thread->largeAllocator);
     }
+    MutatorThreads threadsCursor = mutatorThreads;
     BlockAllocator_Clear(&blockAllocator);
 
     BlockMeta *current = (BlockMeta *)heap->blockMetaStart;
@@ -328,18 +330,22 @@ void Heap_Recycle(Heap *heap) {
     word_t *end = heap->blockMetaEnd;
     while ((word_t *)current < end) {
         int size = 1;
+        MutatorThread *recycleBlocksTo = threadsCursor->value;
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
+        threadsCursor = threadsCursor->next;
+        if (threadsCursor == NULL) {
+            threadsCursor = mutatorThreads;
+        }
+#endif
+
         assert(!BlockMeta_IsSuperblockMiddle(current));
         if (BlockMeta_IsSimpleBlock(current)) {
-            Block_Recycle(current, currentBlockStart, lineMetas);
+            Block_Recycle(&recycleBlocksTo->allocator, current,
+                          currentBlockStart, lineMetas);
         } else if (BlockMeta_IsSuperblockStart(current)) {
             size = BlockMeta_SuperblockSize(current);
-            LargeAllocator *allocator;
-#ifdef SCALANATIVE_MULTITHREADING_ENABLED
-            allocator = (LargeAllocator *)BlockMeta_GetOwner(current);
-#else
-            allocator = &currentMutatorThread->largeAllocator;
-#endif
-            LargeAllocator_Sweep(allocator, current, currentBlockStart);
+            LargeAllocator_Sweep(&recycleBlocksTo->largeAllocator, current,
+                                 currentBlockStart);
         } else {
             assert(BlockMeta_IsFree(current));
             BlockAllocator_AddFreeBlocks(&blockAllocator, current, 1);

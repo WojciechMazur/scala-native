@@ -44,7 +44,6 @@ void Allocator_InitCursors(Allocator *allocator) {
             break;
         Heap_Collect(&heap, &stack);
     }
-    BlockMeta_SetOwner(largeBlock, allocator);
     allocator->largeBlock = largeBlock;
     word_t *largeBlockStart = BlockMeta_GetBlockStart(
         allocator->blockMetaStart, allocator->heapStart, largeBlock);
@@ -72,7 +71,6 @@ word_t *Allocator_overflowAllocation(Allocator *allocator, size_t size) {
         if (block == NULL) {
             return NULL;
         }
-        BlockMeta_SetOwner(block, allocator);
         allocator->largeBlock = block;
         word_t *blockStart = BlockMeta_GetBlockStart(
             allocator->blockMetaStart, allocator->heapStart, block);
@@ -95,7 +93,6 @@ word_t *Allocator_overflowAllocation(Allocator *allocator, size_t size) {
 INLINE word_t *Allocator_Alloc(Allocator *allocator, size_t size) {
     word_t *start = allocator->cursor;
     word_t *end = (word_t *)((uint8_t *)start + size);
-    BlockMeta_AssertOwnerEquals(allocator->block, (void *)allocator);
     // Checks if the end of the block overlaps with the limit
     if (end > allocator->limit) {
         // If it overlaps but the block to allocate is a `medium` sized block,
@@ -153,7 +150,6 @@ bool Allocator_newBlock(Allocator *allocator) {
     word_t *blockStart;
 
     if (block != NULL) {
-        BlockMeta_AssertOwnerEquals(block, allocator);
         blockStart = BlockMeta_GetBlockStart(allocator->blockMetaStart,
                                              allocator->heapStart, block);
 
@@ -181,11 +177,6 @@ bool Allocator_newBlock(Allocator *allocator) {
         BlockMeta_SetFirstFreeLine(block, LAST_HOLE);
     }
 
-#ifdef SCALANATIVE_MULTITHREADING_ENABLED
-    if (BlockMeta_GetOwner(block) != allocator) {
-        BlockMeta_SetOwner(block, allocator);
-    }
-#endif
     allocator->block = block;
     allocator->blockStart = blockStart;
 

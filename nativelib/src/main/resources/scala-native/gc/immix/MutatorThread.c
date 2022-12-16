@@ -28,7 +28,6 @@ void MutatorThread_delete(MutatorThread *self) {
     free(self);
 }
 
-// extern atomic_bool wantsToCollect;
 void MutatorThread_switchState(MutatorThread *self,
                                MutatorThreadState newState) {
     if (newState == MutatorThreadState_Unmanaged) {
@@ -38,7 +37,7 @@ void MutatorThread_switchState(MutatorThread *self,
         word_t *dummy;
         atomic_store_explicit((atomic_uintptr_t *)&self->stackTop,
                               (uintptr_t)&dummy, memory_order_release);
-    } else { // if newState == Managed
+    } else {
         self->stackTop = NULL;
     }
     self->state = newState;

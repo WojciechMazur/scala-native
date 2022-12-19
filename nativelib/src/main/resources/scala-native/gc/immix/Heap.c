@@ -147,6 +147,7 @@ void Heap_Init(Heap *heap, size_t minHeapSize, size_t maxHeapSize) {
         heap->stats = malloc(sizeof(Stats));
         Stats_Init(heap->stats, statsFile);
     }
+    mutex_init(&heap->lock);
 }
 /**
  * Allocates large objects using the `LargeAllocator`.
@@ -384,21 +385,22 @@ void Heap_Recycle(Heap *heap) {
 }
 
 void Heap_Grow(Heap *heap, uint32_t incrementInBlocks) {
+    mutex_lock(&heap->lock);
     if (!Heap_isGrowingPossible(heap, incrementInBlocks)) {
         Heap_exitWithOutOfMemory("grow heap");
     }
     size_t incrementInBytes = incrementInBlocks * SPACE_USED_PER_BLOCK;
 
 #ifdef DEBUG_PRINT
-    printf("Growing small heap by %zu bytes, to %zu bytes\n", incrementInBytes,
-           heap->heapSize + incrementInBytes);
+    printf("Growing small heap by %zu bytes, to %zu bytes by %p\n", incrementInBytes,
+           heap->heapSize + incrementInBytes, currentMutatorThread);
     fflush(stdout);
 #endif
-
+    
     word_t *heapEnd = heap->heapEnd;
+    word_t *blockMetaEnd = heap->blockMetaEnd;
     heap->heapEnd = heapEnd + incrementInBlocks * WORDS_IN_BLOCK;
     heap->heapSize += incrementInBytes;
-    word_t *blockMetaEnd = heap->blockMetaEnd;
     heap->blockMetaEnd =
         (word_t *)(((BlockMeta *)heap->blockMetaEnd) + incrementInBlocks);
     heap->lineMetaEnd +=
@@ -422,4 +424,5 @@ void Heap_Grow(Heap *heap, uint32_t incrementInBlocks) {
 
     // immediately add the block to freelists
     BlockAllocator_SweepDone(&blockAllocator);
+    mutex_unlock(&heap->lock);
 }

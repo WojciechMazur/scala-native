@@ -441,11 +441,61 @@ object Build {
   lazy val sandbox =
     MultiScalaProject("sandbox", file("sandbox"))
       .enablePlugins(MyScalaNativePlugin)
-      .settings(nativeConfig ~= { c =>
-        c.withLTO(LTO.default)
-          .withMode(Mode.default)
-          .withGC(GC.default)
-      })
+      .settings(
+        nativeConfig ~= { c =>
+          val wasiVersion = 16
+          val wasiToolchain = java.nio.file.Path
+            .of(
+              s"/home/wmazur/projects/virtuslab/scala-native-2/wasi-sdk-$wasiVersion.0"
+            )
+          val wasiSharedOpts = Seq(
+            s"--sysroot=${wasiToolchain}/share/wasi-sysroot"
+          )
+          val wasiCompileOpts = wasiSharedOpts ++ Seq(
+            "-D_WASI_EMULATED_MMAN",
+            "-D_WASI_EMULATED_PROCESS_CLOCKS",
+            "-D_WASI_EMULATED_SIGNAL"
+          )
+          val wasiLinkOpts = wasiSharedOpts ++ Seq(
+            "-lwasi-emulated-mman",
+            "-lwasi-emulated-process-clocks",
+            "-lwasi-emulated-signal"
+          )
+          // val emscriptenToolchain = java.nio.file.Path.of(
+          //   "/home/wmazur/projects/virtuslab/scala-native-2/emsdk/upstream/emscripten"
+          // )
+          // val emscriptenCompileOpts = Seq(
+          //   "-sNO_DISABLE_EXCEPTION_CATCHING",
+          //   "-g"
+          // )
+          // val emscriptenLinkOpts = Seq(
+          //   // "-g",
+          //   "-sALLOW_MEMORY_GROWTH",
+          //   "-sSAFE_HEAP=1",
+          //   "-sASSERTIONS=1",
+          //   "-sSTACK_OVERFLOW_CHECK=1",
+          //   "-sNO_DISABLE_EXCEPTION_CATCHING",
+          //   "-o",
+          //   "sandbox.html"
+          // )
+          c.withLTO(LTO.default)
+            .withMode(Mode.default)
+            .withGC(GC.none)
+            .withClang(wasiToolchain.resolve("bin").resolve("clang"))
+            .withClangPP(wasiToolchain.resolve("bin").resolve("clang++"))
+            // .withTargetTriple("wasm32-wasi")
+            .withCompileOptions(wasiCompileOpts)
+            .withLinkingOptions(wasiLinkOpts)
+        // .withClang(emscriptenToolchain.resolve("emcc"))
+        // .withClangPP(emscriptenToolchain.resolve("em++"))
+        // .withCompileOptions(c.compileOptions ++ emscriptenCompileOpts)
+        // .withLinkingOptions(c.linkingOptions ++ emscriptenLinkOpts)
+        },
+        libraryDependencies ++= Seq(
+          "org.typelevel" % "cats-effect_native0.5.0-SNAPSHOT_2.13" % "3.4.2"
+          // "org.typelevel" %%% "cats-effect" % "3.4.2"
+        )
+      )
       .withNativeCompilerPlugin
       .withJUnitPlugin
       .dependsOn(scalalib, testInterface % "test")

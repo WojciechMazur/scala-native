@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets
 import java.util.{Collections, HashMap, Map, Properties, WindowsHelperMethods}
 import scala.scalanative.posix.pwdOps._
 import scala.scalanative.posix.{pwd, unistd}
-import scala.scalanative.meta.LinktimeInfo.isWindows
+import scala.scalanative.meta.LinktimeInfo.{isWindows, isWASI}
 import scala.scalanative.runtime.{GC, Intrinsics, Platform, time}
 import scala.scalanative.unsafe._
 import scala.scalanative.unsigned._
@@ -96,14 +96,14 @@ object System {
     else "\n"
   }
 
-  private lazy val systemProperties0 = loadProperties()
-  private lazy val systemProperties = {
-    Platform.setOSProps { (key: CString, value: CString) =>
-      systemProperties0.setProperty(fromCString(key), fromCString(value))
-      ()
-    }
-    systemProperties0
-  }
+  private lazy val systemProperties = loadProperties()
+  // private lazy val systemProperties = {
+  //   Platform.setOSProps { (key: CString, value: CString) =>
+  //     systemProperties0.setProperty(fromCString(key), fromCString(value))
+  //     ()
+  //   }
+  //   systemProperties0
+  // }
   def getProperties(): Properties = systemProperties
 
   def clearProperty(key: String): String =
@@ -150,7 +150,8 @@ object System {
   }
 
   private def getUserHomeDirectory(): Option[String] = {
-    if (isWindows) {
+    if (isWASI) None
+    else if (isWindows) {
       WindowsHelperMethods.withUserToken(AccessToken.TOKEN_QUERY) { token =>
         val bufSize = stackalloc[UInt]()
         !bufSize = 256.toUInt

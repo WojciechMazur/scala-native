@@ -1,7 +1,9 @@
 #ifdef _WIN32
 // No Windows support
+#elif defined(__wasi__)
+// No WASI support
 #else
-#if !(defined __STDC_VERSION__) || (__STDC_VERSION__ < 201112L)
+#if !(defined __STDC_VERSION__) || (__STDC_VERSION__ < 201112L) || defined(__wasm)
 #ifndef SCALANATIVE_SUPPRESS_STRUCT_CHECK_WARNING
 #warning "Size and order of C structures are not checked when -std < c11."
 #endif

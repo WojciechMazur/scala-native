@@ -20,6 +20,7 @@
 #include <signal.h>
 #include <sys/time.h>
 #include <time.h>
+#include <stdio.h>
 
 struct scalanative_tm {
     int tm_sec;
@@ -43,7 +44,7 @@ struct scalanative_itimerspec {
     struct scalanative_timespec it_value;
 };
 
-#if !(defined __STDC_VERSION__) || (__STDC_VERSION__ < 201112L)
+#if !(defined __STDC_VERSION__) || (__STDC_VERSION__ < 201112L) || defined(__wasi__)
 #ifndef SCALANATIVE_SUPPRESS_STRUCT_CHECK_WARNING
 #warning "Size and order of C structures are not checked when -std < c11."
 #endif
@@ -132,10 +133,22 @@ static void scalanative_tm_init(struct scalanative_tm *scala_tm,
 }
 
 int scalanative_clock_nanosleep(clockid_t clockid, int flags,
-                                struct timespec *request,
-                                struct timespec *remain) {
+                                struct scalanative_timespec *request,
+                                struct scalanative_timespec *remain) {
 #if !defined(__APPLE__)
-    return clock_nanosleep(clockid, flags, request, remain);
+    struct timespec req, rem = {};
+    req.tv_sec = request->tv_sec;
+    req.tv_nsec = request->tv_nsec;
+
+    rem.tv_sec = remain->tv_sec;
+    rem.tv_nsec = remain->tv_nsec;
+
+    // printf("sleep until clock=%p %d %lld - %ld\n", clockid, clockid == CLOCK_MONOTONIC, req.tv_sec,
+    //        req.tv_nsec);
+    int status = clock_nanosleep(clockid, flags, &req, &rem);
+    remain->tv_sec = rem.tv_sec;
+    remain->tv_nsec = rem.tv_nsec;
+    return status;
 #else
     errno = ENOTSUP; // No clock_nanosleep() on Apple.
     return ENOTSUP;
@@ -220,9 +233,11 @@ char *scalanative_strptime(const char *s, const char *format,
     return result;
 }
 
+#if !defined(__wasi__)
 char **scalanative_tzname() { return tzname; }
+#endif
 
-#if defined(__FreeBSD__)
+#if defined(__FreeBSD__) || defined(__wasi__)
 
 /* The synthesized 'timezone' and 'daylight' may or may not match
  * the behavior of Linux/macOS when tzset() has not been previouly call.
@@ -265,19 +280,19 @@ static long synthesize_timezone() {
     localtime_r(&t, &lt);
 
     if (lt.tm_isdst == 0) { // It is Standard time now.
-        tm_gmtoff = lt.tm_gmtoff;
+        tm_gmtoff = lt.__tm_gmtoff;
     } else {
         struct tm tmJan = {0};
 
         // Is Standard time in January?
         if (find_offset(lt.tm_year, 0, &tmJan)) {
-            tm_gmtoff = tmJan.tm_gmtoff;
+            tm_gmtoff = tmJan.__tm_gmtoff;
         } else {
             struct tm tmJuly = {0};
 
             // Current location must be south of Equator.
             if (find_offset(lt.tm_year, 6, &tmJuly)) {
-                tm_gmtoff = tmJuly.tm_gmtoff;
+                tm_gmtoff = tmJuly.__tm_gmtoff;
             }
         }
     }
@@ -288,29 +303,33 @@ static long synthesize_timezone() {
 
 // XSI
 long scalanative_timezone() {
-#if !defined(__FreeBSD__)
-    return timezone;
-#else
+#if defined(__FreeBSD__) || defined(__wasi__)
     return synthesize_timezone();
+#else
+    return timezone;
 #endif
 }
 
 // XSI
 int scalanative_daylight() {
-#if !defined(__FreeBSD__)
-    return daylight;
-#else
+#if defined(__FreeBSD__)
     return (tzname[0] != NULL) && (tzname[1] != NULL) &&
            (strcmp(tzname[0], tzname[1]) != 0);
+#elif defined(__wasi__)
+    return 0;
+#else
+    return daylight;
 #endif
 }
 
 // Symbolic constants
 
-int scalanative_clock_monotonic() { return CLOCK_MONOTONIC; }
-int scalanative_clock_process_cputime_id() { return CLOCK_PROCESS_CPUTIME_ID; }
-int scalanative_clock_realtime() { return CLOCK_REALTIME; }
-int scalanative_clock_thread_cputime_id() { return CLOCK_THREAD_CPUTIME_ID; }
+clockid_t scalanative_clock_monotonic() { return CLOCK_MONOTONIC; }
+// clockid_t scalanative_clock_process_cputime_id() {
+//     return CLOCK_PROCESS_CPUTIME_ID;
+// }
+clockid_t scalanative_clock_realtime() { return CLOCK_REALTIME; }
+// int scalanative_clock_thread_cputime_id() { return CLOCK_THREAD_CPUTIME_ID; }
 
 int scalanative_timer_abstime() {
 #if !defined(__APPLE__)

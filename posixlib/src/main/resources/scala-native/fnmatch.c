@@ -4,7 +4,7 @@
 #include <fnmatch.h>
 #endif // Unix or Mac OS
 
-#if defined(_WIN32) // bogus values to keep linker happy
+#if defined(_WIN32) || defined(__wasm) // bogus values to keep linker happy
 #define FNM_NOMATCH -1
 #define FNM_PATHNAME -1
 #define FNM_PERIOD -1

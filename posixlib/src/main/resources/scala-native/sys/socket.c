@@ -128,292 +128,292 @@ _Static_assert(offsetof(struct msghdr, msg_flags) ==
                "offset mismatch: OS & SN msg_flags expected 44");
 #endif                   // POSIX msghdr
 
-// POSIX 2018 & prior 12 byte definition, Linux uses 16 bytes.
-struct scalanative_cmsghdr {
-    socklen_t cmsg_len;
-    int cmsg_level;
-    int cmsg_type;
-};
+// // POSIX 2018 & prior 12 byte definition, Linux uses 16 bytes.
+// struct scalanative_cmsghdr {
+//     socklen_t cmsg_len;
+//     int cmsg_level;
+//     int cmsg_type;
+// };
 
-#if defined(__ILP32__)
-_Static_assert(sizeof(struct cmsghdr) == 12,
-               "Unexpected size: struct cmsghdr, expected 12");
-#elif defined(__linux__) // __LP64__
-// Only do a rough check, developer must pass OS cmsghdr in & expect same back.
-_Static_assert(sizeof(struct cmsghdr) == 16,
-               "Unexpected size: struct msghdr, expected 16");
-#else                    // 64 bit POSIX - macOS, FreeBSD
+// #if defined(__ILP32__)
+// _Static_assert(sizeof(struct cmsghdr) == 12,
+//                "Unexpected size: struct cmsghdr, expected 12");
+// #elif defined(__linux__) // __LP64__
+// // Only do a rough check, developer must pass OS cmsghdr in & expect same back.
+// _Static_assert(sizeof(struct cmsghdr) == 16,
+//                "Unexpected size: struct msghdr, expected 16");
+// #else                    // 64 bit POSIX - macOS, FreeBSD
 
-// Will use direct passthru to C, so check all fields.
-_Static_assert(sizeof(struct cmsghdr) == 12,
-               "Unexpected size: struct cmsghdr, expected 12");
+// // Will use direct passthru to C, so check all fields.
+// _Static_assert(sizeof(struct cmsghdr) == 12,
+//                "Unexpected size: struct cmsghdr, expected 12");
 
-_Static_assert(sizeof(struct cmsghdr) == sizeof(struct scalanative_cmsghdr),
-               "sizeof mismatch: OS & SN cmsghdr");
+// _Static_assert(sizeof(struct cmsghdr) == sizeof(struct scalanative_cmsghdr),
+//                "sizeof mismatch: OS & SN cmsghdr");
 
-_Static_assert(offsetof(struct cmsghdr, cmsg_len) ==
-                   offsetof(struct scalanative_cmsghdr, cmsg_len),
-               "offset mismatch: OS & SN cmsg_len expected 0");
+// _Static_assert(offsetof(struct cmsghdr, cmsg_len) ==
+//                    offsetof(struct scalanative_cmsghdr, cmsg_len),
+//                "offset mismatch: OS & SN cmsg_len expected 0");
 
-_Static_assert(offsetof(struct cmsghdr, cmsg_level) ==
-                   offsetof(struct scalanative_cmsghdr, cmsg_level),
-               "offset mismatch: OS & SN cmsg_level expected 4");
+// _Static_assert(offsetof(struct cmsghdr, cmsg_level) ==
+//                    offsetof(struct scalanative_cmsghdr, cmsg_level),
+//                "offset mismatch: OS & SN cmsg_level expected 4");
 
-_Static_assert(offsetof(struct cmsghdr, cmsg_type) ==
-                   offsetof(struct scalanative_cmsghdr, cmsg_type),
-               "offset mismatch: OS & SN cmsg_type expected 8");
-#endif                   // POSIX cmsghdr
-#endif                   // structure size checking
-#endif                   // !_WIN32
+// _Static_assert(offsetof(struct cmsghdr, cmsg_type) ==
+//                    offsetof(struct scalanative_cmsghdr, cmsg_type),
+//                "offset mismatch: OS & SN cmsg_type expected 8");
+// #endif                   // POSIX cmsghdr
+// #endif                   // structure size checking
+// #endif                   // !_WIN32
 
-// Symbolic constants
+// // Symbolic constants
 
-int scalanative_scm_rights() {
-#ifdef SCM_RIGHTS
-    return SCM_RIGHTS;
-#else
-    return 0;
-#endif
-}
+// int scalanative_scm_rights() {
+// #ifdef SCM_RIGHTS
+//     return SCM_RIGHTS;
+// #else
+//     return 0;
+// #endif
+// }
 
-int scalanative_sock_dgram() { return SOCK_DGRAM; }
+// int scalanative_sock_dgram() { return SOCK_DGRAM; }
 
-int scalanative_sock_raw() { return SOCK_RAW; }
+// int scalanative_sock_raw() { return SOCK_RAW; }
 
-int scalanative_sock_seqpacket() { return SOCK_SEQPACKET; }
+// int scalanative_sock_seqpacket() { return SOCK_SEQPACKET; }
 
-int scalanative_sock_stream() { return SOCK_STREAM; }
+// int scalanative_sock_stream() { return SOCK_STREAM; }
 
-int scalanative_sol_socket() { return SOL_SOCKET; }
+// int scalanative_sol_socket() { return SOL_SOCKET; }
 
-int scalanative_so_acceptconn() { return SO_ACCEPTCONN; }
+// int scalanative_so_acceptconn() { return SO_ACCEPTCONN; }
 
-int scalanative_so_broadcast() { return SO_BROADCAST; }
+// int scalanative_so_broadcast() { return SO_BROADCAST; }
 
-int scalanative_so_debug() { return SO_DEBUG; }
+// int scalanative_so_debug() { return SO_DEBUG; }
 
-int scalanative_so_dontroute() { return SO_DONTROUTE; }
+// int scalanative_so_dontroute() { return SO_DONTROUTE; }
 
-int scalanative_so_error() { return SO_ERROR; }
+// int scalanative_so_error() { return SO_ERROR; }
 
-int scalanative_so_keepalive() { return SO_KEEPALIVE; }
+// int scalanative_so_keepalive() { return SO_KEEPALIVE; }
 
-int scalanative_so_linger() { return SO_LINGER; }
+// int scalanative_so_linger() { return SO_LINGER; }
 
-int scalanative_so_oobinline() { return SO_OOBINLINE; }
+// int scalanative_so_oobinline() { return SO_OOBINLINE; }
 
-int scalanative_so_rcvbuf() { return SO_RCVBUF; }
+// int scalanative_so_rcvbuf() { return SO_RCVBUF; }
 
-int scalanative_so_rcvlowat() { return SO_RCVLOWAT; }
+// int scalanative_so_rcvlowat() { return SO_RCVLOWAT; }
 
-int scalanative_so_rcvtimeo() { return SO_RCVTIMEO; }
+// int scalanative_so_rcvtimeo() { return SO_RCVTIMEO; }
 
-int scalanative_so_reuseaddr() { return SO_REUSEADDR; }
+// int scalanative_so_reuseaddr() { return SO_REUSEADDR; }
 
-int scalanative_so_reuseport() {
-#ifdef SO_REUSEPORT
-    return SO_REUSEPORT;
-#else
-    return 0;
-#endif
-}
+// int scalanative_so_reuseport() {
+// #ifdef SO_REUSEPORT
+//     return SO_REUSEPORT;
+// #else
+//     return 0;
+// #endif
+// }
 
-int scalanative_so_sndbuf() { return SO_SNDBUF; }
+// int scalanative_so_sndbuf() { return SO_SNDBUF; }
 
-int scalanative_so_sndlowat() { return SO_SNDLOWAT; }
+// int scalanative_so_sndlowat() { return SO_SNDLOWAT; }
 
-int scalanative_so_sndtimeo() { return SO_SNDTIMEO; }
+// int scalanative_so_sndtimeo() { return SO_SNDTIMEO; }
 
-int scalanative_so_type() { return SO_TYPE; }
+// int scalanative_so_type() { return SO_TYPE; }
 
-int scalanative_somaxconn() { return SOMAXCONN; }
+// int scalanative_somaxconn() { return SOMAXCONN; }
 
-int scalanative_msg_ctrunc() { return MSG_CTRUNC; }
+// int scalanative_msg_ctrunc() { return MSG_CTRUNC; }
 
-int scalanative_msg_dontroute() { return MSG_DONTROUTE; }
+// int scalanative_msg_dontroute() { return MSG_DONTROUTE; }
 
-int scalanative_msg_eor() {
-#ifdef MSG_EOR
-    return MSG_EOR;
-#else
-    return 0;
-#endif
-}
+// int scalanative_msg_eor() {
+// #ifdef MSG_EOR
+//     return MSG_EOR;
+// #else
+//     return 0;
+// #endif
+// }
 
-int scalanative_msg_oob() { return MSG_OOB; }
+// int scalanative_msg_oob() { return MSG_OOB; }
 
-int scalanative_msg_nosignal() {
-#ifdef MSG_NOSIGNAL
-    return MSG_NOSIGNAL;
-#else
-    return 0;
-#endif
-}
+// int scalanative_msg_nosignal() {
+// #ifdef MSG_NOSIGNAL
+//     return MSG_NOSIGNAL;
+// #else
+//     return 0;
+// #endif
+// }
 
-int scalanative_msg_peek() { return MSG_PEEK; }
+// int scalanative_msg_peek() { return MSG_PEEK; }
 
-int scalanative_msg_trunc() { return MSG_TRUNC; }
+// int scalanative_msg_trunc() { return MSG_TRUNC; }
 
-int scalanative_msg_waitall() { return MSG_WAITALL; }
+// int scalanative_msg_waitall() { return MSG_WAITALL; }
 
-int scalanative_af_inet() { return AF_INET; }
+// int scalanative_af_inet() { return AF_INET; }
 
-int scalanative_af_inet6() { return AF_INET6; }
+// int scalanative_af_inet6() { return AF_INET6; }
 
-int scalanative_af_unix() { return AF_UNIX; }
+// int scalanative_af_unix() { return AF_UNIX; }
 
-int scalanative_af_unspec() { return AF_UNSPEC; }
+// int scalanative_af_unspec() { return AF_UNSPEC; }
 
-int scalanative_shut_rd() {
-#ifdef SHUT_RD
-    return SHUT_RD;
-#else // _WIN32
-    return 0;
-#endif
-}
+// int scalanative_shut_rd() {
+// #ifdef SHUT_RD
+//     return SHUT_RD;
+// #else // _WIN32
+//     return 0;
+// #endif
+// }
 
-int scalanative_shut_rdwr() {
-#ifdef SHUT_RDWR
-    return SHUT_RDWR;
-#else // _WIN32
-    return 0;
-#endif
-}
+// int scalanative_shut_rdwr() {
+// #ifdef SHUT_RDWR
+//     return SHUT_RDWR;
+// #else // _WIN32
+//     return 0;
+// #endif
+// }
 
-int scalanative_shut_wr() {
-#ifdef SHUT_WR
-    return SHUT_WR;
-#else // _WIN32
-    return 0;
-#endif
-}
+// int scalanative_shut_wr() {
+// #ifdef SHUT_WR
+//     return SHUT_WR;
+// #else // _WIN32
+//     return 0;
+// #endif
+// }
 
-// Macros
-#ifdef _WIN32
-void *scalanative_cmsg_data(void *cmsg) { return NULL; }
-#else
-unsigned char *scalanative_cmsg_data(struct cmsghdr *cmsg) {
-    return CMSG_DATA(cmsg);
-}
-#endif
+// // Macros
+// #ifdef _WIN32
+// void *scalanative_cmsg_data(void *cmsg) { return NULL; }
+// #else
+// unsigned char *scalanative_cmsg_data(struct cmsghdr *cmsg) {
+//     return CMSG_DATA(cmsg);
+// }
+// #endif
 
-#ifdef _WIN32
-void *scalanative_cmsg_nxthdr(void *mhdr, void *cmsg) { return NULL; }
-#else
-struct cmsghdr *scalanative_cmsg_nxthdr(struct msghdr *mhdr,
-                                        struct cmsghdr *cmsg) {
-    return CMSG_NXTHDR(mhdr, cmsg);
-}
-#endif
+// #ifdef _WIN32
+// void *scalanative_cmsg_nxthdr(void *mhdr, void *cmsg) { return NULL; }
+// #else
+// struct cmsghdr *scalanative_cmsg_nxthdr(struct msghdr *mhdr,
+//                                         struct cmsghdr *cmsg) {
+//     return CMSG_NXTHDR(mhdr, cmsg);
+// }
+// #endif
 
-#ifdef _WIN32
-void *scalanative_cmsg_firsthdr(void *mhdr) { return NULL; }
-#else
-struct cmsghdr *scalanative_cmsg_firsthdr(struct msghdr *mhdr) {
-    return CMSG_FIRSTHDR(mhdr);
-}
-#endif
+// #ifdef _WIN32
+// void *scalanative_cmsg_firsthdr(void *mhdr) { return NULL; }
+// #else
+// struct cmsghdr *scalanative_cmsg_firsthdr(struct msghdr *mhdr) {
+//     return CMSG_FIRSTHDR(mhdr);
+// }
+// #endif
 
-// Functions
-#ifdef _WIN32
-long scalanative_recvmsg(int socket, void *msg, int flags) {
-    errno = ENOTSUP;
-    return -1;
-}
-#else // unix
-long scalanative_recvmsg(int socket, struct msghdr *msg, int flags) {
-#if !defined(__linux__) || !defined(__LP64__)
-    return recvmsg(socket, (struct msghdr *)msg, flags);
-#else // Linux 64 bits
-    /* BEWARE: Embedded control messages are not converted!
-     *	       Caller must send non-POSIX linux64 ctlhdr structures
-     *	       and expect such to be returned by OS.
-     */
+// // Functions
+// #ifdef _WIN32
+// long scalanative_recvmsg(int socket, void *msg, int flags) {
+//     errno = ENOTSUP;
+//     return -1;
+// }
+// #else // unix
+// long scalanative_recvmsg(int socket, struct msghdr *msg, int flags) {
+// #if !defined(__linux__) || !defined(__LP64__)
+//     return recvmsg(socket, (struct msghdr *)msg, flags);
+// #else // Linux 64 bits
+//     /* BEWARE: Embedded control messages are not converted!
+//      *	       Caller must send non-POSIX linux64 ctlhdr structures
+//      *	       and expect such to be returned by OS.
+//      */
 
-    int status = -1;
+//     int status = -1;
 
-    if (msg == NULL) {
-        errno = EINVAL;
-    } else {
+//     if (msg == NULL) {
+//         errno = EINVAL;
+//     } else {
 
-        struct msghdr cMsg = {.msg_name = msg->msg_name,
-                              .msg_namelen = msg->msg_namelen,
-                              .msg_iov = msg->msg_iov,
-                              .msg_iovlen = msg->msg_iovlen,
-                              .msg_control = msg->msg_control,
-                              .msg_controllen = msg->msg_controllen,
-                              .msg_flags = msg->msg_flags};
+//         struct msghdr cMsg = {.msg_name = msg->msg_name,
+//                               .msg_namelen = msg->msg_namelen,
+//                               .msg_iov = msg->msg_iov,
+//                               .msg_iovlen = msg->msg_iovlen,
+//                               .msg_control = msg->msg_control,
+//                               .msg_controllen = msg->msg_controllen,
+//                               .msg_flags = msg->msg_flags};
 
-        status = recvmsg(socket, &cMsg, flags);
+//         status = recvmsg(socket, &cMsg, flags);
 
-        // recvmsg can alter some of these fields, so copy everything back.
-        if (status > -1) {
-            msg->msg_name = cMsg.msg_name;
-            msg->msg_namelen = cMsg.msg_namelen;
-            msg->msg_iov = cMsg.msg_iov;
-            msg->msg_iovlen = cMsg.msg_iovlen;
-            msg->msg_control = cMsg.msg_control;
-            msg->msg_controllen = cMsg.msg_controllen;
-            msg->msg_flags = cMsg.msg_flags;
-        }
-    }
+//         // recvmsg can alter some of these fields, so copy everything back.
+//         if (status > -1) {
+//             msg->msg_name = cMsg.msg_name;
+//             msg->msg_namelen = cMsg.msg_namelen;
+//             msg->msg_iov = cMsg.msg_iov;
+//             msg->msg_iovlen = cMsg.msg_iovlen;
+//             msg->msg_control = cMsg.msg_control;
+//             msg->msg_controllen = cMsg.msg_controllen;
+//             msg->msg_flags = cMsg.msg_flags;
+//         }
+//     }
 
-    return status;
-#endif
-}
-#endif // unix
+//     return status;
+// #endif
+// }
+// #endif // unix
 
-#ifdef _WIN32
-long scalanative_sendmsg(int socket, void *msg, int flags) {
-    errno = ENOTSUP;
-    return -1;
-}
-#else // unix
-long scalanative_sendmsg(int socket, struct msghdr *msg, int flags) {
-#if !defined(__linux__) || !defined(__LP64__)
-    return sendmsg(socket, (struct msghdr *)msg, flags);
-#else // Linux 64 bits
-    /* BEWARE: Embedded control messages are not converted!
-     *	       Caller must send non-POSIX linux64 ctlhdr structures
-     *	       and expect such to be returned by OS.
-     */
+// #ifdef _WIN32
+// long scalanative_sendmsg(int socket, void *msg, int flags) {
+//     errno = ENOTSUP;
+//     return -1;
+// }
+// #else // unix
+// long scalanative_sendmsg(int socket, struct msghdr *msg, int flags) {
+// #if !defined(__linux__) || !defined(__LP64__)
+//     return sendmsg(socket, (struct msghdr *)msg, flags);
+// #else // Linux 64 bits
+//     /* BEWARE: Embedded control messages are not converted!
+//      *	       Caller must send non-POSIX linux64 ctlhdr structures
+//      *	       and expect such to be returned by OS.
+//      */
 
-    int status = -1;
+//     int status = -1;
 
-    if (msg == NULL) {
-        errno = EINVAL;
-    } else {
-        struct msghdr cMsg = {.msg_name = msg->msg_name,
-                              .msg_namelen = msg->msg_namelen,
-                              .msg_iov = msg->msg_iov,
-                              .msg_iovlen = msg->msg_iovlen,
-                              .msg_control = msg->msg_control,
-                              .msg_controllen = msg->msg_controllen,
-                              .msg_flags = msg->msg_flags};
+//     if (msg == NULL) {
+//         errno = EINVAL;
+//     } else {
+//         struct msghdr cMsg = {.msg_name = msg->msg_name,
+//                               .msg_namelen = msg->msg_namelen,
+//                               .msg_iov = msg->msg_iov,
+//                               .msg_iovlen = msg->msg_iovlen,
+//                               .msg_control = msg->msg_control,
+//                               .msg_controllen = msg->msg_controllen,
+//                               .msg_flags = msg->msg_flags};
 
-        // cMsg is read-only, so no need to copy data back to Scala
-        status = sendmsg(socket, &cMsg, flags);
-    }
+//         // cMsg is read-only, so no need to copy data back to Scala
+//         status = sendmsg(socket, &cMsg, flags);
+//     }
 
-    return status;
-#endif
-}
-#endif // unix
+//     return status;
+// #endif
+// }
+// #endif // unix
 
-int scalanative_sockatmark(int socket) {
-#if defined(_WIN32)
-    errno = ENOTSUP;
-    return -1;
-#else
-    return sockatmark(socket);
-#endif
-}
+// int scalanative_sockatmark(int socket) {
+// #if defined(_WIN32)
+//     errno = ENOTSUP;
+//     return -1;
+// #else
+//     return sockatmark(socket);
+// #endif
+// }
 
-int scalanative_socketpair(int domain, int type, int protocol, int *sv) {
-#if defined(_WIN32)
-    errno = ENOTSUP;
-    return -1;
-#else
-    return socketpair(domain, type, protocol, sv);
-#endif
-}
+// int scalanative_socketpair(int domain, int type, int protocol, int *sv) {
+// #if defined(_WIN32)
+//     errno = ENOTSUP;
+//     return -1;
+// #else
+//     return socketpair(domain, type, protocol, sv);
+// #endif
+// }

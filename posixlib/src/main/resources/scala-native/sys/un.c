@@ -19,6 +19,7 @@ struct scalanative_sockaddr_un {
     char sun_path[108];
 };
 
+#if !defined(__wasm)
 // Also verifies that Scala Native sun_family field has the traditional size.
 _Static_assert(offsetof(struct scalanative_sockaddr_un, sun_path) == 2,
                "Unexpected size: scalanative_sockaddr_un sun_family");
@@ -30,6 +31,6 @@ _Static_assert(offsetof(struct scalanative_sockaddr_un, sun_path) ==
 _Static_assert(sizeof(struct sockaddr_un) <=
                    sizeof(struct scalanative_sockaddr_un),
                "size mismatch: sockaddr_un sun_path");
-
+#endif // !defined(__wasm)
 #endif // POSIX
 #endif // ! _WIN32

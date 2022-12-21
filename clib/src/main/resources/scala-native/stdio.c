@@ -32,6 +32,6 @@ int scalanative_seek_cur() { return SEEK_CUR; }
 
 int scalanative_seek_end() { return SEEK_END; }
 
-unsigned int scalanative_tmp_max() { return TMP_MAX; }
+// unsigned int scalanative_tmp_max() { return TMP_MAX; }
 
-unsigned int scalanative_l_tmpnam() { return L_tmpnam; }
+// unsigned int scalanative_l_tmpnam() { return L_tmpnam; }

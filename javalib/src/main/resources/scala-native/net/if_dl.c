@@ -2,6 +2,8 @@
 // NO Windows support
 #elif defined(__linux__)
 // Does not exist on Linux, so no check
+#elif defined(__wasm)
+// No WASM support
 #else // macOS, FreeBSD, etc.
 
 #if defined(__FreeBSD__)

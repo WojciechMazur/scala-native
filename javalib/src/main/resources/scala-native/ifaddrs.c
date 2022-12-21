@@ -1,4 +1,4 @@
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__wasm)
 // No Windows support. These are dummies for linking.
 int getifaddrs(void *dummy) { return -1; };
 void freeifaddrs(void *dummy){};

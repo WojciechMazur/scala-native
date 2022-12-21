@@ -1,5 +1,5 @@
-#if defined(__unix__) || defined(__unix) || defined(unix) ||                   \
-    (defined(__APPLE__) && defined(__MACH__))
+#if (defined(__unix__) || defined(__unix) || defined(unix) ||                   \
+    (defined(__APPLE__) && defined(__MACH__))) && !defined(__wasm)
 
 #include <stddef.h>
 #include <wordexp.h>

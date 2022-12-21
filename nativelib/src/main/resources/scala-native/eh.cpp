@@ -1,5 +1,6 @@
 #include <exception>
 #include <stdio.h>
+
 // Scala Native compiles Scala's exception in C++-compatible
 // manner under the hood. Every exception thrown on the Scala
 // side is wrapped into ExceptionWrapper and only
@@ -16,9 +17,12 @@ class ExceptionWrapper : public std::exception {
 } // namespace scalanative
 
 extern "C" {
-void* scalanative_throw(void *obj) {
-  printf("Tried to throw exception %p\n", obj);
-  return NULL;
-    //  throw scalanative::ExceptionWrapper(obj);
+void *scalanative_throw(void *obj) {
+#if defined(__wasi__)
+    printf("Tried to throw exception %p, it's not supported by WASI\n", obj);
+    return NULL;
+#else
+    throw scalanative::ExceptionWrapper(obj);
+#endif
 }
 }

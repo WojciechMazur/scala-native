@@ -44,7 +44,7 @@ struct scalanative_itimerspec {
     struct scalanative_timespec it_value;
 };
 
-#if !(defined __STDC_VERSION__) || (__STDC_VERSION__ < 201112L) || defined(__wasi__)
+#if !(defined __STDC_VERSION__) || (__STDC_VERSION__ < 201112L) || defined(__wasm__)
 #ifndef SCALANATIVE_SUPPRESS_STRUCT_CHECK_WARNING
 #warning "Size and order of C structures are not checked when -std < c11."
 #endif

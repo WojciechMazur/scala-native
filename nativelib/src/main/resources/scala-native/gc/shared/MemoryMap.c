@@ -20,7 +20,7 @@
 #endif
 
 // MAP_POPULATE is linux exclusive. We will use madvice.
-#ifndef __linux__
+#ifndef MAP_POPULATE
 #define MAP_POPULATE 0
 #endif
 
@@ -57,7 +57,7 @@ word_t *memoryMapPrealloc(size_t memorySize, size_t doPrealloc) {
     }
     word_t *res = mmap(NULL, memorySize, HEAP_MEM_PROT, HEAP_MEM_FLAGS_PREALLOC,
                        HEAP_MEM_FD, HEAP_MEM_FD_OFFSET);
-#ifndef __linux__
+#if !(defined(__linux__) || defined(__wasi__))
     // if we are not on linux the next best thing we can do is to mark the pages
     // as MADV_WILLNEED but only if doPrealloc is enabled.
     madvise(res, memorySize, MADV_WILLNEED);

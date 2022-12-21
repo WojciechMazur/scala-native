@@ -21,6 +21,9 @@
 #include <sys/sysctl.h>
 #endif
 
+#elif defined(__wasm)
+#pragma message                                                                \
+    "Unable to determinate phisal memory in getMemorySize() for WebAssembly"
 #else
 #error "Unable to define getMemorySize( ) for an unknown OS."
 #endif
@@ -94,7 +97,7 @@ size_t getMemorySize() {
 #endif /* sysctl and sysconf variants */
 
 #else
-    return 0L; /* Unknown OS. */
+    return 512 * 1024 * 1024; /* Unknown OS. */
 #endif
 }
 

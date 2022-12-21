@@ -29,6 +29,10 @@ long long scalanative_nano_time() {
     long long nano_time = 0LL;
 #define NANOS_PER_SEC 1000000000LL
 
+#ifndef CLOCK_MONOTONIC_RAW
+#define CLOCK_MONOTONIC_RAW CLOCK_MONOTONIC
+#endif
+
 #if defined(_WIN32)
     // return value of 0 is failure
     LARGE_INTEGER count;

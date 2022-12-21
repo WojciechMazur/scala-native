@@ -19,7 +19,7 @@
 // process would not use too much resources.
 #define DEFAULT_CHUNK_SIZE "64M"
 #else
-#define DEFAULT_CHUNK_SIZE "4G"
+#define DEFAULT_CHUNK_SIZE "256M"
 #endif
 
 #if defined(__has_feature)
@@ -76,38 +76,38 @@ void Prealloc_Or_Default() {
 }
 
 void scalanative_init() {
-#ifndef GC_ASAN
-    Prealloc_Or_Default();
-    current = memoryMapPrealloc(CHUNK, DO_PREALLOC);
-    if (current == NULL) {
-        exitWithOutOfMemory();
-    }
-    end = current + CHUNK;
-#ifdef _WIN32
-    if (!memoryCommit(current, CHUNK)) {
-        exitWithOutOfMemory();
-    };
-#endif // _WIN32
-#endif // GC_ASAN
+// #ifndef GC_ASAN
+//     Prealloc_Or_Default();
+//     current = memoryMapPrealloc(CHUNK, DO_PREALLOC);
+//     if (current == NULL) {
+//         exitWithOutOfMemory();
+//     }
+//     end = current + CHUNK;
+// #ifdef _WIN32
+//     if (!memoryCommit(current, CHUNK)) {
+//         exitWithOutOfMemory();
+//     };
+// #endif // _WIN32
+// #endif // GC_ASAN
 }
 
 void *scalanative_alloc(void *info, size_t size) {
     size = size + (8 - size % 8);
-#ifndef GC_ASAN
-    if (current + size < end) {
-        void **alloc = current;
-        *alloc = info;
-        current += size;
-        return alloc;
-    } else {
-        scalanative_init();
-        return scalanative_alloc(info, size);
-    }
-#else
+// #ifndef GC_ASAN
+//     if (current + size < end) {
+//         void **alloc = current;
+//         *alloc = info;
+//         current += size;
+//         return alloc;
+//     } else {
+//         scalanative_init();
+//         return scalanative_alloc(info, size);
+//     }
+// #else
     void **alloc = calloc(size, 1);
     *alloc = info;
     return alloc;
-#endif
+// #endif
 }
 
 void *scalanative_alloc_small(void *info, size_t size) {

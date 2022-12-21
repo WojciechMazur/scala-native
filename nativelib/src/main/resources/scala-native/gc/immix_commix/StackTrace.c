@@ -2,7 +2,9 @@
 #include "StackTrace.h"
 
 void StackTrace_PrintStackTrace() {
-#if defined(_WIN32)
+#if defined(__wasm)
+    printf("Stacktrace not implemented in WebAssembly\n");
+#elif defined(_WIN32)
     printf("Stacktrace not implemented in Windows\n");
 #else
     unw_cursor_t cursor;

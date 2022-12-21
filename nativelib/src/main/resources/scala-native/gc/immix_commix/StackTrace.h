@@ -1,7 +1,7 @@
 #ifndef IMMIX_STACKTRACE_H
 #define IMMIX_STACKTRACE_H
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__wasm)
 #include "../../platform/posix/libunwind/libunwind.h"
 #endif
 

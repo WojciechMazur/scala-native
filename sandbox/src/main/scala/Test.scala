@@ -7,8 +7,10 @@ import scala.concurrent.duration._
 object Hello extends IOApp.Simple {
   println("Hello world")
 
-  try throw new RuntimeException()
-  catch {case ex: Throwable => println(ex)}
+  // EH is currently not available when using WASI-SDK, can work with Enscripten
+  // try throw new RuntimeException()
+  // catch {case ex: Throwable => println(ex)}
+ 
   def sleepPrint(word: String, name: String, rand: Random[IO]) =
     for {
       delay <- rand.betweenInt(200, 700)

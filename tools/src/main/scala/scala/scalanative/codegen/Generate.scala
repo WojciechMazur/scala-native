@@ -479,7 +479,7 @@ object Generate {
     val LibraryInitName = extern("ScalaNativeInit")
     val LibraryInitSig = Type.Function(Seq.empty, Type.Int)
 
-    val MainName = extern("main")
+    val MainName = extern("__main_argc_argv")
     val MainSig = Type.Function(Seq(Type.Int, Type.Ptr), Type.Int)
 
     val ThrowableName = Global.Top("java.lang.Throwable")
@@ -494,7 +494,7 @@ object Generate {
 
     val InitSig = Type.Function(Seq.empty, Type.Unit)
     val Init = Val.Global(extern("scalanative_init"), Type.Ptr)
-    val InitDecl = Defn.Declare(Attrs.None, Init.name, InitSig)
+    val InitDecl = Defn.Declare(Attrs(isExtern = true), Init.name, InitSig)
 
     val stackBottomName = extern("__stack_bottom")
     val moduleArrayName = extern("__modules")

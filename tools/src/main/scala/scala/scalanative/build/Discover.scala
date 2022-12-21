@@ -31,14 +31,14 @@ object Discover {
   /** Use the clang binary on the path or via LLVM_BIN env var. */
   def clang(): Path = {
     val path = discover("clang", "LLVM_BIN")
-    checkClangVersion(path)
+    // checkClangVersion(path)
     path
   }
 
   /** Use the clang++ binary on the path or via LLVM_BIN env var. */
   def clangpp(): Path = {
     val path = discover("clang++", "LLVM_BIN")
-    checkClangVersion(path)
+    // checkClangVersion(path)
     path
   }
 
@@ -196,8 +196,8 @@ object Discover {
    *    The detected target triple describing the target architecture.
    */
   def targetTriple(clang: Path): String = {
-    val (_, _, target) = clangVersionMajorFullTarget(clang.abs)
-    target
+    // val (_, _, target) = clangVersionMajorFullTarget(clang.abs)
+    "wasm32-unknown-unknown"
   }
 
   private def silentLogger(): ProcessLogger =

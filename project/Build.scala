@@ -483,7 +483,7 @@ object Build {
             .withGC(GC.none)
             .withClang(wasiToolchain.resolve("bin").resolve("clang"))
             .withClangPP(wasiToolchain.resolve("bin").resolve("clang++"))
-            // .withTargetTriple("wasm32-wasi")
+            .withTargetTriple("wasm32-unknown-wasi")
             .withCompileOptions(wasiCompileOpts)
             .withLinkingOptions(wasiLinkOpts)
         // .withClang(emscriptenToolchain.resolve("emcc"))

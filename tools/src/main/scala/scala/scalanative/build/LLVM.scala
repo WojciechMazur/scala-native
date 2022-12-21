@@ -276,7 +276,7 @@ private[scalanative] object LLVM {
 
   private def target(implicit config: Config): Seq[String] =
     config.compilerConfig.targetTriple match {
-      case Some(tt) => Seq("-target", tt)
+      case Some(tt) => Seq("--target=" + tt)
       case None     => Seq("-Wno-override-module")
     }
 
@@ -300,7 +300,7 @@ private[scalanative] object LLVM {
     }
 
   private def buildTargetLinkOpts(implicit config: Config): Seq[String] = {
-    val optRdynamic = if (config.targetsWindows) Nil else Seq("-rdynamic")
+    val optRdynamic = Nil// if (config.targetsWindows) Nil else Seq("-rdynamic")
     config.compilerConfig.buildTarget match {
       case BuildTarget.Application =>
         optRdynamic

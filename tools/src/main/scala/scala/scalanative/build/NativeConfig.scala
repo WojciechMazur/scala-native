@@ -84,6 +84,7 @@ sealed trait NativeConfig {
       case "arm64"   => false
       case "i386"    => true
       case "i686"    => true
+      case "wasm32"  => true
       case o =>
         println(
           s"Unexpected architecture in target triple: ${o}, defaulting to 64-bit"

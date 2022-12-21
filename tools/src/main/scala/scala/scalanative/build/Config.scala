@@ -98,6 +98,9 @@ sealed trait Config {
     compilerConfig.targetTriple.exists { customTriple =>
       Seq("mac", "apple", "darwin").exists(customTriple.contains(_))
     }
+
+  private[scalanative] lazy val targetsWASM =
+    compilerConfig.targetTriple.exists(_.contains("wasm"))
 }
 
 object Config {
@@ -153,7 +156,9 @@ object Config {
     override lazy val artifactPath: Path = {
       val ext = compilerConfig.buildTarget match {
         case BuildTarget.Application =>
-          if (targetsWindows) ".exe" else ""
+          if (targetsWindows) ".exe"
+          else if (targetsWASM) ".wasm"
+          else ""
         case BuildTarget.LibraryDynamic =>
           if (targetsWindows) ".dll"
           else if (targetsMac) ".dylib"

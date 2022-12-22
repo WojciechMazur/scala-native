@@ -48,6 +48,7 @@ pid_t process_getid();
 
 bool mutex_init(mutex_t *ref);
 bool mutex_lock(mutex_t *ref);
+bool mutex_tryLock(mutex_t *ref);
 bool mutex_unlock(mutex_t *ref);
 
 semaphore_t *semaphore_open(char *name, unsigned int initValue);

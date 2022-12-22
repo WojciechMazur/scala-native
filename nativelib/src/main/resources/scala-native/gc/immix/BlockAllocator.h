@@ -31,5 +31,6 @@ void BlockAllocator_AddFreeBlocks(BlockAllocator *blockAllocator,
                                   BlockMeta *block, uint32_t count);
 void BlockAllocator_SweepDone(BlockAllocator *blockAllocator);
 void BlockAllocator_Clear(BlockAllocator *blockAllocator);
-
+void BlockAllocator_acquire();
+void BlockAllocator_release();
 #endif // IMMIX_BLOCKALLOCATOR_H

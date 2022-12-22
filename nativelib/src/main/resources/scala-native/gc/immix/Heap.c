@@ -164,25 +164,35 @@ word_t *Heap_AllocLarge(Heap *heap, uint32_t size) {
     if (object != NULL) {
         return (word_t *)object;
     } else {
-        // Otherwise collect
-        Heap_Collect(heap, &stack);
+        uint32_t pow2increment = 0;
+        do {
+            // Otherwise collect
+            Heap_Collect(heap, &stack);
 
-        // After collection, try to alloc again, if it fails, grow the heap by
-        // at least the size of the object we want to alloc
-        object = LargeAllocator_GetBlock(largeAllocator, size);
-        if (object != NULL) {
-            assert(Heap_IsWordInHeap(heap, (word_t *)object));
-            return (word_t *)object;
-        } else {
-            size_t increment = MathUtils_DivAndRoundUp(size, BLOCK_TOTAL_SIZE);
-            uint32_t pow2increment = 1ULL << MathUtils_Log2Ceil(increment);
-            Heap_Grow(heap, pow2increment);
-
+            // After collection, try to alloc again, if it fails, grow the heap
+            // by at least the size of the object we want to alloc
             object = LargeAllocator_GetBlock(largeAllocator, size);
-            assert(object != NULL);
-            assert(Heap_IsWordInHeap(heap, (word_t *)object));
-            return (word_t *)object;
-        }
+            if (object != NULL) {
+                assert(Heap_IsWordInHeap(heap, (word_t *)object));
+                return (word_t *)object;
+            } else {
+                if (pow2increment == 0) {
+                    size_t increment =
+                        MathUtils_DivAndRoundUp(size, BLOCK_TOTAL_SIZE);
+                    pow2increment = 1ULL << MathUtils_Log2Ceil(increment);
+                    assert(pow2increment > 0);
+                }
+                Heap_Grow(heap, pow2increment);
+
+                object = LargeAllocator_GetBlock(largeAllocator, size);
+                if (object != NULL) {
+                    assert(Heap_IsWordInHeap(heap, (word_t *)object));
+                    return (word_t *)object;
+                }
+            }
+        } while (Heap_isGrowingPossible(heap, pow2increment));
+        Heap_exitWithOutOfMemory("Cannot grow heap to allocate large object");
+        return NULL;
     }
 }
 
@@ -385,7 +395,7 @@ void Heap_Recycle(Heap *heap) {
 }
 
 void Heap_Grow(Heap *heap, uint32_t incrementInBlocks) {
-    mutex_lock(&heap->lock);
+    BlockAllocator_acquire(&blockAllocator);
     if (!Heap_isGrowingPossible(heap, incrementInBlocks)) {
         Heap_exitWithOutOfMemory("grow heap");
     }
@@ -424,5 +434,5 @@ void Heap_Grow(Heap *heap, uint32_t incrementInBlocks) {
 
     // immediately add the block to freelists
     BlockAllocator_SweepDone(&blockAllocator);
-    mutex_unlock(&heap->lock);
+    BlockAllocator_release(&blockAllocator);
 }

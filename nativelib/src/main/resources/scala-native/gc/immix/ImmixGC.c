@@ -23,7 +23,7 @@
 // Stack boottom of the main thread
 extern word_t **__stack_bottom;
 
-volatile safepoint_t *scalanative_gc_safepoint;
+safepoint_t *volatile scalanative_gc_safepoint;
 
 void scalanative_collect();
 

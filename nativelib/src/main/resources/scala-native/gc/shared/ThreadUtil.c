@@ -53,6 +53,15 @@ bool mutex_lock(mutex_t *ref) {
 }
 
 INLINE
+bool mutex_tryLock(mutex_t *ref) {
+#ifdef _WIN32
+    return WaitForSingleObject(ref, 0) == WAIT_OBJECT_0;
+#else
+    return pthread_mutex_trylock(ref) == 0;
+#endif
+}
+
+INLINE
 bool mutex_unlock(mutex_t *ref) {
 #ifdef _WIN32
     return ReleaseMutex(ref);

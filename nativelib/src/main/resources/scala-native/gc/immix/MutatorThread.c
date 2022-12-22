@@ -35,8 +35,7 @@ void MutatorThread_switchState(MutatorThread *self,
         jmp_buf regs;
         setjmp(regs);
         word_t *dummy;
-        atomic_store_explicit((atomic_uintptr_t *)&self->stackTop,
-                              (uintptr_t)&dummy, memory_order_release);
+        self->stackTop = &dummy;
     } else {
         self->stackTop = NULL;
     }

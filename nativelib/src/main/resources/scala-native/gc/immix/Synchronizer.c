@@ -19,16 +19,18 @@
 static sigset_t threadWakupSignals;
 
 static struct sigaction defaultAction;
-atomic_bool wantsToCollect = ATOMIC_VAR_INIT(false);
+static volatile bool isCollecting = false;
+static mutex_t synchronizerLock;
 
 static void Synchronizer_SafepointTrapHandler(int signal, siginfo_t *siginfo,
                                               void *uap);
 
-extern volatile safepoint_t *scalanative_gc_safepoint;
+extern safepoint_t *scalanative_gc_safepoint;
 #define SafepointInstance (scalanative_gc_safepoint)
 
 void Synchronizer_init() {
     Safepoint_init(&SafepointInstance);
+    mutex_init(&synchronizerLock);
 
     sigemptyset(&threadWakupSignals);
     sigaddset(&threadWakupSignals, THREAD_WAKUP_SIGNAL);
@@ -52,7 +54,6 @@ void Synchronizer_wait() {
     atomic_thread_fence(memory_order_release);
     atomic_signal_fence(memory_order_seq_cst);
 
-    // while (atomic_load_explicit(&wantsToCollect, memory_order_acquire)) {
     atomic_store_explicit(&self->isWaiting, true, memory_order_release);
     int signum;
     if (0 != sigwait(&threadWakupSignals, &signum)) {
@@ -66,6 +67,19 @@ void Synchronizer_wait() {
     MutatorThread_switchState(self, MutatorThreadState_Managed);
 }
 
+void onSegFault(void *addr) {
+    MutatorThread *self = currentMutatorThread;
+    printf("On segfault %p in %p\n", addr, currentMutatorThread);
+#include <execinfo.h>
+#include <stdio.h>
+    void *callstack[128];
+    int i, frames = backtrace(callstack, 128);
+    char **strs = backtrace_symbols(callstack, frames);
+    for (i = 0; i < frames; ++i) {
+        printf("%s\n", strs[i]);
+    }
+    free(strs);
+}
 static void Synchronizer_SafepointTrapHandler(int signal, siginfo_t *siginfo,
                                               void *uap) {
     if (siginfo->si_addr == SafepointInstance) {
@@ -73,16 +87,19 @@ static void Synchronizer_SafepointTrapHandler(int signal, siginfo_t *siginfo,
     } else {
         fprintf(stderr, "Unexpected SIGSEGV signal at address %p\n",
                 siginfo->si_addr);
+        onSegFault(siginfo->si_addr);
         defaultAction.sa_handler(signal);
     }
 }
 
 bool Synchronizer_acquire() {
-    if (atomic_exchange(&wantsToCollect, true)) {
-        Synchronizer_wait();
+    if (!mutex_tryLock(&synchronizerLock)) {
+        if (isCollecting)
+            Synchronizer_wait();
         return false;
     }
 
+    isCollecting = true;
     MutatorThread *self = currentMutatorThread;
     MutatorThread_switchState(self, MutatorThreadState_Unmanaged);
 
@@ -93,6 +110,7 @@ bool Synchronizer_acquire() {
     int iteration = 0;
     int activeThreads;
     do {
+        atomic_thread_fence(memory_order_seq_cst);
         iteration++;
         activeThreads = 0;
         MutatorThreads_foreach(mutatorThreads, node) {
@@ -110,7 +128,7 @@ bool Synchronizer_acquire() {
 
 void Synchronizer_release() {
     Safepoint_disarm(SafepointInstance);
-    atomic_store_explicit(&wantsToCollect, false, memory_order_release);
+    isCollecting = false;
     int stoppedThreads;
     do {
         MutatorThreads_foreach(mutatorThreads, node) {
@@ -137,4 +155,5 @@ void Synchronizer_release() {
     } while (stoppedThreads > 0);
     MutatorThread_switchState(currentMutatorThread, MutatorThreadState_Managed);
     MutatorThreads_unlock();
+    mutex_unlock(&synchronizerLock);
 }

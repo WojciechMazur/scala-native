@@ -14,8 +14,8 @@
 
 typedef struct {
     volatile MutatorThreadState state;
-    volatile word_t **stackTop;
-    atomic_bool isWaiting;
+    word_t **volatile stackTop;
+    volatile atomic_bool isWaiting;
     // immutable fields
     word_t **stackBottom;
     Allocator allocator;

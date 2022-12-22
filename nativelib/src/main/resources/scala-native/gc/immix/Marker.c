@@ -100,11 +100,18 @@ void Marker_Mark(Heap *heap, Stack *stack) {
 
 void Marker_markProgramStack(MutatorThread *thread, Heap *heap, Stack *stack) {
     word_t **stackBottom = thread->stackBottom;
+    /* At this point ALL threads are stopped and their stackTop is not NULL -
+     * that's the condition to exit Sychronizer_acquire However, for some
+     * reasons I'm not aware of there are some rare situations upon which on the
+     * first read of volatile stackTop it still would return NULL.
+     * Due to the lack of alternatives or knowledge why this happends, just
+     * retry to reach non-null state
+     */
     word_t **stackTop;
-    // do {
-    stackTop = (word_t **)atomic_load_explicit(
-        (atomic_uintptr_t *)&thread->stackTop, memory_order_acquire);
-    // } while (stackTop == NULL);
+    do {
+        stackTop = thread->stackTop;
+    } while (stackTop == NULL);
+    
     assert(stackTop != NULL);
     word_t **current = stackTop;
     while (current <= stackBottom) {
@@ -131,6 +138,7 @@ void Marker_markModules(Heap *heap, Stack *stack) {
 
 void Marker_MarkRoots(Heap *heap, Stack *stack) {
     atomic_thread_fence(memory_order_seq_cst);
+
     MutatorThreadNode *head = mutatorThreads;
     MutatorThreads_foreach(mutatorThreads, node) {
         MutatorThread *thread = node->value;

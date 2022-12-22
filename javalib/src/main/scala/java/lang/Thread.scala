@@ -67,10 +67,12 @@ class Thread private[lang] (
         else Thread.currentThread().getThreadGroup(),
       target = target,
       stackSize = stacksize,
-      inheritableThreadLocals =
-        if (inheritThreadLocals)
-          new ThreadLocal.Values(Thread.currentThread().inheritableThreadLocals)
+      inheritableThreadLocals = {
+        val parent = Thread.currentThread()
+        if (inheritThreadLocals && parent != null)
+          new ThreadLocal.Values(parent.inheritableThreadLocals)
         else new ThreadLocal.Values()
+      }
     )
     val parent = Thread.currentThread()
     if (parent != null) {
@@ -192,6 +194,7 @@ class Thread private[lang] (
     nativeThread = Thread.nativeCompanion.create(this, stackSize)
     atomic_thread_fence(memory_order_release)
     while (nativeThread.state == New) Thread.onSpinWait()
+    atomic_thread_fence(memory_order_acquire)
     nativeThread.setPriority(priority)
   }
 
@@ -259,7 +262,7 @@ class Thread private[lang] (
     s"Thread[$threadId,$name,$priority,$groupName]"
   }
 
-  @deprecated()
+  @deprecated("Deprecated for removal", "17")
   def checkAccess(): Unit = ()
 }
 

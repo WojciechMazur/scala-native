@@ -1198,7 +1198,7 @@ object Lower {
       val arrTy = arrayMemoryLayout(ty)
       val elemPath = Seq(Val.Int(0), Val.Int(4), idx)
       val elemPtr = buf.elem(arrTy, arr, elemPath, unwind)
-      buf.let(n, Op.Load(ty, elemPtr, isAtomic = false), unwind)
+      buf.let(n, Op.Load(ty, elemPtr, isAtomic = true), unwind)
     }
 
     def genArraystoreOp(buf: Buffer, n: Local, op: Op.Arraystore)(implicit
@@ -1214,7 +1214,7 @@ object Lower {
       val arrTy = arrayMemoryLayout(ty)
       val elemPtr =
         buf.elem(arrTy, arr, Seq(Val.Int(0), Val.Int(4), idx), unwind)
-      genStoreOp(buf, n, Op.Store(ty, elemPtr, value, isAtomic = false))
+      genStoreOp(buf, n, Op.Store(ty, elemPtr, value, isAtomic = true))
     }
 
     def genArraylengthOp(buf: Buffer, n: Local, op: Op.Arraylength)(implicit

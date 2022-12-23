@@ -712,8 +712,8 @@ class LinkedBlockingQueue[E <: AnyRef](
     private[concurrent] var exhausted = false // true when no more nodes
     private[concurrent] var est: Long = size() // size estimate
 
-    override def estimateSize: Long = est
-    override def trySplit: Spliterator[E] = {
+    override def estimateSize(): Long = est
+    override def trySplit(): Spliterator[E] = {
       var h: Node[E] = null.asInstanceOf[Node[E]]
       if (!exhausted &&
           ({ h = current; h != null } || { h = head.next; h != null }) &&
@@ -778,7 +778,7 @@ class LinkedBlockingQueue[E <: AnyRef](
         forEachFrom(action, p)
       }
     }
-    override def characteristics: Int =
+    override def characteristics(): Int =
       Spliterator.ORDERED | Spliterator.NONNULL | Spliterator.CONCURRENT
   }
 

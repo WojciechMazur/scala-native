@@ -7,13 +7,13 @@
 package org.scalanative.testsuite.javalib.util.concurrent.atomic
 
 import org.scalanative.testsuite.javalib.util.concurrent.JSR166Test
+import org.scalanative.testsuite.utils.AssertThrows.assertThrows
 import JSR166Test._
 import java.util.concurrent.atomic.AtomicLongArray
 import java.util.Arrays
 
 import org.junit.Test
 import org.junit.Assert._
-import scala.scalanative.junit.utils.AssertThrows.assertThrows
 
 class AtomicLongArray9Test extends JSR166Test {
 

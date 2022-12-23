@@ -5,7 +5,7 @@ import java.io.File
 import java.nio.file.{Path, Paths}
 import scala.collection.mutable
 import scala.scalanative.build.{Config, IncCompilationContext}
-import scala.scalanative.build.core.ScalaNative.dumpDefns
+import scala.scalanative.build.core.ScalaNative.{dumpDefns, encodedMainClass}
 import scala.scalanative.io.VirtualDirectory
 import scala.scalanative.nir._
 import scala.scalanative.util.{Scope, partitionBy, procs}
@@ -23,7 +23,7 @@ object CodeGen {
     implicit val meta: Metadata =
       new Metadata(linked, config.compilerConfig, proxies)
 
-    val generated = Generate(Global.Top(config.mainClass), defns ++ proxies)
+    val generated = Generate(encodedMainClass(config), defns ++ proxies)
     val embedded = ResourceEmbedder(config)
     val lowered = lower(generated ++ embedded)
     dumpDefns(config, "lowered", lowered)
@@ -67,15 +67,18 @@ object CodeGen {
           .seq
 
       // Incremental compilation code generation
-      def seperateIncrementally(): Seq[Path] =
+      def seperateIncrementally(): Seq[Path] = {
+        def packageName(defn: Defn): String = {
+          val name = defn.name.top.id
+            .split('.')
+            .init // last segment is class name
+            .takeWhile(!_.contains("$")) // ignore nested classes
+            .mkString(".")
+          if (name.isEmpty) "__empty_package" else name
+        }
+
         assembly
-          .groupBy(
-            _.name.top.id
-              .split('.')
-              .init // last segment is class name
-              .takeWhile(!_.contains("$")) // ignore nested classes
-              .mkString(".")
-          )
+          .groupBy(packageName)
           .par
           .map {
             case (packageName, defns) =>
@@ -96,6 +99,7 @@ object CodeGen {
           }
           .seq
           .toSeq
+      }
 
       // Generate a single LLVM IR file for the whole application.
       // This is an adhoc form of LTO. We use it in release mode if
@@ -105,7 +109,7 @@ object CodeGen {
         Impl(config, env, sorted).gen(id = "out", workdir) :: Nil
       }
 
-      // For some reason in the CI matching for `case _: build.Mode.Release` throws compile time erros
+      // For some reason in the CI matching for `case _: build.Mode.Release` throws compile time errors
       import build.Mode._
       (config.mode, config.LTO) match {
         case (ReleaseFast | ReleaseFull, build.LTO.None) => single()

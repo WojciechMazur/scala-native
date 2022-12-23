@@ -15,6 +15,7 @@ object libc {
   def wcslen(str: CWideString): CSize = extern
   def strcpy(dest: CString, src: CString): CString = extern
   def strcat(dest: CString, src: CString): CString = extern
+  def memcpy(dst: Ptr[Byte], src: Ptr[Byte], count: CSize): RawPtr = extern
   def memcpy(dst: RawPtr, src: RawPtr, count: CSize): RawPtr = extern
   def memcpy(dst: RawPtr, src: RawPtr, count: RawSize): RawPtr = extern
   def memcmp(lhs: RawPtr, rhs: RawPtr, count: RawSize): CInt = extern

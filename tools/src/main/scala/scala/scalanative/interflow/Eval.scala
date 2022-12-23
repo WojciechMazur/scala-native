@@ -72,17 +72,16 @@ trait Eval { self: Interflow =>
             Next.Label(defaultTarget, defaultArgs.map(eval))
           eval(scrut) match {
             case value if value.isCanonical =>
-              cases
+              val next = cases
                 .collectFirst {
                   case Next.Case(caseValue, Next.Label(caseTarget, caseArgs))
                       if caseValue == value =>
                     val evalArgs = caseArgs.map(eval)
                     val next = Next.Label(caseTarget, evalArgs)
-                    return Inst.Jump(next)
+                    next
                 }
-                .getOrElse {
-                  return Inst.Jump(defaultNext)
-                }
+                .getOrElse(defaultNext)
+              return Inst.Jump(next)
             case scrut =>
               return Inst.Switch(materialize(scrut), defaultNext, cases)
           }

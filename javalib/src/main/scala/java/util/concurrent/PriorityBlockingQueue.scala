@@ -848,8 +848,8 @@ class PriorityBlockingQueue[E <: AnyRef] private (
       }
       false
     }
-    override def estimateSize: Long = fence - index
-    override def characteristics: Int =
+    override def estimateSize(): Long = fence - index
+    override def characteristics(): Int =
       Spliterator.NONNULL | Spliterator.SIZED | Spliterator.SUBSIZED
   }
 

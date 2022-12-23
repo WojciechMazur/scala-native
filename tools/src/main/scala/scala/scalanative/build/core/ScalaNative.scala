@@ -17,9 +17,8 @@ private[scalanative] object ScalaNative {
   /** Compute all globals that must be reachable based on given configuration.
    */
   def entries(config: Config): Seq[Global] = {
-    val mainClass = Global.Top(config.mainClass)
-    val entry = mainClass.member(Rt.ScalaMainSig)
-    entry +: CodeGen.depends
+    val entry = encodedMainClass(config).map(_.member(Rt.ScalaMainSig))
+    entry ++: CodeGen.depends
   }
 
   /** Given the classpath and main entry point, link under closed-world
@@ -92,8 +91,6 @@ private[scalanative] object ScalaNative {
       incCompilationContext: IncCompilationContext
   ): Seq[Path] = {
     val llPaths = config.logger.time("Generating intermediate code") {
-      // currently, always clean ll files
-      IO.getAll(config.workdir, "glob:**.ll").foreach(Files.delete)
       CodeGen(config, linked)
     }
     config.logger.info(s"Produced ${llPaths.length} files")
@@ -178,4 +175,14 @@ private[scalanative] object ScalaNative {
       }
     }
   }
+
+  private[scalanative] def encodedMainClass(
+      config: Config
+  ): Option[Global.Top] =
+    config.mainClass.map { mainClass =>
+      import scala.reflect.NameTransformer.encode
+      val encoded = mainClass.split('.').map(encode).mkString(".")
+      Global.Top(encoded)
+    }
+
 }

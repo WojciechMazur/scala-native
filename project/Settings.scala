@@ -3,14 +3,19 @@ package build
 import sbt._
 import sbt.Keys._
 import sbt.nio.Keys.fileTreeView
+import com.typesafe.tools.mima.core._
 import com.typesafe.tools.mima.plugin.MimaPlugin.autoImport._
+import com.jsuereth.sbtpgp.PgpKeys.publishSigned
 import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport._
 import org.portablescala.sbtplatformdeps.PlatformDepsPlugin.autoImport._
+
 import sbtbuildinfo.BuildInfoPlugin.autoImport._
 import ScriptedPlugin.autoImport._
+import com.jsuereth.sbtpgp.PgpKeys
 
 import scala.collection.mutable
 import scala.scalanative.build.Platform
+import Build.{crossPublish, crossPublishSigned}
 
 object Settings {
   lazy val fetchScalaSource = taskKey[File](
@@ -68,23 +73,26 @@ object Settings {
   )
 
   def javaReleaseSettings = {
+    def patchVersion(prefix: String, scalaVersion: String): Int =
+      scalaVersion.stripPrefix(prefix).takeWhile(_.isDigit).toInt
     def canUseRelease(scalaVersion: String) = CrossVersion
       .partialVersion(scalaVersion)
-      .collect {
-        case (3, _) => true
-        case (2, 13) =>
-          scalaVersion.stripPrefix("2.13.").takeWhile(_.isDigit).toInt > 8
+      .fold(false) {
+        case (2, 13) => patchVersion("2.13.", scalaVersion) > 8
+        case (2, _)  => false
+        case (3, 1)  => patchVersion("3.1.", scalaVersion) > 1
+        case (3, _)  => true
       }
-      .getOrElse(false)
     val javacSourceFlags = Seq("-source", "1.8")
     val scalacReleaseFlag = "-release:8"
 
     Def.settings(
-      Compile / scalacOptions += {
+      scalacOptions += {
         if (canUseRelease(scalaVersion.value)) scalacReleaseFlag
+        else if (scalaVersion.value.startsWith("3.")) "-Xtarget:8"
         else "-target:jvm-1.8"
       },
-      Compile / javacOptions ++= {
+      javacOptions ++= {
         if (canUseRelease(scalaVersion.value)) Nil
         else javacSourceFlags
       },
@@ -192,6 +200,12 @@ object Settings {
       name = "Denys Shabalin",
       url = url("http://den.sh")
     ),
+    developers += Developer(
+      id = "wojciechmazur",
+      name = "Wojciech Mazur",
+      email = "wmazur@virtuslab.com",
+      url = url("https://github.com/WojciechMazur")
+    ),
     scmInfo := Some(
       ScmInfo(
         browseUrl = url("https://github.com/scala-native/scala-native"),
@@ -221,11 +235,14 @@ object Settings {
     },
     credentials ++= {
       for {
-        realm <- sys.env.get("MAVEN_REALM")
-        domain <- sys.env.get("MAVEN_DOMAIN")
         user <- sys.env.get("MAVEN_USER")
         password <- sys.env.get("MAVEN_PASSWORD")
-      } yield Credentials(realm, domain, user, password)
+      } yield Credentials(
+        realm = "Sonatype Nexus Repository Manager",
+        host = "oss.sonatype.org",
+        userName = user,
+        passwd = password
+      )
     }.toSeq
   )
 
@@ -259,7 +276,15 @@ object Settings {
   lazy val testsCommonSettings = Def.settings(
     scalacOptions -= "-deprecation",
     scalacOptions ++= Seq("-deprecation:false"),
-    scalacOptions -= "-Xfatal-warnings",
+    scalacOptions --= {
+      if (
+          // Disable fatal warnings when
+          // Scala 3, becouse null.isInstanceOf[String] warning cannot be supressed
+          scalaVersion.value.startsWith("3.") ||
+          // Scala Native - due to specific warnings for unsafe ops in IssuesTest
+          !moduleName.value.contains("jvm")) Seq("-Xfatal-warnings")
+      else Nil
+    },
     Test / testOptions ++= Seq(
       Tests.Argument(TestFrameworks.JUnit, "-a", "-s", "-v")
     ),
@@ -417,29 +442,69 @@ object Settings {
     }
   )
 
-  lazy val testInterfaceCommonSourcesSettings: Seq[Setting[_]] = Def.settings(
-    Compile / unmanagedSourceDirectories +=
-      baseDirectory.value
-        .getParentFile()
-        .getParentFile() / "test-interface-common/src/main/scala",
-    Test / unmanagedSourceDirectories += baseDirectory.value
+  lazy val testInterfaceCommonSourcesSettings: Seq[Setting[_]] = {
+    def unmanagedSources(baseDirectory: File, dir: String) = baseDirectory
       .getParentFile()
-      .getParentFile() / "test-interface-common/src/test/scala",
-    scalacOptions --= scalaVersionsDependendent(scalaVersion.value)(
-      Seq.empty[String]
-    ) {
-      // In Scala 2 enum `Status.value` is defined as `values()`, however in Scala 3 it's `values`
-      case (2, 13) => Seq("-Xfatal-warnings")
-    }
-  )
+      .getParentFile() / s"test-interface-common/src/$dir/scala"
+
+    Def.settings(
+      Compile / unmanagedSourceDirectories += unmanagedSources(
+        baseDirectory.value,
+        "main"
+      ),
+      Test / unmanagedSourceDirectories += unmanagedSources(
+        baseDirectory.value,
+        "test"
+      )
+    )
+  }
 
   // Projects
   lazy val compilerPluginSettings = Def.settings(
     crossVersion := CrossVersion.full,
     libraryDependencies ++= Deps.compilerPluginDependencies(scalaVersion.value),
     mavenPublishSettings,
-    exportJars := true
+    exportJars := true,
+    crossPublish := crossPublishCompilerPlugin(publish).value,
+    crossPublishSigned := crossPublishCompilerPlugin(publishSigned).value
   )
+
+  /** Builds a given project across all crossScalaVersion values. It does not
+   *  modify the value of scalaVersion outside of it's scope. This allows to
+   *  build multiple (compiler plugin) projects in parallel.
+   */
+  private def crossPublishCompilerPlugin(publishKey: TaskKey[Unit]) = Def.task {
+    val currentVersion = scalaVersion.value
+    val s = state.value
+    val log = s.log
+    val extracted = sbt.Project.extract(s)
+    val id = thisProjectRef.value.project
+    val selfRef = thisProjectRef.value
+    val _ = crossScalaVersions.value.foldLeft(s) {
+      case (state, `currentVersion`) =>
+        log.info(
+          s"Skip publish $id ${currentVersion} - it should be already published"
+        )
+        state
+      case (state, crossVersion) =>
+        log.info(s"Try publish $id ${crossVersion}")
+        val (newState, result) = sbt.Project
+          .runTask(
+            selfRef / publishKey,
+            state = extracted.appendWithSession(
+              Seq(
+                selfRef / scalaVersion := crossVersion
+              ),
+              state
+            )
+          )
+          .get
+        result.toEither match {
+          case Left(failure) => throw new RuntimeException(failure)
+          case Right(_)      => newState
+        }
+    }
+  }
 
   lazy val sbtPluginSettings = Def.settings(
     commonSettings,
@@ -713,11 +778,11 @@ object Settings {
               copy(scalaSourcePath, outputFile)
               Some(outputFile)
             } catch {
-              case _: Exception =>
+              case ex: Exception =>
                 // Postpone failing to check which other patches do not apply
                 failedToApplyPatches = true
                 val path = sourcePath.toFile.relativeTo(srcDir.getParentFile)
-                s.log.error(s"Cannot apply patch for $path")
+                s.log.error(s"Cannot apply patch for $path - $ex")
                 None
             } finally {
               if (scalaSourceCopyPath.exists()) {

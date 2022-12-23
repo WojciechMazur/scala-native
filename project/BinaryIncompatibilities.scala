@@ -33,11 +33,14 @@ object BinaryIncompatibilities {
     exclude[Problem]("scala.scalanative.linker.*"),
     exclude[Problem]("scala.scalanative.build.NativeLib.*"),
     exclude[Problem]("scala.scalanative.build.LLVM.*"),
+    exclude[Problem]("scala.scalanative.build.Config*Impl*"),
     exclude[Problem]("scala.scalanative.build.NativeConfig*Impl*"),
     exclude[Problem]("scala.scalanative.build.GC.this"),
     exclude[ReversedMissingMethodProblem](
       "scala.scalanative.build.NativeConfig*"
-    )
+    ),
+    exclude[ReversedMissingMethodProblem]("scala.scalanative.build.Config*"),
+    exclude[Problem]("scala.scalanative.build.Config*Impl*")
   )
 
   final val NativeLib = Seq()
@@ -54,6 +57,7 @@ object BinaryIncompatibilities {
   val moduleFilters = Map(
     "util" -> Util,
     "nir" -> Nir,
+    "nscplugin" -> NscPlugin,
     "tools" -> Tools,
     "clib" -> CLib,
     "posixlib" -> PosixLib,
@@ -66,6 +70,7 @@ object BinaryIncompatibilities {
     "test-runner" -> TestRunner,
     "test-interface" -> TestInterface,
     "test-interface-sbt-defs" -> TestInterfaceSbtDefs,
+    "junit-plugin" -> JUnitPlugin,
     "junit-runtime" -> JUnitRuntime
   )
 }

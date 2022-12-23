@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicReference
 import java.util.regex.Pattern
 
 import org.junit.Assert._
-import scala.scalanative.junit.utils.AssertThrows.assertThrows
+import org.scalanative.testsuite.utils.AssertThrows.assertThrows
 
 /** Base class for JSR166 Junit TCK tests. Defines some constants, utility
  *  methods and classes, as well as a simple framework for helping to make sure

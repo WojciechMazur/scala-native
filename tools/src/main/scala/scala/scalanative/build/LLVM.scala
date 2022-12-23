@@ -2,11 +2,12 @@ package scala.scalanative
 package build
 
 import java.io.{File, PrintWriter}
-import java.nio.file.{Files, Path, Paths}
+import java.nio.file.{Files, Path, Paths, StandardCopyOption}
 import scala.sys.process._
 import scalanative.build.core.IO.RichPath
 import scalanative.compat.CompatParColls.Converters._
 import scalanative.nir.Attr.Link
+import scala.scalanative.build.BuildTarget._
 
 /** Internal utilities to interact with LLVM command-line tools. */
 private[scalanative] object LLVM {
@@ -36,64 +37,67 @@ private[scalanative] object LLVM {
       incCompilationContext: IncCompilationContext
   ): Seq[Path] = {
     // generate .o files for all included source files in parallel
-    paths.par.map { path =>
-      val inpath = path.abs
+    paths.par.map { srcPath =>
+      val inpath = srcPath.abs
       val outpath = inpath + oExt
-      val isCpp = inpath.endsWith(cppExt)
-      val isLl = inpath.endsWith(llExt)
       val objPath = Paths.get(outpath)
-      val packageName = (config.workdir relativize path).toString
-        .replace(File.separator, ".")
-        .split('.')
-        .init
-        .mkString(".")
-
-      // LL is generated so always rebuild
-      // If pack2hashPrev is empty, here are two cases:
-      // 1. This is the first compilation time.
-      // 2. We don't use incremental compilation.
-      // In these two cases, we should compile them to object files.
-      // If pack2hashPrev is not empty, we don't recompile native library.
-      // Even if native library changes(This is very rare case). If native library
-      // changes, we should clean the project first.
-      if ((isLl || !Files.exists(objPath)) &&
-          incCompilationContext.shouldCompile(packageName)) {
-        val compiler = if (isCpp) config.clangPP.abs else config.clang.abs
-        val stdflag = {
-          if (isLl) Seq()
-          else if (isCpp) {
-            // C++14 or newer standard is needed to compile code using Windows API
-            // shipped with Windows 10 / Server 2016+ (we do not plan supporting older versions)
-            if (config.targetsWindows) Seq("-std=c++14")
-            else Seq("-std=c++11")
-          } else Seq("-std=gnu11")
-        }
-        val platformFlags = {
-          Seq("-g")
-        }
-        val configFlags = {
-          if (config.compilerConfig.multithreadingSupport)
-            Seq("-DSCALANATIVE_MULTITHREADING_ENABLED")
-          else Nil
-        }
-        val expectionsHandling =
-          List("-fexceptions", "-fcxx-exceptions", "-funwind-tables")
-        val flags = opt(config) +: "-fvisibility=hidden" +: "-UNDEBUG" +:
-          stdflag ++: platformFlags ++: configFlags ++: expectionsHandling ++: config.compileOptions
-        val compilec =
-          Seq(compiler) ++ flto(config) ++ flags ++
-            asan(config) ++ target(config) ++
-            Seq("-c", inpath, "-o", outpath)
-
-        config.logger.running(compilec)
-        val result = Process(compilec, config.workdir.toFile) !
-          Logger.toProcessLogger(config.logger)
-        if (result != 0) {
-          throw new BuildException(s"Failed to compile ${inpath}")
-        }
-      }
-      objPath
+      // compile if out of date or no object file
+      if (needsCompiling(srcPath, objPath)) {
+        compileFile(config, srcPath, objPath)
+      } else objPath
     }.seq
+  }
+
+  private def compileFile(config: Config, srcPath: Path, objPath: Path)(implicit
+      incCompilationContext: IncCompilationContext
+  ): Path = {
+    implicit val _config: Config = config
+    val inpath = srcPath.abs
+    val outpath = objPath.abs
+    val isCpp = inpath.endsWith(cppExt)
+    val isLl = inpath.endsWith(llExt)
+    val workdir = config.workdir
+
+    val compiler = if (isCpp) config.clangPP.abs else config.clang.abs
+    val stdflag = {
+      if (isLl) Seq()
+      else if (isCpp) {
+        // C++14 or newer standard is needed to compile code using Windows API
+        // shipped with Windows 10 / Server 2016+ (we do not plan supporting older versions)
+        if (config.targetsWindows) Seq("-std=c++14")
+        else Seq("-std=c++11")
+      } else Seq("-std=gnu11")
+    }
+    val platformFlags = {
+      if (config.targetsWindows) Seq("-g")
+      else Nil
+    }
+    val configFlags = {
+      if (config.compilerConfig.multithreadingSupport)
+        Seq("-DSCALANATIVE_MULTITHREADING_ENABLED")
+      else Nil
+    }
+    val exceptionsHandling = {
+      val opt = if (isCpp) List("-fcxx-exceptions") else Nil
+      List("-fexceptions", "-funwind-tables") ::: opt
+    }
+    val flags: Seq[String] =
+      buildTargetCompileOpts ++ flto ++ asan ++ target ++
+        stdflag ++ platformFlags ++ exceptionsHandling ++
+        configFlags ++ Seq("-fvisibility=hidden", opt) ++
+        config.compileOptions
+    val compilec: Seq[String] =
+      Seq(compiler, "-c", inpath, "-o", outpath) ++ flags
+
+    // compile
+    config.logger.running(compilec)
+    val result = Process(compilec, workdir.toFile) !
+      Logger.toProcessLogger(config.logger)
+    if (result != 0) {
+      throw new BuildException(s"Failed to compile ${inpath}")
+    }
+
+    objPath
   }
 
   /** Links a collection of `.ll.o` files and the `.o` files from the
@@ -106,17 +110,40 @@ private[scalanative] object LLVM {
    *    The results from the linker.
    *  @param objectPaths
    *    The paths to all the `.o` files.
-   *  @param outpath
-   *    The path where to write the resulting binary.
    *  @return
-   *    `outpath`
+   *    `outpath` The config.artifactPath
    */
   def link(
       config: Config,
       linkerResult: linker.Result,
-      objectsPaths: Seq[Path],
-      outpath: Path
+      objectsPaths: Seq[Path]
   ): Path = {
+    implicit val _config: Config = config
+    val outpath = config.artifactPath
+
+    // don't link if no changes
+    if (!needsLinking(objectsPaths, outpath)) return outpath
+
+    val command = config.compilerConfig.buildTarget match {
+      case BuildTarget.Application | BuildTarget.LibraryDynamic =>
+        prepareLinkCommand(objectsPaths, linkerResult)
+      case BuildTarget.LibraryStatic =>
+        prepareArchiveCommand(objectsPaths)
+    }
+    // link
+    val result = command ! Logger.toProcessLogger(config.logger)
+    if (result != 0) {
+      throw new BuildException(s"Failed to link ${outpath}")
+    }
+
+    outpath
+  }
+
+  private def prepareLinkCommand(
+      objectsPaths: Seq[Path],
+      linkerResult: linker.Result
+  )(implicit config: Config) = {
+    val workdir = config.workdir
     val links = {
       val srclinks = linkerResult.links.collect {
         case Link("z") if config.targetsWindows => "zlib"
@@ -135,7 +162,8 @@ private[scalanative] object LLVM {
     val linkopts = config.linkingOptions ++ links.map("-l" + _)
     val flags = {
       val platformFlags =
-        if (config.targetsWindows) {
+        if (!config.targetsWindows) Nil
+        else {
           // https://github.com/scala-native/scala-native/issues/2372
           // When using LTO make sure to use lld linker instead of default one
           // LLD might find some duplicated symbols defined in both C and C++,
@@ -145,18 +173,18 @@ private[scalanative] object LLVM {
             case _        => Seq("-fuse-ld=lld", "-Wl,/force:multiple")
           }
           Seq("-g") ++ ltoSupport
-        } else Seq("-rdynamic", "-g")
-      flto(config) ++ platformFlags ++
-        Seq("-o", outpath.abs) ++
-        asan(config) ++ target(config)
+        }
+      val output = Seq("-o", config.artifactPath.abs)
+      buildTargetLinkOpts ++ flto ++ platformFlags ++ output ++ asan ++ target
     }
     val paths = objectsPaths.map(_.abs)
     // it's a fix for passing too many file paths to the clang compiler,
     // If too many packages are compiled and the platform is windows, windows
     // terminal doesn't support too many characters, which will cause an error.
     val llvmLinkInfo = flags ++ paths ++ linkopts
+    val configFile = workdir.resolve("llvmLinkInfo").toFile
     locally {
-      val pw = new PrintWriter(config.workdir.resolve("llvmLinkInfo").toFile)
+      val pw = new PrintWriter(configFile)
       try
         llvmLinkInfo.foreach {
           // in windows system, the file separator doesn't work very well, so we
@@ -165,43 +193,125 @@ private[scalanative] object LLVM {
         }
       finally pw.close()
     }
-    val compile = config.clangPP.abs +: Seq(s"@llvmLinkInfo")
 
-    config.logger.time(
-      s"Linking native code (${config.gc.name} gc, ${config.LTO.name} lto)"
-    ) {
-      config.logger.running(compile)
-      val result = Process(compile, config.workdir.toFile) !
-        Logger.toProcessLogger(config.logger)
-      if (result != 0) {
-        throw new BuildException(s"Failed to link ${outpath}")
-      }
-    }
-    outpath
+    val command = Seq(config.clangPP.abs, s"@${configFile.getAbsolutePath()}")
+    config.logger.running(command)
+    Process(command, config.workdir.toFile())
   }
 
-  private def flto(config: Config): Seq[String] =
+  private def prepareArchiveCommand(
+      objectPaths: Seq[Path]
+  )(implicit config: Config) = {
+    val workdir = config.workdir
+    val llvmAR = Discover.discover("llvm-ar", "LLVM_BIN")
+    val MIRScriptFile = workdir.resolve("MIRScript").toFile
+    val pw = new PrintWriter(MIRScriptFile)
+    try {
+      pw.println(s"CREATE ${config.artifactPath}")
+      objectPaths.foreach { path =>
+        val uniqueName =
+          workdir
+            .relativize(path)
+            .toString()
+            .replace(File.separator, "_")
+        val newPath = workdir.resolve(uniqueName)
+        Files.move(path, newPath, StandardCopyOption.REPLACE_EXISTING)
+        pw.println(s"ADDMOD ${newPath.abs}")
+      }
+      pw.println("SAVE")
+      pw.println("END")
+    } finally pw.close()
+
+    val command = Seq(llvmAR.abs, "-M")
+    config.logger.running(command)
+
+    Process(command, config.workdir.toFile()) #< MIRScriptFile
+  }
+
+  /** Checks the input timestamp to see if the file needs compiling. The call to
+   *  lastModified will return 0 for a non existent output file but that makes
+   *  the timestamp always less forcing a recompile.
+   *
+   *  @param in
+   *    the source file
+   *  @param out
+   *    the object file
+   *  @return
+   *    true if it needs compiling false otherwise.
+   */
+  @inline private def needsCompiling(in: Path, out: Path): Boolean = {
+    in.toFile().lastModified() > out.toFile().lastModified()
+  }
+
+  /** Looks at all the object files to see if one is newer than the output
+   *  (executable). All object files will be compiled at this time so
+   *  lastModified will always be a real time stamp. The output executable
+   *  lastModified can be 0 but that forces the link to occur.
+   *
+   *  @param in
+   *    the list of object file to link
+   *  @param out
+   *    the executable
+   *  @return
+   *    true if it need linking
+   */
+  @inline private def needsLinking(in: Seq[Path], out: Path): Boolean = {
+    val inmax = in.map(_.toFile().lastModified()).max
+    val outmax = out.toFile().lastModified()
+    inmax > outmax
+  }
+
+  private def flto(implicit config: Config): Seq[String] =
     config.compilerConfig.lto match {
       case LTO.None => Seq.empty
       case lto      => Seq(s"-flto=${lto.name}")
     }
 
-  private def asan(config: Config): Seq[String] =
+  private def asan(implicit config: Config): Seq[String] =
     config.compilerConfig.asan match {
       case true  => Seq("-fsanitize=address", "-fno-omit-frame-pointer")
       case false => Seq.empty
     }
 
-  private def target(config: Config): Seq[String] =
+  private def target(implicit config: Config): Seq[String] =
     config.compilerConfig.targetTriple match {
       case Some(tt) => Seq("-target", tt)
       case None     => Seq("-Wno-override-module")
     }
 
-  private def opt(config: Config): String =
+  private def opt(implicit config: Config): String =
     config.mode match {
       case Mode.Debug       => "-O0"
       case Mode.ReleaseFast => "-O2"
       case Mode.ReleaseFull => "-O3"
     }
+
+  private def buildTargetCompileOpts(implicit config: Config): Seq[String] =
+    config.compilerConfig.buildTarget match {
+      case BuildTarget.Application =>
+        Nil
+      case BuildTarget.LibraryStatic =>
+        optionalPICflag ++ Seq("--emit-static-lib")
+      case BuildTarget.LibraryDynamic =>
+        optionalPICflag :+
+          "-DSCALANATIVE_DYLIB" // allow to compile dynamic library constructor in dylib_init.c
+    }
+
+  private def buildTargetLinkOpts(implicit config: Config): Seq[String] = {
+    val optRdynamic = if (config.targetsWindows) Nil else Seq("-rdynamic")
+    config.compilerConfig.buildTarget match {
+      case BuildTarget.Application =>
+        optRdynamic
+      case BuildTarget.LibraryStatic =>
+        optionalPICflag ++ Seq("--emit-static-lib")
+      case BuildTarget.LibraryDynamic =>
+        val libFlag = if (config.targetsMac) "-dynamiclib" else "-shared"
+        Seq(libFlag) ++ optionalPICflag ++ optRdynamic
+    }
+  }
+
+  private def optionalPICflag(implicit config: Config): Seq[String] =
+    if (config.targetsWindows) Nil
+    else Seq("-fPIC")
+
 }

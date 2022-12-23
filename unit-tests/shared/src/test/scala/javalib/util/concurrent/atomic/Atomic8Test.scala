@@ -7,7 +7,7 @@
 package org.scalanative.testsuite.javalib.util.concurrent.atomic
 
 import org.scalanative.testsuite.javalib.util.concurrent.JSR166Test
-import scala.scalanative.junit.utils.AssertThrows.assertThrows
+import org.scalanative.testsuite.utils.AssertThrows.assertThrows
 
 import java.util.concurrent.atomic._
 import java.lang.{Long => jlLong}

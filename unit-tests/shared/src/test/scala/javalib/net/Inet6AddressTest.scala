@@ -7,8 +7,8 @@ import java.net._
 import org.junit.Test
 import org.junit.Assert._
 
+import org.scalanative.testsuite.utils.AssertThrows.assertThrows
 import org.scalanative.testsuite.utils.Platform
-import scalanative.junit.utils.AssertThrows.assertThrows
 
 class Inet6AddressTest {
 
@@ -161,6 +161,23 @@ class Inet6AddressTest {
   @Test def trailing0NotLost(): Unit = {
     val addr = InetAddress.getByName("1c1e::")
     assertTrue(addr.getHostAddress().endsWith("0"))
+  }
+
+  // Issue 2911
+  @Test def shouldUseOnlyLowercaseHexDigits(): Unit = {
+    val addr = InetAddress.getByName("FEBF::ABCD:EF01:2345:67AB:CDEF")
+    assertNotNull("InetAddress.getByName() failed to find name", addr)
+
+    val addrString = addr.getHostAddress()
+
+    // All JVM non-numeric hexadecimal digits are lowercase. Require the same.
+    val hexDigitsAreAllLowerCase = addrString
+      .forall(ch => (Character.isDigit(ch) || "abcdef:".contains(ch)))
+
+    assertTrue(
+      s"Not all hex characters in ${addrString} are lower case",
+      hexDigitsAreAllLowerCase
+    )
   }
 
 }

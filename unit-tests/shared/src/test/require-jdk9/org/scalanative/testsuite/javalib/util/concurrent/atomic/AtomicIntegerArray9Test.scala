@@ -8,7 +8,7 @@ package org.scalanative.testsuite.javalib.util.concurrent.atomic
 
 import org.scalanative.testsuite.javalib.util.concurrent.JSR166Test
 import JSR166Test._
-import scala.scalanative.junit.utils.AssertThrows.assertThrows
+import org.scalanative.testsuite.utils.AssertThrows.assertThrows
 
 import org.junit.Test
 import org.junit.Assert._

@@ -1,20 +1,32 @@
 package scala.scalanative
 package build
 
-import java.nio.file.{Path, Paths}
+import java.nio.file.{Files, Path, Paths}
 
 /** An object describing how to configure the Scala Native toolchain. */
 sealed trait Config {
 
-  /** Directory to emit intermediate compilation results. */
+  private val testSuffix = "-test"
+
+  /** Base Directory for native work products. */
+  def basedir: Path
+
+  /** Indicates whether this is a test config or not. */
+  def testConfig: Boolean
+
+  /** Directory to emit intermediate compilation results. Calculated based on
+   *  [[basedir]] / native or native-test if a test project. The build creates
+   *  directories if they do not exist.
+   */
   def workdir: Path
 
-  /** Path to the nativelib jar. */
-  @deprecated("Not needed: discovery is internal", "0.4.0")
-  def nativelib: Path
+  /** Path to the output file, executable or library. Calculated based on
+   *  [[basedir]] / [[NativeConfig#basename]] and -test, if a test project.
+   */
+  def artifactPath: Path
 
   /** Entry point for linking. */
-  def mainClass: String
+  def mainClass: Option[String]
 
   /** Sequence of all NIR locations. */
   def classPath: Seq[Path]
@@ -24,12 +36,11 @@ sealed trait Config {
 
   def compilerConfig: NativeConfig
 
-  /** Create a new config with given directory. */
-  def withWorkdir(value: Path): Config
+  /** Create a new config with given base directory. */
+  def withBasedir(value: Path): Config
 
-  /** Create a new config with given path to nativelib. */
-  @deprecated("Not needed: discovery is internal", "0.4.0")
-  def withNativelib(value: Path): Config
+  /** Create a new config with test (true) or normal config (false). */
+  def withTestConfig(value: Boolean): Config
 
   /** Create new config with given mainClass point. */
   def withMainClass(value: String): Config
@@ -74,12 +85,19 @@ sealed trait Config {
   /** Shall linker dump intermediate NIR after every phase? */
   def dump: Boolean = compilerConfig.dump
 
-  private[scalanative] def targetsWindows: Boolean = {
+  protected def nameSuffix = if (testConfig) testSuffix else ""
+
+  private[scalanative] lazy val targetsWindows: Boolean = {
     compilerConfig.targetTriple.fold(Platform.isWindows) { customTriple =>
       customTriple.contains("win32") ||
       customTriple.contains("windows")
     }
   }
+
+  private[scalanative] lazy val targetsMac = Platform.isMac ||
+    compilerConfig.targetTriple.exists { customTriple =>
+      Seq("mac", "apple", "darwin").exists(customTriple.contains(_))
+    }
 }
 
 object Config {
@@ -88,18 +106,20 @@ object Config {
   def empty: Config =
     Impl(
       nativelib = Paths.get(""),
-      mainClass = "",
+      mainClass = None,
       classPath = Seq.empty,
-      workdir = Paths.get(""),
+      basedir = Paths.get(""),
+      testConfig = false,
       logger = Logger.default,
       compilerConfig = NativeConfig.empty
     )
 
   private final case class Impl(
       nativelib: Path,
-      mainClass: String,
+      mainClass: Option[String],
       classPath: Seq[Path],
-      workdir: Path,
+      basedir: Path,
+      testConfig: Boolean,
       logger: Logger,
       compilerConfig: NativeConfig
   ) extends Config {
@@ -107,13 +127,16 @@ object Config {
       copy(nativelib = value)
 
     def withMainClass(value: String): Config =
-      copy(mainClass = value)
+      copy(mainClass = Option(value).filter(_.nonEmpty))
 
     def withClassPath(value: Seq[Path]): Config =
       copy(classPath = value)
 
-    def withWorkdir(value: Path): Config =
-      copy(workdir = value)
+    def withBasedir(value: Path): Config =
+      copy(basedir = value)
+
+    def withTestConfig(value: Boolean): Config =
+      copy(testConfig = value)
 
     def withLogger(value: Logger): Config =
       copy(logger = value)
@@ -123,5 +146,42 @@ object Config {
 
     override def withCompilerConfig(fn: NativeConfig => NativeConfig): Config =
       copy(compilerConfig = fn(compilerConfig))
+
+    override lazy val workdir: Path =
+      basedir.resolve(s"native$nameSuffix")
+
+    override lazy val artifactPath: Path = {
+      val ext = compilerConfig.buildTarget match {
+        case BuildTarget.Application =>
+          if (targetsWindows) ".exe" else ""
+        case BuildTarget.LibraryDynamic =>
+          if (targetsWindows) ".dll"
+          else if (targetsMac) ".dylib"
+          else ".so"
+        case BuildTarget.LibraryStatic =>
+          if (targetsWindows) ".lib"
+          else ".a"
+      }
+      val namePrefix = compilerConfig.buildTarget match {
+        case BuildTarget.Application => ""
+        case _: BuildTarget.Library  => if (targetsWindows) "" else "lib"
+      }
+      basedir.resolve(s"$namePrefix${compilerConfig.basename}$nameSuffix$ext")
+    }
+
+    override def toString: String = {
+      val classPathFormat =
+        classPath.mkString("List(", "\n".padTo(22, ' '), ")")
+      s"""Config(
+        | - basedir:        $basedir
+        | - testConfig:     $testConfig
+        | - workdir:        $workdir
+        | - artifactPath:   $artifactPath
+        | - logger:         $logger
+        | - classPath:      $classPathFormat
+        | - compilerConfig: $compilerConfig
+        |)""".stripMargin
+    }
+
   }
 }

@@ -13,7 +13,7 @@ import JSR166Test._
 
 import org.junit.{Test, Ignore}
 import org.junit.Assert._
-import scala.scalanative.junit.utils.AssertThrows.assertThrows
+import org.scalanative.testsuite.utils.AssertThrows.assertThrows
 
 object ThreadLocalRandom8Test {
   // max sampled int bound

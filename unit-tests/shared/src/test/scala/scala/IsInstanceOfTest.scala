@@ -15,10 +15,6 @@ class IsInstanceOfTest {
     assertFalse(anyRef.isInstanceOf[String])
   }
 
-  @Test def expectsLiteralNullIsInstanceOfStringEqEqFalse(): Unit = {
-    assertFalse(null.isInstanceOf[String]: @nowarn)
-  }
-
   @Test def expectsEmptyStringIsInstanceOfStringEqEqTrue(): Unit = {
     assertTrue("".isInstanceOf[String])
   }

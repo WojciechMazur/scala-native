@@ -11,8 +11,7 @@ import java.util.HashSet
 
 import org.junit.{Test, Ignore}
 import org.junit.Assert._
-import scala.scalanative.junit.utils.AssertThrows.assertThrows
-import scala.scalanative.junit.utils.ThrowsHelper.assertThrowsAnd
+import org.scalanative.testsuite.utils.AssertThrows.assertThrows
 
 class RecursiveTaskTest extends JSR166Test {
   import JSR166Test._
@@ -332,10 +331,10 @@ class RecursiveTaskTest extends JSR166Test {
     val a = new CheckedRecursiveTask[Integer] {
       protected def realCompute(): Integer = {
         val f = new FailingFibTask(8)
-        assertThrowsAnd(classOf[FJException], f.invoke()) { success =>
-          checkCompletedAbnormally(f, success)
-          true
-        }
+        checkCompletedAbnormally(
+          f,
+          assertThrows(classOf[FJException], f.invoke())
+        )
         NoResult
       }
     }
@@ -364,10 +363,10 @@ class RecursiveTaskTest extends JSR166Test {
       protected def realCompute(): Integer = {
         val f = new FailingFibTask(8)
         assertSame(f, f.fork())
-        assertThrowsAnd(classOf[FJException], f.join()) { success =>
-          checkCompletedAbnormally(f, success)
-          true
-        }
+        checkCompletedAbnormally(
+          f,
+          assertThrows(classOf[FJException], f.join())
+        )
         NoResult
       }
     }
@@ -381,12 +380,10 @@ class RecursiveTaskTest extends JSR166Test {
       protected def realCompute(): Integer = {
         val f = new FailingFibTask(8)
         assertSame(f, f.fork())
-        assertThrowsAnd(classOf[ExecutionException], f.get()) { success =>
-          val cause = success.getCause()
-          assertTrue(cause.isInstanceOf[FJException])
-          checkCompletedAbnormally(f, cause)
-          true
-        }
+        val ex = assertThrows(classOf[ExecutionException], f.get())
+        val cause = ex.getCause()
+        assertTrue(cause.isInstanceOf[FJException])
+        checkCompletedAbnormally(f, cause)
         NoResult
       }
     }
@@ -400,15 +397,13 @@ class RecursiveTaskTest extends JSR166Test {
       protected def realCompute(): Integer = {
         val f = new FailingFibTask(8)
         assertSame(f, f.fork())
-        assertThrowsAnd(
+        val ex = assertThrows(
           classOf[ExecutionException],
           f.get(LONG_DELAY_MS, MILLISECONDS)
-        ) { success =>
-          val cause = success.getCause()
-          assertTrue(cause.isInstanceOf[FJException])
-          checkCompletedAbnormally(f, cause)
-          true
-        }
+        )
+        val cause = ex.getCause()
+        assertTrue(cause.isInstanceOf[FJException])
+        checkCompletedAbnormally(f, cause)
         NoResult
       }
     }
@@ -438,10 +433,8 @@ class RecursiveTaskTest extends JSR166Test {
       protected def realCompute(): Integer = {
         val f = new FibTask(8)
         assertTrue(f.cancel(true))
-        assertThrowsAnd(classOf[CancellationException], f.invoke()) { _ =>
-          checkCancelled(f)
-          true
-        }
+        assertThrows(classOf[CancellationException], f.invoke())
+        checkCancelled(f)
         NoResult
       }
     }
@@ -456,10 +449,8 @@ class RecursiveTaskTest extends JSR166Test {
         val f = new FibTask(8)
         assertTrue(f.cancel(true))
         assertSame(f, f.fork())
-        assertThrowsAnd(classOf[CancellationException], f.join()) { _ =>
-          checkCancelled(f)
-          true
-        }
+        assertThrows(classOf[CancellationException], f.join())
+        checkCancelled(f)
         NoResult
       }
     }
@@ -474,10 +465,8 @@ class RecursiveTaskTest extends JSR166Test {
         val f = new FibTask(8)
         assertTrue(f.cancel(true))
         assertSame(f, f.fork())
-        assertThrowsAnd(classOf[CancellationException], f.get()) { _ =>
-          checkCancelled(f)
-          true
-        }
+        assertThrows(classOf[CancellationException], f.get())
+        checkCancelled(f)
         NoResult
       }
     }
@@ -492,13 +481,11 @@ class RecursiveTaskTest extends JSR166Test {
         val f = new FibTask(8)
         assertTrue(f.cancel(true))
         assertSame(f, f.fork())
-        assertThrowsAnd(
+        assertThrows(
           classOf[CancellationException],
           f.get(LONG_DELAY_MS, MILLISECONDS)
-        ) { _ =>
-          checkCancelled(f)
-          true
-        }
+        )
+        checkCancelled(f)
         NoResult
       }
     }
@@ -619,10 +606,10 @@ class RecursiveTaskTest extends JSR166Test {
         val f = new FailingFibTask(8)
         checkNotDone(f)
         for (i <- 0 until 3) {
-          assertThrowsAnd(classOf[FJException], f.invoke()) { success =>
-            checkCompletedAbnormally(f, success)
-            true
-          }
+          checkCompletedAbnormally(
+            f,
+            assertThrows(classOf[FJException], f.invoke())
+          )
           f.reinitialize()
           checkNotDone(f)
         }
@@ -639,10 +626,10 @@ class RecursiveTaskTest extends JSR166Test {
       protected def realCompute(): Integer = {
         val f = new FibTask(8)
         f.completeExceptionally(new FJException())
-        assertThrowsAnd(classOf[FJException], f.invoke()) { success =>
-          checkCompletedAbnormally(f, success)
-          true
-        }
+        checkCompletedAbnormally(
+          f,
+          assertThrows(classOf[FJException], f.invoke())
+        )
         NoResult
       }
     }
@@ -766,11 +753,10 @@ class RecursiveTaskTest extends JSR166Test {
       protected def realCompute(): Integer = {
         val f = new FibTask(8)
         val g = new FailingFibTask(9)
-        assertThrowsAnd(classOf[FJException], ForkJoinTask.invokeAll(f, g)) {
-          success =>
-            checkCompletedAbnormally(g, success)
-            true
-        }
+        checkCompletedAbnormally(
+          g,
+          assertThrows(classOf[FJException], ForkJoinTask.invokeAll(f, g))
+        )
         NoResult
       }
     }
@@ -783,11 +769,10 @@ class RecursiveTaskTest extends JSR166Test {
     val a = new CheckedRecursiveTask[Integer] {
       protected def realCompute(): Integer = {
         val g = new FailingFibTask(9)
-        assertThrowsAnd(classOf[FJException], ForkJoinTask.invokeAll(g)) {
-          success =>
-            checkCompletedAbnormally(g, success)
-            true
-        }
+        checkCompletedAbnormally(
+          g,
+          assertThrows(classOf[FJException], ForkJoinTask.invokeAll(g))
+        )
         NoResult
       }
     }
@@ -802,11 +787,10 @@ class RecursiveTaskTest extends JSR166Test {
         val f = new FibTask(8)
         val g = new FailingFibTask(9)
         val h = new FibTask(7)
-        assertThrowsAnd(classOf[FJException], ForkJoinTask.invokeAll(f, g, h)) {
-          success =>
-            checkCompletedAbnormally(g, success)
-            true
-        }
+        checkCompletedAbnormally(
+          g,
+          assertThrows(classOf[FJException], ForkJoinTask.invokeAll(f, g, h))
+        )
         NoResult
       }
     }
@@ -825,11 +809,10 @@ class RecursiveTaskTest extends JSR166Test {
         set.add(f)
         set.add(g)
         set.add(h)
-        assertThrowsAnd(classOf[FJException], ForkJoinTask.invokeAll(set)) {
-          success =>
-            checkCompletedAbnormally(f, success)
-            true
-        }
+        checkCompletedAbnormally(
+          f,
+          assertThrows(classOf[FJException], ForkJoinTask.invokeAll(set))
+        )
         NoResult
       }
     }

@@ -1,14 +1,14 @@
 name: Run tests MacOs
 on:
+  workflow_call:
   pull_request:
   push:
     branches:
       - main
       - 0.4.x
-concurrency: 
+concurrency:
   group: macOS-${{ github.head_ref }}
   cancel-in-progress: true
-
 
 jobs:
   run-tests:
@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scala: [3.2.0, 2.13.10, 2.12.17, 2.11.12]
+        scala: [3.2.1, 2.13.10, 2.12.17, 2.11.12]
         gc: [immix]
         include:
           - scala: 2.13.10
@@ -63,4 +63,6 @@ jobs:
           scala-version: ${{matrix.scala}}
 
       - name: Test scripted
-        run: sbt "test-scripted ${{matrix.scala}}"
+        run: |
+          export LLVM_BIN=$(brew --prefix llvm@14)/bin
+          sbt "test-scripted ${{matrix.scala}}"

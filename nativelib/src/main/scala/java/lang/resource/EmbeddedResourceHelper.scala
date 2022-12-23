@@ -1,6 +1,5 @@
 package java.lang.resource
 
-import java.util.Base64
 import scala.scalanative.runtime.libc
 import scala.scalanative.unsigned._
 import scala.scalanative.runtime.ByteArray
@@ -22,8 +21,7 @@ private[lang] object EmbeddedResourceHelper {
         EmbeddedResourceReader.getPathPtr(idx),
         castIntToRawSizeUnsigned(pathSize)
       )
-      val decodedPath = Base64.getDecoder().decode(path)
-      new String(decodedPath)
+      new String(path)
     }
   }
 

@@ -10,19 +10,21 @@ package org.scalanative.testsuite.javalib.util.concurrent.locks
 import org.junit.Assert._
 import org.junit.{Test, Ignore}
 import org.scalanative.testsuite.javalib.util.concurrent.JSR166Test
-
 import JSR166Test._
-
 import ReentrantLockTest.AwaitMethod
+import org.scalanative.testsuite.utils.AssertThrows.assertThrows
 
-import java.util.concurrent.TimeUnit.MILLISECONDS
-import java.util
-import java.util.concurrent._
+import java.util.concurrent.locks.{ReentrantLock, Condition}
+import java.util.concurrent.{
+  CountDownLatch,
+  CyclicBarrier,
+  ThreadLocalRandom,
+  TimeUnit
+}
+import java.util.concurrent.TimeUnit._
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.locks._
-
-import java.util.{ArrayList, Arrays, Collection, HashSet, Date}
-import scala.scalanative.junit.utils.AssertThrows.assertThrows
+import java.util.Date
+import java.util
 
 object ReentrantLockTest {
 

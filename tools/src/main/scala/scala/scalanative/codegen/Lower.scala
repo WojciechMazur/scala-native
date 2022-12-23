@@ -44,6 +44,7 @@ object Lower {
 
     private val fresh = new util.ScopedVar[Fresh]
     private val unwindHandler = new util.ScopedVar[Option[Local]]
+    private val currentDefn = new util.ScopedVar[Defn.Define]
 
     private val unreachableSlowPath = mutable.Map.empty[Option[Local], Local]
     private val nullPointerSlowPath = mutable.Map.empty[Option[Local], Local]
@@ -80,7 +81,8 @@ object Lower {
       case defn: Defn.Define =>
         val Type.Function(_, ty) = defn.ty: @unchecked
         ScopedVar.scoped(
-          fresh := Fresh(defn.insts)
+          fresh := Fresh(defn.insts),
+          currentDefn := defn
         ) {
           super.onDefn(defn)
         }
@@ -129,6 +131,12 @@ object Lower {
 
       val Inst.Label(firstLabel, _) = insts.head: @unchecked
       var lastLabelId = firstLabel.id
+
+      genThisValueNullGuardIfUsed(
+        currentDefn.get,
+        buf,
+        () => newUnwindHandler(Next.None)(insts.head.pos)
+      )
 
       insts.tail.foreach {
         case inst @ Inst.Let(n, op, unwind) =>
@@ -1265,6 +1273,54 @@ object Lower {
             fieldValues
         )
       )
+    }
+
+    private def genThisValueNullGuardIfUsed(
+        defn: Defn.Define,
+        buf: nir.Buffer,
+        createUnwindHandler: () => Option[Local]
+    ) = {
+      def usesValue(expected: Val): Boolean = {
+        var wasUsed = false
+        import scala.util.control.Breaks._
+        breakable {
+          new Traverse {
+            override def onVal(value: Val): Unit = {
+              wasUsed = expected eq value
+              if (wasUsed) break()
+              else super.onVal(value)
+            }
+            override def onType(ty: Type): Unit = ()
+            override def onNext(next: Next): Unit = ()
+          }.onDefn(defn)
+        }
+        wasUsed
+      }
+
+      val Global.Member(_, sig) = defn.name: @unchecked
+      val Inst.Label(_, args) = defn.insts.head: @unchecked
+
+      val canHaveThisValue =
+        !(sig.isStatic || sig.isClinit || sig.isGenerated || sig.isExtern)
+      if (canHaveThisValue) {
+        assert(
+          args.nonEmpty,
+          s"No this argument for non-static function ${Show(defn.name)}"
+        )
+
+        val thisValue = args.head
+        thisValue.ty match {
+          case ref: Type.Ref if ref.isNullable && usesValue(thisValue) =>
+            implicit def pos: Position = defn.pos
+            ScopedVar.scoped(
+              unwindHandler := createUnwindHandler()
+            ) {
+              genGuardNotNull(buf, args.head)
+            }
+          case _ => ()
+        }
+      }
+
     }
   }
 

@@ -64,13 +64,11 @@ class ThrowablesTest {
       trace.startsWith(startText)
     )
 
-    if (!Platform.executingInJVM) {
-      val containsText = "\tat <none>.main(Unknown Source)"
-      assertTrue(
-        s"Expected trace to contain '${containsText}' and it did not.",
-        trace.contains(containsText)
-      )
-    }
+    val containsText = "\tat javalib.lang.ThrowablesTest."
+    assertTrue(
+      s"Expected trace to contain '${containsText}' and it did not.",
+      trace.contains(containsText)
+    )
   }
 
   private def checkStackTrace(

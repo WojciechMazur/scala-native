@@ -17,9 +17,7 @@ class ExceptionTest {
     (new Exception).printStackTrace(pw)
     val trace = sw.toString
     assertTrue(trace.startsWith("java.lang.Exception"))
-    if (!Platform.executingInJVM) {
-      assertTrue(trace.contains("\tat <none>.main(Unknown Source)"))
-    }
+    assertTrue(trace.contains("\tat javalib.lang.ExceptionTest.printStackTrace"))
   }
 
   @Test def printStackTraceNoStackTraceAvailable(): Unit = {

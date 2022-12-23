@@ -19,17 +19,15 @@ import scala.scalanative.junit.utils.AssumesHelper._
 class ThreadTest {
 
   @Test def getNameAndSetName(): Unit = {
-    if (!executingInJVM) {
-      val t = Thread.currentThread()
-      assertEquals("main", t.getName) // default name of the main thread
-      t.setName("foo")
-      try {
-        assertEquals("foo", t.getName)
-      } finally {
-        t.setName("main") // don't pollute the rest of the world with this test
-      }
-      assertEquals("main", t.getName)
-    }
+    val t = Thread.currentThread()
+    val originalName = t.getName()
+    val newName = "foo"
+    assertNotEquals(newName, originalName) // default name of the main thread
+    t.setName(newName)
+    try assertEquals(newName, t.getName())
+    // don't pollute the rest of the world with this test
+    finally t.setName(originalName)
+    assertEquals(originalName, t.getName())
   }
 
   @Test def currentThreadGetStackTrace(): Unit = {

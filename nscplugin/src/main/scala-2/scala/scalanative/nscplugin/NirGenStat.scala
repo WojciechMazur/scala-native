@@ -28,10 +28,8 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       forwarders: Seq[nir.Defn.Define]
   )
 
-  protected val isScala211 = Properties.versionNumberString.startsWith("2.11")
-
   def isStaticModule(sym: Symbol): Boolean =
-    sym.isModuleClass && !isImplClass(sym) && !sym.isLifted
+    sym.isModuleClass && !sym.isLifted
 
   class MethodEnv(val fresh: Fresh) {
     private val env = mutable.Map.empty[Symbol, Val]
@@ -90,11 +88,13 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
     def nonEmpty = buf.nonEmpty
 
     def genClass(cd: ClassDef): Unit = {
+      val sym = cd.symbol
+
       scoped(
-        curClassSym := cd.symbol,
+        curClassSym := sym,
         curClassFresh := nir.Fresh()
       ) {
-        if (cd.symbol.isStruct) genStruct(cd)
+        if (sym.isStruct) genStruct(cd)
         else genNormalClass(cd)
       }
     }
@@ -120,30 +120,34 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       def traits = genClassInterfaces(sym)
 
       implicit val pos: nir.Position = cd.pos
+
+      buf += {
+        if (sym.isScalaModule) Defn.Module(attrs, name, parent, traits)
+        else if (sym.isTraitOrInterface) Defn.Trait(attrs, name, traits)
+        else Defn.Class(attrs, name, parent, traits)
+      }
+
       genReflectiveInstantiation(cd)
       genClassFields(cd)
       genMethods(cd)
       genMirrorClass(cd)
-
-      buf += {
-        if (sym.isScalaModule) {
-          Defn.Module(attrs, name, parent, traits)
-        } else if (sym.isTraitOrInterface) {
-          Defn.Trait(attrs, name, traits)
-        } else {
-          Defn.Class(attrs, name, parent, traits)
-        }
-      }
     }
 
-    def genClassParent(sym: Symbol): Option[nir.Global] =
-      if (sym == NObjectClass) {
-        None
-      } else if (sym.superClass == NoSymbol || sym.superClass == ObjectClass) {
-        Some(genTypeName(NObjectClass))
-      } else {
-        Some(genTypeName(sym.superClass))
+    def genClassParent(sym: Symbol): Option[nir.Global] = {
+      if (sym.isExternType &&
+          sym.superClass != ObjectClass) {
+        reporter.error(
+          sym.pos,
+          s"Extern object can only extend extern traits"
+        )
       }
+
+      if (sym == NObjectClass) None
+      else if (sym.superClass == NoSymbol || sym.superClass == ObjectClass)
+        Some(genTypeName(NObjectClass))
+      else
+        Some(genTypeName(sym.superClass))
+    }
 
     def genClassAttrs(cd: ClassDef): Attrs = {
       val sym = cd.symbol
@@ -162,20 +166,38 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       Attrs.fromSeq(annotationAttrs ++ abstractAttr)
     }
 
-    def genClassInterfaces(sym: Symbol) =
-      for {
-        parent <- sym.info.parents
-        psym = parent.typeSymbol if psym.isTraitOrInterface
-      } yield {
-        genTypeName(psym)
+    def genClassInterfaces(sym: Symbol) = {
+      val isExtern = sym.isExternType
+      def validate(psym: Symbol) = {
+        val parentIsExtern = psym.isExternType
+        if (isExtern && !parentIsExtern)
+          reporter.error(
+            sym.pos,
+            "Extern object can only extend extern traits"
+          )
+        if (!isExtern && parentIsExtern)
+          reporter.error(
+            psym.pos,
+            "Extern traits can be only mixed with extern traits or objects"
+          )
       }
+
+      for {
+        parent <- sym.parentSymbols
+        psym = parent.info.typeSymbol if psym.isTraitOrInterface
+        _ = validate(psym)
+      } yield genTypeName(psym)
+    }
 
     def genClassFields(cd: ClassDef): Unit = {
       val sym = cd.symbol
-      val attrs = nir.Attrs(isExtern = sym.isExternModule)
+      val attrs = nir.Attrs(isExtern = sym.isExternType)
 
       for (f <- sym.info.decls
           if !f.isMethod && f.isTerm && !f.isModule) {
+        if (f.owner.isExternType && !f.isMutable) {
+          reporter.error(f.pos, "`extern` cannot be used in val definition")
+        }
         val ty = genType(f.tpe)
         val name = genFieldName(f)
         val pos: nir.Position = f.pos
@@ -564,43 +586,6 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       buf ++= genTopLevelExports(cd)
     }
 
-    private def genJavaDefaultMethodBody(dd: DefDef): Seq[nir.Inst] = {
-      val fresh = Fresh()
-      val buf = new ExprBuffer()(fresh)
-
-      implicit val pos: nir.Position = dd.pos
-
-      val sym = dd.symbol
-      val implClassFullName = sym.owner.fullName + "$class"
-
-      val implClassSym = findMemberFromRoot(TermName(implClassFullName))
-
-      val implMethodSym = implClassSym.info
-        .member(sym.name)
-        .suchThat { s =>
-          s.isMethod &&
-          s.tpe.params.size == sym.tpe.params.size + 1 &&
-          s.tpe.params.head.tpe =:= sym.owner.toTypeConstructor &&
-          s.tpe.params.tail.zip(sym.tpe.params).forall {
-            case (sParam, symParam) =>
-              sParam.tpe =:= symParam.tpe
-          }
-        }
-
-      val implName = Val.Global(genMethodName(implMethodSym), Type.Ptr)
-      val implSig = genMethodSig(implMethodSym)
-
-      val Type.Function(paramtys, retty) = implSig
-
-      val params = paramtys.map(ty => Val.Local(fresh(), ty))
-      buf.label(fresh(), params)
-
-      val res = buf.call(implSig, implName, params, Next.None)
-      buf.ret(res)
-
-      buf.toSeq
-    }
-
     def genMethod(dd: DefDef): Option[nir.Defn] = {
       val fresh = Fresh()
       val env = new MethodEnv(fresh)
@@ -621,42 +606,25 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
         val sig = genMethodSig(sym)
 
         dd.rhs match {
-          case EmptyTree
-              if (isScala211 &&
-                sym.hasAnnotation(JavaDefaultMethodAnnotation)) =>
-            scoped(
-              curMethodSig := sig
-            ) {
-              val body = genJavaDefaultMethodBody(dd)
-              Some(Defn.Define(attrs, name, sig, body))
-            }
-
           case EmptyTree =>
-            Some(Defn.Declare(attrs, name, sig))
+            Some(
+              Defn.Declare(
+                attrs,
+                name,
+                if (attrs.isExtern) genExternMethodSig(sym) else sig
+              )
+            )
 
-          case Apply(TypeApply(Select(retBlock, _), _), _)
-              if retBlock.tpe == NoType && isScala211 =>
-            // Fix issue #2305 Compile error on macro using Scala 2.11.12
-            Some(Defn.Declare(attrs, name, sig))
-
-          case _ if dd.name == nme.CONSTRUCTOR && owner.isExternModule =>
+          case _ if dd.symbol.isConstructor && owner.isExternType =>
             validateExternCtor(dd.rhs)
             None
 
           case _ if dd.name == nme.CONSTRUCTOR && owner.isStruct =>
             None
 
-          case rhs if owner.isExternModule =>
+          case rhs if owner.isExternType =>
             checkExplicitReturnTypeAnnotation(dd, "extern method")
-            genExternMethod(attrs, name, sig, rhs)
-
-          case rhs
-              if (isScala211 &&
-                sym.hasAnnotation(JavaDefaultMethodAnnotation) &&
-                !isImplClass(sym.owner)) =>
-            // Have a concrete method with JavaDefaultMethodAnnotation; a blivet.
-            // Do not emit, not even as abstract.
-            None
+            genExternMethod(attrs, name, sig, dd)
 
           case _ if sym.hasAnnotation(ResolvedAtLinktimeClass) =>
             genLinktimeResolved(dd, name)
@@ -731,20 +699,50 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
         attrs: nir.Attrs,
         name: nir.Global,
         origSig: nir.Type,
-        rhs: Tree
+        dd: DefDef
     ): Option[nir.Defn] = {
+      val rhs = dd.rhs
+      def externMethodDecl() = {
+        val externAttrs = Attrs(isExtern = true)
+        val externSig = genExternMethodSig(curMethodSym)
+        val externDefn = Defn.Declare(externAttrs, name, externSig)(rhs.pos)
+        Some(externDefn)
+      }
+
+      def isCallingExternMethod(sym: Symbol) =
+        sym.owner.isExternType
+
+      def isExternMethodAlias(target: Symbol) =
+        (name, genName(target)) match {
+          case (Global.Member(_, lsig), Global.Member(_, rsig)) => lsig == rsig
+          case _                                                => false
+        }
+      val defaultArgs = dd.symbol.paramss.flatten.filter(_.hasDefault)
       rhs match {
+        case _ if defaultArgs.nonEmpty =>
+          reporter.error(
+            defaultArgs.head.pos,
+            "extern method cannot have default argument"
+          )
+          None
         case Apply(ref: RefTree, Seq()) if ref.symbol == ExternMethod =>
-          val moduleName = genTypeName(curClassSym)
-          val externAttrs = Attrs(isExtern = true)
-          val externSig = genExternMethodSig(curMethodSym)
-          val externDefn = Defn.Declare(externAttrs, name, externSig)(rhs.pos)
-          Some(externDefn)
+          externMethodDecl()
 
         case _ if curMethodSym.hasFlag(ACCESSOR) => None
 
-        case rhs =>
-          global.reporter.error(
+        case Apply(target, _) if isCallingExternMethod(target.symbol) =>
+          val sym = target.symbol
+          if (isExternMethodAlias(sym)) externMethodDecl()
+          else {
+            reporter.error(
+              target.pos,
+              "Referencing other extern symbols in not supported"
+            )
+            None
+          }
+
+        case _ =>
+          reporter.error(
             rhs.pos,
             "methods in extern objects must have extern body"
           )
@@ -753,21 +751,56 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
     }
 
     def validateExternCtor(rhs: Tree): Unit = {
-      val Block(_ +: init, _) = rhs
-      val externs = init.map {
-        case Assign(ref: RefTree, Apply(extern, Seq()))
-            if extern.symbol == ExternMethod =>
-          ref.symbol
-        case _ =>
-          unsupported(
-            "extern objects may only contain extern fields and methods"
-          )
-      }.toSet
-      for {
-        f <- curClassSym.info.decls if f.isField
-        if !externs.contains(f)
-      } {
-        unsupported("extern objects may only contain extern fields")
+      val classSym = curClassSym.get
+      def isExternCall(tree: Tree): Boolean = tree match {
+        case Typed(target, _) => isExternCall(target)
+        case Apply(extern, _) => extern.symbol == ExternMethod
+        case _                => false
+      }
+
+      def isCurClassSetter(sym: Symbol) =
+        sym.isSetter && sym.owner.tpe <:< classSym.tpe
+
+      rhs match {
+        case Block(Nil, _) => () // empty mixin constructor
+        case Block(inits, _) =>
+          val externs = collection.mutable.Set.empty[Symbol]
+          inits.foreach {
+            case Assign(ref: RefTree, rhs) if isExternCall(rhs) =>
+              externs += ref.symbol
+
+            case Apply(fun, Seq(arg))
+                if isCurClassSetter(fun.symbol) && isExternCall(arg) =>
+              externs += fun.symbol
+
+            case Apply(target, _) if target.symbol.isConstructor => ()
+
+            case tree =>
+              reporter.error(
+                rhs.pos,
+                "extern objects may only contain extern fields and methods"
+              )
+          }
+          def isInheritedField(f: Symbol) = {
+            def hasFieldGetter(cls: Symbol) = f.getterIn(cls) != NoSymbol
+            def inheritedTraits(cls: Symbol) =
+              cls.parentSymbols.filter(_.isTraitOrInterface)
+            def inheritsField(cls: Symbol): Boolean =
+              hasFieldGetter(cls) || inheritedTraits(cls).exists(inheritsField)
+            inheritsField(classSym)
+          }
+
+          // Exclude fields derived from extern trait
+          for (f <- curClassSym.info.decls) {
+            if (f.isField && !isInheritedField(f)) {
+              if (!(externs.contains(f) || externs.contains(f.setter))) {
+                reporter.error(
+                  f.pos,
+                  "extern objects may only contain extern fields"
+                )
+              }
+            }
+          }
       }
     }
 
@@ -785,8 +818,9 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
           case NoOptimizeClass   => Attr.NoOpt
           case NoSpecializeClass => Attr.NoSpecialize
         }
+      val externAttrs = if (sym.owner.isExternType) Seq(Attr.Extern) else Nil
 
-      Attrs.fromSeq(inlineAttrs ++ annotatedAttrs)
+      Attrs.fromSeq(inlineAttrs ++ annotatedAttrs ++ externAttrs)
     }
 
     def genMethodBody(
@@ -796,8 +830,9 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       val fresh = curFresh.get
       val buf = new ExprBuffer()(fresh)
       val isSynchronized = dd.symbol.hasFlag(SYNCHRONIZED)
-      val isStatic = dd.symbol.isStaticInNIR || isImplClass(dd.symbol.owner)
-      val isExtern = dd.symbol.owner.isExternModule
+      val sym = dd.symbol
+      val isStatic = sym.isStaticInNIR
+      val isExtern = sym.owner.isExternType
 
       implicit val pos: nir.Position = bodyp.pos
 
@@ -919,7 +954,7 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
    *  the same tests as the JVM back-end.
    */
   private def isCandidateForForwarders(sym: Symbol): Boolean = {
-    !settings.noForwarders.value && sym.isStatic && !isImplClass(sym) && {
+    !settings.noForwarders.value && sym.isStatic && {
       // Reject non-top-level objects unless opted in via the appropriate option
       scalaNativeOpts.genStaticForwardersForNonTopLevelObjects ||
       !sym.name.containsChar('$') // this is the same test that scalac performs
@@ -946,13 +981,10 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
     if (module == NoSymbol) Nil
     else {
       val moduleClass = module.moduleClass
-      if (moduleClass.isExternModule) Nil
+      if (moduleClass.isExternType) Nil
       else genStaticForwardersFromModuleClass(existingMembers, moduleClass)
     }
   }
-
-  private lazy val dontUseExitingUncurryForForwarders =
-    scala.util.Properties.versionNumberString.startsWith("2.11.")
 
   /** Gen the static forwarders for the methods of a module class.
    *
@@ -972,7 +1004,7 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
 
     def listMembersBasedOnFlags = {
       import scala.tools.nsc.symtab.Flags._
-      // Copy-pasted from BCodeHelpers (it's somewhere else in 2.11.x)
+      // Copy-pasted from BCodeHelpers
       val ExcludedForwarderFlags: Long = {
         SPECIALIZED | LIFTED | PROTECTED | STATIC | EXPANDEDNAME | PRIVATE | MACRO
       }
@@ -984,20 +1016,9 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
     }
 
     /* See BCodeHelprs.addForwarders in 2.12+ for why we normally use
-     * exitingUncurry. In 2.11.x we do not use it, because Scala/JVM did not
-     * use it back then, and using it on that version causes mixed in methods
-     * not to be found (this notably breaks `extends App` as the `main`
-     * method that it defines is not found).
-     *
-     * This means that in 2.11.x we suffer from
-     * https://github.com/scala/bug/issues/10812, like upstream Scala/JVM,
-     * but it does not really affect Scala Native because the NIR methods are not
-     * used for compilation, only for linking, and for linking it is fine to
-     * have additional, unexpected bridges.
+     * exitingUncurry.
      */
-    val members =
-      if (dontUseExitingUncurryForForwarders) listMembersBasedOnFlags
-      else exitingUncurry(listMembersBasedOnFlags)
+    val members = exitingUncurry(listMembersBasedOnFlags)
 
     def isExcluded(m: Symbol): Boolean = {
       def isOfJLObject: Boolean = {
@@ -1006,7 +1027,7 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       }
 
       m.isDeferred || m.isConstructor || m.hasAccessBoundary ||
-        m.owner.isExternModule ||
+        m.owner.isExternType ||
         isOfJLObject
     }
 

@@ -33,7 +33,7 @@ import scalanative.unsafe._
 import scalanative.libc._
 import scalanative.posix.{dirent, fcntl, limits, unistd}
 import dirent._
-import scalanative.posix.errno.{EEXIST, ENOTEMPTY}
+import scalanative.posix.errno.{errno, EEXIST, ENOENT, ENOTEMPTY}
 
 import java.nio.file.StandardCopyOption.{COPY_ATTRIBUTES, REPLACE_EXISTING}
 import scalanative.nio.fs.unix.UnixException
@@ -201,26 +201,41 @@ object Files {
       throw new IOException()
     }
 
-  def createLink(link: Path, existing: Path): Path = {
-    def tryCreateHardLink() = Zone { implicit z =>
-      if (isWindows)
-        CreateHardLinkW(
+  def createLink(link: Path, existing: Path): Path = Zone { implicit z =>
+    if (isWindows) {
+      if (exists(link, Array.empty)) {
+        throw new FileAlreadyExistsException(link.toString)
+      } else {
+        val created = CreateHardLinkW(
           toCWideStringUTF16LE(link.toString),
           toCWideStringUTF16LE(existing.toString),
           securityAttributes = null
         )
-      else
-        unistd.link(
-          toCString(existing.toString()),
-          toCString(link.toString())
-        ) == 0
-    }
-    if (exists(link, Array.empty)) {
-      throw new FileAlreadyExistsException(link.toString)
-    } else if (tryCreateHardLink()) {
-      link
+        if (created) {
+          link
+        } else {
+          throw new IOException("Cannot create link")
+        }
+      }
+
     } else {
-      throw new IOException("Cannot create link")
+      val rtn = unistd.link(
+        toCString(existing.toString()),
+        toCString(link.toString())
+      )
+
+      if (rtn == 0) {
+        link
+      } else {
+        val e = errno
+        if (e == EEXIST)
+          throw new FileAlreadyExistsException(link.toString)
+        else if (e == ENOENT)
+          throw new NoSuchFileException(link.toString, existing.toString, null)
+        else
+          throw new IOException(fromCString(string.strerror(e)))
+      }
+
     }
   }
 
@@ -349,7 +364,7 @@ object Files {
     val ps = path.toString
     if (stdio.remove(toCString(ps)) == -1) {
       // For historical reasons, some systems report ENOTEMPTY as EEXIST
-      val fixedErrno = if (errno.errno == EEXIST) ENOTEMPTY else errno.errno
+      val fixedErrno = if (errno == EEXIST) ENOTEMPTY else errno
       throw PosixException(ps, fixedErrno)
     }
   }
@@ -569,7 +584,7 @@ object Files {
         val sourceCString = toCString(sourceAbs)
         val targetCString = toCString(targetAbs)
         if (stdio.rename(sourceCString, targetCString) != 0) {
-          throw UnixException(target.toString, errno.errno)
+          throw UnixException(target.toString, errno)
         }
       }
     }
@@ -646,6 +661,9 @@ object Files {
     !exists(path, options)
 
   def readAllBytes(path: Path): Array[Byte] = Zone { implicit z =>
+    /* if 'path' does not exist at all, should get
+     * java.nio.file.NoSuchFileException here.
+     */
     val pathSize: Long = size(path)
     if (!pathSize.isValidInt) {
       throw new OutOfMemoryError("Required array size too large")
@@ -672,8 +690,15 @@ object Files {
         }
       }
     } else {
+      errno = 0
       val pathCString = toCString(path.toString)
       val fd = fcntl.open(pathCString, fcntl.O_RDONLY, 0.toUInt)
+
+      if (fd == -1) {
+        val msg = fromCString(string.strerror(errno))
+        throw new IOException(s"error opening path '${path}': ${msg}")
+      }
+
       try {
         var offset = 0
         var read = 0
@@ -683,7 +708,7 @@ object Files {
         }) {
           offset += read
         }
-        if (read == -1) throw UnixException(path.toString, errno.errno)
+        if (read == -1) throw UnixException(path.toString, errno)
       } finally {
         unistd.close(fd)
       }
@@ -780,7 +805,7 @@ object Files {
                 buf,
                 limits.PATH_MAX - `1U`
               ) == -1) {
-            throw UnixException(link.toString, errno.errno)
+            throw UnixException(link.toString, errno)
           }
           fromCString(buf)
         }

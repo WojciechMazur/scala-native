@@ -2,8 +2,6 @@
 
 package java.util.function
 
-import scala.scalanative.annotation.JavaDefaultMethod
-
 @FunctionalInterface
 trait IntBinaryOperator {
   def applyAsInt(left: Int, right: Int): Int

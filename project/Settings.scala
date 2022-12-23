@@ -112,7 +112,6 @@ object Settings {
       Compile / doc / scalacOptions --= scalaVersionsDependendent(
         scalaVersion.value
       )(Seq.empty[String]) {
-        case (2, 11) => Seq("-Xfatal-warnings")
         case (3, 0 | 1) =>
           val prev = (Compile / doc / scalacOptions).value
           val version = scalaVersion.value
@@ -400,13 +399,15 @@ object Settings {
       // baseDirectory = project/{native,jvm}/.{binVersion}
       val testsRootDir = baseDirectory.value.getParentFile.getParentFile
       val sharedTestsDir = testsRootDir / "shared/src/test"
-      def sources2_13OrAbove = sharedTestsDir / "scala-2.13+"
-      def sources3_2 = sharedTestsDir / "scala-3.2"
+      val `sources 2.12+` = Seq(sharedTestsDir / "scala-2.12+")
+      val `sources 2.13+` = `sources 2.12+` :+ sharedTestsDir / "scala-2.13+"
+      val `sources 3.2+` = `sources 2.13+` :+ sharedTestsDir / "scala-3.2"
       val extraSharedDirectories =
-        scalaVersionsDependendent(scalaVersion.value)(List.empty[File]) {
-          case (2, 13) => sources2_13OrAbove :: Nil
-          case (3, 1)  => sources2_13OrAbove :: Nil
-          case (3, _)  => sources2_13OrAbove :: sources3_2 :: Nil
+        scalaVersionsDependendent(scalaVersion.value)(Seq.empty[File]) {
+          case (2, 12) => `sources 2.12+`
+          case (2, 13) => `sources 2.13+`
+          case (3, 1)  => `sources 2.13+`
+          case (3, _)  => `sources 3.2+`
         }
       val sharedScalaSources =
         scalaVersionDirectories(sharedTestsDir, "scala", scalaVersion.value)
@@ -517,7 +518,6 @@ object Settings {
       scriptedLaunchOpts.value ++
         Seq(
           "-Xmx1024M",
-          "-XX:MaxMetaspaceSize=256M",
           "-Dplugin.version=" + version.value,
           // Default scala.version, can be overriden in test-scrippted command
           "-Dscala.version=" + ScalaVersions.scala212,
@@ -526,13 +526,6 @@ object Settings {
         ivyPaths.value.ivyHome.map(home => s"-Dsbt.ivy.home=$home").toSeq
     }
   )
-
-  lazy val ensureSAMSupportSetting: Setting[_] = {
-    scalacOptions ++= {
-      if (scalaBinaryVersion.value == "2.11") Seq("-Xexperimental")
-      else Nil
-    }
-  }
 
   lazy val toolSettings: Seq[Setting[_]] =
     Def.settings(
@@ -548,7 +541,6 @@ object Settings {
 
   lazy val commonJavalibSettings = Def.settings(
     disabledDocsSettings,
-    ensureSAMSupportSetting,
     // This is required to have incremental compilation to work in javalib.
     // We put our classes on scalac's `javabootclasspath` so that it uses them
     // when compiling rather than the definitions from the JDK.

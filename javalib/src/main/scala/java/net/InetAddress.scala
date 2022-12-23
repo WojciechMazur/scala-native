@@ -12,11 +12,8 @@ import scala.scalanative.unsigned._
 import scala.annotation.tailrec
 
 import java.io.IOException
+import java.net.SocketHelpers.sockaddrToByteArray
 import java.{util => ju}
-
-import scala.scalanative.annotation.alwaysinline
-
-import scala.scalanative.libc.string.memcpy
 
 import scala.scalanative.posix.arpa.inet._
 import scala.scalanative.posix.errno.errno
@@ -24,10 +21,12 @@ import scala.scalanative.posix.netinet.in._
 import scala.scalanative.posix.netinet.inOps._
 import scala.scalanative.posix.netdb._
 import scala.scalanative.posix.netdbOps._
-import scala.scalanative.posix.string.strerror
+import scala.scalanative.posix.string.{memcpy, strerror}
 import scala.scalanative.posix.sys.socket._
 import scala.scalanative.posix.time.{time_t, time, difftime}
 import scala.scalanative.posix.unistd
+
+import scala.scalanative.meta.LinktimeInfo.{isLinux, isMac}
 
 /* Design note:
  *    Much of java.net, both in JVM and Scala Native defines or assumes
@@ -85,13 +84,12 @@ class InetAddress protected (ipAddress: Array[Byte], originalHost: String)
   }
 
   def getHostAddress(): String = {
+    val bytes = ipAddress.at(0)
     if (ipAddress.length == 4) {
-      formatIn4Addr(arrayByteToPtrByte(ipAddress))
+      formatIn4Addr(bytes)
     } else if (ipAddress.length == 16) {
-      if (isIPv4MappedAddress(arrayByteToPtrByte(ipAddress))) {
-        formatIn4Addr(
-          arrayByteToPtrByte(extractIP4Bytes(arrayByteToPtrByte(ipAddress)))
-        )
+      if (isIPv4MappedAddress(bytes)) {
+        formatIn4Addr(extractIP4Bytes(bytes).at(0))
       } else {
         Inet6Address.formatInet6Address(this.asInstanceOf[Inet6Address])
       }
@@ -257,41 +255,11 @@ object InetAddress {
     }
   }
 
-  /* This is for littleEndian machines. It may need to detect BigEndian
-   * machines and do something different, at worst a byte-by-byte copy.
-   */
   private def addrinfoToByteArray(
       addrinfoP: Ptr[addrinfo]
   ): Array[Byte] = {
-
-    if (addrinfoP.ai_family == AF_INET6) {
-      val bufSize = 16
-      val buf = new Array[Byte](bufSize)
-
-      val addr = addrinfoP.ai_addr.asInstanceOf[Ptr[sockaddr_in6]]
-      val addrBytes = addr.sin6_addr.at1.asInstanceOf[Ptr[Byte]]
-
-      memcpy(arrayByteToPtrByte(buf), addrBytes, bufSize.toUInt)
-
-      buf
-    } else if (addrinfoP.ai_family == AF_INET) {
-      val buf = new Array[Byte](4)
-
-      val v4addr = addrinfoP.ai_addr.asInstanceOf[Ptr[sockaddr_in]]
-      val sinAddr = v4addr.sin_addr
-
-      val dst = arrayByteToPtrByte(buf).asInstanceOf[Ptr[in_addr]]
-      !dst = sinAddr // Structure copy
-
-      buf
-    } else {
-      // caller should have detected & thrown before getting this far.
-      Array.empty[Byte]
-    }
+    sockaddrToByteArray(addrinfoP.ai_addr)
   }
-
-  @alwaysinline private def arrayByteToPtrByte(ab: Array[Byte]): Ptr[Byte] =
-    ab.asInstanceOf[scala.scalanative.runtime.ByteArray].at(0)
 
   private def extractIP4Bytes(pb: Ptr[Byte]): Array[Byte] = {
     val buf = new Array[Byte](4)
@@ -315,7 +283,9 @@ object InetAddress {
     )
 
     if (result == null)
-      throw new IOException(s"inet_ntop IPv4 failed, errno: ${errno}")
+      throw new IOException(
+        s"inet_ntop IPv4 failed,${fromCString(strerror(errno))}"
+      )
 
     fromCString(dst)
   }
@@ -333,7 +303,8 @@ object InetAddress {
       val gaiStatus = getaddrinfo(toCString(host), null, hints, addrinfo)
 
       if (gaiStatus != 0) {
-        if (gaiStatus == EAI_NONAME) {
+        val mappedStatus = mapGaiStatus(gaiStatus)
+        if (mappedStatus == EAI_NONAME) {
           val ifIndex = host.indexOf('%')
           val hasInterface = (ifIndex >= 0)
           if (!hasInterface) {
@@ -355,8 +326,8 @@ object InetAddress {
             )
           }
         } else {
-          val gaiMsg = SocketHelpers.getGaiErrorMessage(gaiStatus)
-          throw new IOException(gaiMsg)
+          val gaiMsg = SocketHelpers.getGaiErrorMessage(mappedStatus)
+          throw new UnknownHostException(host + ": " + gaiMsg)
         }
       } else
         try {
@@ -436,12 +407,7 @@ object InetAddress {
 
       if (gaiStatus != 0) {
         val gaiMsg = SocketHelpers.getGaiErrorMessage(gaiStatus)
-        val ex =
-          if (gaiStatus == EAI_NONAME)
-            new UnknownHostException(host + ": " + gaiMsg)
-          else
-            new IOException(gaiMsg)
-        throw ex
+        throw new UnknownHostException(host + ": " + gaiMsg)
       } else
         try {
           val preferIPv6 = SocketHelpers.getPreferIPv6Addresses()
@@ -489,8 +455,7 @@ object InetAddress {
     val MAXDNAME = 1025.toUInt /* maximum presentation domain name */
 
     def tailorSockaddr(ipBA: Array[Byte], addr: Ptr[sockaddr]): Unit = {
-      val from =
-        ipBA.asInstanceOf[scala.scalanative.runtime.Array[Byte]].at(0)
+      val from = ipBA.at(0)
 
       // By contract the 'sockaddr' argument passed in is cleared/all_zeros.
       if (ipBA.length == 16) {
@@ -624,9 +589,10 @@ object InetAddress {
       val gaiStatus = getaddrinfo(toCString(host), null, hints, ret)
 
       if (gaiStatus != 0) {
-        if (gaiStatus != EAI_NONAME) {
-          val gaiMsg = SocketHelpers.getGaiErrorMessage(gaiStatus)
-          throw new IOException(gaiMsg)
+        val mappedStatus = mapGaiStatus(gaiStatus)
+        if (mappedStatus != EAI_NONAME) {
+          val gaiMsg = SocketHelpers.getGaiErrorMessage(mappedStatus)
+          throw new UnknownHostException(host + ": " + gaiMsg)
         }
       } else
         try {
@@ -643,6 +609,35 @@ object InetAddress {
     val ptrInt = pb.asInstanceOf[Ptr[Int]]
     val ptrLong = pb.asInstanceOf[Ptr[Long]]
     (ptrInt(2) == 0xffff0000) && (ptrLong(0) == 0x0L)
+  }
+
+  private def mapGaiStatus(gaiStatus: Int): Int = {
+    /* This is where some arcane Operating System specific behavior
+     * comes to puddle and pool. This method is not for small children
+     * or maintainers with good taste & practice.
+     *
+     * EAI_NODATA was removed from RFC3493 "Basic Socket Interface Extensions
+     * for IPv6" in February 2003. EAI_NONAME was introduced and is the
+     * contemporary idiom. Although it is remove (i.e. well past deprecated),
+     * EAI_NODATA can be returned by Linux & macOS in some poorly defined
+     * circumstances.
+     *
+     * The magic integer values for Linux & macOS are hardcoded
+     * because they are extremely unlikely to change after all this time.
+     *
+     * For consistency of the reported message, map EAI_NODATA to EAI_NONAME.
+     * Both will return "UnknownHostException".
+     */
+
+    // EAI_NODATA was removed from FreeBSD a decade or more ago.
+    val EAI_NODATA =
+      if (isLinux) -5
+      else if (isMac) 7
+      else Integer.MAX_VALUE // placeholder, will never match
+
+    if (gaiStatus == EAI_NONAME) gaiStatus
+    else if (gaiStatus == EAI_NODATA) EAI_NONAME
+    else gaiStatus
   }
 
   def getAllByName(host: String): Array[InetAddress] = {

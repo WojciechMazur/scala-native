@@ -19,15 +19,13 @@ import scala.scalanative.posix.timeOps._
 import scala.scalanative.posix.sched._
 import scala.scalanative.posix.schedOps._
 import scala.scalanative.posix.pthread._
-import scala.scalanative.posix.signal.{pthread_kill => _, _}
+import scala.scalanative.posix.signal._
 import scala.scalanative.posix.signalOps._
-import scala.scalanative.posix.errno.{ETIMEDOUT, EINTR}
+import scala.scalanative.posix.errno._
 import scala.scalanative.posix.sys.eventfd._
 import scala.scalanative.posix.poll._
 import scala.scalanative.posix.unistd._
 
-import scala.scalanative.libc.errno
-import scala.scalanative.libc.signal.{SIGUSR1 => _, _}
 import scala.scalanative.libc.string.strerror
 import scala.scalanative.libc.stdlib.malloc
 import scala.scalanative.libc.atomic._
@@ -211,8 +209,8 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
           val status = poll(fds, 1.toUInt, (millis min Int.MaxValue).toInt)
           state = State.Running
           assert(
-            status >= 0 || errno.errno == EINTR,
-            s"sleep, errno=${errno.errno}"
+            status >= 0 || errno == EINTR,
+            s"sleep, errno=$errno"
           )
           if (Thread.interrupted()) throw new InterruptedException()
 

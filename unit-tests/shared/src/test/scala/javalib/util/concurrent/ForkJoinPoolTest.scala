@@ -443,16 +443,15 @@ class ForkJoinPoolTest extends JSR166Test {
    */
   @Test def testSubmitEE(): Unit = {
     usingPoolCleaner(new ForkJoinPool(1)) { p =>
-      assertThrowsAnd(
+      val ex = assertThrows(
         classOf[ExecutionException],
         p.submit {
           new Callable[Any] {
             def call(): Any = throw new ArithmeticException()
           }
         }.get()
-      ) { (success: ExecutionException) =>
-        success.getCause().isInstanceOf[ArithmeticException]
-      }
+      )
+      assertTrue(ex.getCause().isInstanceOf[ArithmeticException])
     }
   }
 
@@ -504,10 +503,11 @@ class ForkJoinPoolTest extends JSR166Test {
     usingPoolCleaner(new ForkJoinPool(1)) { (e: ExecutorService) =>
       val l = new ArrayList[Callable[String]]()
       l.add(new NPETask())
-      assertThrowsAnd(
+      val ex = assertThrows(
         classOf[ExecutionException],
         e.invokeAny(l)
-      ) { _.getCause().isInstanceOf[NullPointerException] }
+      )
+      assertTrue(ex.getCause().isInstanceOf[NullPointerException])
     }
   }
 
@@ -558,9 +558,8 @@ class ForkJoinPoolTest extends JSR166Test {
       l.add(new NPETask())
       val futures = e.invokeAll(l)
       assertEquals(1, futures.size())
-      assertThrowsAnd(classOf[ExecutionException], futures.get(0).get())(
-        _.getCause().isInstanceOf[NullPointerException]
-      )
+      val ex = assertThrows(classOf[ExecutionException], futures.get(0).get())
+      assertTrue(ex.getCause().isInstanceOf[NullPointerException])
     }
 
   /** invokeAll(c) returns results of all completed tasks in c
@@ -630,10 +629,11 @@ class ForkJoinPoolTest extends JSR166Test {
       val startTime = System.nanoTime()
       val l = new ArrayList[Callable[String]]()
       l.add(new NPETask())
-      assertThrowsAnd(
+      val ex = assertThrows(
         classOf[ExecutionException],
         e.invokeAny(l, LONG_DELAY_MS, MILLISECONDS)
-      )(_.getCause().isInstanceOf[NullPointerException])
+      )
+      assertTrue(ex.getCause().isInstanceOf[NullPointerException])
       assertTrue(millisElapsedSince(startTime) < LONG_DELAY_MS)
     }
 
@@ -706,9 +706,8 @@ class ForkJoinPoolTest extends JSR166Test {
       l.add(new NPETask())
       val futures = e.invokeAll(l, LONG_DELAY_MS, MILLISECONDS)
       assertEquals(1, futures.size())
-      assertThrowsAnd(classOf[ExecutionException], futures.get(0).get())(
-        _.getCause().isInstanceOf[NullPointerException]
-      )
+      val ex = assertThrows(classOf[ExecutionException], futures.get(0).get())
+      assertTrue(ex.getCause().isInstanceOf[NullPointerException])
     }
 
   /** timed invokeAll(c) returns results of all completed tasks in c

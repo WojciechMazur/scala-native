@@ -411,6 +411,4 @@ trait NirDefinitions {
       )
   }
 
-  lazy val JavaDefaultMethodAnnotation =
-    getRequiredClass("scala.scalanative.annotation.JavaDefaultMethod")
 }

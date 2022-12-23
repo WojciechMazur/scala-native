@@ -2,8 +2,6 @@
 
 package java.util.function
 
-import scala.scalanative.annotation.JavaDefaultMethod
-
 @FunctionalInterface
 trait LongBinaryOperator {
   def applyAsLong(left: Long, right: Long): Long

@@ -36,8 +36,7 @@ trait NirGenName[G <: Global with Singleton] {
       case _ if sym.isModule =>
         genTypeName(sym.moduleClass)
       case _ =>
-        val needsModuleClassSuffix =
-          sym.isModuleClass && !sym.isJavaDefined && !isImplClass(sym)
+        val needsModuleClassSuffix = sym.isModuleClass && !sym.isJavaDefined
         val idWithSuffix = if (needsModuleClassSuffix) id + "$" else id
         nir.Global.Top(idWithSuffix)
     }
@@ -71,7 +70,7 @@ trait NirGenName[G <: Global with Singleton] {
     }
 
     owner.member {
-      if (sym.owner.isExternModule) {
+      if (sym.owner.isExternType) {
         nir.Sig.Extern(id)
       } else {
         nir.Sig.Field(id, scope)
@@ -84,7 +83,7 @@ trait NirGenName[G <: Global with Singleton] {
     val id = nativeIdOf(sym)
     val tpe = sym.tpe.widen
     val scope =
-      if (sym.isStaticMember && !isImplClass(sym.owner)) {
+      if (sym.isStaticMember) {
         if (sym.isPrivate) nir.Sig.Scope.PrivateStatic(owner)
         else nir.Sig.Scope.PublicStatic
       } else if (sym.isPrivate)
@@ -93,13 +92,15 @@ trait NirGenName[G <: Global with Singleton] {
 
     val paramTypes = tpe.params.toSeq.map(p => genType(p.info))
 
-    if (sym == String_+) {
+    def isExtern = sym.owner.isExternType
+
+    if (sym == String_+)
       genMethodName(StringConcatMethod)
-    } else if (sym.owner.isExternModule) {
+    else if (isExtern)
       owner.member(genExternSigImpl(sym, id))
-    } else if (sym.name == nme.CONSTRUCTOR) {
+    else if (sym.name == nme.CONSTRUCTOR)
       owner.member(nir.Sig.Ctor(paramTypes))
-    } else {
+    else {
       val retType = genType(tpe.resultType)
       owner.member(nir.Sig.Method(id, paramTypes :+ retType, scope))
     }
@@ -123,7 +124,6 @@ trait NirGenName[G <: Global with Singleton] {
     // in the super class. This is important, becouse (on the JVM) static methods are resolved at
     // compile time and do never use dynamic method dispatch, however it is possible to shadow
     // static method in the parent class by defining static method with the same name in the child.
-    require(!isImplClass(sym.owner), sym.owner)
     val typeName = genTypeName(
       Option(explicitOwner)
         .fold[Symbol](NoSymbol) {
@@ -154,7 +154,7 @@ trait NirGenName[G <: Global with Singleton] {
   private def nativeIdOf(sym: Symbol): String = {
     sym.getAnnotation(NameClass).flatMap(_.stringArg(0)).getOrElse {
       val name = sym.javaSimpleName.toString()
-      val id: String = if (sym.owner.isExternModule) {
+      val id: String = if (sym.owner.isExternType) {
         // Don't use encoded names for externs
         sym.decodedName.trim()
       } else if (sym.isField) {

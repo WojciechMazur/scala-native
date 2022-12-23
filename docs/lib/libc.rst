@@ -1,10 +1,15 @@
 .. _libc:
 
-C Standard Library
-==================
+ISO/IEC C Standard Library
+==========================
 
 Scala Native provides bindings for a core subset of the
-`C standard library <https://en.cppreference.com/w/c/header>`_:
+International Organization for Standardization/International
+Electrotechnical Commission (ISO/IEC)
+`C standard library <https://en.cppreference.com/w/c/header>`_.
+
+The project now tracks the *C11 standard (ISO/IEC 9899:2011)* but
+currently most bindings are from the *C99 standard (ISO/IEC 9899:1999)*.
 
 ============== ==================================
 C Header       Scala Native Module
@@ -18,7 +23,7 @@ float.h_       scala.scalanative.libc.float_
 inttypes.h_    N/A
 iso646.h_      N/A
 limits.h_      N/A
-locale.h_      N/A
+locale.h_      scala.scalanative.libc.locale_
 math.h_        scala.scalanative.libc.math_
 setjmp.h_      N/A
 signal.h_      scala.scalanative.libc.signal_
@@ -34,7 +39,7 @@ stdnoreturn.h_ N/A
 string.h_      scala.scalanative.libc.string_
 tgmath.h_      N/A
 threads.h_     N/A
-time.h_        N/A
+time.h_        scala.scalanative.libc.time_
 uchar.h_       N/A
 wchar.h_       N/A
 wctype.h_      N/A
@@ -75,12 +80,14 @@ wctype.h_      N/A
 .. _scala.scalanative.libc.ctype: https://github.com/scala-native/scala-native/blob/main/clib/src/main/scala/scala/scalanative/libc/ctype.scala
 .. _scala.scalanative.libc.errno: https://github.com/scala-native/scala-native/blob/main/clib/src/main/scala/scala/scalanative/libc/errno.scala
 .. _scala.scalanative.libc.float: https://github.com/scala-native/scala-native/blob/main/clib/src/main/scala/scala/scalanative/libc/float.scala
+.. _scala.scalanative.libc.locale: https://github.com/scala-native/scala-native/blob/main/clib/src/main/scala/scala/scalanative/libc/locale.scala
 .. _scala.scalanative.libc.math: https://github.com/scala-native/scala-native/blob/main/clib/src/main/scala/scala/scalanative/libc/math.scala
 .. _scala.scalanative.libc.stddef: https://github.com/scala-native/scala-native/blob/main/clib/src/main/scala/scala/scalanative/libc/stddef.scala
 .. _scala.scalanative.libc.stdio: https://github.com/scala-native/scala-native/blob/main/clib/src/main/scala/scala/scalanative/libc/stdio.scala
 .. _scala.scalanative.libc.stdlib: https://github.com/scala-native/scala-native/blob/main/clib/src/main/scala/scala/scalanative/libc/stdlib.scala
 .. _scala.scalanative.libc.string: https://github.com/scala-native/scala-native/blob/main/clib/src/main/scala/scala/scalanative/libc/string.scala
 .. _scala.scalanative.libc.signal: https://github.com/scala-native/scala-native/blob/main/clib/src/main/scala/scala/scalanative/libc/signal.scala
+.. _scala.scalanative.libc.time: https://github.com/scala-native/scala-native/blob/main/clib/src/main/scala/scala/scalanative/libc/time.scala
 
 Continue to :ref:`posixlib`.
 

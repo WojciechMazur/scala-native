@@ -9,22 +9,6 @@ import scala.scalanative.meta.LinktimeInfo
 
 package object runtime {
 
-  @deprecated("Internal API, deprecated for removal", "0.4.1")
-  def toClass(rtti: RawPtr): _Class[_] = {
-    castRawPtrToObject(rtti).getClass().asInstanceOf[_Class[_]]
-  }
-
-  @deprecated("Internal API, deprecated for removal", "0.4.1")
-  @alwaysinline def toRawType(cls: Class[_]): RawPtr = {
-    castObjectToRawPtr(cls)
-  }
-
-  /** Read type information of given object. */
-  @deprecated("Internal API, deprecated for removal", "0.4.1")
-  @alwaysinline def getRawType(obj: Object): RawPtr = {
-    castObjectToRawPtr(obj.getClass())
-  }
-
   /** Used as a stub right hand of intrinsified methods. */
   def intrinsic: Nothing = throwUndefined()
 

@@ -402,11 +402,12 @@ void Heap_Grow(Heap *heap, uint32_t incrementInBlocks) {
     size_t incrementInBytes = incrementInBlocks * SPACE_USED_PER_BLOCK;
 
 #ifdef DEBUG_PRINT
-    printf("Growing small heap by %zu bytes, to %zu bytes by %p\n", incrementInBytes,
-           heap->heapSize + incrementInBytes, currentMutatorThread);
+    printf("Growing small heap by %zu bytes, to %zu bytes by %p\n",
+           incrementInBytes, heap->heapSize + incrementInBytes,
+           currentMutatorThread);
     fflush(stdout);
 #endif
-    
+
     word_t *heapEnd = heap->heapEnd;
     word_t *blockMetaEnd = heap->blockMetaEnd;
     heap->heapEnd = heapEnd + incrementInBlocks * WORDS_IN_BLOCK;

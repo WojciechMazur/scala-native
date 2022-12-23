@@ -111,7 +111,7 @@ void Marker_markProgramStack(MutatorThread *thread, Heap *heap, Stack *stack) {
     do {
         stackTop = thread->stackTop;
     } while (stackTop == NULL);
-    
+
     assert(stackTop != NULL);
     word_t **current = stackTop;
     while (current <= stackBottom) {

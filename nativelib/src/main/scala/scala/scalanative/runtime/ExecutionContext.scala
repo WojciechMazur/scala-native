@@ -7,16 +7,10 @@ import scala.scalanative.meta.LinktimeInfo.isMultithreadingEnabled
 
 object ExecutionContext {
   @deprecated(
-    "Use `singleThreaded` instead, since `global` may infer that it supports concurrent execution. Marked for removal"
+    "Use `singleThreaded` instead, since `global` may infer that it supports concurrent execution."
   )
   def global: ExecutionContextExecutor = singleThreaded
-  def singleThreaded: ExecutionContextExecutor = {
-    if (isMultithreadingEnabled)
-      throw new IllegalStateException(
-        "Illegal usage of single threaded execution context in multithreaded environemt"
-      )
-    else QueueExecutionContext
-  }
+  def singleThreaded: ExecutionContextExecutor = QueueExecutionContext
 
   private object QueueExecutionContext extends ExecutionContextExecutor {
     private val queue: ListBuffer[Runnable] = new ListBuffer
@@ -26,9 +20,8 @@ object ExecutionContext {
     def loop(): Unit = {
       while (queue.nonEmpty) {
         val runnable = queue.remove(0)
-        try {
-          runnable.run()
-        } catch {
+        try runnable.run()
+        catch {
           case t: Throwable =>
             QueueExecutionContext.reportFailure(t)
         }
@@ -36,7 +29,5 @@ object ExecutionContext {
     }
   }
 
-  private[runtime] def loop(): Unit = if (!isMultithreadingEnabled) {
-    QueueExecutionContext.loop()
-  }
+  private[runtime] def loop(): Unit = QueueExecutionContext.loop()
 }

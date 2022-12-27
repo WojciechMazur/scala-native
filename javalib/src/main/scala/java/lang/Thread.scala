@@ -294,8 +294,7 @@ object Thread {
     }
   }
 
-  object MainThread
-      extends Thread(
+  final val MainThread = new Thread(
         group = new ThreadGroup(ThreadGroup.System, "main"),
         target = null: Runnable,
         stackSize = 0L,

@@ -269,6 +269,9 @@ void Heap_Collect(Heap *heap, Stack *stack) {
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
     if (!Synchronizer_acquire())
         return;
+#else
+    MutatorThread_switchState(currentMutatorThread,
+                              MutatorThreadState_Unmanaged);
 #endif
     uint64_t start_ns, nullify_start_ns, sweep_start_ns, end_ns;
     Stats *stats = heap->stats;
@@ -292,6 +295,8 @@ void Heap_Collect(Heap *heap, Stack *stack) {
     }
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
     Synchronizer_release();
+#else
+    MutatorThread_switchState(currentMutatorThread, MutatorThreadState_Managed);
 #endif
     // Skip calling WeakRef handlers on thread which is being initialized
     // If the current block is set to null it means it failed to allocate

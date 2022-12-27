@@ -30,8 +30,6 @@ package object runtime {
    *  array.
    */
   def init(argc: Int, rawargv: RawPtr): scala.Array[String] = {
-    val _ = Thread.currentThread() // Initialize MainThread
-
     val argv = fromRawPtr[CString](rawargv)
     val args = new scala.Array[String](argc - 1)
 

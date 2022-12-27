@@ -1,6 +1,6 @@
 package scala.scalanative.testinterface.signalhandling
 
-import scala.scalanative.meta.LinktimeInfo._
+import scala.scalanative.meta.LinktimeInfo.isWindows
 import scala.scalanative.libc.stdlib._
 import scala.scalanative.libc.signal._
 import scala.scalanative.libc.string._

@@ -31,6 +31,7 @@ class _Object {
 
   @inline def __wait(timeout: scala.Long): Unit =
     getMonitor(this)._wait(timeout)
+
   @inline def __wait(timeout: scala.Long, nanos: Int): Unit =
     getMonitor(this)._wait(timeout, nanos)
 

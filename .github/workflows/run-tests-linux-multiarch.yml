@@ -83,6 +83,7 @@ jobs:
         build-mode: [debug, release-fast]
         lto: [none, thin]
         gc: [boehm, immix, commix]
+        multithreading: [true, false]
         exclude:
           # Immix does not suppoort Immix/Commix GCs
           - gc: immix
@@ -155,6 +156,7 @@ jobs:
                 .withCheck(true)
                 .withCheckFatalWarnings(true)
                 .withTargetTriple(sys.env("CROSS_TRIPLE"))
+                .withMultithreadingSupport(${{matrix.multithreading}})
                 .withCompileOptions(
                   prev.compileOptions ++ sysRoot ++ List("-fuse-ld=lld")
                 )

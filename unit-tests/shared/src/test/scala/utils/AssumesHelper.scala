@@ -20,4 +20,10 @@ object AssumesHelper {
       Platform.asanEnabled
     )
   }
+
+  def assumeMultithreadingIsEnabled(): Unit =
+    Assume.assumeTrue(
+      "Requires multithreaded runtime",
+      Platform.isMultithreadingEnabled
+    )
 }

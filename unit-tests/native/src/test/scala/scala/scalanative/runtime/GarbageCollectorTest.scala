@@ -4,6 +4,7 @@ import java.lang.Runtime
 
 import org.junit.Test
 import org.junit.Assert._
+import scala.scalanative.junit.utils.AssumesHelper
 
 class GarbageCollectorTest {
 
@@ -31,6 +32,7 @@ class GarbageCollectorTest {
   }
 
   private def simpleStartedThread(fn: => Unit) = {
+    AssumesHelper.assumeMultithreadingIsEnabled()
     val thread = new Thread(() => fn)
     thread.start()
     thread

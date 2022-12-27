@@ -1,8 +1,15 @@
 package org.scalanative.testsuite.javalib.lang
 
-import org.junit.Test
+import org.junit.{BeforeClass, Test}
 import org.junit.Assert._
 import org.scalanative.testsuite.utils.AssertThrows.assertThrows
+import scala.scalanative.junit.utils.AssumesHelper
+
+object ObjectMonitorTest{
+  @BeforeClass def checkRuntime(): Unit = {
+    AssumesHelper.assumeMultithreadingIsEnabled()
+  }
+}
 
 class ObjectMonitorTest {
   val availableCPU = java.lang.Runtime.getRuntime().availableProcessors()

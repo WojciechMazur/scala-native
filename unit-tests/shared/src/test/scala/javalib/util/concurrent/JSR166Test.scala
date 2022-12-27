@@ -18,7 +18,9 @@ import java.util.concurrent.atomic.AtomicReference
 import java.util.regex.Pattern
 
 import org.junit.Assert._
+import org.junit.BeforeClass
 import org.scalanative.testsuite.utils.AssertThrows.assertThrows
+import scala.scalanative.junit.utils.AssumesHelper
 
 /** Base class for JSR166 Junit TCK tests. Defines some constants, utility
  *  methods and classes, as well as a simple framework for helping to make sure
@@ -88,7 +90,8 @@ import org.scalanative.testsuite.utils.AssertThrows.assertThrows
  *
  *  </ul>
  */
-trait JSR166Test {
+abstract class JSR166Test {
+
   import JSR166Test._
 
   /** Returns a random element from given choices.
@@ -1089,6 +1092,10 @@ trait JSR166Test {
 }
 
 object JSR166Test {
+  @BeforeClass def checkRuntime(): Unit = {
+    AssumesHelper.assumeMultithreadingIsEnabled()
+  }
+
   final val expensiveTests =
     java.lang.Boolean.getBoolean("jsr166.expensiveTests")
 

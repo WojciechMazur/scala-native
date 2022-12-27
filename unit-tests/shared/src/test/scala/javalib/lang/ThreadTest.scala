@@ -38,7 +38,9 @@ class ThreadTest {
   }
 
   @Test def getId(): Unit = {
-    assertTrue(Thread.currentThread().getId > 0)
+    val id = Thread.currentThread().getId
+    if (isMultithreadingEnabled) assertTrue(id >= 0)
+    else assertEquals(0, id)
   }
 
   @Test def interruptExistAndTheStatusIsProperlyReflected(): Unit = {

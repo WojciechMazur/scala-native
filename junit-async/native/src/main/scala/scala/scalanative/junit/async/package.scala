@@ -8,7 +8,7 @@ package object async {
   type AsyncResult = Unit
   def await(future: Future[_]): AsyncResult = {
     if (isMultithreadingEnabled)
-      Await.result(f, Duration.Inf)
+      Await.result(future, Duration.Inf)
     else {
       scala.scalanative.runtime.loop()
       future.value.get.get

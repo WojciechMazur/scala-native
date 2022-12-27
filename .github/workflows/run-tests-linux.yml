@@ -26,6 +26,7 @@ jobs:
       - uses: ./.github/actions/linux-setup-env
         with:
           scala-version: ${{matrix.scala}}
+          java-version: 8
 
       - name: Test tools
         run: sbt "++ ${{ matrix.scala }} -v" "-no-colors" "-J-Xmx3G" "test-tools ${{ matrix.scala }}"

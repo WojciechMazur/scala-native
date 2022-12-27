@@ -51,10 +51,20 @@ class LinktimeConditionsSpec extends OptimizerSpec with Matchers {
                        |  }
                        |}""".stripMargin
 
-  case class Entry[T](propertyName: String, value: T, lintimeValue: Val)
+  case class Entry[T](propertyName: String, value: T, linktimeValue: Val)
+
+  val ignoredNames = {
+    val linktimeInfo = "scala.scalanative.meta.linktimeinfo"
+    Set(
+      s"$linktimeInfo.isWindows",
+      s"$linktimeInfo.is32BitPlatform",
+      s"$linktimeInfo.asanEnabled",
+      s"$linktimeInfo.isMultithreadingEnabled",
+      s"$linktimeInfo.isWeakReferenceSupported"
+    )
+  }
 
   val defaultEntries = {
-    val linktimeInfo = "scala.scalanative.meta.linktimeinfo"
     Seq(
       Entry("int", 42, Val.Int(42)),
       Entry("bool", false, Val.False),
@@ -62,13 +72,7 @@ class LinktimeConditionsSpec extends OptimizerSpec with Matchers {
       Entry("float", 3.14f, Val.Float(3.14f)),
       Entry("decimalSeparator", '-', Val.Char('-')),
       Entry("inner.countFrom", 123456L, Val.Long(123456L)),
-      Entry("secret.performance.multiplier", 9.99, Val.Double(9.99)),
-      // Always required linktime properties
-      Entry(s"$linktimeInfo.isWindows", false, Val.False),
-      Entry(s"$linktimeInfo.is32BitPlatform", false, Val.False),
-      Entry(s"$linktimeInfo.asanEnabled", false, Val.False),
-      // Entry(s"$linktimeInfo.isMultithreadingEnabled", false, Val.False),
-      Entry(s"$linktimeInfo.isWeakReferenceSupported", false, Val.False)
+      Entry("secret.performance.multiplier", 9.99, Val.Double(9.99))
     )
   }
   val defaultProperties = defaultEntries.map(e => e.propertyName -> e.value)
@@ -78,9 +82,11 @@ class LinktimeConditionsSpec extends OptimizerSpec with Matchers {
       "props.scala" -> props,
       "main.scala" -> allPropsUsage
     )(defaultProperties: _*) { (_, result) =>
+      def normalized(seq: Iterable[String]): Set[String] =
+        seq.toSet.diff(ignoredNames)
       shouldContainAll(
-        defaultEntries.map(_.propertyName).toSet,
-        result.resolvedVals.keys
+        normalized(defaultEntries.map(_.propertyName)),
+        normalized(result.resolvedVals.keys)
       )
     }
   }
@@ -90,9 +96,14 @@ class LinktimeConditionsSpec extends OptimizerSpec with Matchers {
       "props.scala" -> props,
       "main.scala" -> allPropsUsage
     )(defaultProperties: _*) { (_, result) =>
+      def normalized(elems: Map[String, Val]): Map[String, Val] =
+        elems.filter { case (key, _) => !ignoredNames.contains(key) }
       val expected =
-        for (e <- defaultEntries) yield e.propertyName -> e.lintimeValue
-      shouldContainAll(expected, result.resolvedVals)
+        defaultEntries.map { e => e.propertyName -> e.linktimeValue }
+      shouldContainAll(
+        normalized(expected.toMap),
+        normalized(result.resolvedVals.toMap)
+      )
     }
   }
 

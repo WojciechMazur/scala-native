@@ -295,11 +295,11 @@ object Thread {
   }
 
   final val MainThread = new Thread(
-        group = new ThreadGroup(ThreadGroup.System, "main"),
-        target = null: Runnable,
-        stackSize = 0L,
-        inheritableThreadLocals = new ThreadLocal.Values()
-      ) {
+    group = new ThreadGroup(ThreadGroup.System, "main"),
+    target = null: Runnable,
+    stackSize = 0L,
+    inheritableThreadLocals = new ThreadLocal.Values()
+  ) {
     override private[java] val threadId: scala.Long = 0L
     nativeThread = nativeCompanion.create(this, 0L)
     setName("main")

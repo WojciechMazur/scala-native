@@ -2,6 +2,7 @@
 #include "State.h"
 #include <stdlib.h>
 #include <stdatomic.h>
+#include <setjmp.h>
 #include <ThreadUtil.h>
 
 static mutex_t threadListsModifiactionLock;

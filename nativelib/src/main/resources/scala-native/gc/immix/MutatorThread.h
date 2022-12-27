@@ -1,4 +1,3 @@
-#include <threads.h>
 #include <pthread.h>
 #include <ScalaNativeGC.h>
 #include "GCTypes.h"
@@ -6,7 +5,6 @@
 #include "LargeAllocator.h"
 #include "State.h"
 #include "Safepoint.h"
-#include <setjmp.h>
 #include <stdatomic.h>
 
 #ifndef MUTATOR_THREAD_H

@@ -46,6 +46,7 @@ object Platform {
   final val hasArm64SignalQuirk =
     isArm64 || (runtime.Platform.probeMacX8664IsArm64() > 0)
 
-  final val isMultithreadingEnabled = scala.scalanative.meta.LinktimeInfo.isMultithreadingEnabled
+  final val isMultithreadingEnabled =
+    scala.scalanative.meta.LinktimeInfo.isMultithreadingEnabled
 
 }

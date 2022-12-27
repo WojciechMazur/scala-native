@@ -67,7 +67,7 @@ class LinktimeConditionsSpec extends OptimizerSpec with Matchers {
       Entry(s"$linktimeInfo.isWindows", false, Val.False),
       Entry(s"$linktimeInfo.is32BitPlatform", false, Val.False),
       Entry(s"$linktimeInfo.asanEnabled", false, Val.False),
-      Entry(s"$linktimeInfo.isMultithreadingEnabled", false, Val.False),
+      // Entry(s"$linktimeInfo.isMultithreadingEnabled", false, Val.False),
       Entry(s"$linktimeInfo.isWeakReferenceSupported", false, Val.False)
     )
   }

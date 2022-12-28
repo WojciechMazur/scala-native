@@ -5,8 +5,6 @@
 #include "ThreadUtil.h"
 #include <stdatomic.h>
 
-static mutex_t allocationLock;
-
 void BlockAllocator_addFreeBlocksInternal(BlockAllocator *blockAllocator,
                                           BlockMeta *block, uint32_t count);
 
@@ -20,16 +18,16 @@ void BlockAllocator_Init(BlockAllocator *blockAllocator, word_t *blockMetaStart,
     blockAllocator->smallestSuperblock.cursor = (BlockMeta *)blockMetaStart;
     blockAllocator->smallestSuperblock.limit =
         (BlockMeta *)blockMetaStart + blockCount;
-    mutex_init(&allocationLock);
+    mutex_init(&blockAllocator->allocationLock);
 }
 
-inline void BlockAllocator_acquire() {
-    mutex_lock(&allocationLock);
+inline void BlockAllocator_Acquire(BlockAllocator *blockAllocator) {
+    mutex_lock(&blockAllocator->allocationLock);
     atomic_thread_fence(memory_order_acquire);
 }
-inline void BlockAllocator_release() {
+inline void BlockAllocator_Release(BlockAllocator *blockAllocator) {
     atomic_thread_fence(memory_order_release);
-    mutex_unlock(&allocationLock);
+    mutex_unlock(&blockAllocator->allocationLock);
 }
 
 inline static int BlockAllocator_sizeToLinkedListIndex(uint32_t size) {
@@ -74,7 +72,7 @@ BlockAllocator_getFreeBlockSlow(BlockAllocator *blockAllocator) {
 
 INLINE BlockMeta *BlockAllocator_GetFreeBlock(BlockAllocator *blockAllocator) {
     BlockMeta *block;
-    BlockAllocator_acquire();
+    BlockAllocator_Acquire(blockAllocator);
     if (blockAllocator->smallestSuperblock.cursor >=
         blockAllocator->smallestSuperblock.limit) {
         block = BlockAllocator_getFreeBlockSlow(blockAllocator);
@@ -83,7 +81,7 @@ INLINE BlockMeta *BlockAllocator_GetFreeBlock(BlockAllocator *blockAllocator) {
         BlockMeta_SetFlag(block, block_simple);
         blockAllocator->smallestSuperblock.cursor++;
     }
-    BlockAllocator_release();
+    BlockAllocator_Release(blockAllocator);
 
     // not decrementing freeBlockCount, because it is only used after sweep
     return block;
@@ -91,7 +89,7 @@ INLINE BlockMeta *BlockAllocator_GetFreeBlock(BlockAllocator *blockAllocator) {
 
 BlockMeta *BlockAllocator_GetFreeSuperblock(BlockAllocator *blockAllocator,
                                             uint32_t size) {
-    BlockAllocator_acquire();
+    BlockAllocator_Acquire(blockAllocator);
     BlockMeta *superblock;
     if (blockAllocator->smallestSuperblock.limit -
             blockAllocator->smallestSuperblock.cursor >=
@@ -106,7 +104,7 @@ BlockMeta *BlockAllocator_GetFreeSuperblock(BlockAllocator *blockAllocator,
         int first = (minNonEmptyIndex > target) ? minNonEmptyIndex : target;
         superblock = BlockAllocator_pollSuperblock(blockAllocator, first);
         if (superblock == NULL) {
-            BlockAllocator_release();
+            BlockAllocator_Release(blockAllocator);
             return NULL;
         }
         if (BlockMeta_SuperblockSize(superblock) > size) {
@@ -116,7 +114,7 @@ BlockMeta *BlockAllocator_GetFreeSuperblock(BlockAllocator *blockAllocator,
                 BlockMeta_SuperblockSize(superblock) - size);
         }
     }
-    BlockAllocator_release();
+    BlockAllocator_Release(blockAllocator);
 
     BlockMeta_SetFlag(superblock, block_superblock_start);
     BlockMeta_SetSuperblockSize(superblock, size);

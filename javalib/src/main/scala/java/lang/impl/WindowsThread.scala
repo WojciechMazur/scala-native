@@ -50,8 +50,8 @@ private[java] class WindowsThread(val thread: Thread, stackSize: Long)
         threadId = null
       )
 
-  if (handle == null || parkEvent == null || sleepEvent == null)
-    throw new RuntimeException(s"Failed to initialize new thread")
+  if ((!isMainThread && handle == null) || parkEvent == null || sleepEvent == null)
+    throw new RuntimeException("Failed to initialize new thread")
   else
     state = State.Running
 

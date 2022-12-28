@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <memory.h>
 #include <assert.h>
-#include <pthread.h>
 
 bool Allocator_getNextLine(Allocator *allocator);
 bool Allocator_newBlock(Allocator *allocator);
@@ -104,7 +103,6 @@ INLINE word_t *Allocator_Alloc(Allocator *allocator, size_t size) {
             if (Allocator_getNextLine(allocator)) {
                 return Allocator_Alloc(allocator, size);
             }
-
             return NULL;
         }
     }

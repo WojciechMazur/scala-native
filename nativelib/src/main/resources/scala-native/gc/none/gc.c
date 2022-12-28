@@ -127,9 +127,9 @@ void scalanative_collect() {}
 void scalanative_register_weak_reference_handler(void *handler) {}
 
 #ifdef _WIN32
-Handle scalanative_CreateThread(SecurityAttributes *threadAttributes,
-                                UWORD stackSize, ThreadStartRoutine routine,
-                                RoutineArgs args, DWORD, creationFlags,
+HANDLE scalanative_CreateThread(LPSECURITY_ATTRIBUTES *threadAttributes,
+                                SIZE_T stackSize, ThreadStartRoutine routine,
+                                RoutineArgs args, DWORD creationFlags,
                                 DWORD *threadId){
     return CreateThread(threadAttributes, stackSize, routine, args,
                         creationFlags, threadId)};

@@ -13,7 +13,15 @@ void MutatorThread_init(Field_t *stackbottom) {
     currentMutatorThread = self;
 
     self->stackBottom = stackbottom;
+#ifdef _WIN32
+    self->wakeupEvent = CreateEvent(NULL, true, false, NULL);
+    if (self->wakeupEvent == NULL) {
+        printf("Failed to setup mutator thread: errno=%lu\n", GetLastError());
+        exit(1);
+    }
+#else
     self->thread = pthread_self();
+#endif
     MutatorThread_switchState(self, MutatorThreadState_Managed);
     Allocator_Init(&self->allocator);
     LargeAllocator_Init(&self->largeAllocator);
@@ -23,9 +31,12 @@ void MutatorThread_init(Field_t *stackbottom) {
     Allocator_InitCursors(&self->allocator);
 }
 
-void MutatorThread_delete(MutatorThread *self) {
+void MutatorThread_delete(MutatorThread *self) { 
     MutatorThread_switchState(self, MutatorThreadState_Unmanaged);
     MutatorThreads_remove(self);
+#ifdef _WIN32
+    CloseHandle(self->wakeupEvent);
+#endif
     free(self);
 }
 

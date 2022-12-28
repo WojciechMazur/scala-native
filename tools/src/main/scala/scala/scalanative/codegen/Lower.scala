@@ -1303,24 +1303,19 @@ object Lower {
       val canHaveThisValue =
         !(sig.isStatic || sig.isClinit || sig.isGenerated || sig.isExtern)
       if (canHaveThisValue) {
-        assert(
-          args.nonEmpty,
-          s"No this argument for non-static function ${Show(defn.name)}"
-        )
-
-        val thisValue = args.head
-        thisValue.ty match {
-          case ref: Type.Ref if ref.isNullable && usesValue(thisValue) =>
-            implicit def pos: Position = defn.pos
-            ScopedVar.scoped(
-              unwindHandler := createUnwindHandler()
-            ) {
-              genGuardNotNull(buf, args.head)
-            }
-          case _ => ()
+        args.headOption.foreach { thisValue =>
+          thisValue.ty match {
+            case ref: Type.Ref if ref.isNullable && usesValue(thisValue) =>
+              implicit def pos: Position = defn.pos
+              ScopedVar.scoped(
+                unwindHandler := createUnwindHandler()
+              ) {
+                genGuardNotNull(buf, thisValue)
+              }
+            case _ => ()
+          }
         }
       }
-
     }
   }
 

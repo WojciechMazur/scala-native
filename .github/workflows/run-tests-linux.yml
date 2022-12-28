@@ -44,6 +44,12 @@ jobs:
           "scalaPartest${{env.project-version}}/fetchScalaSource"
           scala-cli scripts/partest-check-files.scala -- ${{ matrix.scala }}
 
+        # scala-cli-setup can override default java version
+      - uses: ./.github/actions/linux-setup-env
+        with:
+          scala-version: ${{matrix.scala}}
+          java-version: 8
+
         # Running all partests would take ~2h for each Scala version, run only single test of each kind
         # to make sure that infrastructure works correctly.
       - name: Run subset of partest tests
@@ -226,7 +232,7 @@ jobs:
           echo set-native-config=${SetConfigTemplate} >> $GITHUB_ENV
 
       - name: Run tests
-        run: |
+        run: >
             sbt -J-Xmx5G -v
             ++${{matrix.scala}};
             set sandbox.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};

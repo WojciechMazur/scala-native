@@ -37,7 +37,8 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
   private[this] val _state = new scala.Array[scala.Byte](StateSize)
   @volatile private[impl] var sleepInterruptEvent: CInt = UnsetEvent
   @volatile private var counter: Int = 0
-  @volatile private var conditionIdx = -1 // index of currently used condition
+  // index of currently used condition
+  @volatile private var conditionIdx = ConditionUnset
 
   assert(
     0 == pthread_mutex_init(lock, mutexAttr),
@@ -138,9 +139,9 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
         return
       }
 
+      assert(conditionIdx == ConditionUnset, "conditiond idx")
       if (time == 0) {
-        assert(conditionIdx == -1, "conditiond idx")
-        conditionIdx = 0
+        conditionIdx = ConditionRelativeIdx
         state = NativeThread.State.ParkedWaiting
         val cond = condition(conditionIdx)
         val status = pthread_cond_wait(cond, lock)
@@ -150,7 +151,6 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
           "park, wait"
         )
       } else {
-        assert(conditionIdx == -1, "conditiond idx")
         conditionIdx =
           if (isAbsolute) ConditionAbsoluteIdx else ConditionRelativeIdx
         state = NativeThread.State.ParkedWaitingTimed
@@ -159,7 +159,7 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
         assert(status == 0 || status == ETIMEDOUT, "park, timed-wait")
       }
 
-      conditionIdx = -1
+      conditionIdx = ConditionUnset
       counter = 0
     } finally {
       state = NativeThread.State.Running
@@ -176,7 +176,7 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
     val index = conditionIdx
     assert(pthread_mutex_unlock(lock) == 0, "unpark, unlock")
 
-    if (s < 1 && index != -1) {
+    if (s < 1 && index != ConditionUnset) {
       assert(
         0 == pthread_cond_signal(condition(index)),
         "unpark, signal"
@@ -373,6 +373,7 @@ private[lang] object PosixThread extends NativeThread.Companion {
   // PosixThread class state
   @alwaysinline private def LockOffset = 0
   @alwaysinline private def ConditionsOffset = pthread_mutex_t_size.toInt
+  @alwaysinline private def ConditionUnset = -1
   @alwaysinline private def ConditionRelativeIdx = 0
   @alwaysinline private def ConditionAbsoluteIdx = 1
   private def StateSize =

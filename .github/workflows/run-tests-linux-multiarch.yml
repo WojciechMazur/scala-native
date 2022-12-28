@@ -95,6 +95,9 @@ jobs:
             lto: none
           - build-mode: debug
             lto: thin
+          # Commix does not support multithreading
+          - gc: commix
+            multithreading: true
           # Reduce ammount of builds combinations
           - gc: immix
             lto: none

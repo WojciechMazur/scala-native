@@ -109,7 +109,7 @@ jobs:
           echo set-native-config=${SetConfigTemplate} >> $GITHUB_ENV
 
       - name: Run tests
-        run: |
+        run: >
             sbt -J-Xmx5G -v
             ++${{matrix.scala}};
             set sandbox.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};

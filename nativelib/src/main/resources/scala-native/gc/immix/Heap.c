@@ -211,11 +211,13 @@ NOINLINE word_t *Heap_allocSmallSlow(Heap *heap, uint32_t size) {
 
         if (object != NULL)
             goto done;
-
+        
         // A small object can always fit in a single free block
         // because it is no larger than 8K while the block is 32K.
         Heap_Grow(heap, 1);
         object = (Object *)Allocator_Alloc(allocator, size);
+        if (object != NULL)
+            goto done;
     } while (Heap_isGrowingPossible(heap, 1));
     Heap_exitWithOutOfMemory("alloc-small cannot grow");
 
@@ -400,7 +402,7 @@ void Heap_Recycle(Heap *heap) {
 }
 
 void Heap_Grow(Heap *heap, uint32_t incrementInBlocks) {
-    BlockAllocator_acquire(&blockAllocator);
+    BlockAllocator_Acquire(&blockAllocator);
     if (!Heap_isGrowingPossible(heap, incrementInBlocks)) {
         Heap_exitWithOutOfMemory("grow heap");
     }
@@ -440,5 +442,5 @@ void Heap_Grow(Heap *heap, uint32_t incrementInBlocks) {
 
     // immediately add the block to freelists
     BlockAllocator_SweepDone(&blockAllocator);
-    BlockAllocator_release(&blockAllocator);
+    BlockAllocator_Release(&blockAllocator);
 }

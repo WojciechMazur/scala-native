@@ -74,14 +74,13 @@ INLINE void scalanative_register_weak_reference_handler(void *handler) {
     WeakRefStack_SetHandler(handler);
 }
 
-typedef void *(*ThreadStartRoutine)(void *);
 typedef void *RoutineArgs;
 typedef struct {
     ThreadStartRoutine fn;
     RoutineArgs args;
 } WrappedFunctionCallArgs;
 
-static void ProxyThreadStartRoutine(void *args) {
+static ThreadRoutineReturnType ProxyThreadStartRoutine(void *args) {
     WrappedFunctionCallArgs *wrapped = (WrappedFunctionCallArgs *)args;
     ThreadStartRoutine originalFn = wrapped->fn;
     RoutineArgs originalArgs = wrapped->args;
@@ -91,12 +90,15 @@ static void ProxyThreadStartRoutine(void *args) {
     MutatorThread_init((Field_t *)&stackBottom);
     originalFn(originalArgs);
     MutatorThread_delete(currentMutatorThread);
+#ifdef _WIN32
+    return 0;
+#endif
 }
 
 #ifdef _WIN32
-Handle scalanative_CreateThread(SecurityAttributes *threadAttributes,
-                                UWORD stackSize, ThreadStartRoutine routine,
-                                RoutineArgs args, DWORD, creationFlags,
+HANDLE scalanative_CreateThread(LPSECURITY_ATTRIBUTES threadAttributes,
+                                SIZE_T stackSize, ThreadStartRoutine routine,
+                                RoutineArgs args, DWORD creationFlags,
                                 DWORD *threadId) {
     WrappedFunctionCallArgs *proxyArgs =
         (WrappedFunctionCallArgs *)malloc(sizeof(WrappedFunctionCallArgs));
@@ -104,7 +106,7 @@ Handle scalanative_CreateThread(SecurityAttributes *threadAttributes,
     proxyArgs->args = args;
     return CreateThread(threadAttributes, stackSize,
                         (ThreadStartRoutine)&ProxyThreadStartRoutine,
-                        (RoutineArgs)proxyArgs, creationFlags, threadId)
+                        (RoutineArgs)proxyArgs, creationFlags, threadId);
 }
 #else
 int scalanative_pthread_create(pthread_t *thread, pthread_attr_t *attr,

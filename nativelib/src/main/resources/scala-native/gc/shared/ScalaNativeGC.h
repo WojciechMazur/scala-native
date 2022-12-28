@@ -4,15 +4,20 @@
 #include <stdbool.h>
 #include "GCTypes.h"
 
-typedef void *(*ThreadStartRoutine)(void *);
-typedef void *RoutineArgs;
-
-#if defined(_WIN32) || defined(WIN32)
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
 // Boehm on Windows needs User32.lib linked
 #pragma comment(lib, "User32.lib")
+#pragma comment(lib, "Kernel32.lib")
+#include <windows.h>
+typedef DWORD ThreadRoutineReturnType;
 #else
 #include <pthread.h>
+typedef void *ThreadRoutineReturnType;
 #endif
+
+typedef ThreadRoutineReturnType (*ThreadStartRoutine)(void *);
+typedef void *RoutineArgs;
 
 void scalanative_init();
 void *scalanative_alloc(void *info, size_t size);
@@ -27,9 +32,9 @@ void scalanative_register_weak_reference_handler(void *handler);
 // newly created thread upon startup and unregister it from the GC upon
 // termination.
 #ifdef _WIN32
-Handle scalanative_CreateThread(SecurityAttributes *threadAttributes,
-                                UWORD stackSize, ThreadStartRoutine routine,
-                                RoutineArgs args, DWORD, creationFlags,
+HANDLE scalanative_CreateThread(LPSECURITY_ATTRIBUTES threadAttributes,
+                                SIZE_T stackSize, ThreadStartRoutine routine,
+                                RoutineArgs args, DWORD creationFlags,
                                 DWORD *threadId);
 #else
 int scalanative_pthread_create(pthread_t *thread, pthread_attr_t *attr,
@@ -53,6 +58,7 @@ typedef enum scalanative_MutatorThreadState {
      */
     MutatorThreadState_Unmanaged = 1
 } MutatorThreadState;
+
 void scalanative_setMutatorThreadState(MutatorThreadState);
 
 #endif // SCALA_NATIVE_GC_H

@@ -23,6 +23,7 @@ private[scalanative] object IO {
 
   implicit class RichPath(val path: Path) extends AnyVal {
     def abs: String = path.toAbsolutePath.toString
+    def absQuoted: String = s""""$abs""""
   }
 
   /** Write bytes to given file. */

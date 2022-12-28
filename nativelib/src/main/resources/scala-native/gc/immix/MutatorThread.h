@@ -1,4 +1,3 @@
-#include <pthread.h>
 #include <ScalaNativeGC.h>
 #include "GCTypes.h"
 #include "Allocator.h"
@@ -6,6 +5,7 @@
 #include "State.h"
 #include "Safepoint.h"
 #include <stdatomic.h>
+#include <ThreadUtil.h>
 
 #ifndef MUTATOR_THREAD_H
 #define MUTATOR_THREAD_H
@@ -18,7 +18,11 @@ typedef struct {
     word_t **stackBottom;
     Allocator allocator;
     LargeAllocator largeAllocator;
-    pthread_t thread;
+#ifdef _WIN32
+    HANDLE wakeupEvent;
+#else 
+    thread_t thread;
+#endif
 } MutatorThread;
 
 typedef struct MutatorThreadNode {

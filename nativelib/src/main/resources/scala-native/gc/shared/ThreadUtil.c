@@ -33,7 +33,7 @@ pid_t process_getid() {
 INLINE
 bool mutex_init(mutex_t *ref) {
 #ifdef _WIN32
-    *ref = CreateMutex(NULL, TRUE, NULL);
+    *ref = CreateMutex(NULL, FALSE, NULL);
     return *ref != NULL;
 #else
     pthread_mutexattr_t attr;
@@ -46,7 +46,7 @@ bool mutex_init(mutex_t *ref) {
 INLINE
 bool mutex_lock(mutex_t *ref) {
 #ifdef _WIN32
-    return WaitForSingleObject(ref, INFINITE) == WAIT_OBJECT_0;
+    return WaitForSingleObject(*ref, INFINITE) == WAIT_OBJECT_0;
 #else
     return pthread_mutex_lock(ref) == 0;
 #endif
@@ -55,7 +55,7 @@ bool mutex_lock(mutex_t *ref) {
 INLINE
 bool mutex_tryLock(mutex_t *ref) {
 #ifdef _WIN32
-    return WaitForSingleObject(ref, 0) == WAIT_OBJECT_0;
+    return WaitForSingleObject(*ref, 0) == WAIT_OBJECT_0;
 #else
     return pthread_mutex_trylock(ref) == 0;
 #endif
@@ -64,7 +64,7 @@ bool mutex_tryLock(mutex_t *ref) {
 INLINE
 bool mutex_unlock(mutex_t *ref) {
 #ifdef _WIN32
-    return ReleaseMutex(ref);
+    return ReleaseMutex(*ref);
 #else
     return pthread_mutex_unlock(ref) == 0;
 #endif
@@ -86,7 +86,7 @@ semaphore_t *semaphore_open(char *name, unsigned int initValue) {
 INLINE
 bool semaphore_wait(semaphore_t *ref) {
 #ifdef _WIN32
-    return WaitForSingleObject(ref, INFINITE) == WAIT_OBJECT_0;
+    return WaitForSingleObject(*ref, INFINITE) == WAIT_OBJECT_0;
 #else
     return sem_wait(ref) == 0;
 #endif
@@ -95,7 +95,7 @@ bool semaphore_wait(semaphore_t *ref) {
 INLINE
 bool semaphore_unlock(semaphore_t *ref) {
 #ifdef _WIN32
-    return ReleaseSemaphore(ref, 1, NULL);
+    return ReleaseSemaphore(*ref, 1, NULL);
 #else
     return sem_post(ref) == 0;
 #endif

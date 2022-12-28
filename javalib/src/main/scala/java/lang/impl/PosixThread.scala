@@ -22,7 +22,6 @@ import scala.scalanative.posix.pthread._
 import scala.scalanative.posix.signal._
 import scala.scalanative.posix.signalOps._
 import scala.scalanative.posix.errno._
-import scala.scalanative.posix.sys.eventfd._
 import scala.scalanative.posix.poll._
 import scala.scalanative.posix.unistd._
 
@@ -36,7 +35,7 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
   import PosixThread._
 
   private[this] val _state = new scala.Array[scala.Byte](StateSize)
-  @volatile private[impl] var sleepEvent = UnsetEvent
+  @volatile private[impl] var sleepInterruptEvent: CInt = UnsetEvent
   @volatile private var counter: Int = 0
   @volatile private var conditionIdx = -1 // index of currently used condition
 
@@ -112,11 +111,11 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
     // for LockSupport.park
     this.unpark()
     // for Thread.sleep
-    if (sleepEvent != UnsetEvent) {
+    if (sleepInterruptEvent != UnsetEvent) {
       val eventSize = 8.toUInt
       val buf = stackalloc[Byte](eventSize)
       !buf = 1
-      val res = write(sleepEvent, buf, eventSize)
+      val res = write(sleepInterruptEvent, buf, eventSize)
       assert(res != -1, "PosixThread, sleep interrupt")
     }
   }
@@ -193,12 +192,15 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
     import scala.scalanative.posix.pollOps._
     import scala.scalanative.posix.pollEvents._
 
-    val sleepEvent = eventfd(0.toUInt, 0)
-    assert(sleepEvent != -1, "sleep event")
-    this.sleepEvent = sleepEvent
+    type PipeFDs = CArray[CInt, Nat._2]
+    val pipefd = stackalloc[PipeFDs](1.toUInt)
+    if (pipe(pipefd.at(0)) == -1) {
+      throw new RuntimeException("Failed to setup sleep interupt event")
+    }
+    this.sleepInterruptEvent = !pipefd.at(1)
     try {
       val fds = stackalloc[struct_pollfd]()
-      fds.fd = sleepEvent
+      fds.fd = !pipefd.at(0)
       fds.events = POLLIN
 
       if (Thread.interrupted()) throw new InterruptedException()
@@ -216,8 +218,11 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
 
           millis = deadline - System.currentTimeMillis()
         }
-      finally this.sleepEvent = UnsetEvent
-    } finally close(sleepEvent)
+      finally this.sleepInterruptEvent = UnsetEvent
+    } finally {
+      close(!pipefd.at(0))
+      close(!pipefd.at(1))
+    }
   }
 
   override def sleepNanos(nanos: Int): Unit = {

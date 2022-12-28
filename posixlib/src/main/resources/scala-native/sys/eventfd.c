@@ -1,4 +1,4 @@
-#ifndef _WIN32
+#ifdef __linux__
 #include <sys/eventfd.h>
 
 int scalanative_efd_cloexec() { return EFD_CLOEXEC; }

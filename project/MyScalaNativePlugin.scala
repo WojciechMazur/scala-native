@@ -5,7 +5,6 @@ import sbt.Keys._
 
 import scala.scalanative.sbtplugin.ScalaNativePlugin
 import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport._
-import scala.scalanative.build.GC
 
 object MyScalaNativePlugin extends AutoPlugin {
   override def requires: Plugins = ScalaNativePlugin
@@ -21,8 +20,6 @@ object MyScalaNativePlugin extends AutoPlugin {
       _.withCheck(true)
         .withCheckFatalWarnings(true)
         .withDump(true)
-        .withGC(GC.immix)
-        .withMultithreadingSupport(true)
     }
   )
 }

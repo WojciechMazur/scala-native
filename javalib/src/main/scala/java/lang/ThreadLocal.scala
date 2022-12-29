@@ -20,11 +20,23 @@ package java.lang
 
 import java.lang.ref.{Reference, WeakReference}
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.function.Supplier
+import java.util.Objects
 
 object ThreadLocal {
 
   /** Hash counter. */
   private val hashCounter = new AtomicInteger(0)
+
+  def withInitial[T <: AnyRef](supplier: Supplier[_ <: T]): ThreadLocal[T] =
+    new SuppliedThreadLocal(supplier)
+
+  private[lang] class SuppliedThreadLocal[T <: AnyRef](
+      supplier: Supplier[_ <: T]
+  ) extends ThreadLocal[T] {
+    Objects.requireNonNull(supplier)
+    override protected def initialValue(): T = supplier.get()
+  }
 
   /** Per-thread map of ThreadLocal instances to values. */
   private[lang] object Values {

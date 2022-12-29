@@ -8,7 +8,9 @@
 package org.scalanative.testsuite.javalib.util.concurrent
 
 import org.junit.Assert._
+import org.junit.Assume._
 import org.junit.{Test, Ignore}
+import org.scalanative.testsuite.utils.Platform
 import JSR166Test._
 
 import java.util.concurrent.TimeUnit._
@@ -889,6 +891,10 @@ class FutureTaskTest extends JSR166Test {
    */
   @throws[Exception]
   @Test def testGet_NegativeInfinityTimeout(): Unit = {
+    assumeFalse(
+      "Fails due to bug in the JVM",
+      Platform.executingInJVMOnJDK8OrLower
+    )
     val pool = Executors.newFixedThreadPool(10)
     val nop = new Runnable() { override def run(): Unit = {} }
     val task = new FutureTask[Void](nop, null)
@@ -919,6 +925,10 @@ class FutureTaskTest extends JSR166Test {
   /** toString indicates current completion state
    */
   @Test def testToString_incomplete(): Unit = {
+    assumeFalse(
+      "Fails due to bug in the JVM",
+      Platform.executingInJVMOnJDK8OrLower
+    )
     val f = new FutureTask[String](() => "")
     assertTrue(f.toString.matches(".*\\[.*Not completed.*\\]"))
     if (testImplementationDetails)
@@ -927,6 +937,10 @@ class FutureTaskTest extends JSR166Test {
       )
   }
   @Test def testToString_normal(): Unit = {
+    assumeFalse(
+      "Fails due to bug in the JVM",
+      Platform.executingInJVMOnJDK8OrLower
+    )
     val f = new FutureTask[String](() => "")
     f.run()
     assertTrue(f.toString.matches(".*\\[.*Completed normally.*\\]"))
@@ -934,6 +948,10 @@ class FutureTaskTest extends JSR166Test {
       assertEquals(identityString(f) + "[Completed normally]", f.toString)
   }
   @Test def testToString_exception(): Unit = {
+    assumeFalse(
+      "Fails due to bug in the JVM",
+      Platform.executingInJVMOnJDK8OrLower
+    )
     val f = new FutureTask[String](() => {
       def foo() =
         throw new ArithmeticException
@@ -947,6 +965,10 @@ class FutureTaskTest extends JSR166Test {
       )
   }
   @Test def testToString_cancelled(): Unit = {
+    assumeFalse(
+      "Fails due to bug in the JVM",
+      Platform.executingInJVMOnJDK8OrLower
+    )
     for (mayInterruptIfRunning <- Array[java.lang.Boolean](true, false)) {
       val f = new FutureTask[String](() => "")
       assertTrue(f.cancel(mayInterruptIfRunning))

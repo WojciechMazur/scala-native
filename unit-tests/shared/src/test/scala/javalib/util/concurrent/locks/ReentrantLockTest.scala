@@ -8,11 +8,13 @@
 package org.scalanative.testsuite.javalib.util.concurrent.locks
 
 import org.junit.Assert._
+import org.junit.Assume._
 import org.junit.{Test, Ignore}
 import org.scalanative.testsuite.javalib.util.concurrent.JSR166Test
 import JSR166Test._
 import ReentrantLockTest.AwaitMethod
 import org.scalanative.testsuite.utils.AssertThrows.assertThrows
+import org.scalanative.testsuite.utils.Platform
 
 import java.util.concurrent.locks.{ReentrantLock, Condition}
 import java.util.concurrent.{
@@ -1190,6 +1192,10 @@ class ReentrantLockTest extends JSR166Test {
    */
   @throws[InterruptedException]
   @Test def testBug8187408(): Unit = {
+    assumeFalse(
+      "Fails due to bug in the JVM",
+      Platform.executingInJVMOnJDK8OrLower
+    )
     val rnd = ThreadLocalRandom.current
     val awaitMethod = ReentrantLockTest.randomAwaitMethod()
     val nThreads = rnd.nextInt(2, 10)

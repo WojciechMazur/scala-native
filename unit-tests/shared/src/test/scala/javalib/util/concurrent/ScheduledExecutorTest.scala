@@ -17,7 +17,10 @@ import java.util.stream.Stream
 
 import org.junit.{Test, Ignore}
 import org.junit.Assert._
+import org.junit.Assume._
 import org.junit.function.ThrowingRunnable
+
+import org.scalanative.testsuite.utils.Platform
 
 object ScheduledExecutorTest {
   class RunnableCounter extends Runnable {
@@ -708,6 +711,10 @@ class ScheduledExecutorTest extends JSR166Test {
    */
   @SuppressWarnings(Array("FutureReturnValueIgnored")) @throws[Exception]
   @Test def testShutdown_cancellation(): Unit = {
+    assumeFalse(
+      "Fails due to bug in the JVM",
+      Platform.executingInJVMOnJDK8OrLower
+    )
     val poolSize = 4
     val p = new ScheduledThreadPoolExecutor(poolSize)
     val q = p.getQueue
@@ -1290,6 +1297,10 @@ class ScheduledExecutorTest extends JSR166Test {
    */
   @SuppressWarnings(Array("FutureReturnValueIgnored")) @throws[Exception]
   @Test def testScheduleWithFixedDelay_overflow(): Unit = {
+    assumeFalse(
+      "Fails due to bug in the JVM",
+      Platform.executingInJVMOnJDK8OrLower
+    )
     val delayedDone = new CountDownLatch(1)
     val immediateDone = new CountDownLatch(1)
     usingPoolCleaner(new ScheduledThreadPoolExecutor(1)) { p =>

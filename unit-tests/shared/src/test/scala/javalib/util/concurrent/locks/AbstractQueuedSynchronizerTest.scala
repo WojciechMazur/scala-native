@@ -16,9 +16,11 @@ import java.util.concurrent.locks.AbstractQueuedSynchronizer
 
 import org.junit._
 import org.junit.Assert._
+import org.junit.Assume._
 
 import org.scalanative.testsuite.utils.AssertThrows.assertThrows
 import org.scalanative.testsuite.utils.ThrowsHelper.assertThrowsAnd
+import org.scalanative.testsuite.utils.Platform
 import org.scalanative.testsuite.javalib.util.concurrent.JSR166Test
 import scala.util.control.Breaks
 
@@ -1232,6 +1234,10 @@ class AbstractQueuedSynchronizerTest extends JSR166Test {
   /** awaitNanos/timed await with maximum negative wait times does not underflow
    */
   @Test def testAwait_NegativeInfinity() = {
+    assumeFalse(
+      "Fails due to bug in the JVM",
+      Platform.executingInJVMOnJDK8OrLower
+    )
     val sync = new Mutex()
     val c = sync.newCondition()
     sync.acquire()
@@ -1245,6 +1251,10 @@ class AbstractQueuedSynchronizerTest extends JSR166Test {
    *  -Djsr166.methodFilter=testCancelCancelRace -Djsr166.runsPerTest=100 tck
    */
   @Test def testCancelCancelRace() = {
+    assumeFalse(
+      "Fails due to bug in the JVM",
+      Platform.executingInJVMOnJDK8OrLower
+    )
     class Sync extends AbstractQueuedSynchronizer {
       override def tryAcquire(acquires: Int): Boolean =
         !hasQueuedPredecessors() && compareAndSetState(0, 1)
@@ -1293,6 +1303,10 @@ class AbstractQueuedSynchronizerTest extends JSR166Test {
    *  -Djsr166.runsPerTest=10000 tck
    */
   @Test def testInterruptedFailingAcquire() = {
+    assumeFalse(
+      "Fails due to bug in the JVM",
+      Platform.executingInJVMOnJDK8OrLower
+    )
     class PleaseThrow extends RuntimeException {}
     val ex = new PleaseThrow()
     val thrown = new AtomicBoolean()

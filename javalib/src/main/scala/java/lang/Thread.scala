@@ -341,7 +341,7 @@ object Thread {
 
   def holdsLock(obj: Object): scala.Boolean = NativeThread.holdsLock(obj)
 
-  @alwaysinline def interrupted(): scala.Boolean = {
+  def interrupted(): scala.Boolean = {
     val thread = currentThread()
     val isInterrupted = thread.interruptedState
     if (isInterrupted) {

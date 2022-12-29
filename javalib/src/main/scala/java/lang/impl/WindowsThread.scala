@@ -59,7 +59,7 @@ private[java] class WindowsThread(val thread: Thread, stackSize: Long)
     super.onTermination()
     CloseHandle(parkEvent)
     CloseHandle(sleepEvent)
-    CloseHandle(handle)
+    if (!isMainThread) CloseHandle(handle)
   }
 
   override def setPriority(priority: CInt): Unit =
@@ -88,37 +88,38 @@ private[java] class WindowsThread(val thread: Thread, stackSize: Long)
 
   override protected def park(time: Long, isAbsolute: Boolean): Unit = {
     val parkTime =
-      if (time < 0) -1.toUInt
+      if (time < 0) return
       else if (time == 0 && !isAbsolute) Infinite
       else if (isAbsolute) {
         val relTime = time - System.currentTimeMillis()
-        if (relTime <= 0) -1.toUInt
+        if (relTime <= 0) return
         else relTime.toUInt
       } else {
         val millis = time / NanosInMillisecond
         millis.max(1).toUInt
       }
 
-    if (parkTime.toInt > 0) {
-      def isTriggered =
-        WaitForSingleObject(parkEvent, 0.toUInt) == WAIT_OBJECT_0
-      if (thread.isInterrupted() || isTriggered) ()
-      else {
-        state =
-          if (parkTime == Infinite) State.ParkedWaiting
-          else State.ParkedWaitingTimed
-        WaitForSingleObject(parkEvent, parkTime)
-        state = State.Running
-      }
+    def isSignaled() =
+      WaitForSingleObject(parkEvent, 0.toUInt) == WAIT_OBJECT_0
+    if (thread.isInterrupted() || isSignaled())
       ResetEvent(parkEvent)
+    else {
+      state =
+        if (parkTime == Infinite) State.ParkedWaiting
+        else State.ParkedWaitingTimed
+      WaitForSingleObject(parkEvent, parkTime)
+      ResetEvent(parkEvent)
+      state = State.Running
     }
   }
 
-  @inline override def unpark(): Unit = SetEvent(parkEvent)
+  @inline override def unpark(): Unit = {
+    SetEvent(parkEvent)
+  }
 
   override def sleep(millis: scala.Long): Unit = {
     @inline def loop(startTime: Long, millisRemaining: Long): Unit = {
-      if (thread.isInterrupted()) throw new InterruptedException()
+      if (Thread.interrupted()) throw new InterruptedException()
       if (millisRemaining > 0L) {
         state = State.ParkedWaitingTimed
         WaitForSingleObject(sleepEvent, millisRemaining.toUInt)

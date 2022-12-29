@@ -52,11 +52,12 @@ private[scalanative] object LLVM {
       config: Config
   ): Path = {
     val inpath = srcPath.abs
+    val outpath = objPath.abs
     val isCpp = inpath.endsWith(cppExt)
     val isLl = inpath.endsWith(llExt)
     val workdir = config.workdir
 
-    val compiler = (if (isCpp) config.clangPP else config.clang).absQuoted
+    val compiler = if (isCpp) config.clangPP.abs else config.clang.abs
     val stdflag = {
       if (isLl) Seq()
       else if (isCpp) {
@@ -85,7 +86,7 @@ private[scalanative] object LLVM {
         configFlags ++ Seq("-fvisibility=hidden", opt) ++
         config.compileOptions
     val compilec: Seq[String] =
-      Seq(compiler, "-c", srcPath.absQuoted, "-o", objPath.absQuoted) ++ flags
+      Seq(compiler, "-c", inpath, "-o", outpath) ++ flags
 
     // compile
     config.logger.running(compilec)
@@ -172,10 +173,10 @@ private[scalanative] object LLVM {
           }
           Seq("-g") ++ ltoSupport
         }
-      val output = Seq("-o", config.artifactPath.absQuoted)
+      val output = Seq("-o", config.artifactPath.abs)
       buildTargetLinkOpts ++ flto ++ platformFlags ++ output ++ asan ++ target
     }
-    val paths = objectsPaths.map(_.absQuoted)
+    val paths = objectsPaths.map(_.abs)
     // it's a fix for passing too many file paths to the clang compiler,
     // If too many packages are compiled and the platform is windows, windows
     // terminal doesn't support too many characters, which will cause an error.
@@ -192,8 +193,7 @@ private[scalanative] object LLVM {
       finally pw.close()
     }
 
-    val command =
-      Seq(config.clangPP.absQuoted, s"@${configFile.getAbsolutePath()}")
+    val command = Seq(config.clangPP.abs, s"@${configFile.getAbsolutePath()}")
     config.logger.running(command)
     Process(command, config.workdir.toFile())
   }
@@ -215,13 +215,13 @@ private[scalanative] object LLVM {
             .replace(File.separator, "_")
         val newPath = workdir.resolve(uniqueName)
         Files.move(path, newPath, StandardCopyOption.REPLACE_EXISTING)
-        pw.println(s"ADDMOD ${newPath.absQuoted}")
+        pw.println(s"ADDMOD ${newPath.abs}")
       }
       pw.println("SAVE")
       pw.println("END")
     } finally pw.close()
 
-    val command = Seq(llvmAR.absQuoted, "-M")
+    val command = Seq(llvmAR.abs, "-M")
     config.logger.running(command)
 
     Process(command, config.workdir.toFile()) #< MIRScriptFile

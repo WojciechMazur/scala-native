@@ -147,7 +147,7 @@ jobs:
         lto: [thin]
     steps:
       - uses: actions/checkout@v3
-      - uses: ./.github/actions/macos-setup-env
+      - uses: ./.github/actions/windows-setup-env
         with:
           scala-version: ${{matrix.scala}}
 
@@ -155,12 +155,12 @@ jobs:
         shell: bash
         # Following envs CROSS_ are always present in docker container
         run: |
-          buildMode=${{matrix.build-mode}}
-          if [[ "$buildMode" == "release-fast" ]]; then 
-            buildMode=releaseFast
-          fi
+          $buildMode = ${{matrix.build-mode}}
+          if ($buildMode -eq "release-fast") {
+            $buildMode = "releaseFast"
+          }
 
-          SetConfigTemplate=$(cat << EOM
+          $SetConfigTemplate = @"
             nativeConfig ~= { prev =>
               prev
                 .withMode(scalanative.build.Mode.${buildMode})
@@ -171,10 +171,9 @@ jobs:
                 .withCheckFatalWarnings(true)
                 .withMultithreadingSupport(true)
             }
-          EOM
-          )
+          "@
 
-          echo set-native-config=${SetConfigTemplate} >> $env:GITHUB_ENV
+          echo set-native-config=$SetConfigTemplate" >> $env:GITHUB_ENV
 
       - name: Run tests
         env: 
@@ -193,5 +192,5 @@ jobs:
             junitTestOutputsJVM{{env.project-version}}/test;
             junitTestOutputsNative${{env.project-version}}/test;
             scalaPartestJunitTests${{env.project-version}}/test
-        run: sbt -J-Xmx5G "$env:TEST_COMMAND"
+        run: sbt -J-Xmx5G "$($env:TEST_COMMAND)"
 

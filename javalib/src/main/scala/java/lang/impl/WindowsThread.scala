@@ -101,16 +101,15 @@ private[java] class WindowsThread(val thread: Thread, stackSize: Long)
 
     def isSignaled() =
       WaitForSingleObject(parkEvent, 0.toUInt) == WAIT_OBJECT_0
-    if (thread.isInterrupted() || isSignaled())
-      ResetEvent(parkEvent)
+    if (thread.isInterrupted() || isSignaled()) ()
     else {
       state =
         if (parkTime == Infinite) State.ParkedWaiting
         else State.ParkedWaitingTimed
       WaitForSingleObject(parkEvent, parkTime)
-      ResetEvent(parkEvent)
       state = State.Running
     }
+    ResetEvent(parkEvent)
   }
 
   @inline override def unpark(): Unit = {
@@ -118,31 +117,31 @@ private[java] class WindowsThread(val thread: Thread, stackSize: Long)
   }
 
   override def sleep(millis: scala.Long): Unit = {
-    @inline def loop(startTime: Long, millisRemaining: Long): Unit = {
+    val startTime = System.currentTimeMillis()
+    @inline @tailrec def loop(millisRemaining: Long): Unit = {
       if (Thread.interrupted()) throw new InterruptedException()
       if (millisRemaining > 0L) {
-        state = State.ParkedWaitingTimed
-        WaitForSingleObject(sleepEvent, millisRemaining.toUInt)
-        state = State.Running
-        val now = System.nanoTime()
-        val deltaMillis = (now - startTime) / NanosInMillisecond
-        loop(
-          startTime = now,
-          millisRemaining = millisRemaining - deltaMillis
-        )
+        val status = WaitForSingleObject(sleepEvent, millisRemaining.toUInt)
+        if (status == WAIT_TIMEOUT) ()
+        else loop(System.currentTimeMillis() - startTime)
       }
     }
+
+    state = State.ParkedWaitingTimed
+    try loop(millisRemaining = millis)
+    finally state = State.Running
     ResetEvent(sleepEvent)
-    loop(startTime = System.nanoTime(), millisRemaining = millis)
   }
 
   override def sleepNanos(nanos: Int): Unit = {
     val deadline = System.nanoTime() + nanos
+    state = State.ParkedWaitingTimed
     while ({
       if (!SwitchToThread()) Thread.onSpinWait()
       val now = System.nanoTime()
       now < deadline
     }) Thread.onSpinWait()
+    state = State.Running
   }
 }
 

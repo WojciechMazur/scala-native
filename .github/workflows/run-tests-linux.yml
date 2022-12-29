@@ -232,9 +232,9 @@ jobs:
           echo set-native-config=${SetConfigTemplate} >> $GITHUB_ENV
 
       - name: Run tests
-        run: >
-            sbt -J-Xmx5G -v
-            ++${{matrix.scala}};
+        env: 
+          TEST_COMMAND: >
+            ++${{matrix.scala}} -v;
             set sandbox.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set tests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set junitTestOutputsNative.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
@@ -248,3 +248,4 @@ jobs:
             junitTestOutputsJVM{{env.project-version}}/test;
             junitTestOutputsNative${{env.project-version}}/test;
             scalaPartestJunitTests${{env.project-version}}/test
+        run: sbt -J-Xmx5G "${TEST_COMMAND}"

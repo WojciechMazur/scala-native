@@ -90,9 +90,7 @@ static ThreadRoutineReturnType ProxyThreadStartRoutine(void *args) {
     MutatorThread_init((Field_t *)&stackBottom);
     originalFn(originalArgs);
     MutatorThread_delete(currentMutatorThread);
-#ifdef _WIN32
-    return 0;
-#endif
+    return (ThreadRoutineReturnType)0;
 }
 
 #ifdef _WIN32

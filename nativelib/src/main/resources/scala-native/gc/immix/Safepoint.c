@@ -35,7 +35,7 @@ void Safepoint_arm(safepoint_ref ref) {
     success = VirtualProtect((LPVOID)ref, sizeof(safepoint_t), PAGE_NOACCESS,
                              &oldAccess);
 #else
-    success = mprotect((void *)ref, sizeof(safepoint_t), PROT_NONE) != 0;
+    success = mprotect((void *)ref, sizeof(safepoint_t), PROT_NONE) == 0;
 #endif
     if (!success) {
         perror("Failed to enable GC collect trap\n");
@@ -50,7 +50,7 @@ void Safepoint_disarm(safepoint_ref ref) {
     success = VirtualProtect((LPVOID)ref, sizeof(safepoint_t), PAGE_READONLY,
                              &oldAccess);
 #else
-    success = mprotect((void *)ref, sizeof(safepoint_t), PROT_READ) != 0;
+    success = mprotect((void *)ref, sizeof(safepoint_t), PROT_READ) == 0;
 #endif
     if (!success) {
         perror("Failed to disable GC collect trap\n");

@@ -31,7 +31,7 @@ void MutatorThread_init(Field_t *stackbottom) {
     Allocator_InitCursors(&self->allocator);
 }
 
-void MutatorThread_delete(MutatorThread *self) { 
+void MutatorThread_delete(MutatorThread *self) {
     MutatorThread_switchState(self, MutatorThreadState_Unmanaged);
     MutatorThreads_remove(self);
 #ifdef _WIN32

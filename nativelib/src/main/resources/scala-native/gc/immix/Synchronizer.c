@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdatomic.h>
 #include <stdlib.h>
+#include <errno.h>
 
 #include "State.h"
 #include "ThreadUtil.h"

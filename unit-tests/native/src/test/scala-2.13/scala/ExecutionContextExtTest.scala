@@ -16,7 +16,15 @@ class ExecutionContextExtTest {
       ExecutionContext.opportunistic
 
     assertNotNull(opportunistic)
-    assertEquals(ExecutionContext.global, opportunistic)
+    if (isMultithreadingEnabled)
+      assertNotEquals(ExecutionContext.global, opportunistic)
+    else {
+      assertEquals(ExecutionContext.global, opportunistic)
+      assertEquals(
+        scala.scalanative.runtime.ExecutionContext.singleThreaded,
+        opportunistic
+      )
+    }
 
     var x = 0
     Future {

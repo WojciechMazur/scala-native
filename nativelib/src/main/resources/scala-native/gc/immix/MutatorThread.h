@@ -20,7 +20,7 @@ typedef struct {
     LargeAllocator largeAllocator;
 #ifdef _WIN32
     HANDLE wakeupEvent;
-#else 
+#else
     thread_t thread;
 #endif
 } MutatorThread;

@@ -174,7 +174,8 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
   }
 
   override def unpark(): Unit = {
-    assert(pthread_mutex_lock(lock) == 0, "unpark, lock")
+    val status = pthread_mutex_lock(lock)
+    assert(status == 0, s"unpark, lock, status=$status")
     val s = counter
     counter = 1
     val index = conditionIdx

@@ -159,7 +159,7 @@ jobs:
             $buildMode = "releaseFast"
           };
 
-          $SetConfigTemplate = @"
+          $SetConfigTemplate = "
             nativeConfig ~= { prev =>
               prev
                 .withMode(scalanative.build.Mode.${buildMode})
@@ -170,7 +170,7 @@ jobs:
                 .withCheckFatalWarnings(true)
                 .withMultithreadingSupport(true)
             }
-          "@;
+          ";
 
           echo set-native-config=$SetConfigTemplate >> $env:GITHUB_ENV;
 

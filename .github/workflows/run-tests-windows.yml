@@ -153,9 +153,8 @@ jobs:
 
       - name: Prepare native config command
         shell: bash
-        # Following envs CROSS_ are always present in docker container
         run: |
-          $buildMode = ${{matrix.build-mode}}
+          $buildMode = "${{matrix.build-mode}}"
           if ($buildMode -eq "release-fast") {
             $buildMode = "releaseFast"
           }

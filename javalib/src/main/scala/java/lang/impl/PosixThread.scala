@@ -11,7 +11,7 @@ import scala.scalanative.unsafe.CFuncPtr1.fromScalaFunction
 import scala.scalanative.runtime._
 import scala.scalanative.runtime.Intrinsics.{elemRawPtr, classFieldRawPtr}
 import scala.scalanative.runtime.GC
-import scala.scalanative.meta.LinktimeInfo.isMultithreadingEnabled
+import scala.scalanative.meta.LinktimeInfo._
 
 import scala.scalanative.posix
 import scala.scalanative.posix.sys.types._
@@ -59,7 +59,7 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
       assert(
         0 == pthread_cond_init(
           condition(ConditionRelativeIdx),
-          clockMonotionicCondAttr
+          conditionRelativeCondAttr
         ),
         "PosixThread: condition relative init failed"
       )
@@ -286,7 +286,9 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
       isAbsolute: Boolean
   ) = {
     val timeout = if (_timeout < 0) 0 else _timeout
-    val clock = if (isAbsolute) CLOCK_REALTIME else CLOCK_MONOTONIC
+    val clock =
+      if (isAbsolute || !PosixThread.usesClockMonotonicCondAttr) CLOCK_REALTIME
+      else CLOCK_MONOTONIC
     val now = stackalloc[timespec]()
     clock_gettime(clock, now)
     if (isAbsolute) unpackAbsoluteTime(abstime, timeout, now.tv_sec.toLong)
@@ -348,18 +350,32 @@ private[lang] object PosixThread extends NativeThread.Companion {
 
   private[this] val _state = new scala.Array[scala.Byte](CompanionStateSize)
   assert(
-    0 == pthread_condattr_init(clockMonotionicCondAttr) &&
-      0 == pthread_condattr_setclock(
-        clockMonotionicCondAttr,
-        CLOCK_MONOTONIC
-      ) &&
-      0 == pthread_mutexattr_init(mutexAttr) &&
-      0 == pthread_mutexattr_settype(mutexAttr, PTHREAD_MUTEX_NORMAL),
-    "PosixThread$, attrs init"
+    0 == pthread_condattr_init(conditionRelativeCondAttr),
+    "PosixThread$, cond attrs init"
   )
 
-  @alwaysinline def clockMonotionicCondAttr = _state
-    .at(ClockMonotionicCondAttrOffset)
+  // MacOS does not define `pthread_condattr_setclock`, use realtime (default) clocks instead
+  val usesClockMonotonicCondAttr =
+    if (isMac || isFreeBSD) false
+    else {
+      assert(
+        0 == pthread_condattr_setclock(
+          conditionRelativeCondAttr,
+          CLOCK_MONOTONIC
+        ),
+        "PosixThread$, condattr_setclock monotonic"
+      )
+      true
+    }
+
+  assert(
+    0 == pthread_mutexattr_init(mutexAttr) &&
+      0 == pthread_mutexattr_settype(mutexAttr, PTHREAD_MUTEX_NORMAL),
+    "PosixThread$, mutex attrs init"
+  )
+
+  @alwaysinline def conditionRelativeCondAttr = _state
+    .at(ConditionRelativeAttrOffset)
     .asInstanceOf[Ptr[pthread_condattr_t]]
 
   @alwaysinline def mutexAttr =
@@ -384,7 +400,7 @@ private[lang] object PosixThread extends NativeThread.Companion {
     (pthread_mutex_t_size + pthread_cond_t_size * 2.toUInt).toInt
 
   // PosixThread companion class state
-  @alwaysinline private def ClockMonotionicCondAttrOffset = 0
+  @alwaysinline private def ConditionRelativeAttrOffset = 0
   @alwaysinline private def MutexAttrOffset = pthread_condattr_t_size.toInt
   def CompanionStateSize =
     (pthread_condattr_t_size + pthread_mutexattr_t_size).toInt

@@ -74,6 +74,7 @@ INLINE void scalanative_register_weak_reference_handler(void *handler) {
     WeakRefStack_SetHandler(handler);
 }
 
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
 typedef void *RoutineArgs;
 typedef struct {
     ThreadStartRoutine fn;
@@ -118,6 +119,7 @@ int scalanative_pthread_create(pthread_t *thread, pthread_attr_t *attr,
                           (RoutineArgs)proxyArgs);
 }
 #endif
+#endif // SCALANATIVE_MULTITHREADING_ENABLED
 
 void scalanative_setMutatorThreadState(MutatorThreadState state) {
     MutatorThread_switchState(currentMutatorThread, state);

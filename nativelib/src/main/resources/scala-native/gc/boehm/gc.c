@@ -42,6 +42,7 @@ void scalanative_collect() { GC_gcollect(); }
 
 void scalanative_register_weak_reference_handler(void *handler) {}
 
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
 #ifdef _WIN32
 HANDLE scalanative_CreateThread(LPSECURITY_ATTRIBUTES threadAttributes,
                                 SIZE_T stackSize, ThreadStartRoutine routine,
@@ -56,5 +57,6 @@ int scalanative_pthread_create(pthread_t *thread, pthread_attr_t *attr,
     return GC_pthread_create(thread, attr, routine, args);
 }
 #endif
+#endif // SCALANATIVE_MULTITHREADING_ENABLED
 
 void scalanative_setMutatorThreadState(MutatorThreadState state) {}

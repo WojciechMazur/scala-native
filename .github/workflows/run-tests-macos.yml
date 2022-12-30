@@ -122,7 +122,7 @@ jobs:
             sandbox${{env.project-version}}/run;
             testsJVM${{env.project-version}}/test;
             tests${{env.project-version}}/test;
-            junitTestOutputsJVM{{env.project-version}}/test;
+            junitTestOutputsJVM${{env.project-version}}/test;
             junitTestOutputsNative${{env.project-version}}/test;
             scalaPartestJunitTests${{env.project-version}}/test
         run: sbt -J-Xmx5G "${TEST_COMMAND}"

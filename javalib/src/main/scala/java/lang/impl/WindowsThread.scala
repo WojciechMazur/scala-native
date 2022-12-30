@@ -39,8 +39,12 @@ private[java] class WindowsThread(val thread: Thread, stackSize: Long)
   )
 
   private[this] val handle: Handle =
-    if (isMainThread) 0.toPtr
-    else
+    if (isMainThread) 0.toPtr // main thread
+    else if (!isMultithreadingEnabled)
+      throw new LinkageError(
+        "Multithreading support disabled - cannot create new threads"
+      )
+    else {
       GC.CreateThread(
         threadAttributes = null,
         stackSize = stackSize.max(0L).toUSize, // Default
@@ -49,6 +53,7 @@ private[java] class WindowsThread(val thread: Thread, stackSize: Long)
         creationFlags = 0.toUInt, // Default, run immediately,
         threadId = null
       )
+    }
 
   if ((!isMainThread && handle == null) || parkEvent == null || sleepEvent == null)
     throw new RuntimeException("Failed to initialize new thread")

@@ -11,6 +11,7 @@ import scala.scalanative.unsafe.CFuncPtr1.fromScalaFunction
 import scala.scalanative.runtime._
 import scala.scalanative.runtime.Intrinsics.{elemRawPtr, classFieldRawPtr}
 import scala.scalanative.runtime.GC
+import scala.scalanative.meta.LinktimeInfo.isMultithreadingEnabled
 
 import scala.scalanative.posix
 import scala.scalanative.posix.sys.types._
@@ -40,28 +41,32 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
   // index of currently used condition
   @volatile private var conditionIdx = ConditionUnset
 
-  assert(
-    0 == pthread_mutex_init(lock, mutexAttr),
-    "PosixThread: mutext init failed"
-  )
-  assert(
-    0 == pthread_cond_init(
-      condition(ConditionRelativeIdx),
-      clockMonotionicCondAttr
-    ),
-    "PosixThread: condition relative init failed"
-  )
-  assert(
-    0 == pthread_cond_init(condition(ConditionAbsoluteIdx), null),
-    "PosixThread: condition abs init failed"
-  )
-
   private val handle: pthread_t =
     if (isMainThread) 0.toULong // main thread
+    else if (!isMultithreadingEnabled)
+      throw new LinkageError(
+        "Multithreading support disabled - cannot create new threads"
+      )
     else {
       val id = stackalloc[pthread_t]()
       val attrs = stackalloc[Byte](pthread_attr_t_size)
         .asInstanceOf[Ptr[pthread_attr_t]]
+
+      assert(
+        0 == pthread_mutex_init(lock, mutexAttr),
+        "PosixThread: mutext init failed"
+      )
+      assert(
+        0 == pthread_cond_init(
+          condition(ConditionRelativeIdx),
+          clockMonotionicCondAttr
+        ),
+        "PosixThread: condition relative init failed"
+      )
+      assert(
+        0 == pthread_cond_init(condition(ConditionAbsoluteIdx), null),
+        "PosixThread: condition abs init failed"
+      )
 
       assert(0 == pthread_attr_init(attrs), "PosixThread: attr init failed")
       assert(
@@ -81,16 +86,15 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
           startroutine = NativeThread.threadRoutine,
           args = NativeThread.threadRoutineArgs(this)
         ) match {
-          case 0 =>
-            state = State.Running
-            !id
+          case 0 => !id
           case status =>
             throw new RuntimeException(
-              "Failed to create new thread, pthread error " + status
+              s"Failed to create new thread, pthread error $status"
             )
         }
       finally if (attrs != null) pthread_attr_destroy(attrs)
     }
+  state = State.Running
 
   override def onTermination(): Unit = {
     super.onTermination()

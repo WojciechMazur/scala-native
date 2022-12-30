@@ -7,6 +7,7 @@ import scala.scalanative.unsigned._
 import scala.scalanative.runtime._
 import scala.scalanative.runtime.GC._
 import scala.scalanative.runtime.Intrinsics._
+import scala.scalanative.meta.LinktimeInfo.isMultithreadingEnabled
 
 import scala.scalanative.windows._
 import scala.scalanative.windows.HandleApi._

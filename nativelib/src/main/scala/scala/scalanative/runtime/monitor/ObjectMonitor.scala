@@ -2,6 +2,7 @@ package scala.scalanative.runtime.monitor
 
 import scala.annotation.{tailrec, switch}
 import scala.scalanative.annotation.alwaysinline
+import scala.scalanative.runtime.NativeThread
 import scala.scalanative.runtime.Intrinsics._
 import scala.scalanative.runtime.{RawPtr, SizeOfPtr}
 import scala.scalanative.runtime.libc._
@@ -363,20 +364,29 @@ private[monitor] class ObjectMonitor() {
         1: Byte
       )
     }
-    @tailrec def waitForLockRelease(yields: Int = 0): Unit =
+
+    @tailrec def waitForLockRelease(
+        yields: Int = 0,
+        backoffNanos: Int
+    ): Unit = {
+      def MaxSleepNanos = 64000
       if (waitListModifcationLock != 0) {
         // Whenever possible try to not lead to context switching
         if (yields > 16) {
-          usleep(8)
-          waitForLockRelease(yields)
+          NativeThread.currentNativeThread.sleepNanos(backoffNanos)
+          waitForLockRelease(
+            yields,
+            backoffNanos = (backoffNanos * 3 / 2).min(MaxSleepNanos)
+          )
         } else {
           onSpinWait()
-          waitForLockRelease(yields + 1)
+          waitForLockRelease(yields + 1, backoffNanos)
         }
       }
+    }
 
     if (!tryAcquire()) while (true) {
-      waitForLockRelease()
+      waitForLockRelease(0, backoffNanos = 1000)
       if (tryAcquire()) return
     }
   }

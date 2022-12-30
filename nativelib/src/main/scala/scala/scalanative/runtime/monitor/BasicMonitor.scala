@@ -5,6 +5,7 @@ import LockWord._
 import scala.annotation.{tailrec, switch}
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe.{stackalloc => _, _}
+import scala.scalanative.runtime.NativeThread
 import scala.scalanative.runtime.Intrinsics._
 import scala.scalanative.runtime.libc._
 import scala.scalanative.runtime.libc.memory_order._
@@ -127,17 +128,25 @@ private[runtime] final class BasicMonitor(val lockWordRef: RawPtr)
       thread: Thread,
       threadId: ThreadId
   ): Unit = {
-    @tailrec @alwaysinline def waitForOwnership(yields: Int): Unit =
+    @tailrec @alwaysinline def waitForOwnership(
+        yields: Int,
+        backoffNanos: Int
+    ): Unit = {
+      def MaxSleepNanos = 128000
       if (!tryLock(threadId) && !lockWord.isInflated) {
-        if (yields > 16) {
-          usleep(32)
-          waitForOwnership(yields)
+        if (yields > 8) {
+          NativeThread.currentNativeThread.sleepNanos(backoffNanos)
+          waitForOwnership(
+            yields,
+            backoffNanos = (backoffNanos * 3 / 2).min(MaxSleepNanos)
+          )
         } else {
           onSpinWait()
-          waitForOwnership(yields + 1)
+          waitForOwnership(yields + 1, backoffNanos)
         }
       }
-    waitForOwnership(0)
+    }
+    waitForOwnership(yields = 0, backoffNanos = 1000)
 
     // // Check if other thread has not inflated lock already
     val current = lockWord

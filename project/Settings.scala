@@ -33,6 +33,7 @@ object Settings {
 
   // JDK version we are running with
   lazy val thisBuildSettings = Def.settings(
+    Global / parallelExecution := false,
     Global / javaVersion := {
       val fullVersion = System.getProperty("java.version")
       val v = fullVersion.stripPrefix("1.").takeWhile(_.isDigit).toInt

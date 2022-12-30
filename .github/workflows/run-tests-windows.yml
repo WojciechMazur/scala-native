@@ -153,11 +153,11 @@ jobs:
 
       - name: Prepare native config command
         shell: bash
-        run: |
-          $buildMode = "${{matrix.build-mode}}"
+        run: >
+          $buildMode = "${{matrix.build-mode}}";
           if ($buildMode -eq "release-fast") {
             $buildMode = "releaseFast"
-          }
+          };
 
           $SetConfigTemplate = @"
             nativeConfig ~= { prev =>
@@ -170,9 +170,9 @@ jobs:
                 .withCheckFatalWarnings(true)
                 .withMultithreadingSupport(true)
             }
-          "@
+          "@;
 
-          echo set-native-config=$SetConfigTemplate >> $env:GITHUB_ENV
+          echo set-native-config=$SetConfigTemplate >> $env:GITHUB_ENV;
 
       - name: Run tests
         env: 

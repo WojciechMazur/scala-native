@@ -23,33 +23,24 @@ private[runtime] final class BasicMonitor(val lockWordRef: RawPtr)
   import BasicMonitor._
   type ThreadId = RawPtr
 
-  @inline def _notify(): Unit = {
+  @alwaysinline def _notify(): Unit = {
     val current = lockWord
     if (current.isInflated) current.getObjectMonitor._notify()
   }
 
-  @inline def _notifyAll(): Unit = {
+  @alwaysinline def _notifyAll(): Unit = {
     val current = lockWord
     if (current.isInflated) current.getObjectMonitor._notifyAll()
   }
 
-  @inline def _wait(): Unit = {
-    val current = lockWord
-    if (current.isInflated) current.getObjectMonitor._wait()
-    else inflate(Thread.currentThread())
-  }
+  @alwaysinline def _wait(): Unit =
+    getObjectMonitor()._wait()
 
-  @inline def _wait(timeout: Long): Unit = {
-    val current = lockWord
-    if (current.isInflated) current.getObjectMonitor._wait(timeout)
-    else inflate(Thread.currentThread())
-  }
+  @alwaysinline def _wait(timeout: Long): Unit =
+    getObjectMonitor()._wait(timeout)
 
-  @inline def _wait(timeout: Long, nanos: Int): Unit = {
-    val current = lockWord
-    if (current.isInflated) current.getObjectMonitor._wait(timeout, nanos)
-    else inflate(Thread.currentThread())
-  }
+  @alwaysinline def _wait(timeout: Long, nanos: Int): Unit =
+    getObjectMonitor()._wait(timeout, nanos)
 
   @inline def enter(obj: Object): Unit = {
     val thread = Thread.currentThread()
@@ -98,6 +89,12 @@ private[runtime] final class BasicMonitor(val lockWordRef: RawPtr)
   }
 
   @alwaysinline private def lockWord: LockWord = loadRawPtr(lockWordRef)
+
+  @inline private def getObjectMonitor() = {
+    val current = lockWord
+    if (current.isInflated) current.getObjectMonitor
+    else inflate(Thread.currentThread())
+  }
 
   @alwaysinline private def lockedWithThreadId(threadId: ThreadId): RawPtr =
     // lockType=0, recursion=0

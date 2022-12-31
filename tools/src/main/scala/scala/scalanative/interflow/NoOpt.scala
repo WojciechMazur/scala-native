@@ -72,6 +72,7 @@ trait NoOpt { self: Interflow =>
       noOptVal(rv)
     case Op.Conv(conv, _, v) =>
       noOptVal(v)
+    case Op.Fence(_) => ()
 
     case Op.Classalloc(n) =>
       noOptGlobal(n)

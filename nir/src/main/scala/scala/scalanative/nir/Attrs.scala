@@ -31,6 +31,7 @@ object Attr {
   final case class Link(name: String) extends Attr
   case object Abstract extends Attr
   case object Volatile extends Attr
+  case object Final extends Attr
 }
 
 final case class Attrs(
@@ -42,6 +43,7 @@ final case class Attrs(
     isStub: Boolean = false,
     isAbstract: Boolean = false,
     isVolatile: Boolean = false,
+    isFinal: Boolean = false,
     links: Seq[Attr.Link] = Seq()
 ) {
   def toSeq: Seq[Attr] = {
@@ -55,6 +57,7 @@ final case class Attrs(
     if (isStub) out += Stub
     if (isAbstract) out += Abstract
     if (isVolatile) out += Volatile
+    if (isFinal) out += Final
     out ++= links
 
     out.result()
@@ -72,6 +75,7 @@ object Attrs {
     var isStub = false
     var isAbstract = false
     var isVolatile = false
+    var isFinal = false
     val links = Seq.newBuilder[Attr.Link]
 
     attrs.foreach {
@@ -84,6 +88,7 @@ object Attrs {
       case link: Attr.Link  => links += link
       case Abstract         => isAbstract = true
       case Volatile         => isVolatile = true
+      case Final            => isFinal = true
     }
 
     new Attrs(
@@ -95,6 +100,7 @@ object Attrs {
       isStub = isStub,
       isAbstract = isAbstract,
       isVolatile = isVolatile,
+      isFinal = isFinal,
       links = links.result()
     )
   }

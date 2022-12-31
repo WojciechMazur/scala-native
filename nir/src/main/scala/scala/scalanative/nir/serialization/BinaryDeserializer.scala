@@ -80,6 +80,7 @@ final class BinaryDeserializer(buffer: ByteBuffer, bufferName: String) {
     case T.LinkAttr     => Attr.Link(getUTF8String())
     case T.AbstractAttr => Attr.Abstract
     case T.VolatileAttr => Attr.Volatile
+    case T.FinalAttr    => Attr.Final
   }
 
   private def getBin(): Bin = getInt match {
@@ -220,9 +221,20 @@ final class BinaryDeserializer(buffer: ByteBuffer, bufferName: String) {
 
   private def getOp(): Op = {
     getInt match {
-      case T.CallOp       => Op.Call(getType(), getVal(), getVals())
-      case T.LoadOp       => Op.Load(getType(), getVal(), getBool())
-      case T.StoreOp      => Op.Store(getType(), getVal(), getVal(), getBool())
+      case T.CallOp => Op.Call(getType(), getVal(), getVals())
+      case T.LoadOp =>
+        Op.Load(
+          ty = getType(),
+          ptr = getVal(),
+          syncAttrs = getOpt(getSyncAttrs())
+        )
+      case T.StoreOp =>
+        Op.Store(
+          ty = getType(),
+          ptr = getVal(),
+          value = getVal(),
+          syncAttrs = getOpt(getSyncAttrs())
+        )
       case T.ElemOp       => Op.Elem(getType(), getVal(), getVals())
       case T.ExtractOp    => Op.Extract(getVal(), getInts())
       case T.InsertOp     => Op.Insert(getVal(), getVal(), getInts())
@@ -230,6 +242,7 @@ final class BinaryDeserializer(buffer: ByteBuffer, bufferName: String) {
       case T.BinOp        => Op.Bin(getBin(), getType(), getVal(), getVal())
       case T.CompOp       => Op.Comp(getComp(), getType(), getVal(), getVal())
       case T.ConvOp       => Op.Conv(getConv(), getType(), getVal())
+      case T.FenceOp      => Op.Fence(getSyncAttrs())
 
       case T.ClassallocOp => Op.Classalloc(getGlobal())
       case T.FieldloadOp  => Op.Fieldload(getType(), getVal(), getGlobal())
@@ -314,6 +327,22 @@ final class BinaryDeserializer(buffer: ByteBuffer, bufferName: String) {
     case T.VirtualVal => Val.Virtual(getLong)
     case T.ClassOfVal => Val.ClassOf(getGlobal())
     case T.SizeVal    => Val.Size(getLong)
+  }
+
+  private def getSyncAttrs(): SyncAttrs =
+    SyncAttrs(
+      memoryOrder = getMemoryOrder(),
+      isVolatile = getBool(),
+      scope = getGlobalOpt()
+    )
+
+  private def getMemoryOrder(): MemoryOrder = getInt() match {
+    case T.Unordered      => MemoryOrder.Unordered
+    case T.MonotonicOrder => MemoryOrder.Monotonic
+    case T.AcquireOrder   => MemoryOrder.Acquire
+    case T.ReleaseOrder   => MemoryOrder.Release
+    case T.AcqRelOrder    => MemoryOrder.AcqRel
+    case T.SeqCstOrder    => MemoryOrder.SeqCst
   }
 
   private def getLinktimeCondition(): LinktimeCondition = getInt() match {

@@ -88,7 +88,7 @@ object Generate {
           ),
           Inst.Let(
             result.name,
-            Op.Load(Type.Bool, boolptr, isAtomic = false),
+            Op.Load(Type.Bool, boolptr, None),
             Next.None
           ),
           Inst.Ret(result)
@@ -127,7 +127,7 @@ object Generate {
           ),
           Inst.Let(
             result.name,
-            Op.Load(Type.Bool, boolptr, isAtomic = false),
+            Op.Load(Type.Bool, boolptr, None),
             Next.None
           ),
           Inst.Ret(result)
@@ -189,7 +189,7 @@ object Generate {
           unwind
         ),
         Inst.Let(
-          Op.Store(Type.Ptr, StackBottomVar, stackBottom, isAtomic = true),
+          Op.Store(Type.Ptr, StackBottomVar, stackBottom, None),
           unwind
         ),
         // Init GC
@@ -315,7 +315,7 @@ object Generate {
                 ),
                 Inst.Let(
                   self.name,
-                  Op.Load(clsTy, slot, isAtomic = false),
+                  Op.Load(clsTy, slot, None),
                   Next.None
                 ),
                 Inst.Let(
@@ -329,7 +329,7 @@ object Generate {
                 Inst.Label(initialize, Seq()),
                 Inst.Let(alloc.name, Op.Classalloc(name), Next.None),
                 Inst.Let(
-                  Op.Store(clsTy, slot, alloc, isAtomic = false),
+                  Op.Store(clsTy, slot, alloc, None),
                   Next.None
                 ),
                 Inst.Let(Op.Call(initSig, init, Seq(alloc)), Next.None),

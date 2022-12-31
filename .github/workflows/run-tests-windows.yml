@@ -153,24 +153,13 @@ jobs:
 
       - name: Prepare native config command
         shell: bash
-        run: >
+        run: |
           $buildMode = "${{matrix.build-mode}}";
           if ($buildMode -eq "release-fast") {
             $buildMode = "releaseFast"
           };
 
-          $SetConfigTemplate = "
-            nativeConfig ~= { prev =>
-              prev
-                .withMode(scalanative.build.Mode.${buildMode})
-                .withGC(scalanative.build.GC.${{matrix.gc}})
-                .withLTO(scalanative.build.LTO.${{matrix.lto}})
-                .withEmbedResources(true)
-                .withCheck(true)
-                .withCheckFatalWarnings(true)
-                .withMultithreadingSupport(true)
-            }
-          ";
+          $SetConfigTemplate = "nativeConfig ~= { _.withMultithreadingSupport(true).withMode(scalanative.build.Mode.${buildMode}).withGC(scalanative.build.GC.${{matrix.gc}}).withLTO(scalanative.build.LTO.${{matrix.lto}}) }"
 
           echo set-native-config=$SetConfigTemplate >> $env:GITHUB_ENV;
 
@@ -191,5 +180,10 @@ jobs:
             junitTestOutputsJVM${{env.project-version}}/test;
             junitTestOutputsNative${{env.project-version}}/test;
             scalaPartestJunitTests${{env.project-version}}/test
-        run: sbt -J-Xmx5G "$($env:TEST_COMMAND)"
+        run: >
+          set SCALANATIVE_INCLUDE_DIRS=${{steps.setup.outputs.vcpkg-dir}}\include&
+          set SCALANATIVE_LIB_DIRS=${{steps.setup.outputs.vcpkg-dir}}\lib&
+          set SCALANATIVE_CI_NO_DEBUG_SYMBOLS=true&
+          set SCALANATIVE &
+          sbt -J-Xmx5G "$($env:TEST_COMMAND)"
 

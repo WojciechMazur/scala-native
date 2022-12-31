@@ -146,44 +146,20 @@ jobs:
         gc: [boehm, immix]
         lto: [thin]
     steps:
+      - name: Setup git config
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v3
       - uses: ./.github/actions/windows-setup-env
         with:
           scala-version: ${{matrix.scala}}
 
-      - name: Prepare native config command
-        shell: bash
-        run: |
-          $buildMode = "${{matrix.build-mode}}";
-          if ($buildMode -eq "release-fast") {
-            $buildMode = "releaseFast"
-          };
-
-          $SetConfigTemplate = "nativeConfig ~= { _.withMultithreadingSupport(true).withMode(scalanative.build.Mode.${buildMode}).withGC(scalanative.build.GC.${{matrix.gc}}).withLTO(scalanative.build.LTO.${{matrix.lto}}) }"
-
-          echo set-native-config=$SetConfigTemplate >> $env:GITHUB_ENV;
-
       - name: Run tests
-        env: 
-          TEST_COMMAND: >
-            ++${{matrix.scala}} -v;
-            set sandbox.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
-            set tests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
-            set junitTestOutputsNative.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
-            set scalaPartestJunitTests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
-
-            show sandbox${{env.project-version}}/nativeConfig;
-
-            sandbox${{env.project-version}}/run;
-            testsJVM${{env.project-version}}/test;
-            tests${{env.project-version}}/test;
-            junitTestOutputsJVM${{env.project-version}}/test;
-            junitTestOutputsNative${{env.project-version}}/test;
-            scalaPartestJunitTests${{env.project-version}}/test
         run: >
+          set SCALANATIVE_GC=${{matrix.gc}}&
           set SCALANATIVE_INCLUDE_DIRS=${{steps.setup.outputs.vcpkg-dir}}\include&
           set SCALANATIVE_LIB_DIRS=${{steps.setup.outputs.vcpkg-dir}}\lib&
-          set SCALANATIVE_CI_NO_DEBUG_SYMBOLS=true&
           set SCALANATIVE &
-          sbt -J-Xmx5G "$($env:TEST_COMMAND)"
-
+          sbt -Dscala.scalanative.multithreading.enable=true
+            "++${{matrix.scala}} -v"
+            "test-runtime ${{matrix.scala}}"
+        shell: cmd

@@ -5,7 +5,10 @@ import scalanative.unsafe._
 import scalanative.unsigned.USize
 import scalanative.runtime.Intrinsics._
 import scalanative.runtime.monitor._
-import scala.scalanative.meta.LinktimeInfo
+import scala.scalanative.meta.LinktimeInfo.{
+  isMultithreadingEnabled,
+  is32BitPlatform
+}
 
 package object runtime {
 
@@ -13,10 +16,17 @@ package object runtime {
   def intrinsic: Nothing = throwUndefined()
 
   /** Enter monitor of given object. */
-  @alwaysinline def enterMonitor(obj: Object): Unit = getMonitor(obj).enter(obj)
+  @alwaysinline def enterMonitor(obj: Object): Unit =
+    if (isMultithreadingEnabled) {
+      getMonitor(obj).enter(obj)
+    }
 
   /** Enter monitor of given object. */
-  @alwaysinline def exitMonitor(obj: Object): Unit = getMonitor(obj).exit(obj)
+
+  @alwaysinline def exitMonitor(obj: Object): Unit =
+    if (isMultithreadingEnabled) {
+      getMonitor(obj).exit(obj)
+    }
 
   /** Get monitor for given object. */
   @alwaysinline def getMonitor(obj: Object) = new BasicMonitor(
@@ -63,7 +73,7 @@ package object runtime {
     Boxes.unboxToUSize(size)
 
   @alwaysinline def SizeOfPtr =
-    castIntToRawSize(if (LinktimeInfo.is32BitPlatform) 4 else 8)
+    castIntToRawSize(if (is32BitPlatform) 4 else 8)
 
   /** Run the runtime's event loop. The method is called from the generated
    *  C-style after the application's main method terminates.

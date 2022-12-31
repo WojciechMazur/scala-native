@@ -52,58 +52,55 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
       val attrs = stackalloc[Byte](pthread_attr_t_size)
         .asInstanceOf[Ptr[pthread_attr_t]]
 
-      assert(
-        0 == pthread_mutex_init(lock, mutexAttr),
-        "PosixThread: mutext init failed"
-      )
-      assert(
-        0 == pthread_cond_init(
+      checkStatus("mutex init") {
+        pthread_mutex_init(lock, mutexAttr)
+      }
+      checkStatus("relative time condition init") {
+        pthread_cond_init(
           condition(ConditionRelativeIdx),
           conditionRelativeCondAttr
-        ),
-        "PosixThread: condition relative init failed"
-      )
-      assert(
-        0 == pthread_cond_init(condition(ConditionAbsoluteIdx), null),
-        "PosixThread: condition abs init failed"
-      )
-
-      assert(0 == pthread_attr_init(attrs), "PosixThread: attr init failed")
-      assert(
-        0 == pthread_attr_setdetachstate(attrs, PTHREAD_CREATE_DETACHED),
-        "PosixThread: detach failed"
-      )
-      if (stackSize > 0L) {
-        assert(
-          0 == pthread_attr_setstacksize(attrs, stackSize.toUInt),
-          "PosixThread: set stack size failed"
         )
       }
-      try
-        GC.pthread_create(
-          thread = id,
-          attr = attrs,
-          startroutine = NativeThread.threadRoutine,
-          args = NativeThread.threadRoutineArgs(this)
-        ) match {
-          case 0 => !id
-          case status =>
-            throw new RuntimeException(
-              s"Failed to create new thread, pthread error $status"
-            )
+      checkStatus("absolute time condition init") {
+        pthread_cond_init(condition(ConditionAbsoluteIdx), null)
+      }
+      checkStatus("thread attrs init") {
+        pthread_attr_init(attrs)
+      }
+      try {
+        checkStatus("thread attrs - set detach") {
+          pthread_attr_setdetachstate(attrs, PTHREAD_CREATE_DETACHED)
         }
-      finally if (attrs != null) pthread_attr_destroy(attrs)
+        if (stackSize > 0L) {
+          checkStatus("thread attrs - set stack size") {
+            pthread_attr_setstacksize(attrs, stackSize.toUInt)
+          }
+        }
+        checkStatus("thread create") {
+          GC.pthread_create(
+            thread = id,
+            attr = attrs,
+            startroutine = NativeThread.threadRoutine,
+            args = NativeThread.threadRoutineArgs(this)
+          )
+        }
+        !id
+      } finally if (attrs != null) pthread_attr_destroy(attrs)
     }
   state = State.Running
 
   override def onTermination(): Unit = {
     super.onTermination()
-    pthread_cond_destroy(condition(0))
-    pthread_cond_destroy(condition(1))
-    pthread_mutex_destroy(lock)
+    if (isMultithreadingEnabled) {
+      pthread_cond_destroy(condition(0))
+      pthread_cond_destroy(condition(1))
+      pthread_mutex_destroy(lock)
+    }
   }
 
-  override def setPriority(priority: CInt): Unit = if (isMainThread) {
+  override def setPriority(
+      priority: CInt
+  ): Unit = if (isMultithreadingEnabled) {
     val schedParam = stackalloc[sched_param]()
     val policy = stackalloc[CInt]()
     if (0 == pthread_getschedparam(handle, policy, schedParam)) {
@@ -112,7 +109,7 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
     }
   }
 
-  override def interrupt(): Unit = {
+  override def interrupt(): Unit = if (isMultithreadingEnabled) {
     // for LockSupport.park
     this.unpark()
     // for Thread.sleep
@@ -120,12 +117,14 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
       val eventSize = 8.toUInt
       val buf = stackalloc[Byte](eventSize)
       !buf = 1
-      val res = write(sleepInterruptEvent, buf, eventSize)
-      assert(res != -1, "PosixThread, sleep interrupt")
+      write(sleepInterruptEvent, buf, eventSize)
     }
   }
 
-  override protected def park(time: Long, isAbsolute: Boolean): Unit = {
+  override protected def park(
+      time: Long,
+      isAbsolute: Boolean
+  ): Unit = if (isMultithreadingEnabled) {
     // fast-path check, return if can skip parking
     if (counterAtromic.exchange(0) > 0) return
     // Avoid parking if there's an interrupt pending
@@ -173,23 +172,23 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
     }
   }
 
-  override def unpark(): Unit = {
-    val status = pthread_mutex_lock(lock)
-    assert(status == 0, s"unpark, lock, status=$status")
+  override def unpark(): Unit = if (isMultithreadingEnabled) {
+    pthread_mutex_lock(lock)
     val s = counter
     counter = 1
     val index = conditionIdx
-    assert(pthread_mutex_unlock(lock) == 0, "unpark, unlock")
+    pthread_mutex_unlock(lock)
 
     if (s < 1 && index != ConditionUnset) {
-      assert(
-        0 == pthread_cond_signal(condition(index)),
-        "unpark, signal"
-      )
+      pthread_cond_signal(condition(index))
     }
   }
 
-  override def sleep(_millis: Long): Unit = {
+  override def sleep(millis: Long): Unit =
+    if (isMultithreadingEnabled) sleepInterruptible(millis)
+    else sleepNonInterruptible(millis, 0)
+
+  private def sleepInterruptible(_millis: Long): Unit = {
     var millis = _millis
     if (millis <= 0) return
     val deadline = System.currentTimeMillis() + millis
@@ -199,26 +198,20 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
 
     type PipeFDs = CArray[CInt, Nat._2]
     val pipefd = stackalloc[PipeFDs](1.toUInt)
-    if (pipe(pipefd.at(0)) == -1) {
-      throw new RuntimeException("Failed to setup sleep interupt event")
+    checkStatus("create sleep interrupt event") {
+      pipe(pipefd.at(0))
     }
     this.sleepInterruptEvent = !pipefd.at(1)
-    try {
+    if (!thread.isInterrupted()) try {
       val fds = stackalloc[struct_pollfd]()
       fds.fd = !pipefd.at(0)
       fds.events = POLLIN
-
-      if (Thread.interrupted()) throw new InterruptedException()
 
       try
         while (millis > 0) {
           state = State.ParkedWaitingTimed
           val status = poll(fds, 1.toUInt, (millis min Int.MaxValue).toInt)
           state = State.Running
-          assert(
-            status >= 0 || errno == EINTR,
-            s"sleep, errno=$errno"
-          )
           if (Thread.interrupted()) throw new InterruptedException()
 
           millis = deadline - System.currentTimeMillis()
@@ -230,12 +223,33 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
     }
   }
 
-  override def sleepNanos(nanos: Int): Unit = {
-    val spec = stackalloc[timespec]()
-    spec.tv_nsec = nanos
+  private def sleepNonInterruptible(
+      millis: scala.Long,
+      nanos: scala.Int
+  ): Unit = {
+    @tailrec def doSleep(requestedTime: Ptr[timespec]): Unit = {
+      val remaining = stackalloc[timespec]()
+      val status = nanosleep(requestedTime, remaining)
+      if (!thread.isInterrupted()) {
+        if (status == -1 && errno == EINTR)
+          doSleep(remaining)
+      }
+    }
+    val requestedTime = stackalloc[timespec]()
+    requestedTime.tv_sec = (millis / 1000).toSize
+    requestedTime.tv_nsec = ((millis % 1000) * 1e6.toInt + nanos).toSize
     state = State.ParkedWaitingTimed
-    nanosleep(spec, null)
+    doSleep(requestedTime)
     state = State.Running
+  }
+
+  override def sleepNanos(nanos: Int): Unit = {
+    val millis = nanos / NanosInMillisecond
+    val remainingNanos = nanos % NanosInMillisecond
+    if (millis > 0) sleepInterruptible(millis)
+    if (!thread.isInterrupted() && remainingNanos > 0) {
+      sleepNonInterruptible(0, nanos)
+    }
   }
 
   @alwaysinline private def lock: Ptr[pthread_mutex_t] = _state
@@ -260,7 +274,7 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
     fromRawPtr(classFieldRawPtr(this, "counter"))
   )
 
-  @inline def priorityMapping(
+  @inline private def priorityMapping(
       threadPriority: Int,
       schedulerPolicy: CInt
   ): Int = {
@@ -350,30 +364,30 @@ private[lang] object PosixThread extends NativeThread.Companion {
   type Impl = PosixThread
 
   private[this] val _state = new scala.Array[scala.Byte](CompanionStateSize)
-  assert(
-    0 == pthread_condattr_init(conditionRelativeCondAttr),
-    "PosixThread$, cond attrs init"
-  )
+
+  if (isMultithreadingEnabled) {
+    checkStatus("relative-time conditions attrs init") {
+      pthread_condattr_init(conditionRelativeCondAttr)
+    }
+    checkStatus("mutex attributes - init") {
+      pthread_mutexattr_init(mutexAttr)
+    }
+    checkStatus("mutex attributes - set type") {
+      pthread_mutexattr_settype(mutexAttr, PTHREAD_MUTEX_NORMAL)
+    }
+  }
 
   // MacOS does not define `pthread_condattr_setclock`, use realtime (default) clocks instead
   val usesClockMonotonicCondAttr =
     if (isMac || isFreeBSD) false
     else {
-      assert(
-        0 == pthread_condattr_setclock(
-          conditionRelativeCondAttr,
-          CLOCK_MONOTONIC
-        ),
-        "PosixThread$, condattr_setclock monotonic"
-      )
+      if (isMultithreadingEnabled) {
+        checkStatus("relative-time conditions attrs - set clock") {
+          pthread_condattr_setclock(conditionRelativeCondAttr, CLOCK_MONOTONIC)
+        }
+      }
       true
     }
-
-  assert(
-    0 == pthread_mutexattr_init(mutexAttr) &&
-      0 == pthread_mutexattr_settype(mutexAttr, PTHREAD_MUTEX_NORMAL),
-    "PosixThread$, mutex attrs init"
-  )
 
   @alwaysinline def conditionRelativeCondAttr = _state
     .at(ConditionRelativeAttrOffset)
@@ -406,4 +420,13 @@ private[lang] object PosixThread extends NativeThread.Companion {
   def CompanionStateSize =
     (pthread_condattr_t_size + pthread_mutexattr_t_size).toInt
 
+  @alwaysinline private def checkStatus(
+      label: => String,
+      expectedStatus: CInt = 0
+  )(status: CInt) = {
+    if (status != expectedStatus)
+      throw new RuntimeException(
+        s"Cannot initialize thread: $label, status=$status"
+      )
+  }
 }

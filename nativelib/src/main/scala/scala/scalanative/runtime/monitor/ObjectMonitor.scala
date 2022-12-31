@@ -61,18 +61,18 @@ private[monitor] class ObjectMonitor() {
   }
 
   @inline def exit(currentThread: Thread): Unit = {
-    checkOwnership()
+    checkOwnership(currentThread)
     if (recursion != 0) recursion -= 1
     else exitMonitor(currentThread)
   }
 
   @inline def _notify(): Unit = {
-    checkOwnership()
+    checkOwnership(Thread.currentThread())
     if (waitQueue != null) notifyImpl(1)
   }
 
   @inline def _notifyAll(): Unit = {
-    checkOwnership()
+    checkOwnership(Thread.currentThread())
     if (waitQueue != null) notifyImpl(waiting)
   }
 
@@ -215,10 +215,10 @@ private[monitor] class ObjectMonitor() {
   }
 
   def waitImpl(nanos: Long): Unit = {
-    checkOwnership()
+    val currentThread = Thread.currentThread()
+    checkOwnership(currentThread)
     if (Thread.interrupted()) throw new InterruptedException()
 
-    val currentThread = Thread.currentThread()
     val node = new WaiterNode(currentThread, WaiterNode.Waiting)
     atomic_thread_fence(memory_order_seq_cst)
 
@@ -396,11 +396,11 @@ private[monitor] class ObjectMonitor() {
     atomic_thread_fence(memory_order_seq_cst)
   }
 
-  @alwaysinline protected def checkOwnership(): Unit = {
+  @alwaysinline protected def checkOwnership(currentThread: Thread): Unit = {
     atomic_thread_fence(memory_order_seq_cst)
-    if (Thread.currentThread() ne ownerThread) {
+    if (currentThread ne ownerThread) {
       throw new IllegalMonitorStateException(
-        "thread is not an owner this object"
+        "Thread is not an owner of this object"
       )
     }
   }

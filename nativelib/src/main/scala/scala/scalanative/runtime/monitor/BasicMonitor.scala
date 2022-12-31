@@ -78,8 +78,7 @@ private[runtime] final class BasicMonitor(val lockWordRef: RawPtr)
       )
     // should happen only in main-thread init
     else if (current.isUnlocked) ()
-    else
-      storeRawPtr(lockWordRef, current.withDecresedRecursion)
+    else storeRawPtr(lockWordRef, current.withDecresedRecursion)
   }
 
   @alwaysinline def isLockedBy(thread: Thread): Boolean = {

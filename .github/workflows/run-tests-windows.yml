@@ -160,6 +160,6 @@ jobs:
           set SCALANATIVE_LIB_DIRS=${{steps.setup.outputs.vcpkg-dir}}\lib&
           set SCALANATIVE &
           sbt -Dscala.scalanative.multithreading.enable=true
-            "++${{matrix.scala}} -v"
-            "test-runtime ${{matrix.scala}}"
+          "++${{matrix.scala}} -v"
+          "test-runtime ${{matrix.scala}}"
         shell: cmd

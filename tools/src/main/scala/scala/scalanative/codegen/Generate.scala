@@ -90,7 +90,7 @@ object Generate {
           ),
           Inst.Let(
             result.name,
-            Op.Load(Type.Bool, boolptr, None),
+            Op.Load(Type.Bool, boolptr),
             Next.None
           ),
           Inst.Ret(result)
@@ -129,7 +129,7 @@ object Generate {
           ),
           Inst.Let(
             result.name,
-            Op.Load(Type.Bool, boolptr, None),
+            Op.Load(Type.Bool, boolptr),
             Next.None
           ),
           Inst.Ret(result)
@@ -191,7 +191,7 @@ object Generate {
           unwind
         ),
         Inst.Let(
-          Op.Store(Type.Ptr, StackBottomVar, stackBottom, None),
+          Op.Store(Type.Ptr, StackBottomVar, stackBottom),
           unwind
         ),
         // Init GC
@@ -316,7 +316,7 @@ object Generate {
                 ),
                 Inst.Let(
                   self.name,
-                  Op.Load(clsTy, slot, None),
+                  Op.Load(clsTy, slot),
                   Next.None
                 ),
                 Inst.Let(
@@ -330,7 +330,7 @@ object Generate {
                 Inst.Label(initialize, Seq()),
                 Inst.Let(alloc.name, Op.Classalloc(name), Next.None),
                 Inst.Let(
-                  Op.Store(clsTy, slot, alloc, None),
+                  Op.Store(clsTy, slot, alloc),
                   Next.None
                 ),
                 Inst.Let(Op.Call(initSig, init, Seq(alloc)), Next.None),

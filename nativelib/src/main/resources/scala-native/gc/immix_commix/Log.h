@@ -2,15 +2,10 @@
 #define IMMIX_LOG_H
 
 #ifndef DEBUG_ASSERT
-#define DEBUG_ASSERT
 
-#ifdef NDEBUG
-#undef NDEBUG
-#endif
-
-// #ifndef NDEBUG
-// #define NDEBUG
-// #endif // NDEBUG
+#ifndef NDEBUG
+#define NDEBUG
+#endif // NDEBUG
 
 #endif // DEBUG_ASSERT
 

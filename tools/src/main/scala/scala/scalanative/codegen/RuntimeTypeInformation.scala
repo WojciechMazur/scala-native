@@ -5,26 +5,21 @@ import scalanative.util.unreachable
 import scalanative.nir._
 import scalanative.linker.{ScopeInfo, Class, Trait}
 
-class RuntimeTypeInformation(meta: Metadata, info: ScopeInfo) {
+class RuntimeTypeInformation(info: ScopeInfo)(implicit meta: Metadata) {
   val name: Global = info.name.member(Sig.Generated("type"))
   val const: Val.Global = Val.Global(name, Type.Ptr)
   val struct: Type.StructValue = info match {
     case cls: Class =>
       val dynmap =
-        if (meta.linked.dynsigs.isEmpty) {
-          Seq.empty
-        } else {
-          Seq(meta.dynmap(cls).ty)
-        }
+        if (meta.linked.dynsigs.isEmpty) Nil
+        else List(meta.dynmap(cls).ty)
       Type.StructValue(
-        Seq(
-          meta.Rtti,
-          Type.Int, // size
-          Type.Int, // idRangeUntil
-          meta.layout(cls).referenceOffsetsTy
-        ) ++ dynmap ++ Seq(
-          meta.vtable(cls).ty
-        )
+        meta.Rtti ::
+          Type.Int :: // size
+          Type.Int :: // idRangeUntil
+          meta.layout(cls).referenceOffsetsTy ::
+          dynmap :::
+          meta.vtable(cls).ty :: Nil
       )
     case _ =>
       meta.Rtti
@@ -41,30 +36,24 @@ class RuntimeTypeInformation(meta: Metadata, info: ScopeInfo) {
       case _ =>
         -1
     })
-    val lockWord = Val.Null
     val classConst =
       Val.Global(Rt.Class.name.member(Sig.Generated("type")), Type.Ptr)
     val base = Val.StructValue(
-      Seq(classConst, lockWord, typeId, traitId, typeStr)
+      classConst :: meta.lockWordField ::: typeId :: traitId :: typeStr :: Nil
     )
     info match {
       case cls: Class =>
         val dynmap =
-          if (meta.linked.dynsigs.isEmpty) {
-            Seq.empty
-          } else {
-            Seq(meta.dynmap(cls).value)
-          }
+          if (meta.linked.dynsigs.isEmpty) Nil
+          else List(meta.dynmap(cls).value)
         val range = meta.ranges(cls)
         Val.StructValue(
-          Seq(
-            base,
-            Val.Int(meta.layout(cls).size.toInt),
-            Val.Int(range.last),
-            meta.layout(cls).referenceOffsetsValue
-          ) ++ dynmap ++ Seq(
-            meta.vtable(cls).value
-          )
+          base ::
+            Val.Int(meta.layout(cls).size.toInt) ::
+            Val.Int(range.last) ::
+            meta.layout(cls).referenceOffsetsValue ::
+            dynmap :::
+            meta.vtable(cls).value :: Nil
         )
       case _ =>
         base

@@ -29,12 +29,19 @@ package object runtime {
     }
 
   /** Get monitor for given object. */
-  @alwaysinline def getMonitor(obj: Object) = new BasicMonitor(
-    elemRawPtr(
-      castObjectToRawPtr(obj),
-      castIntToRawSize(MemoryLayout.Object.LockWordOffset)
-    )
-  )
+  @alwaysinline def getMonitor(obj: Object) = {
+    if (isMultithreadingEnabled)
+      new BasicMonitor(
+        elemRawPtr(
+          castObjectToRawPtr(obj),
+          castIntToRawSize(MemoryLayout.Object.LockWordOffset)
+        )
+      )
+    else
+      throw new IllegalStateException(
+        "Monitors unavilable in single threaded mode"
+      )
+  }
 
   /** Initialize runtime with given arguments and return the rest as Java-style
    *  array.

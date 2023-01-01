@@ -21,6 +21,8 @@ object Generate {
   private class Impl(entry: Option[Global.Top], defns: Seq[Defn])(implicit
       meta: Metadata
   ) {
+    import meta.config
+
     val buf = mutable.UnrolledBuffer.empty[Defn]
 
     def generate(): Seq[Defn] = {
@@ -282,12 +284,11 @@ object Generate {
               Val.Global(moduleTyName, Type.Ptr)
             val instanceName =
               name.member(Sig.Generated("instance"))
-            val instanceVal =
-              Val.StructValue(Seq(moduleTyVal, Val.Null))
+            val instanceVal = Val.StructValue(moduleTyVal :: meta.lockWordField)
             val instanceDefn = Defn.Var(
               Attrs.None,
               instanceName,
-              Type.StructValue(FieldLayout.ObjectHeader),
+              Type.StructValue(meta.ObjectHeader),
               instanceVal
             )
 

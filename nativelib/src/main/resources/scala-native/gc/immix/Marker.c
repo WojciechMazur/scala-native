@@ -16,8 +16,27 @@ extern int __modules_size;
 #define LAST_FIELD_OFFSET -1
 
 static inline void Marker_markField(Heap *heap, Stack *stack, Field_t field);
+
+/* If compiling with enabled lock words check if object monitor is inflated and
+ * can be marked. Otherwise, in singlethreaded mode this funciton is no-op
+ */
 static inline void Marker_markLockWords(Heap *heap, Stack *stack,
-                                        Object *object);
+                                        Object *object) {
+#ifdef USES_LOCKWORD
+    if (object != NULL) {
+        Field_t rttiLock = object->rtti->rt.lockWord;
+        if (Field_isInflatedLock(rttiLock)) {
+            Marker_markField(heap, stack, Field_allignedLockRef(rttiLock));
+        }
+
+        Field_t objectLock = object->lockWord;
+        if (Field_isInflatedLock(objectLock)) {
+            Field_t field = Field_allignedLockRef(objectLock);
+            Marker_markField(heap, stack, field);
+        }
+    }
+#endif
+}
 
 void Marker_markObject(Heap *heap, Stack *stack, Bytemap *bytemap,
                        Object *object, ObjectMeta *objectMeta) {
@@ -34,20 +53,6 @@ void Marker_markObject(Heap *heap, Stack *stack, Bytemap *bytemap,
     assert(Object_Size(object) != 0);
     Object_Mark(heap, object, objectMeta);
     Stack_Push(stack, object);
-}
-
-static inline void Marker_markLockWords(Heap *heap, Stack *stack,
-                                        Object *object) {
-    Field_t rttiLock = object->rtti->rt.lockWord;
-    if (Field_isInflatedLock(rttiLock)) {
-        Marker_markField(heap, stack, Field_allignedLockRef(rttiLock));
-    }
-
-    Field_t objectLock = object->lockWord;
-    if (Field_isInflatedLock(objectLock)) {
-        Field_t field = Field_allignedLockRef(objectLock);
-        Marker_markField(heap, stack, field);
-    }
 }
 
 static inline void Marker_markField(Heap *heap, Stack *stack, Field_t field) {
@@ -130,9 +135,7 @@ void Marker_markModules(Heap *heap, Stack *stack) {
     for (int i = 0; i < nb_modules; i++) {
         Object *object = (Object *)modules[i];
         Marker_markField(heap, stack, (Field_t)object);
-        if (object != NULL) {
-            Marker_markLockWords(heap, stack, object);
-        }
+        Marker_markLockWords(heap, stack, object);
     }
 }
 

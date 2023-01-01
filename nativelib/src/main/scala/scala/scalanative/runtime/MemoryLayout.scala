@@ -1,7 +1,8 @@
 package scala.scalanative.runtime
 
-import scala.scalanative.runtime.Intrinsics.castRawSizeToInt
 import scala.scalanative.annotation.alwaysinline
+import scala.scalanative.runtime.Intrinsics.castRawSizeToInt
+import scala.scalanative.meta.LinktimeInfo.isMultithreadingEnabled
 
 object MemoryLayout {
 
@@ -12,12 +13,20 @@ object MemoryLayout {
    *  method call with a constant value.
    */
 
+  private def requiresEnabledMulithreading = throw new IllegalStateException(
+    "Field available only in multithreading mode"
+  )
+
   @alwaysinline private def PtrSize = castRawSizeToInt(SizeOfPtr)
   // private[scalanative]
   object Rtti {
     @alwaysinline def ClassOffset = 0
-    @alwaysinline def LockWordOffset = PtrSize
-    @alwaysinline def IdOffset = LockWordOffset + PtrSize
+    @alwaysinline def LockWordOffset =
+      if (isMultithreadingEnabled) PtrSize
+      else requiresEnabledMulithreading
+    @alwaysinline def IdOffset =
+      if (isMultithreadingEnabled) LockWordOffset + PtrSize
+      else PtrSize
     @alwaysinline def TraitIdOffset = IdOffset + 4
     @alwaysinline def NameOffset = TraitIdOffset + 4
     @alwaysinline def SizeOffset = NameOffset + PtrSize
@@ -28,14 +37,22 @@ object MemoryLayout {
   // Needed in javalib, though public
   object Object {
     @alwaysinline def RttiOffset = 0
-    @alwaysinline def LockWordOffset = PtrSize
-    @alwaysinline def FieldsOffset = LockWordOffset + PtrSize
+    @alwaysinline def LockWordOffset =
+      if (isMultithreadingEnabled) PtrSize
+      else requiresEnabledMulithreading
+    @alwaysinline def FieldsOffset =
+      if (isMultithreadingEnabled) LockWordOffset + PtrSize
+      else PtrSize
   }
 
   private[scalanative] object Array {
     @alwaysinline def RttiOffset = 0
-    @alwaysinline def LockWordOffset = RttiOffset + PtrSize
-    @alwaysinline def LengthOffset = LockWordOffset + PtrSize
+    @alwaysinline def LockWordOffset =
+      if (isMultithreadingEnabled) PtrSize
+      else requiresEnabledMulithreading
+    @alwaysinline def LengthOffset =
+      if (isMultithreadingEnabled) LockWordOffset + PtrSize
+      else PtrSize
     @alwaysinline def StrideOffset = LengthOffset + 4
     @alwaysinline def ValuesOffset = StrideOffset + 4
   }

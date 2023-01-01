@@ -24,6 +24,7 @@ object Lower {
 
   private final class Impl(implicit meta: Metadata) extends Transform {
     import meta._
+    import meta.config
 
     implicit val linked: Result = meta.linked
     val is32BitPlatform = meta.config.is32BitPlatform
@@ -505,7 +506,7 @@ object Lower {
 
       val isSynchronized = field.attrs.isFinal || field.attrs.isVolatile
       def syncAttrs = SyncAttrs(
-        memoryOrder = 
+        memoryOrder =
           if (isSynchronized) MemoryOrder.Release
           else MemoryOrder.Unordered,
         isVolatile = isSynchronized,
@@ -681,7 +682,7 @@ object Lower {
           Op.Elem(
             rtti(cls).struct,
             typeptr,
-            meta.RttiVtableIndex :+ Val.Int(vindex)
+            meta.RttiClassVtablePath :+ Val.Int(vindex)
           ),
           unwind
         )
@@ -693,7 +694,7 @@ object Lower {
         val sigid = dispatchTable.traitSigIds(sig)
         val typeptr = let(Op.Load(Type.Ptr, obj, None), unwind)
         val idptr =
-          let(Op.Elem(meta.Rtti, typeptr, meta.RttiTraitIdIndex), unwind)
+          let(Op.Elem(meta.Rtti, typeptr, meta.RttiTraitIdPath), unwind)
         val id = let(Op.Load(Type.Int, idptr, None), unwind)
         val rowptr = let(
           Op.Elem(
@@ -794,7 +795,8 @@ object Lower {
         // Load the type information pointer
         val typeptr = load(Type.Ptr, obj, unwind, None)
         // Load the dynamic hash map for given type, make sure it's not null
-        val mapelem = elem(classRttiType, typeptr, meta.RttiDynmapIndex, unwind)
+        val mapelem =
+          elem(classRttiType, typeptr, meta.RttiClassDynmapPath, unwind)
         val mapptr = load(Type.Ptr, mapelem, unwind, None)
         // If hash map is not null, it has to contain at least one entry
         throwIfNull(mapptr)
@@ -858,7 +860,7 @@ object Lower {
           val range = meta.ranges(cls)
           val typeptr = let(Op.Load(Type.Ptr, obj, None), unwind)
           val idptr =
-            let(Op.Elem(meta.Rtti, typeptr, meta.RttiClassIdIndex), unwind)
+            let(Op.Elem(meta.Rtti, typeptr, meta.RttiClassIdPath), unwind)
           val id = let(Op.Load(Type.Int, idptr, None), unwind)
           val ge =
             let(Op.Comp(Comp.Sle, Type.Int, Val.Int(range.start), id), unwind)
@@ -869,7 +871,7 @@ object Lower {
         case TraitRef(trt) =>
           val typeptr = let(Op.Load(Type.Ptr, obj, None), unwind)
           val idptr =
-            let(Op.Elem(meta.Rtti, typeptr, meta.RttiClassIdIndex), unwind)
+            let(Op.Elem(meta.Rtti, typeptr, meta.RttiClassIdPath), unwind)
           val id = let(Op.Load(Type.Int, idptr, None), unwind)
           val boolptr = let(
             Op.Elem(
@@ -1252,15 +1254,7 @@ object Lower {
         ty: nir.Type,
         length: Int = 0
     ): Type.StructValue =
-      Type.StructValue(
-        Seq(
-          Type.Ptr, // RTTI
-          Type.Ptr, // LockWord - ThinLock or reference to ObjectMonitor
-          Type.Int, // Length
-          Type.Int, // Stride
-          Type.ArrayValue(ty, length) // Values
-        )
-      )
+      Type.StructValue(meta.ArrayHeader :+ Type.ArrayValue(ty, length))
 
     def genArrayloadOp(buf: Buffer, n: Local, op: Op.Arrayload)(implicit
         pos: Position
@@ -1274,7 +1268,7 @@ object Lower {
       genGuardInBounds(buf, idx, Val.Local(len, Type.Int))
 
       val arrTy = arrayMemoryLayout(ty)
-      val elemPath = Seq(Val.Int(0), Val.Int(4), idx)
+      val elemPath = Seq(Val.Int(0), meta.ArrayHeaderValuesIdx, idx)
       val elemPtr = buf.elem(arrTy, arr, elemPath, unwind)
       buf.let(n, Op.Load(ty, elemPtr, None), unwind)
     }
@@ -1290,8 +1284,8 @@ object Lower {
       genGuardInBounds(buf, idx, Val.Local(len, Type.Int))
 
       val arrTy = arrayMemoryLayout(ty)
-      val elemPtr =
-        buf.elem(arrTy, arr, Seq(Val.Int(0), Val.Int(4), idx), unwind)
+      val elemPath = Seq(Val.Int(0), meta.ArrayHeaderValuesIdx, idx)
+      val elemPtr = buf.elem(arrTy, arr, elemPath, unwind)
       genStoreOp(buf, n, Op.Store(ty, elemPtr, value, None))
     }
 
@@ -1306,7 +1300,8 @@ object Lower {
 
       genGuardNotNull(buf, arr)
       val arrTy = arrayMemoryLayout(Type.Nothing)
-      val lenPtr = buf.elem(arrTy, arr, Seq(Val.Int(0), Val.Int(2)), unwind)
+      val lenPath = Seq(Val.Int(0), meta.ArrayHeaderLengthIdx)
+      val lenPtr = buf.elem(arrTy, arr, lenPath, unwind)
       buf.let(n, Op.Load(Type.Int, lenPtr, None), unwind)
     }
 
@@ -1318,13 +1313,11 @@ object Lower {
       val charsLength = Val.Int(chars.length)
       val charsConst = Val.Const(
         Val.StructValue(
-          Seq(
-            rtti(CharArrayCls).const,
-            Val.Null, // LockWord
-            charsLength,
-            Val.Int(2), // Stride
-            Val.ArrayValue(Type.Char, chars.toSeq.map(Val.Char(_)))
-          )
+          rtti(CharArrayCls).const ::
+            meta.lockWordField :::
+            charsLength ::
+            Val.Int(0) :: // Stride
+            Val.ArrayValue(Type.Char, chars.toSeq.map(Val.Char(_))) :: Nil
         )
       )
 
@@ -1338,8 +1331,8 @@ object Lower {
 
       Val.Const(
         Val.StructValue(
-          rtti(StringCls).const +:
-            Val.Null +: // LockWord
+          rtti(StringCls).const ::
+            meta.lockWordField ++
             fieldValues
         )
       )

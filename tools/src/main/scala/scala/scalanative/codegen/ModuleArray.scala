@@ -4,9 +4,8 @@ package codegen
 import scala.collection.mutable
 import scalanative.nir._
 import scalanative.linker.Class
-import scala.scalanative.linker.Result
 
-class ModuleArray(meta: Metadata)(implicit top: Result) {
+class ModuleArray(meta: Metadata) {
   val index = mutable.Map.empty[Class, Int]
   val modules = mutable.UnrolledBuffer.empty[Class]
   meta.classes.foreach { cls =>
@@ -20,7 +19,7 @@ class ModuleArray(meta: Metadata)(implicit top: Result) {
     Val.ArrayValue(
       Type.Ptr,
       modules.toSeq.map { cls =>
-        if (cls.isConstantModule)
+        if (cls.isConstantModule(meta.linked))
           Val.Global(cls.name.member(Sig.Generated("instance")), Type.Ptr)
         else
           Val.Null

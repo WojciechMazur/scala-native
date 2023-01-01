@@ -4,11 +4,9 @@ package codegen
 import scalanative.nir._
 import scalanative.linker.{Class, Field}
 
-class FieldLayout(meta: Metadata, cls: Class) {
-  import FieldLayout._
+class FieldLayout(cls: Class)(implicit meta: Metadata) {
 
-  def index(fld: Field) =
-    entries.indexOf(fld) + ObjectHeader.size
+  def index(fld: Field) = entries.indexOf(fld) + meta.ObjectHeaderFieldsCount
   val entries: Seq[Field] = {
     val base = cls.parent.fold {
       Seq.empty[Field]
@@ -17,7 +15,7 @@ class FieldLayout(meta: Metadata, cls: Class) {
   }
   val struct: Type.StructValue = {
     val data = entries.map(_.ty)
-    Type.StructValue(ObjectHeader ++ data)
+    Type.StructValue(meta.ObjectHeader ++ data)
   }
   val layout = MemoryLayout(struct.tys, meta.config.is32BitPlatform)
   val size = layout.size
@@ -27,11 +25,4 @@ class FieldLayout(meta: Metadata, cls: Class) {
     Val.StructValue(
       Seq(Val.Const(Val.ArrayValue(Type.Long, layout.offsetArray)))
     )
-}
-
-object FieldLayout {
-  final val ObjectHeader = Seq(
-    Type.Ptr, // RTTI
-    Type.Ptr // LockWord
-  )
 }

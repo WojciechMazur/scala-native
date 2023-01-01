@@ -116,9 +116,14 @@ sealed abstract class Op {
 object Op {
   // low-level
   final case class Call(ty: Type, ptr: Val, args: Seq[Val]) extends Op
-  final case class Load(ty: Type, ptr: Val, syncAttrs: Option[SyncAttrs]) extends Op
-  final case class Store(ty: Type, ptr: Val, value: Val, syncAttrs: Option[SyncAttrs])
+  final case class Load(ty: Type, ptr: Val, syncAttrs: Option[SyncAttrs])
       extends Op
+  final case class Store(
+      ty: Type,
+      ptr: Val,
+      value: Val,
+      syncAttrs: Option[SyncAttrs]
+  ) extends Op
   final case class Elem(ty: Type, ptr: Val, indexes: Seq[Val]) extends Op
   final case class Extract(aggr: Val, indexes: Seq[Int]) extends Op
   final case class Insert(aggr: Val, value: Val, indexes: Seq[Int]) extends Op

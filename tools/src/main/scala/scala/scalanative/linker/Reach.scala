@@ -811,7 +811,7 @@ class Reach(
     case Op.Conv(conv, ty, v) =>
       reachType(ty)
       reachVal(v)
-    case Op.Fence(attrs) => 
+    case Op.Fence(attrs) =>
       reachSyncAttrs(attrs)
 
     case Op.Classalloc(n) =>

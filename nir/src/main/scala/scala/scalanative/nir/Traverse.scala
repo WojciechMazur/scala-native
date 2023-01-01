@@ -140,7 +140,7 @@ trait Traverse {
     case Op.Arraylength(arr) =>
       onVal(arr)
     case Op.Fence(_) =>
-      () 
+      ()
   }
 
   def onVal(value: Val): Unit = value match {

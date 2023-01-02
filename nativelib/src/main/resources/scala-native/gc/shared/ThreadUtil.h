@@ -51,7 +51,7 @@ bool mutex_lock(mutex_t *ref);
 bool mutex_tryLock(mutex_t *ref);
 bool mutex_unlock(mutex_t *ref);
 
-semaphore_t *semaphore_open(char *name, unsigned int initValue);
+bool semaphore_open(semaphore_t *ref, char *name, unsigned int initValue);
 bool semaphore_wait(semaphore_t *ref);
 bool semaphore_unlock(semaphore_t *ref);
 

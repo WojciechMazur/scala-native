@@ -20,6 +20,8 @@ private[codegen] abstract class AbstractCodeGen(
 
   private val targetTriple: Option[String] = config.compilerConfig.targetTriple
   private val is32BitPlatform: Boolean = config.compilerConfig.is32BitPlatform
+  private val isMultithreadingEnabled =
+    config.compilerConfig.multithreadingSupport
 
   private var currentBlockName: Local = _
   private var currentBlockSplit: Int = _
@@ -660,8 +662,9 @@ private[codegen] abstract class AbstractCodeGen(
 
       case Op.Load(ty, ptr, syncAttrs) =>
         val pointee = fresh()
-        val isAtomic = syncAttrs.isDefined
-        val isVolatile = syncAttrs.exists(_.isVolatile)
+        val isAtomic = isMultithreadingEnabled && syncAttrs.isDefined
+        val isVolatile =
+          isMultithreadingEnabled && syncAttrs.exists(_.isVolatile)
 
         newline()
         str("%")
@@ -708,8 +711,9 @@ private[codegen] abstract class AbstractCodeGen(
 
       case Op.Store(ty, ptr, value, syncAttrs) =>
         val pointee = fresh()
-        val isAtomic = syncAttrs.isDefined
-        val isVolatile = syncAttrs.exists(_.isVolatile)
+        val isAtomic = isMultithreadingEnabled && syncAttrs.isDefined
+        val isVolatile =
+          isMultithreadingEnabled && syncAttrs.exists(_.isVolatile)
 
         newline()
         str("%")

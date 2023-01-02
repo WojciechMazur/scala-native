@@ -734,7 +734,7 @@ private[codegen] abstract class AbstractCodeGen(
         genType(ty)
         str("* %")
         genLocal(pointee)
-        syncAttrs.foreach {
+        if (isAtomic) syncAttrs.foreach {
           str(" ")
           genSyncAttrs(_)
         }

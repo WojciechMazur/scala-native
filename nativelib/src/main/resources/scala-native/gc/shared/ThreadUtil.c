@@ -77,8 +77,8 @@ bool semaphore_open(semaphore_t *ref, char *name, unsigned int initValue) {
     *ref = sem;
     return sem != NULL;
 #else
-    sem_t* sem = sem_open(name, O_CREAT | O_EXCL, 0644, initValue);
-    *(semaphore_t**)ref = sem;
+    sem_t *sem = sem_open(name, O_CREAT | O_EXCL, 0644, initValue);
+    *(semaphore_t **)ref = sem;
     return sem != SEM_FAILED;
 #endif
 }

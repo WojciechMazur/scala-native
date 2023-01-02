@@ -2,7 +2,9 @@ package org.scalanative.testsuite.javalib.lang
 
 import org.junit.{BeforeClass, Test}
 import org.junit.Assert._
+import org.junit.Assume._
 import org.scalanative.testsuite.utils.AssertThrows.assertThrows
+import org.scalanative.testsuite.utils.Platform
 import scala.scalanative.junit.utils.AssumesHelper
 
 object ObjectMonitorTest {
@@ -136,6 +138,10 @@ class ObjectMonitorTest {
 
   @Test def `keeps recursions track after wait when already inflated`()
       : Unit = {
+    assumeFalse(
+      "Fails on Windows with JDK 8 due to the bug",
+      Platform.executingInJVMOnJDK8OrLower && Platform.isWindows
+    )
     @volatile var released = false
     @volatile var canRelease = false
     @volatile var done = false

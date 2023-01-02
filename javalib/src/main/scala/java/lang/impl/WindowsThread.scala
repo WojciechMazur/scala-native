@@ -135,12 +135,12 @@ private[java] class WindowsThread(val thread: Thread, stackSize: Long)
   }
 
   override def sleep(millis: scala.Long): Unit = {
-    val startTime = System.currentTimeMillis()
+    val deadline = System.currentTimeMillis() + millis
     @inline @tailrec def loop(millisRemaining: Long): Unit = {
       if (!thread.isInterrupted() && millisRemaining > 0L) {
         val status = WaitForSingleObject(sleepEvent, millisRemaining.toUInt)
         if (status == WAIT_TIMEOUT) ()
-        else loop(System.currentTimeMillis() - startTime)
+        else loop(deadline - System.currentTimeMillis())
       }
     }
 

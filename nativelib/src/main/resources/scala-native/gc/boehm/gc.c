@@ -49,7 +49,7 @@ HANDLE scalanative_CreateThread(LPSECURITY_ATTRIBUTES threadAttributes,
                                 RoutineArgs args, DWORD creationFlags,
                                 DWORD *threadId) {
     return GC_CreateThread(threadAttributes, stackSize, routine, args,
-                           creationFlags, threadId)
+                           creationFlags, threadId);
 }
 #else
 int scalanative_pthread_create(pthread_t *thread, pthread_attr_t *attr,

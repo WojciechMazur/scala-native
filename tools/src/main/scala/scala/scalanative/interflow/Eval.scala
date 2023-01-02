@@ -161,11 +161,11 @@ trait Eval { self: Interflow =>
           case _ =>
             nonIntrinsic
         }
-      case op @ Op.Load(ty, ptr, isAtomic) =>
+      case op @ Op.Load(ty, ptr, syncAttrs) =>
         emit(
           op.copy(ptr = materialize(eval(ptr)))
         )
-      case op @ Op.Store(ty, ptr, value, isAtomic) =>
+      case op @ Op.Store(ty, ptr, value, syncAttrs) =>
         emit(
           op.copy(
             ptr = materialize(eval(ptr)),

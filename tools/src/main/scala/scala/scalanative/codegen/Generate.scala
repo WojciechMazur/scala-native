@@ -21,6 +21,8 @@ object Generate {
   private class Impl(entry: Option[Global.Top], defns: Seq[Defn])(implicit
       meta: Metadata
   ) {
+    import meta.config
+
     val buf = mutable.UnrolledBuffer.empty[Defn]
 
     def generate(): Seq[Defn] = {
@@ -88,7 +90,7 @@ object Generate {
           ),
           Inst.Let(
             result.name,
-            Op.Load(Type.Bool, boolptr, isAtomic = false),
+            Op.Load(Type.Bool, boolptr),
             Next.None
           ),
           Inst.Ret(result)
@@ -127,7 +129,7 @@ object Generate {
           ),
           Inst.Let(
             result.name,
-            Op.Load(Type.Bool, boolptr, isAtomic = false),
+            Op.Load(Type.Bool, boolptr),
             Next.None
           ),
           Inst.Ret(result)
@@ -189,7 +191,7 @@ object Generate {
           unwind
         ),
         Inst.Let(
-          Op.Store(Type.Ptr, StackBottomVar, stackBottom, isAtomic = true),
+          Op.Store(Type.Ptr, StackBottomVar, stackBottom),
           unwind
         ),
         // Init GC
@@ -282,12 +284,11 @@ object Generate {
               Val.Global(moduleTyName, Type.Ptr)
             val instanceName =
               name.member(Sig.Generated("instance"))
-            val instanceVal =
-              Val.StructValue(Seq(moduleTyVal, Val.Null))
+            val instanceVal = Val.StructValue(moduleTyVal :: meta.lockWordField)
             val instanceDefn = Defn.Var(
               Attrs.None,
               instanceName,
-              Type.StructValue(FieldLayout.ObjectHeader),
+              Type.StructValue(meta.ObjectHeader),
               instanceVal
             )
 
@@ -315,7 +316,7 @@ object Generate {
                 ),
                 Inst.Let(
                   self.name,
-                  Op.Load(clsTy, slot, isAtomic = false),
+                  Op.Load(clsTy, slot),
                   Next.None
                 ),
                 Inst.Let(
@@ -329,7 +330,7 @@ object Generate {
                 Inst.Label(initialize, Seq()),
                 Inst.Let(alloc.name, Op.Classalloc(name), Next.None),
                 Inst.Let(
-                  Op.Store(clsTy, slot, alloc, isAtomic = false),
+                  Op.Store(clsTy, slot, alloc),
                   Next.None
                 ),
                 Inst.Let(Op.Call(initSig, init, Seq(alloc)), Next.None),

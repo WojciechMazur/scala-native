@@ -72,6 +72,7 @@ sealed trait NativeConfig {
     clang,clangPP, linkingOptions, compileOptions,
     linkStubs, check, checkFatalWarnings, dump,
     asan, optimize, useIncrementalCompilation,
+    multithreadingSupport,
     linktimeProperties,
     optimizerConfig.checksum
     // format: on

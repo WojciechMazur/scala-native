@@ -16,10 +16,16 @@ extern int __weak_ref_field_offset;
 extern int __array_ids_min;
 extern int __array_ids_max;
 
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
+#define USES_LOCKWORD = 1
+#endif
+
 typedef struct {
     struct {
         word_t *cls;
+#ifdef USES_LOCKWORD
         word_t *lockWord;
+#endif
         int32_t id;
         int32_t tid;
         word_t *name;
@@ -33,13 +39,17 @@ typedef word_t *Field_t;
 
 typedef struct {
     Rtti *rtti;
+#ifdef USES_LOCKWORD
     word_t *lockWord;
+#endif
     Field_t fields[0];
 } Object;
 
 typedef struct {
     Rtti *rtti;
+#ifdef USES_LOCKWORD
     word_t *lockWord;
+#endif
     int32_t length;
     int32_t stride;
 } ArrayHeader;

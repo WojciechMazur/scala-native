@@ -20,6 +20,7 @@ sealed abstract class Op {
     case Op.Bin(_, ty, _, _)       => ty
     case Op.Comp(_, _, _, _)       => Type.Bool
     case Op.Conv(_, ty, _)         => ty
+    case Op.Fence(_)               => Type.Unit
 
     case Op.Classalloc(n)       => Type.Ref(n, exact = true, nullable = false)
     case Op.Fieldload(ty, _, _) => ty
@@ -115,9 +116,14 @@ sealed abstract class Op {
 object Op {
   // low-level
   final case class Call(ty: Type, ptr: Val, args: Seq[Val]) extends Op
-  final case class Load(ty: Type, ptr: Val, isAtomic: Boolean) extends Op
-  final case class Store(ty: Type, ptr: Val, value: Val, isAtomic: Boolean)
+  final case class Load(ty: Type, ptr: Val, syncAttrs: Option[SyncAttrs] = None)
       extends Op
+  final case class Store(
+      ty: Type,
+      ptr: Val,
+      value: Val,
+      syncAttrs: Option[SyncAttrs] = None
+  ) extends Op
   final case class Elem(ty: Type, ptr: Val, indexes: Seq[Val]) extends Op
   final case class Extract(aggr: Val, indexes: Seq[Int]) extends Op
   final case class Insert(aggr: Val, value: Val, indexes: Seq[Int]) extends Op
@@ -125,6 +131,7 @@ object Op {
   final case class Bin(bin: nir.Bin, ty: Type, l: Val, r: Val) extends Op
   final case class Comp(comp: nir.Comp, ty: Type, l: Val, r: Val) extends Op
   final case class Conv(conv: nir.Conv, ty: Type, value: Val) extends Op
+  final case class Fence(syncAttrs: SyncAttrs) extends Op
 
   // high-level
   final case class Classalloc(name: Global) extends Op

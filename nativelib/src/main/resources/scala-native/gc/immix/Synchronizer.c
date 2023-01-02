@@ -44,19 +44,6 @@ static long SafepointTrapHandler(EXCEPTION_POINTERS *ex) {
     }
     return EXCEPTION_EXECUTE_HANDLER;
 }
-// Stub, Windows does not define usleep, on unix it's deprecated
-void usleep(int usec) {
-    HANDLE timer;
-    LARGE_INTEGER ft;
-
-    ft.QuadPart = -(10 * usec); // Convert to 100 nanosecond interval, negative
-                                // value indicates relative time
-
-    timer = CreateWaitableTimer(NULL, TRUE, NULL);
-    SetWaitableTimer(timer, &ft, 0, NULL, NULL, 0);
-    WaitForSingleObject(timer, INFINITE);
-    CloseHandle(timer);
-}
 #else
 #define THREAD_WAKUP_SIGNAL (SIGCONT)
 static struct sigaction defaultAction;
@@ -172,9 +159,8 @@ bool Synchronizer_acquire() {
                 activeThreads++;
             }
         }
-        if (activeThreads > 0) {
-            usleep(4);
-        }
+        if (activeThreads > 0)
+            thread_yield();
     } while (activeThreads > 0);
     return true;
 }
@@ -191,7 +177,7 @@ void Synchronizer_release() {
                 Synchronizer_WakupThread(thread);
             }
         }
-        usleep(4);
+        thread_yield();
         stoppedThreads = 0;
         MutatorThreads_foreach(mutatorThreads, node) {
             MutatorThread *thread = node->value;

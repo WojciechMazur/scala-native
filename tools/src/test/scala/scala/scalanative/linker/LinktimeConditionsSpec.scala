@@ -56,9 +56,11 @@ class LinktimeConditionsSpec extends OptimizerSpec with Matchers {
   val ignoredNames = {
     val linktimeInfo = "scala.scalanative.meta.linktimeinfo"
     Set(
-      s"$linktimeInfo.isWindows",
-      s"$linktimeInfo.is32BitPlatform",
       s"$linktimeInfo.asanEnabled",
+      s"$linktimeInfo.is32BitPlatform",
+      s"$linktimeInfo.isFreeBSD",
+      s"$linktimeInfo.isMac",
+      s"$linktimeInfo.isWindows",
       s"$linktimeInfo.isMultithreadingEnabled",
       s"$linktimeInfo.isWeakReferenceSupported"
     )

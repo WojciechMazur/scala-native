@@ -10,6 +10,7 @@ import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
 import scala.scalanative.runtime.libc.atomic_thread_fence
 import scala.scalanative.runtime.libc.memory_order._
+import scala.scalanative.meta.LinktimeInfo.isMultithreadingEnabled
 import java.util.concurrent.ConcurrentHashMap
 
 trait NativeThread {
@@ -27,7 +28,7 @@ trait NativeThread {
   if (isMainThread) {
     TLS.assignCurrentThread(thread, this)
     state = State.Running
-  } else {
+  } else if (isMultithreadingEnabled) {
     Registry.add(this)
   }
 
@@ -54,7 +55,7 @@ trait NativeThread {
   @alwaysinline
   protected final def isMainThread = thread.getId() == 0
 
-  protected def onTermination(): Unit = {
+  protected def onTermination(): Unit = if (isMultithreadingEnabled) {
     state = NativeThread.State.Terminated
     Registry.remove(this)
   }
@@ -87,8 +88,9 @@ object NativeThread {
 
   @alwaysinline def onSpinWait(): Unit = libc.onSpinWait()
 
-  @inline def holdsLock(obj: Object) =
+  @inline def holdsLock(obj: Object): Boolean = if (isMultithreadingEnabled) {
     getMonitor(obj).isLockedBy(currentThread)
+  } else false
 
   def threadRoutineArgs(thread: NativeThread): ThreadRoutineArg =
     fromRawPtr[scala.Byte](castObjectToRawPtr(thread))
@@ -119,12 +121,7 @@ object NativeThread {
     (arg: PtrAny) =>
       val thread = castRawPtrToObject(toRawPtr(arg))
         .asInstanceOf[NativeThread]
-      try NativeThread.threadEntryPoint(thread)
-      catch {
-        case ex: Throwable =>
-          println(s">>>Cought unhandled exception in ${thread.thread}")
-          ex.printStackTrace()
-      }
+      NativeThread.threadEntryPoint(thread)
       null: PtrAny
   }
 
@@ -144,6 +141,7 @@ object NativeThread {
       thread.synchronized {
         try nativeThread.onTermination()
         catch { case ex: Throwable => () }
+        // thread.wait(1) // force inflation of object monitor
         nativeThread.state = NativeThread.State.Terminated
         thread.notifyAll()
       }

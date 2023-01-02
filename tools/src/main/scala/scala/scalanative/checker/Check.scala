@@ -173,6 +173,7 @@ final class Check(implicit linked: linker.Result) {
       checkCompOp(comp, ty, l, r)
     case Op.Conv(conv, ty, value) =>
       checkConvOp(conv, ty, value)
+    case Op.Fence(_) => ok
     case Op.Classalloc(name) =>
       linked.infos
         .get(name)

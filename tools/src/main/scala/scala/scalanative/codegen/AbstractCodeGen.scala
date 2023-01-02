@@ -658,33 +658,10 @@ private[codegen] abstract class AbstractCodeGen(
         }
         genCall(genBind, callDef, unwind)
 
-      // Special case of load needing additional converstion, since atomic operations do not support i1
-      case Op.Load(Type.Bool, ptr, true) =>
+      case Op.Load(ty, ptr, syncAttrs) =>
         val pointee = fresh()
-        val loaded = fresh()
-
-        newline()
-        str("%")
-        genLocal(pointee)
-        str(" = bitcast ")
-        genVal(ptr)
-        str(" to i8*")
-
-        newline()
-        str("%")
-        genLocal(loaded)
-        str(" = load atomic volatile i8, i8* %")
-        genLocal(pointee)
-        str(" acquire, align 1")
-
-        newline()
-        genBind()
-        str("trunc i8 %")
-        genLocal(loaded)
-        str(" to i1")
-
-      case Op.Load(ty, ptr, isAtomic) =>
-        val pointee = fresh()
+        val isAtomic = syncAttrs.isDefined
+        val isVolatile = syncAttrs.exists(_.isVolatile)
 
         newline()
         str("%")
@@ -698,7 +675,8 @@ private[codegen] abstract class AbstractCodeGen(
         newline()
         genBind()
         str("load ")
-        if (isAtomic) str("atomic volatile ")
+        if (isAtomic) str("atomic ")
+        if (isVolatile) str("volatile ")
         genType(ty)
         str(", ")
         genType(ty)
@@ -707,7 +685,9 @@ private[codegen] abstract class AbstractCodeGen(
         // Currently we don't support explicit memory order for load/store ops
         // Assume sequentially consistent to much Java volatile behaviour
         if (isAtomic) {
-          str(" acquire, align ")
+          str(" ")
+          syncAttrs.foreach(genSyncAttrs)
+          str(", align ")
           str(MemoryLayout.alignmentOf(ty, is32BitPlatform))
         } else {
           ty match {
@@ -726,35 +706,10 @@ private[codegen] abstract class AbstractCodeGen(
           }
         }
 
-      // Special case of store needing additional converstion, since atomic operations do not support i1
-      case Op.Store(Type.Bool, ptr, value, true) =>
+      case Op.Store(ty, ptr, value, syncAttrs) =>
         val pointee = fresh()
-        val extended = fresh()
-
-        newline()
-        str("%")
-        genLocal(pointee)
-        str(" = bitcast ")
-        genVal(ptr)
-        str(" to i8*")
-
-        newline()
-        str("%")
-        genLocal(extended)
-        str(" = zext ")
-        genVal(value)
-        str(" to i8")
-
-        newline()
-        genBind()
-        str("store atomic volatile i8 %")
-        genLocal(extended)
-        str(", i8* %")
-        genLocal(pointee)
-        str(" release, align 1")
-
-      case Op.Store(ty, ptr, value, isAtomic) =>
-        val pointee = fresh()
+        val isAtomic = syncAttrs.isDefined
+        val isVolatile = syncAttrs.exists(_.isVolatile)
 
         newline()
         str("%")
@@ -768,16 +723,19 @@ private[codegen] abstract class AbstractCodeGen(
         newline()
         genBind()
         str("store ")
-        if (isAtomic) str("atomic volatile ")
+        if (isAtomic) str("atomic ")
+        if (isVolatile) str("volatile ")
         genVal(value)
         str(", ")
         genType(ty)
         str("* %")
         genLocal(pointee)
-        if (isAtomic) {
-          str(" release, align ")
-          str(MemoryLayout.alignmentOf(ty, is32BitPlatform))
+        syncAttrs.foreach {
+          str(" ")
+          genSyncAttrs(_)
         }
+        str(", align ")
+        str(MemoryLayout.alignmentOf(ty, is32BitPlatform))
 
       case Op.Elem(ty, ptr, indexes) =>
         val pointee = fresh()
@@ -1015,9 +973,33 @@ private[codegen] abstract class AbstractCodeGen(
         genVal(v)
         str(" to ")
         genType(ty)
+      case Op.Fence(syncAttrs) =>
+        str("fence ")
+        genSyncAttrs(syncAttrs)
+
       case op =>
         unsupported(op)
     }
+  }
+
+  private def genSyncAttrs(
+      attrs: SyncAttrs
+  )(implicit sb: ShowBuilder): Unit = {
+    import sb._
+    val SyncAttrs(memoryOrder, _, scope) = attrs
+    scope.foreach { scope =>
+      str("syncscope(")
+      genGlobal(scope)
+      str(") ")
+    }
+    str(memoryOrder match {
+      case MemoryOrder.Unordered => "unordered"
+      case MemoryOrder.Monotonic => "monotonic"
+      case MemoryOrder.Acquire   => "acquire"
+      case MemoryOrder.Release   => "release"
+      case MemoryOrder.AcqRel    => "acq_rel"
+      case MemoryOrder.SeqCst    => "seq_cst"
+    })
   }
 
   private[codegen] def genNext(next: Next)(implicit sb: ShowBuilder): Unit = {

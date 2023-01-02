@@ -21,11 +21,11 @@ void BlockAllocator_Init(BlockAllocator *blockAllocator, word_t *blockMetaStart,
     mutex_init(&blockAllocator->allocationLock);
 }
 
-inline void BlockAllocator_Acquire(BlockAllocator *blockAllocator) {
+INLINE void BlockAllocator_Acquire(BlockAllocator *blockAllocator) {
     mutex_lock(&blockAllocator->allocationLock);
     atomic_thread_fence(memory_order_acquire);
 }
-inline void BlockAllocator_Release(BlockAllocator *blockAllocator) {
+INLINE void BlockAllocator_Release(BlockAllocator *blockAllocator) {
     atomic_thread_fence(memory_order_release);
     mutex_unlock(&blockAllocator->allocationLock);
 }

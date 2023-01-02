@@ -45,15 +45,13 @@ void Phase_Init(Heap *heap, uint32_t initialBlockCount) {
     // MacOs we do not share them across processes
     // We open the semaphores and try to check the call succeeded,
     // if not, we exit the process
-    heap->gcThreads.startWorkers = semaphore_open(startWorkersName, 0U);
-    if (heap->gcThreads.startWorkers == SEM_FAILED) {
+    if (!semaphore_open(&heap->gcThreads.startWorkers, startWorkersName, 0U)) {
         fprintf(stderr,
                 "Opening worker semaphore failed in commix Phase_Init\n");
         exit(errno);
     }
 
-    heap->gcThreads.startMaster = semaphore_open(startMasterName, 0U);
-    if (heap->gcThreads.startMaster == SEM_FAILED) {
+    if (!semaphore_open(&heap->gcThreads.startMaster, startMasterName, 0U)) {
         fprintf(stderr,
                 "Opening master semaphore failed in commix Phase_Init\n");
         exit(errno);

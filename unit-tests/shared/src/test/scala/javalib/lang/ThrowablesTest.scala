@@ -55,7 +55,7 @@ class ThrowablesTest {
       trace: String,
       usesAnonymousThrowable: Boolean = false
   ): Unit = {
-    assumeNotASAN()
+    assumeSupportsStackTraces()
     val startText =
       if (usesAnonymousThrowable) "javalib.lang.ThrowablesTest$$anon"
       else "java.lang.Throwable"

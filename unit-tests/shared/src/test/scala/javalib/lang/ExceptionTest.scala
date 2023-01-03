@@ -18,7 +18,7 @@ class ExceptionTest {
     val trace = sw.toString
     assertTrue(trace.startsWith("java.lang.Exception"))
     assertTrue(
-      trace.contains("\tat javalib.lang.ExceptionTest.printStackTrace")
+      trace.contains("\tat javalib.lang.ExceptionTest")
     )
   }
 

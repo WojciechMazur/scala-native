@@ -68,8 +68,9 @@ private[scalanative] object LLVM {
       } else Seq("-std=gnu11")
     }
     val platformFlags = {
-      if (config.targetsWindows) Seq("-g")
-      else Nil
+      // if (config.targetsWindows)
+      Seq("-g")
+      // else Nil
     }
     val configFlags = {
       if (config.compilerConfig.multithreadingSupport)
@@ -152,10 +153,17 @@ private[scalanative] object LLVM {
       // We need extra linking dependencies for:
       // * libdl for our vendored libunwind implementation.
       // * libpthread for process APIs and parallel garbage collection.
+      // * libatomic for atomic store/load implementation, required for LLVM 10 / Ubuntu 18
       // * Dbghelp for windows implementation of unwind libunwind API
       val platformsLinks =
         if (config.targetsWindows) Seq("Dbghelp")
-        else Seq("pthread", "dl")
+        else {
+          val libAtomic =
+            if (config.compilerConfig.multithreadingSupport) Some("atomic")
+            else None
+          Seq("pthread", "dl") ++ libAtomic
+        }
+
       platformsLinks ++ srclinks ++ gclinks
     }
     val linkopts = config.linkingOptions ++ links.map("-l" + _)

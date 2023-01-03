@@ -46,21 +46,24 @@ private[runtime] final class BasicMonitor(val lockWordRef: RawPtr)
     val thread = Thread.currentThread()
     val threadId = getThreadId(thread)
 
-    if (!tryLock(threadId)) {
-      import NativeThread._
-      currentNativeThread.state = State.WaitingOnMonitorEnter
-      val current = lockWord
-      if (current.isInflated) lockWord.getObjectMonitor.enter(thread)
-      else {
-        if (threadId == current.threadId) {
-          if (current.recursionCount < ThinMonitorMaxRecursion) {
-            // No need for atomic operation since we already obtain the lock
-            storeRawPtr(lockWordRef, current.withIncreasedRecursion)
-          } else inflate(thread)
-        } else lockAndInflate(thread, threadId)
-      }
-      currentNativeThread.state = State.Running
+    if (!tryLock(threadId))
+      enterMonitor(thread, threadId) // slow-path
+  }
+
+  private def enterMonitor(thread: Thread, threadId: ThreadId) = {
+    import NativeThread._
+    currentNativeThread.state = State.WaitingOnMonitorEnter
+    val current = lockWord
+    if (current.isInflated) lockWord.getObjectMonitor.enter(thread)
+    else {
+      if (threadId == current.threadId) {
+        if (current.recursionCount < ThinMonitorMaxRecursion) {
+          // No need for atomic operation since we already obtain the lock
+          storeRawPtr(lockWordRef, current.withIncreasedRecursion)
+        } else inflate(thread)
+      } else lockAndInflate(thread, threadId)
     }
+    currentNativeThread.state = State.Running
   }
 
   @inline def exit(obj: Object): Unit = {
@@ -68,16 +71,14 @@ private[runtime] final class BasicMonitor(val lockWordRef: RawPtr)
     val threadId = getThreadId(thread)
     val current = lockWord
     val lockedOnce = lockedWithThreadId(threadId)
-    if (current.isInflated)
-      current.getObjectMonitor.exit(thread)
-    else if (current == lockedOnce)
+    if (current == lockedOnce)
       atomic_store_explicit(
         lockWordRef,
         castIntToRawPtr(0),
         memory_order_release
       )
-    // should happen only in main-thread init
-    else if (current.isUnlocked) ()
+    else if (current.isUnlocked) () // can happend only in main thread
+    else if (current.isInflated) current.getObjectMonitor.exit(thread)
     else storeRawPtr(lockWordRef, current.withDecresedRecursion)
   }
 
@@ -160,11 +161,11 @@ private[runtime] final class BasicMonitor(val lockWordRef: RawPtr)
     val monitorAddress = castObjectToRawPtr(objectMonitor)
     val inflated =
       if (is32bit) {
-        val lockMark = (LockType.Inflated: Int) << LockWord32.LockTypeOffset
+        val lockMark = (LockType.Inflated: Int) << LockTypeOffset
         val addr = castRawPtrToInt(monitorAddress)
         castIntToRawSize(lockMark | addr)
       } else {
-        val lockMark = (LockType.Inflated: Long) << LockWord.LockTypeOffset
+        val lockMark = (LockType.Inflated: Long) << LockTypeOffset
         val addr = castRawPtrToLong(monitorAddress)
         castLongToRawSize(lockMark | addr)
       }

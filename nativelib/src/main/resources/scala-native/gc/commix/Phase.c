@@ -47,13 +47,15 @@ void Phase_Init(Heap *heap, uint32_t initialBlockCount) {
     // if not, we exit the process
     if (!semaphore_open(&heap->gcThreads.startWorkers, startWorkersName, 0U)) {
         fprintf(stderr,
-                "Opening worker semaphore failed in commix Phase_Init\n");
+                "Opening worker semaphore failed in commix Phase_Init: %d\n",
+                errno);
         exit(errno);
     }
 
     if (!semaphore_open(&heap->gcThreads.startMaster, startMasterName, 0U)) {
         fprintf(stderr,
-                "Opening master semaphore failed in commix Phase_Init\n");
+                "Opening master semaphore failed in commix Phase_Init: %d\n",
+                errno);
         exit(errno);
     }
     // clean up when process closes

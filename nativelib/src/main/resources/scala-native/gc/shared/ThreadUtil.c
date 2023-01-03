@@ -71,14 +71,14 @@ bool mutex_unlock(mutex_t *ref) {
 }
 
 INLINE
-bool semaphore_open(semaphore_t *ref, char *name, unsigned int initValue) {
+bool semaphore_open(semaphore_t **ref, char *name, unsigned int initValue) {
 #ifdef _WIN32
     HANDLE sem = CreateSemaphore(NULL, initValue, 128, NULL);
-    *ref = sem;
+    *ref = (semaphore_t *)sem;
     return sem != NULL;
 #else
     sem_t *sem = sem_open(name, O_CREAT | O_EXCL, 0644, initValue);
-    *(semaphore_t **)ref = sem;
+    *ref = sem;
     return sem != SEM_FAILED;
 #endif
 }

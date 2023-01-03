@@ -28,8 +28,8 @@ typedef struct {
     double maxMarkTimeRatio;
     double minFreeRatio;
     struct {
-        semaphore_t startWorkers;
-        semaphore_t startMaster;
+        semaphore_t *startWorkers;
+        semaphore_t *startMaster;
         atomic_uint_fast8_t phase;
         int count;
         void *all;

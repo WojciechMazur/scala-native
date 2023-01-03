@@ -75,7 +75,7 @@ class ThrowablesTest {
       throwable: Throwable,
       usesAnonymousThrowable: Boolean = false
   ): Unit = {
-    assumeNotASAN()
+    assumeSupportsStackTraces()
     val sw = new java.io.StringWriter
     val pw = new java.io.PrintWriter(sw)
 

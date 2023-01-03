@@ -39,42 +39,42 @@ bool mutex_init(mutex_t *ref) {
     pthread_mutexattr_t attr;
     pthread_mutexattr_init(&attr);
     pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-    return pthread_mutex_init(ref, &attr) == 0;
+    return pthread_mutex_init(*ref, &attr) == 0;
 #endif
 }
 
 INLINE
-bool mutex_lock(mutex_t *ref) {
+bool mutex_lock(mutex_t ref) {
 #ifdef _WIN32
-    return WaitForSingleObject(*ref, INFINITE) == WAIT_OBJECT_0;
+    return WaitForSingleObject(ref, INFINITE) == WAIT_OBJECT_0;
 #else
     return pthread_mutex_lock(ref) == 0;
 #endif
 }
 
 INLINE
-bool mutex_tryLock(mutex_t *ref) {
+bool mutex_tryLock(mutex_t ref) {
 #ifdef _WIN32
-    return WaitForSingleObject(*ref, 0) == WAIT_OBJECT_0;
+    return WaitForSingleObject(ref, 0) == WAIT_OBJECT_0;
 #else
     return pthread_mutex_trylock(ref) == 0;
 #endif
 }
 
 INLINE
-bool mutex_unlock(mutex_t *ref) {
+bool mutex_unlock(mutex_t ref) {
 #ifdef _WIN32
-    return ReleaseMutex(*ref);
+    return ReleaseMutex(ref);
 #else
     return pthread_mutex_unlock(ref) == 0;
 #endif
 }
 
 INLINE
-bool semaphore_open(semaphore_t **ref, char *name, unsigned int initValue) {
+bool semaphore_open(semaphore_t *ref, char *name, unsigned int initValue) {
 #ifdef _WIN32
     HANDLE sem = CreateSemaphore(NULL, initValue, 128, NULL);
-    *ref = (semaphore_t *)sem;
+    *ref = sem;
     return sem != NULL;
 #else
     sem_t *sem = sem_open(name, O_CREAT | O_EXCL, 0644, initValue);
@@ -84,18 +84,18 @@ bool semaphore_open(semaphore_t **ref, char *name, unsigned int initValue) {
 }
 
 INLINE
-bool semaphore_wait(semaphore_t *ref) {
+bool semaphore_wait(semaphore_t ref) {
 #ifdef _WIN32
-    return WaitForSingleObject(*ref, INFINITE) == WAIT_OBJECT_0;
+    return WaitForSingleObject(ref, INFINITE) == WAIT_OBJECT_0;
 #else
     return sem_wait(ref) == 0;
 #endif
 }
 
 INLINE
-bool semaphore_unlock(semaphore_t *ref) {
+bool semaphore_unlock(semaphore_t ref) {
 #ifdef _WIN32
-    return ReleaseSemaphore(*ref, 1, NULL);
+    return ReleaseSemaphore(ref, 1, NULL);
 #else
     return sem_post(ref) == 0;
 #endif

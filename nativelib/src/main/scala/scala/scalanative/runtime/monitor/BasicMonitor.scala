@@ -161,11 +161,11 @@ private[runtime] final class BasicMonitor(val lockWordRef: RawPtr)
     val monitorAddress = castObjectToRawPtr(objectMonitor)
     val inflated =
       if (is32bit) {
-        val lockMark = (LockType.Inflated: Int) << LockWord32.LockTypeOffset
+        val lockMark = (LockType.Inflated: Int) << LockTypeOffset
         val addr = castRawPtrToInt(monitorAddress)
         castIntToRawSize(lockMark | addr)
       } else {
-        val lockMark = (LockType.Inflated: Long) << LockWord.LockTypeOffset
+        val lockMark = (LockType.Inflated: Long) << LockTypeOffset
         val addr = castRawPtrToLong(monitorAddress)
         castLongToRawSize(lockMark | addr)
       }

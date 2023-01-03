@@ -15,9 +15,6 @@
 #include "GCThread.h"
 #include "WeakRefGreyList.h"
 #include "Sweeper.h"
-#ifdef SCALANATIVE_MULTITHREADING_ENABLED
-#include "MultithreadingSupport.h"
-#endif
 
 void scalanative_collect();
 

@@ -18,6 +18,11 @@ extern int __array_ids_max;
 
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
 #define USES_LOCKWORD = 1
+
+// Inflation mark and object monitor are complementary
+#define MONITOR_INFLATION_MARK_MASK ((word_t)1)
+#define MONITOR_OBJECT_MASK (~MONITOR_INFLATION_MARK_MASK)
+
 #endif
 
 typedef struct {
@@ -90,6 +95,7 @@ static inline bool Object_IsReferantOfWeakReference(Object *object,
            fieldOffset == __weak_ref_field_offset;
 }
 
+#ifdef USES_LOCKWORD
 static inline bool Field_isInflatedLock(Field_t field) {
     return (word_t)field & MONITOR_INFLATION_MARK_MASK;
 }
@@ -97,5 +103,6 @@ static inline bool Field_isInflatedLock(Field_t field) {
 static inline Field_t Field_allignedLockRef(Field_t field) {
     return (Field_t)((word_t)field & MONITOR_OBJECT_MASK);
 }
+#endif
 
 #endif // IMMIX_OBJECTHEADER_H

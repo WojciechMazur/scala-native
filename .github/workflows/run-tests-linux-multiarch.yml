@@ -164,7 +164,7 @@ jobs:
                   prev.compileOptions ++ sysRoot ++ List("-fuse-ld=lld")
                 )
                 .withLinkingOptions(
-                  prev.linkingOptions ++ sysRoot ++ List("-fuse-ld=lld")
+                  prev.linkingOptions ++ sysRoot ++ List("-fuse-ld=lld", "-latomic")
                 )
             }
           EOM

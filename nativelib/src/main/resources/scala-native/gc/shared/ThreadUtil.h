@@ -37,7 +37,7 @@ typedef HANDLE semaphore_t;
 typedef int pid_t;
 #else
 typedef pthread_t thread_t;
-typedef pthread_mutex_t *mutex_t;
+typedef pthread_mutex_t mutex_t;
 typedef sem_t *semaphore_t;
 #endif
 
@@ -47,9 +47,9 @@ void thread_yield();
 pid_t process_getid();
 
 bool mutex_init(mutex_t *ref);
-bool mutex_lock(mutex_t ref);
-bool mutex_tryLock(mutex_t ref);
-bool mutex_unlock(mutex_t ref);
+bool mutex_lock(mutex_t *ref);
+bool mutex_tryLock(mutex_t *ref);
+bool mutex_unlock(mutex_t *ref);
 
 bool semaphore_open(semaphore_t *ref, char *name, unsigned int initValue);
 bool semaphore_wait(semaphore_t ref);

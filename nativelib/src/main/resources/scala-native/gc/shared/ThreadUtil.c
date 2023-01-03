@@ -39,32 +39,32 @@ bool mutex_init(mutex_t *ref) {
     pthread_mutexattr_t attr;
     pthread_mutexattr_init(&attr);
     pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-    return pthread_mutex_init(*ref, &attr) == 0;
+    return pthread_mutex_init(ref, &attr) == 0;
 #endif
 }
 
 INLINE
-bool mutex_lock(mutex_t ref) {
+bool mutex_lock(mutex_t *ref) {
 #ifdef _WIN32
-    return WaitForSingleObject(ref, INFINITE) == WAIT_OBJECT_0;
+    return WaitForSingleObject(*ref, INFINITE) == WAIT_OBJECT_0;
 #else
     return pthread_mutex_lock(ref) == 0;
 #endif
 }
 
 INLINE
-bool mutex_tryLock(mutex_t ref) {
+bool mutex_tryLock(mutex_t *ref) {
 #ifdef _WIN32
-    return WaitForSingleObject(ref, 0) == WAIT_OBJECT_0;
+    return WaitForSingleObject(*ref, 0) == WAIT_OBJECT_0;
 #else
     return pthread_mutex_trylock(ref) == 0;
 #endif
 }
 
 INLINE
-bool mutex_unlock(mutex_t ref) {
+bool mutex_unlock(mutex_t *ref) {
 #ifdef _WIN32
-    return ReleaseMutex(ref);
+    return ReleaseMutex(*ref);
 #else
     return pthread_mutex_unlock(ref) == 0;
 #endif

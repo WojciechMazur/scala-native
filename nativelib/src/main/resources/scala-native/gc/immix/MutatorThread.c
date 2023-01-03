@@ -90,6 +90,6 @@ void MutatorThreads_remove(MutatorThread *node) {
     MutatorThreads_unlock();
 }
 
-void MutatorThreads_lock() { mutex_lock(threadListsModifiactionLock); }
+void MutatorThreads_lock() { mutex_lock(&threadListsModifiactionLock); }
 
-void MutatorThreads_unlock() { mutex_unlock(threadListsModifiactionLock); }
+void MutatorThreads_unlock() { mutex_unlock(&threadListsModifiactionLock); }

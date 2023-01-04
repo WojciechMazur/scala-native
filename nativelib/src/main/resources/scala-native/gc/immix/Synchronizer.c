@@ -45,15 +45,21 @@ static long SafepointTrapHandler(EXCEPTION_POINTERS *ex) {
     return EXCEPTION_EXECUTE_HANDLER;
 }
 #else
-#define THREAD_WAKUP_SIGNAL (SIGCONT)
+#ifdef __APPLE__
+#define SAFEPOINT_TRAP_SIGNAL SIGBUS
+#else
+#define SAFEPOINT_TRAP_SIGNAL SIGSEGV
+#endif
+#define THREAD_WAKUP_SIGNAL SIGCONT
 static struct sigaction defaultAction;
 static sigset_t threadWakupSignals;
 static void SafepointTrapHandler(int signal, siginfo_t *siginfo, void *uap) {
     if (siginfo->si_addr == SafepointInstance) {
         Synchronizer_wait();
     } else {
-        fprintf(stderr, "Unexpected SIGSEGV signal at address %p\n",
-                siginfo->si_addr);
+        fprintf(stderr,
+                "Unexpected signal %d when accessing memory at address %p\n",
+                signal, siginfo->si_addr);
         defaultAction.sa_handler(signal);
     }
 }
@@ -73,8 +79,8 @@ static void SetupPageFaultHandler() {
     sigemptyset(&sa.sa_mask);
     sa.sa_sigaction = &SafepointTrapHandler;
     sa.sa_flags = SA_SIGINFO | SA_RESTART;
-    if (sigaction(SIGSEGV, &sa, &defaultAction) == -1) {
-        perror("Error: cannot setup synchronization handler SIGSEGV");
+    if (sigaction(SAFEPOINT_TRAP_SIGNAL, &sa, &defaultAction) == -1) {
+        perror("Error: cannot setup safepoint synchronization handler");
         exit(errno);
     }
 #endif

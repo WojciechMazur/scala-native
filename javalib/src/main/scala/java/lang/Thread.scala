@@ -294,6 +294,10 @@ object Thread {
     }
   }
 
+  final val MAX_PRIORITY: Int = 10
+  final val MIN_PRIORITY: Int = 1
+  final val NORM_PRIORITY: Int = 5
+
   final val MainThread = new Thread(
     group = new ThreadGroup(ThreadGroup.System, "main"),
     target = null: Runnable,
@@ -309,10 +313,6 @@ object Thread {
   @alwaysinline def nativeCompanion: NativeThread.Companion =
     if (isWindows) WindowsThread
     else PosixThread
-
-  final val MAX_PRIORITY: Int = 10
-  final val MIN_PRIORITY: Int = 1
-  final val NORM_PRIORITY: Int = 5
 
   def activeCount(): Int = currentThread()
     .getThreadGroup()

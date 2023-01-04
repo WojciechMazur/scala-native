@@ -679,12 +679,13 @@ object Show {
     def syncAttrs_(attrs: SyncAttrs): Unit = {
       if (attrs.isVolatile) str("volatile ")
       memoryOrder_(attrs.memoryOrder)
+      str(" ")
       attrs.scope.foreach { scope =>
         str("syncscope(")
         global_(scope)
         str(")")
+        str(" ")
       }
-      str(" ")
     }
 
     def linktimeCondition(cond: LinktimeCondition): Unit = {

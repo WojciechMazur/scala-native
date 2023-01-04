@@ -205,7 +205,7 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
         // https://github.com/scala/scala/blob/fe724bcbbfdc4846e5520b9708628d994ae76798/src/compiler/scala/tools/nsc/backend/jvm/BTypesFromSymbols.scala#L760-L764      val attrs = nir.Attrs(
         val fieldAttrs = attrs.copy(
           isVolatile = f.isVolatile,
-          isFinal = !sym.isMutable
+          isFinal = !f.isMutable
         )
 
         buf += Defn.Var(fieldAttrs, name, ty, Val.Zero(ty))(pos)

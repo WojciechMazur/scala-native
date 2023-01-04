@@ -115,8 +115,8 @@ static void Synchronizer_WakupThread(MutatorThread *thread) {
 #else
     int status = pthread_kill(thread->thread, THREAD_WAKUP_SIGNAL);
     if (status != 0) {
-        fprintf(stderr, "Failed to resume thread %lu after GC, errno: %d\n",
-                thread->thread, status);
+        fprintf(stderr, "Failed to resume thread after GC, retval: %d\n",
+                status);
     }
 #endif
 }

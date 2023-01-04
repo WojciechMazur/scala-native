@@ -62,7 +62,6 @@ private[java] class WindowsThread(val thread: Thread, stackSize: Long)
         )
       }
   }
-  state = State.Running
 
   override protected def onTermination() = {
     super.onTermination()

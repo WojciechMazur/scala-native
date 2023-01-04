@@ -128,7 +128,11 @@ object NativeThread {
   private def threadEntryPoint(nativeThread: NativeThread): Unit = {
     import nativeThread.thread
     TLS.assignCurrentThread(thread, nativeThread)
+    nativeThread.state = State.Running
     atomic_thread_fence(memory_order_seq_cst)
+    // Ensure Java Thread already assigned the Native Thread instance
+    // Otherwise park/unpark events might be lost
+    while (thread.getState() == Thread.State.NEW) onSpinWait()
     try thread.run()
     catch {
       case ex: Throwable =>

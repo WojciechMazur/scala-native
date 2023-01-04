@@ -87,7 +87,6 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
         !id
       } finally if (attrs != null) pthread_attr_destroy(attrs)
     }
-  state = State.Running
 
   override def onTermination(): Unit = {
     super.onTermination()
@@ -146,8 +145,7 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
       if (time == 0) {
         conditionIdx = ConditionRelativeIdx
         state = NativeThread.State.ParkedWaiting
-        val cond = condition(conditionIdx)
-        val status = pthread_cond_wait(cond, lock)
+        val status = pthread_cond_wait(condition(conditionIdx), lock)
         assert(
           status == 0 ||
             (scalanative.runtime.Platform.isMac() && status == ETIMEDOUT),

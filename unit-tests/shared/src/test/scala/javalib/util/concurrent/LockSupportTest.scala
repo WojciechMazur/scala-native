@@ -76,6 +76,8 @@ object LockSupportTest {
 }
 class LockSupportTest extends JSR166Test {
   import LockSupportTest._
+  def repeat(times: Int)(code: => Unit) =
+    0.until(times).foreach(_ => code)
 
   /** park is released by subsequent unpark
    */
@@ -97,7 +99,7 @@ class LockSupportTest extends JSR166Test {
   @Test def testParkBeforeUnpark_parkUntilBlocker(): Unit = {
     testParkBeforeUnpark(ParkMethod.ParkUntilBlocker)
   }
-  def testParkBeforeUnpark(parkMethod: ParkMethod): Unit = {
+  def testParkBeforeUnpark(parkMethod: ParkMethod): Unit = repeat(10) {
     val pleaseUnpark = new CountDownLatch(1)
     val t = newStartedThread(new CheckedRunnable() {
       override def realRun(): Unit = {
@@ -130,7 +132,7 @@ class LockSupportTest extends JSR166Test {
   @Test def testParkAfterUnpark_parkUntilBlocker(): Unit = {
     testParkAfterUnpark(ParkMethod.ParkUntilBlocker)
   }
-  def testParkAfterUnpark(parkMethod: ParkMethod): Unit = {
+  def testParkAfterUnpark(parkMethod: ParkMethod): Unit = repeat(10) {
     val pleaseUnpark = new CountDownLatch(1)
     val pleasePark = new AtomicBoolean(false)
     val t = newStartedThread(new CheckedRunnable() {
@@ -166,7 +168,7 @@ class LockSupportTest extends JSR166Test {
   @Test def testParkBeforeInterrupt_parkUntilBlocker(): Unit = {
     testParkBeforeInterrupt(ParkMethod.ParkUntilBlocker)
   }
-  def testParkBeforeInterrupt(parkMethod: ParkMethod): Unit = {
+  def testParkBeforeInterrupt(parkMethod: ParkMethod): Unit = repeat(10) {
     val pleaseInterrupt = new CountDownLatch(1)
     val t = newStartedThread(new CheckedRunnable() {
       override def realRun(): Unit = {
@@ -205,7 +207,7 @@ class LockSupportTest extends JSR166Test {
   @Test def testParkAfterInterrupt_parkUntilBlocker(): Unit = {
     testParkAfterInterrupt(ParkMethod.ParkUntilBlocker)
   }
-  def testParkAfterInterrupt(parkMethod: ParkMethod): Unit = {
+  def testParkAfterInterrupt(parkMethod: ParkMethod): Unit = repeat(10) {
     val pleaseInterrupt = new CountDownLatch(1)
     val t = newStartedThread(new CheckedRunnable() {
       @throws[Exception]
@@ -235,7 +237,7 @@ class LockSupportTest extends JSR166Test {
   @Test def testParkTimesOut_parkUntilBlocker(): Unit = {
     testParkTimesOut(ParkMethod.ParkUntilBlocker)
   }
-  def testParkTimesOut(parkMethod: ParkMethod): Unit = {
+  def testParkTimesOut(parkMethod: ParkMethod): Unit = repeat(10) {
     val t = newStartedThread(new CheckedRunnable() {
       override def realRun(): Unit = {
         var tries = MAX_SPURIOUS_WAKEUPS
@@ -273,7 +275,7 @@ class LockSupportTest extends JSR166Test {
   @Test def testGetBlocker_parkUntilBlocker(): Unit = {
     testGetBlocker(ParkMethod.ParkUntilBlocker)
   }
-  def testGetBlocker(parkMethod: ParkMethod): Unit = {
+  def testGetBlocker(parkMethod: ParkMethod): Unit = repeat(10) {
     val started = new CountDownLatch(1)
     val t = newStartedThread(new CheckedRunnable() {
       override def realRun(): Unit = {
@@ -348,7 +350,7 @@ class LockSupportTest extends JSR166Test {
   @Test def testParkNeg_parkUntilBlocker(): Unit = {
     testParkNeg(ParkMethod.ParkUntilBlocker)
   }
-  def testParkNeg(parkMethod: ParkMethod): Unit = {
+  def testParkNeg(parkMethod: ParkMethod): Unit = repeat(10) {
     val t = newStartedThread(new CheckedRunnable() {
       override def realRun(): Unit = {
         parkMethod.park(java.lang.Long.MIN_VALUE)

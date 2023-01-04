@@ -1,11 +1,11 @@
 package java.net
 
 import java.io.{FileDescriptor, IOException}
-import scala.scalanative.libc._
 import scala.scalanative.posix.sys.{socket => unixSocket}
 import scala.scalanative.unsafe._
 import scala.scalanative.unsigned._
 import scala.scalanative.windows._
+import scala.annotation.tailrec
 
 private[net] class WindowsPlainSocketImpl extends AbstractPlainSocketImpl {
   import WinSocketApi._
@@ -31,7 +31,8 @@ private[net] class WindowsPlainSocketImpl extends AbstractPlainSocketImpl {
     )
   }
 
-  protected def tryPollOnConnect(timeout: Int): Unit = {
+  @tailrec final protected def tryPollOnConnect(timeout: Int): Unit = {
+    val deadline = System.currentTimeMillis() + timeout
     val nAlloc = 1.toUInt
     val pollFd: Ptr[WSAPollFd] = stackalloc[WSAPollFd](nAlloc)
 
@@ -46,7 +47,12 @@ private[net] class WindowsPlainSocketImpl extends AbstractPlainSocketImpl {
 
     pollRes match {
       case err if err < 0 =>
-        throw new SocketException(s"connect failed, poll errno: ${errno.errno}")
+        val errCode = WSAGetLastError()
+        val remaining = deadline - System.currentTimeMillis()
+        if (errCode == WSAEINTR && remaining > 0)
+          tryPollOnConnect(remaining.toInt)
+        else
+          throw new SocketException(s"connect failed, poll errno: ${errCode}")
 
       case 0 =>
         throw new SocketTimeoutException(
@@ -79,7 +85,9 @@ private[net] class WindowsPlainSocketImpl extends AbstractPlainSocketImpl {
 
     pollRes match {
       case err if err < 0 =>
-        throw new SocketException(s"accept failed, poll errno: ${errno.errno}")
+        throw new SocketException(
+          s"accept failed, poll errno: ${WSAGetLastError()}"
+        )
 
       case 0 =>
         throw new SocketTimeoutException(
@@ -97,8 +105,7 @@ private[net] class WindowsPlainSocketImpl extends AbstractPlainSocketImpl {
       )
     } else if (((revents & POLLIN) | (revents & POLLOUT)) == 0) {
       throw new SocketException(
-        "accept failed, neither POLLIN nor POLLOUT set, " +
-          s"revents, ${revents}"
+        s"accept failed, neither POLLIN nor POLLOUT set, revents, ${revents}"
       )
     }
   }

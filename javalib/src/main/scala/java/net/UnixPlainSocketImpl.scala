@@ -2,7 +2,7 @@ package java.net
 
 import scala.scalanative.unsigned._
 import scala.scalanative.unsafe._
-import scala.scalanative.libc._
+import scala.scalanative.posix.errno._
 import scala.scalanative.posix.fcntl._
 import scala.scalanative.posix.poll._
 import scala.scalanative.posix.pollEvents._
@@ -10,6 +10,7 @@ import scala.scalanative.posix.pollOps._
 import scala.scalanative.posix.sys.socket
 
 import java.io.{FileDescriptor, IOException}
+import scala.annotation.tailrec
 
 private[net] class UnixPlainSocketImpl extends AbstractPlainSocketImpl {
 
@@ -33,7 +34,8 @@ private[net] class UnixPlainSocketImpl extends AbstractPlainSocketImpl {
     fd = new FileDescriptor(sock)
   }
 
-  protected def tryPollOnConnect(timeout: Int): Unit = {
+  @tailrec final protected def tryPollOnConnect(timeout: Int): Unit = {
+    val deadline = System.currentTimeMillis() + timeout
     val nAlloc = 1.toUInt
     val pollFd: Ptr[struct_pollfd] = stackalloc[struct_pollfd](nAlloc)
 
@@ -48,7 +50,12 @@ private[net] class UnixPlainSocketImpl extends AbstractPlainSocketImpl {
 
     pollRes match {
       case err if err < 0 =>
-        throw new SocketException(s"connect failed, poll errno: ${errno.errno}")
+        val errCode = errno
+        val remaining = deadline - System.currentTimeMillis()
+        if (errCode == EINTR && remaining > 0) {
+          tryPollOnConnect(remaining.toInt)
+        } else
+          throw new SocketException(s"connect failed, poll errno: $errCode")
 
       case 0 =>
         throw new SocketTimeoutException(
@@ -83,7 +90,7 @@ private[net] class UnixPlainSocketImpl extends AbstractPlainSocketImpl {
 
     pollRes match {
       case err if err < 0 =>
-        throw new SocketException(s"accept failed, poll errno: ${errno.errno}")
+        throw new SocketException(s"accept failed, poll errno: $errno")
 
       case 0 =>
         throw new SocketTimeoutException(
@@ -123,8 +130,7 @@ private[net] class UnixPlainSocketImpl extends AbstractPlainSocketImpl {
 
     if (opts == -1) {
       throw new ConnectException(
-        "connect failed, fcntl F_GETFL" +
-          s", errno: ${errno.errno}"
+        s"connect failed, fcntl F_GETFL, errno: $errno"
       )
     }
 
@@ -138,8 +144,7 @@ private[net] class UnixPlainSocketImpl extends AbstractPlainSocketImpl {
     if (ret == -1) {
       throw new ConnectException(
         "connect failed, " +
-          s"fcntl F_SETFL for opts: ${opts}" +
-          s", errno: ${errno.errno}"
+          s"fcntl F_SETFL for opts: $opts, errno: $errno"
       )
     }
   }

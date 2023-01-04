@@ -25,17 +25,16 @@ private[java] class WindowsThread(val thread: Thread, stackSize: Long)
   import WindowsThread._
   import NativeThread._
 
-  private lazy val parkEvent: Handle =
-    checkedHandle("create park event") {
-      CreateEventW(
-        eventAttributes = null,
-        manualReset = true,
-        initialState = false,
-        name = null
-      )
-    }
+  private val parkEvent: Handle = checkedHandle("create park event") {
+    CreateEventW(
+      eventAttributes = null,
+      manualReset = true,
+      initialState = false,
+      name = null
+    )
+  }
 
-  private lazy val sleepEvent: Handle =
+  private val sleepEvent: Handle =
     checkedHandle("create sleep interrupt event") {
       CreateEventW(
         eventAttributes = null,

@@ -38,7 +38,7 @@ jobs:
 
           GC_LIB=Nil
           if [[ ${{matrix.gc}} == "boehm" ]]; then
-            GC_LIB=Seq(\"/usr/local/lib/libgc.a\")
+            GC_LIB="Seq(\"/usr/local/lib/libgc.a\")"
           fi
 
           SetConfigTemplate=$(cat << EOM

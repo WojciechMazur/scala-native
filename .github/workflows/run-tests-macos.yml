@@ -36,11 +36,6 @@ jobs:
             buildMode=releaseFast
           fi
 
-          GC_LIB=Nil
-          if [[ ${{matrix.gc}} == "boehm" ]]; then
-            GC_LIB="Seq(\"/usr/local/lib/libgc.a\")"
-          fi
-
           SetConfigTemplate=$(cat << EOM
             nativeConfig ~= { prev =>
               prev
@@ -51,7 +46,7 @@ jobs:
                 .withCheck(true)
                 .withCheckFatalWarnings(true)
                 .withMultithreadingSupport(true)
-                .withLinkingOptions(prev.linkingOptions ++ Seq("-fuse-ld=lld", "-v") ++ ${GC_LIB} )
+                .withLinkingOptions(prev.linkingOptions ++ Seq("-fuse-ld=lld", "-v") )
             }
           EOM
           )
@@ -76,6 +71,9 @@ jobs:
             junitTestOutputsNative${{env.project-version}}/test;
             scalaPartestJunitTests${{env.project-version}}/test
         run: |
+          if [[ "${{matrix.gc}}" == "boehm" ]]; then 
+            unlink /usr/local/lib/libgc.dylib
+          fi
           export LLVM_BIN="$(brew --prefix llvm@14)/bin"
           ls -l /usr/local/lib/
           $LLVM_BIN/clang --version

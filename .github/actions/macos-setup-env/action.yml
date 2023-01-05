@@ -14,6 +14,10 @@ runs:
       with:
         distribution: "temurin"
         java-version: ${{inputs.java-version}}
+  
+    - name: Install deps
+      run: brew install bdw-gc
+    
     - name: Calculate binary version
       shell: bash
       run: |

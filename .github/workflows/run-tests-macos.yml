@@ -70,6 +70,7 @@ jobs:
             junitTestOutputsNative${{env.project-version}}/test;
             scalaPartestJunitTests${{env.project-version}}/test
         run: |
-          export LLVM_BIN="$(brew --prefix llvm@14)/bin"
+          set -x
+          export LLVM_BIN="$(brew --env=std --prefix llvm@14)/bin"
           $LLVM_BIN/clang --version
           sbt -J-Xmx5G "${TEST_COMMAND}"

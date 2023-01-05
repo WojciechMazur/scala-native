@@ -71,6 +71,7 @@ jobs:
             scalaPartestJunitTests${{env.project-version}}/test
         run: |
           set -x
-          export LLVM_BIN="$(brew --env=std --prefix llvm@14)/bin"
+          brew --config
+          export LLVM_BIN="$(brew --prefix llvm@14)/bin"
           $LLVM_BIN/clang --version
           sbt -J-Xmx5G "${TEST_COMMAND}"

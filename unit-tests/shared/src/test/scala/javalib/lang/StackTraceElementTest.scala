@@ -16,10 +16,13 @@ object StackTraceElementTest {
 }
 
 class StackTraceDummy1 @noinline() {
-  def dummy1: StackTraceElement =
-    (new Exception).getStackTrace
+  def dummy1: StackTraceElement = {
+    val trace = (new Exception).getStackTrace
+    trace.foreach(println)
+    trace
       .filter(_.toString.contains("StackTraceDummy"))
       .head
+  }
 
   def _dummy2: StackTraceElement =
     (new Exception).getStackTrace

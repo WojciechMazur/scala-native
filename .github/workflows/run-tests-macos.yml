@@ -85,7 +85,7 @@ jobs:
 
       - name: Prepare native config command
         shell: bash
-        # Following envs CROSS_ are always present in docker container
+        # Linking on MacOS in GithubActions fails when using default linker (ld), use lld instead
         run: |
           buildMode=${{matrix.build-mode}}
           if [[ "$buildMode" == "release-fast" ]]; then 
@@ -102,6 +102,7 @@ jobs:
                 .withCheck(true)
                 .withCheckFatalWarnings(true)
                 .withMultithreadingSupport(true)
+                .withLinkingOptions(prev.linkingOptions ++ Seq("-fuse-ld=lld", "-v") )
             }
           EOM
           )
@@ -126,6 +127,10 @@ jobs:
             junitTestOutputsNative${{env.project-version}}/test;
             scalaPartestJunitTests${{env.project-version}}/test
         run: |
+          # lld fails to link with BoehmGC when using shared library, force linking using static library
+          if [[ "${{matrix.gc}}" == "boehm" ]]; then 
+            unlink /usr/local/lib/libgc.dylib
+          fi
           export LLVM_BIN="$(brew --prefix llvm@14)/bin"
           $LLVM_BIN/clang --version
           sbt -J-Xmx5G "${TEST_COMMAND}"

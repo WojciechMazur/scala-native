@@ -8,6 +8,7 @@
 #include "ThreadUtil.h"
 #include "Safepoint.h"
 #include "MutatorThread.h"
+#include "StackTrace.h"
 
 #ifdef _WIN32
 #include <errhandlingapi.h>
@@ -60,6 +61,7 @@ static void SafepointTrapHandler(int signal, siginfo_t *siginfo, void *uap) {
         fprintf(stderr,
                 "Unexpected signal %d when accessing memory at address %p\n",
                 signal, siginfo->si_addr);
+        StackTrace_PrintStackTrace();
         defaultAction.sa_handler(signal);
     }
 }

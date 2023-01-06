@@ -40,14 +40,25 @@ void MutatorThread_delete(MutatorThread *self) {
     free(self);
 }
 
+typedef word_t **volatile stackptr_t;
+
+NOINLINE static stackptr_t MutatorThread_approximateStackTop() {
+    volatile word_t sp;
+    sp = (word_t)&sp;
+    /* Also force stack to grow if necessary. Otherwise the later accesses might
+     * cause the kernel to think we're doing something wrong. */
+    return (stackptr_t)sp;
+}
+
 void MutatorThread_switchState(MutatorThread *self,
                                MutatorThreadState newState) {
     if (newState == MutatorThreadState_Unmanaged) {
         // Dumps registers into 'regs' which is on stack
+        // jmp_buf is docummented as array type
         jmp_buf regs;
         setjmp(regs);
-        word_t *dummy;
-        self->stackTop = &dummy;
+        memcpy(self->executionContext, regs, sizeof(jmp_buf));
+        self->stackTop = MutatorThread_approximateStackTop();
     } else {
         self->stackTop = NULL;
     }

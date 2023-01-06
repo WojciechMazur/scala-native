@@ -6,6 +6,7 @@
 #include "Safepoint.h"
 #include <stdatomic.h>
 #include <ThreadUtil.h>
+#include <setjmp.h>
 
 #ifndef MUTATOR_THREAD_H
 #define MUTATOR_THREAD_H
@@ -14,6 +15,7 @@ typedef struct {
     volatile MutatorThreadState state;
     word_t **volatile stackTop;
     volatile atomic_bool isWaiting;
+    jmp_buf executionContext;
     // immutable fields
     word_t **stackBottom;
     Allocator allocator;

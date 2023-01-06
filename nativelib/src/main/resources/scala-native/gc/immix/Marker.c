@@ -103,6 +103,17 @@ void Marker_Mark(Heap *heap, Stack *stack) {
     }
 }
 
+void Marker_markRange(Heap *heap, Stack *stack, word_t **from, word_t **to) {
+    assert(from != NULL);
+    assert(to != NULL);
+    for (word_t **current = from; current <= to; current += 1) {
+        word_t *addr = *current;
+        if (Heap_IsWordInHeap(heap, addr)) {
+            Marker_markConservative(heap, stack, addr);
+        }
+    }
+}
+
 void Marker_markProgramStack(MutatorThread *thread, Heap *heap, Stack *stack) {
     word_t **stackBottom = thread->stackBottom;
     /* At this point ALL threads are stopped and their stackTop is not NULL -
@@ -117,15 +128,13 @@ void Marker_markProgramStack(MutatorThread *thread, Heap *heap, Stack *stack) {
         stackTop = thread->stackTop;
     } while (stackTop == NULL);
 
-    assert(stackTop != NULL);
-    word_t **current = stackTop;
-    while (current <= stackBottom) {
-        word_t *stackObject = *current;
-        if (Heap_IsWordInHeap(heap, stackObject)) {
-            Marker_markConservative(heap, stack, stackObject);
-        }
-        current += 1;
-    }
+    Marker_markRange(heap, stack, stackTop, stackBottom);
+
+    // Mark last context of execution
+    assert(thread->executionContext != NULL);
+    word_t **regs = (word_t **)thread->executionContext;
+    size_t regsSize = sizeof(jmp_buf) / sizeof(word_t *);
+    Marker_markRange(heap, stack, regs, regs + regsSize);
 }
 
 void Marker_markModules(Heap *heap, Stack *stack) {

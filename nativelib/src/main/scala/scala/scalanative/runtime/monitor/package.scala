@@ -140,12 +140,4 @@ package object monitor {
       castRawPtrToObject(addr).asInstanceOf[ObjectMonitor]
     }
   }
-
-  // glue layer defined in javalib
-  @extern
-  object Intrinsics {
-    @name("scalanative_on_spin_wait")
-    def onSpinWait(): Unit = extern
-  }
-
 }

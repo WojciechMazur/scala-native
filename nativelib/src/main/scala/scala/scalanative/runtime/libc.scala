@@ -76,5 +76,6 @@ object libc {
   }
 
   @name("scalanative_on_spin_wait")
+  @blocking
   private[runtime] def onSpinWait(): Unit = extern
 }

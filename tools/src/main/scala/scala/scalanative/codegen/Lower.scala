@@ -639,7 +639,7 @@ object Lower {
       )
 
       def shouldSwitchThreadState(name: Global) =
-        linked.infos.get(name).exists { info =>
+        config.multithreadingSupport && linked.infos.get(name).exists { info =>
           val attrs = info.attrs
           attrs.isExtern && attrs.isBlocking
         }

@@ -9,6 +9,7 @@ import scala.scalanative.unsigned._
   value to COUNT.  */
   def eventfd(initVal: UInt, flags: Int): Int = extern
   /* Read event counter and possibly wait for events.  */
+  @blocking
   def eventfd_read(fd: Int, value: Ptr[eventfd_t]): Int = extern
   /* Increment event counter.  */
   def eventfd_write(fd: Int, value: eventfd_t): Int = extern

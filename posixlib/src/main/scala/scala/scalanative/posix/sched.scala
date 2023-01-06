@@ -1,6 +1,6 @@
 package scala.scalanative.posix
 
-import scala.scalanative.unsafe.{CInt, CSize, CStruct1, CStruct5, Ptr, extern}
+import scala.scalanative.unsafe._
 import scala.scalanative.posix.time.timespec
 import scala.scalanative.posix.sys.types.pid_t
 
@@ -20,6 +20,7 @@ object sched {
 
   def sched_getscheduler(pid: pid_t): CInt = extern
 
+  @blocking
   def sched_yield(): CInt = extern
 
   def sched_get_priority_max(algorithm: CInt): CInt = extern

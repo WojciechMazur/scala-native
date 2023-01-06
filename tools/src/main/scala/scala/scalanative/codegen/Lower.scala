@@ -638,21 +638,14 @@ object Lower {
         if (unwindHandler.isInitialized) unwind else Next.None
       )
 
-      def shouldSwitchThreadState(sig: Sig) = {
-        meta.config.multithreadingSupport &&
-        sig.isExtern && {
-          sig.mangle match {
-            case "C16scalanative_init"                      => false
-            case sym if sym.contains("scalanative_atomic_") => false
-            case sym if sym.contains("scalanative_alloc")   => false
-            case _                                          => true
-          }
+      def shouldSwitchThreadState(name: Global) =
+        linked.infos.get(name).exists { info =>
+          val attrs = info.attrs
+          attrs.isExtern && attrs.isBlocking
         }
-      }
 
       ptr match {
-        case Val.Global(Global.Member(_, sig), _)
-            if shouldSwitchThreadState(sig) =>
+        case Val.Global(global, _) if shouldSwitchThreadState(global) =>
           switchThreadState(managed = false)
           genCall()
           genGCYieldpoint(buf, genUnwind = false)
@@ -1316,7 +1309,7 @@ object Lower {
           rtti(CharArrayCls).const ::
             meta.lockWordField :::
             charsLength ::
-            Val.Int(0) :: // Stride
+            Val.Int(2) :: // Stride, effectively unused
             Val.ArrayValue(Type.Char, chars.toSeq.map(Val.Char(_))) :: Nil
         )
       )

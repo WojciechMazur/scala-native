@@ -294,19 +294,19 @@ class LockSupportTest extends JSR166Test {
     val startTime = System.nanoTime
     await(started)
 
-    while ({ true }) {
+    var break = false
+    while (!break) {
       val x = LockSupport.getBlocker(t)
       if (x eq theBlocker) { // success
         t.interrupt()
         awaitTermination(t)
         assertNull(LockSupport.getBlocker(t))
-        return
+        break = true
       } else {
         assertNull(x) // ok
-
         if (millisElapsedSince(startTime) > LONG_DELAY_MS) fail("timed out")
-        if (t.getState eq Thread.State.TERMINATED) return ()
-        Thread.`yield`()
+        if (t.getState eq Thread.State.TERMINATED) break = true
+        else Thread.`yield`()
       }
     }
   }

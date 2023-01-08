@@ -110,6 +110,8 @@ jobs:
           echo set-native-config=${SetConfigTemplate} >> $GITHUB_ENV
 
       - name: Run tests
+        # 2x more then it should take to build and run tests
+        timeout-minutes: 60
         env:
           TEST_COMMAND: >
             ++${{matrix.scala}} -v;

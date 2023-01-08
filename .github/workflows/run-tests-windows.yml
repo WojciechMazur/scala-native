@@ -155,6 +155,8 @@ jobs:
           scala-version: ${{matrix.scala}}
 
       - name: Run tests
+        # 2x more then it should take to build and run tests
+        timeout-minutes: 60
         run: >
           set SCALANATIVE_GC=${{matrix.gc}}&
           set SCALANATIVE_INCLUDE_DIRS=${{steps.setup.outputs.vcpkg-dir}}\include&

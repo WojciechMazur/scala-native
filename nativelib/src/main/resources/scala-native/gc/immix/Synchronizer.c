@@ -132,15 +132,15 @@ void Synchronizer_init() {
 void Synchronizer_wait() {
     MutatorThread *self = currentMutatorThread;
     MutatorThread_switchState(self, MutatorThreadState_Unmanaged);
+    atomic_signal_fence(memory_order_seq_cst);
+    atomic_thread_fence(memory_order_seq_cst);
 
     atomic_store_explicit(&self->isWaiting, true, memory_order_release);
-    atomic_thread_fence(memory_order_seq_cst);
-    atomic_signal_fence(memory_order_seq_cst);
-
     Synchronizer_SuspendThread(self);
-
     atomic_store_explicit(&self->isWaiting, false, memory_order_release);
+
     MutatorThread_switchState(self, MutatorThreadState_Managed);
+    atomic_thread_fence(memory_order_seq_cst);
 }
 
 bool Synchronizer_acquire() {

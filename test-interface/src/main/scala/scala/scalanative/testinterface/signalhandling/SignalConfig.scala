@@ -1,6 +1,6 @@
 package scala.scalanative.testinterface.signalhandling
 
-import scala.scalanative.meta.LinktimeInfo.isWindows
+import scala.scalanative.meta.LinktimeInfo._
 import scala.scalanative.libc.stdlib._
 import scala.scalanative.libc.signal._
 import scala.scalanative.libc.string._
@@ -142,13 +142,22 @@ private[testinterface] object SignalConfig {
     setHandler(SIGABRT)
     setHandler(SIGFPE)
     setHandler(SIGILL)
-    setHandler(SIGSEGV)
     setHandler(SIGTERM)
+    if (!isMultithreadingEnabled) {
+      // Used in GC traps
+      setHandler(SIGSEGV)
+    }
 
     if (!isWindows) {
       import scala.scalanative.posix.signal._
+      if (!isMultithreadingEnabled) {
+        // Used in GC traps on MacOS
+        setHandler(SIGBUS)
+        // Used by Boehm GC
+        setHandler(SIGXCPU)
+        setHandler(SIGXFSZ)
+      }
       setHandler(SIGALRM)
-      setHandler(SIGBUS)
       setHandler(SIGHUP)
       setHandler(SIGPIPE)
       setHandler(SIGQUIT)
@@ -160,8 +169,6 @@ private[testinterface] object SignalConfig {
       setHandler(SIGSYS)
       setHandler(SIGTRAP)
       setHandler(SIGVTALRM)
-      setHandler(SIGXCPU)
-      setHandler(SIGXFSZ)
     }
   }
 }

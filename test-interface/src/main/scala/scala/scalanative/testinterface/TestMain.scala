@@ -36,9 +36,7 @@ object TestMain {
 
     bridge.start()
 
-    if (!LinktimeInfo.isMultithreadingEnabled) {
-      SignalConfig.setDefaultHandlers()
-    }
+    SignalConfig.setDefaultHandlers()
 
     val exitCode = nativeRPC.loop()
     sys.exit(exitCode)

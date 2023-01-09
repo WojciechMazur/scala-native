@@ -2,12 +2,12 @@ object DeleteTest {
   import Files._
 
   def main(args: Array[String]): Unit = {
-    assert("exists", willBeDeletedFile.exists())
-    assert("delete", willBeDeletedFile.delete())
-    assert("check deleted", !willBeDeletedFile.exists())
+    assert(willBeDeletedFile.exists(), "exists")
+    assert(willBeDeletedFile.delete(), "delete")
+    assert(!willBeDeletedFile.exists(), "check deleted")
 
-    assert("dir exists", willBeDeletedDirectory.exists())
-    assert("dir deleted", willBeDeletedDirectory.delete())
-    assert("check dir deleted", !willBeDeletedDirectory.exists())
+    assert(willBeDeletedDirectory.exists(), "dir exists")
+    assert(willBeDeletedDirectory.delete(), "dir deleted")
+    assert(!willBeDeletedDirectory.exists(), "check dir deleted")
   }
 }

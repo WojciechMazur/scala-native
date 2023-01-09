@@ -143,16 +143,19 @@ private[testinterface] object SignalConfig {
     setHandler(SIGFPE)
     setHandler(SIGILL)
     setHandler(SIGTERM)
-    if (!isMultithreadingEnabled) {
-      // Used in GC traps
+    if (!isMultithreadingEnabled || isMac) {
+      // Used in GC traps, MacOS uses SIGBUS instead
       setHandler(SIGSEGV)
     }
 
     if (!isWindows) {
       import scala.scalanative.posix.signal._
-      if (!isMultithreadingEnabled) {
-        // Used in GC traps on MacOS
+      // None and Boehm is the only GC without weak reference support
+      if (!isMultithreadingEnabled || !isMac) {
+        // Used in Immix GC traps on MacOS
         setHandler(SIGBUS)
+      }
+      if (!isMultithreadingEnabled || isWeakReferenceSupported) {
         // Used by Boehm GC
         setHandler(SIGXCPU)
         setHandler(SIGXFSZ)

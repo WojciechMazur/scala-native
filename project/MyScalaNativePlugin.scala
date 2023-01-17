@@ -21,7 +21,8 @@ object MyScalaNativePlugin extends AutoPlugin {
         .withCheckFatalWarnings(true)
         .withDump(true)
         .withMultithreadingSupport(
-          sys.props.contains("scala.scalanative.multithreading.enable")
+          true
+          // sys.props.contains("scala.scalanative.multithreading.enable")
         )
     }
   )

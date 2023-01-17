@@ -34,8 +34,9 @@ private[net] class UnixPlainSocketImpl extends AbstractPlainSocketImpl {
     fd = new FileDescriptor(sock)
   }
 
-  @tailrec final protected def tryPollOnConnect(timeout: Int): Unit = {
-    val deadline = System.currentTimeMillis() + timeout
+  final protected def tryPollOnConnect(timeout: Int): Unit = {
+    val hasTimeout = timeout > 0
+    val deadline = if (hasTimeout) System.currentTimeMillis() + timeout else 0L
     val nAlloc = 1.toUInt
     val pollFd: Ptr[struct_pollfd] = stackalloc[struct_pollfd](nAlloc)
 
@@ -43,38 +44,44 @@ private[net] class UnixPlainSocketImpl extends AbstractPlainSocketImpl {
     pollFd.revents = 0
     pollFd.events = (POLLIN | POLLOUT).toShort
 
-    val pollRes = poll(pollFd, nAlloc, timeout)
-    val revents = pollFd.revents
+    def failWithTimeout() = throw new SocketTimeoutException(
+      s"connect timed out, SO_TIMEOUT: ${timeout}"
+    )
 
-    setSocketFdBlocking(fd, blocking = true)
+    @tailrec def loop(remainingTimeout: Int): Unit = {
+      val pollRes = poll(pollFd, nAlloc, remainingTimeout)
+      val revents = pollFd.revents
 
-    pollRes match {
-      case err if err < 0 =>
-        val errCode = errno
-        val remaining = deadline - System.currentTimeMillis()
-        if (errCode == EINTR && remaining > 0) {
-          tryPollOnConnect(remaining.toInt)
-        } else
-          throw new SocketException(s"connect failed, poll errno: $errCode")
+      pollRes match {
+        case err if err < 0 =>
+          val errCode = errno
+          if (errCode == EINTR && hasTimeout) {
+            val remaining = deadline - System.currentTimeMillis()
+            if (remaining > 0) loop(remaining.toInt)
+            else failWithTimeout()
+          } else
+            throw new SocketException(s"connect failed, poll errno: $errCode")
 
-      case 0 =>
-        throw new SocketTimeoutException(
-          s"connect timed out, SO_TIMEOUT: ${timeout}"
-        )
+        case 0 => failWithTimeout()
 
-      case _ =>
-        if ((revents & POLLNVAL) != 0) {
-          val msg = s"connect failed, invalid poll request: ${revents}"
-          throw new ConnectException(msg)
-        } else if ((revents & (POLLIN | POLLHUP)) != 0) {
-          // Not enough information at this point to report remote host:port.
-          val msg = "Connection refused"
-          throw new ConnectException(msg)
-        } else if ((revents & POLLERR) != 0) { // an error was recognized.
-          val msg = s"connect failed, poll POLLERR: ${revents}"
-          throw new ConnectException(msg)
-        } // else should be POLLOUT - Open for Business, ignore XSI bits if set
+        case _ =>
+          if ((revents & POLLNVAL) != 0) {
+            val msg = s"connect failed, invalid poll request: ${revents}"
+            throw new ConnectException(msg)
+          } else if ((revents & (POLLIN | POLLHUP)) != 0) {
+            // Not enough information at this point to report remote host:port.
+            val msg = "Connection refused"
+            throw new ConnectException(msg)
+          } else if ((revents & POLLERR) != 0) { // an error was recognized.
+            val msg = s"connect failed, poll POLLERR: ${revents}"
+            throw new ConnectException(msg)
+          } // else should be POLLOUT - Open for Business, ignore XSI bits if set
+      }
     }
+
+    try loop(timeout)
+    finally setSocketFdBlocking(fd, blocking = true)
+
   }
 
   protected def tryPollOnAccept(): Unit = {

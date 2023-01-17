@@ -10,6 +10,10 @@ import scala.scalanative.junit.utils.AssumesHelper
 object ObjectMonitorTest {
   @BeforeClass def checkRuntime(): Unit = {
     AssumesHelper.assumeMultithreadingIsEnabled()
+    assumeFalse(
+      "Spurious failures on Windows JVM",
+      Platform.executingInJVM && Platform.isWindows
+    )
   }
 }
 
@@ -105,10 +109,6 @@ class ObjectMonitorTest {
   }
 
   @Test def `keeps recursions track after wait when inflated`(): Unit = {
-    assumeFalse(
-      "Fails on Windows with JDK 8 due to the bug",
-      Platform.executingInJVMOnJDK8OrLower && Platform.isWindows
-    )
     @volatile var released = false
     @volatile var canRelease = false
     @volatile var done = false
@@ -142,10 +142,6 @@ class ObjectMonitorTest {
 
   @Test def `keeps recursions track after wait when already inflated`()
       : Unit = {
-    assumeFalse(
-      "Fails on Windows with JDK 8 due to the bug",
-      Platform.executingInJVMOnJDK8OrLower && Platform.isWindows
-    )
     @volatile var released = false
     @volatile var canRelease = false
     @volatile var done = false

@@ -100,28 +100,29 @@ private[monitor] class ObjectMonitor() {
       val next = arriveQueue
       node.next = next
       !casWaitList(arriveQueuePtr, next, node)
-    }) tryLock(currentThread)
+    }) if (tryLock(currentThread)) return
 
     enterMonitor(currentThread, node)
   }
 
   private def enterMonitor(currentThread: Thread, node: WaiterNode) = {
-    @alwaysinline def tryLockThenSpin() =
-      tryLock(currentThread) || trySpinAndLock(currentThread)
-
     // Try to lock upon spinning, otherwise park the thread and try again upon wake up
     def awaitLock(): Unit = {
       var isActive = false
       var pollInterval = 25000L // ns, 0.25ms
       @alwaysinline def MaxPoolInterval = 1000000000L // ns = 1s
+      @alwaysinline def tryLockThenSpin() =
+        tryLock(currentThread) || trySpinAndLock(currentThread)
 
       while (!tryLockThenSpin()) {
         isActive ||= casActiveWaiterThread(null, currentThread)
         if (!isActive) LockSupport.park(this)
         else {
           LockSupport.parkNanos(this, pollInterval)
-          pollInterval = (pollInterval * 8) min MaxPoolInterval
+          pollInterval = (pollInterval * 4) min MaxPoolInterval
         }
+        if (successorThread eq currentThread) successorThread = null
+        atomic_thread_fence(memory_order_seq_cst)
       }
 
       if (successorThread eq currentThread) successorThread = null
@@ -258,6 +259,9 @@ private[monitor] class ObjectMonitor() {
 
     // Thread is alive again, wait for ownership
     // assert(ownerThread != currentThread, "before re-renter")
+    val nativeThread = NativeThread.currentNativeThread
+    // assert(nativeThread.thread eq currentThread)
+    nativeThread.state = NativeThread.State.WaitingOnMonitorEnter
     (node.state: @switch) match {
       case WaiterNode.Active =>
         enter(currentThread)
@@ -266,6 +270,7 @@ private[monitor] class ObjectMonitor() {
       case _ =>
         throw new IllegalMonitorStateException("internal state of thread")
     }
+    nativeThread.state = NativeThread.State.Running
     this.recursion = savedRecursion
     // assert(ownerThread == currentThread, "reenter")
 

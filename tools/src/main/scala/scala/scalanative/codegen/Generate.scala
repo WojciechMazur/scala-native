@@ -169,9 +169,9 @@ object Generate {
         case Defn.Define(_, name: Global.Member, _, _) if name.sig.isClinit =>
           Inst.Let(
             Op.Call(
-              Type.Function(Seq(), Type.Unit),
+              Type.Function(Seq.empty, Type.Unit),
               Val.Global(name, Type.Ref(name)),
-              Seq()
+              Seq.empty
             ),
             unwind()
           )
@@ -195,7 +195,7 @@ object Generate {
           unwind
         ),
         // Init GC
-        Inst.Let(Op.Call(InitSig, Init, Seq()), unwind)
+        Inst.Let(Op.Call(InitSig, Init, Seq.empty), unwind)
       )
     }
 
@@ -295,16 +295,16 @@ object Generate {
             buf += instanceDefn
           } else {
             val initSig = Type.Function(Seq(clsTy), Type.Unit)
-            val init = Val.Global(name.member(Sig.Ctor(Seq())), Type.Ptr)
+            val init = Val.Global(name.member(Sig.Ctor(Seq.empty)), Type.Ptr)
 
             val loadName = name.member(Sig.Generated("load"))
-            val loadSig = Type.Function(Seq(), clsTy)
+            val loadSig = Type.Function(Seq.empty, clsTy)
             val loadDefn = Defn.Define(
               Attrs(inlineHint = Attr.NoInline),
               loadName,
               loadSig,
               Seq(
-                Inst.Label(entry, Seq()),
+                Inst.Label(entry, Seq.empty),
                 Inst.Let(
                   slot.name,
                   Op.Elem(
@@ -325,9 +325,9 @@ object Generate {
                   Next.None
                 ),
                 Inst.If(cond, Next(existing), Next(initialize)),
-                Inst.Label(existing, Seq()),
+                Inst.Label(existing, Seq.empty),
                 Inst.Ret(self),
-                Inst.Label(initialize, Seq()),
+                Inst.Label(initialize, Seq.empty),
                 Inst.Let(alloc.name, Op.Classalloc(name), Next.None),
                 Inst.Let(
                   Op.Store(clsTy, slot, alloc),
@@ -496,7 +496,7 @@ object Generate {
       Val.Global(RuntimeLoopName, Type.Ptr)
 
     val LibraryInitName = extern("ScalaNativeInit")
-    val LibraryInitSig = Type.Function(Seq(), Type.Int)
+    val LibraryInitSig = Type.Function(Seq.empty, Type.Int)
 
     val MainName = extern("main")
     val MainSig = Type.Function(Seq(Type.Int, Type.Ptr), Type.Int)
@@ -511,7 +511,7 @@ object Generate {
     val PrintStackTrace =
       Val.Global(PrintStackTraceName, Type.Ptr)
 
-    val InitSig = Type.Function(Seq(), Type.Unit)
+    val InitSig = Type.Function(Seq.empty, Type.Unit)
     val Init = Val.Global(extern("scalanative_init"), Type.Ptr)
     val InitDecl = Defn.Declare(Attrs.None, Init.name, InitSig)
 

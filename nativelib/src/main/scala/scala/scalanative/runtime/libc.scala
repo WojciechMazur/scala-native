@@ -46,7 +46,7 @@ object libc {
   ): CBool = extern
 
   @name("scalanative_atomic_load_explicit_llong")
-  private[runtime] def atomic_load_explicit(
+  private[runtime] def atomic_load_llong_explicit(
       ptr: RawPtr,
       memoryOrder: memory_order
   ): Long = extern

@@ -49,6 +49,21 @@ private object LazyVals {
     }
   }
 
+  def objCAS(objPtr: RawPtr, exp: Object, n: Object): Boolean = {
+    if (isMultithreadingEnabled) {
+      // multi-threaded
+      val expected = stackalloc(SizeOfPtr)
+      storeObject(expected, exp)
+      atomic_compare_exchange_strong(objPtr, expected, castObjectToRawPtr(n))
+    } else {
+      if (loadObject(objPtr) ne exp) false
+      else {
+        storeObject(objPtr, n)
+        true
+      }
+    }
+  }
+
   @`inline`
   def setFlag(bitmap: RawPtr, v: Int, ord: Int): Unit =
     if (!isMultithreadingEnabled) {
@@ -99,7 +114,7 @@ private object LazyVals {
   @alwaysinline
   def get(bitmap: RawPtr): Long = {
     if (!isMultithreadingEnabled) Intrinsics.loadLong(bitmap)
-    else atomic_load_explicit(bitmap, memory_order_relaxed)
+    else atomic_load_llong_explicit(bitmap, memory_order_relaxed)
   }
 
 }

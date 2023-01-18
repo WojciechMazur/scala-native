@@ -9,6 +9,7 @@ import scala.scalanative.meta.LinktimeInfo.{
   isMultithreadingEnabled,
   is32BitPlatform
 }
+import scala.scalanative.meta.LinktimeInfo
 
 package object runtime {
 
@@ -47,6 +48,13 @@ package object runtime {
    *  array.
    */
   def init(argc: Int, rawargv: RawPtr): scala.Array[String] = {
+    if (LinktimeInfo.isMultithreadingEnabled) {
+      assert(
+        Thread.currentThread() != null,
+        "failed to initialize main thread"
+      )
+    }
+
     val argv = fromRawPtr[CString](rawargv)
     val args = new scala.Array[String](argc - 1)
 

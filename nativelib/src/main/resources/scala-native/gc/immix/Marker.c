@@ -103,7 +103,8 @@ void Marker_Mark(Heap *heap, Stack *stack) {
     }
 }
 
-void Marker_markRange(Heap *heap, Stack *stack, word_t **from, word_t **to) {
+NO_SANITIZE void Marker_markRange(Heap *heap, Stack *stack, word_t **from,
+                                  word_t **to) {
     assert(from != NULL);
     assert(to != NULL);
     for (word_t **current = from; current <= to; current += 1) {

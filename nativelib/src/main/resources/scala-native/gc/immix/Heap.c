@@ -339,13 +339,13 @@ void Heap_Recycle(Heap *heap) {
         Allocator_Clear(&thread->allocator);
         LargeAllocator_Clear(&thread->largeAllocator);
     }
-    MutatorThreads threadsCursor = mutatorThreads;
     BlockAllocator_Clear(&blockAllocator);
 
     BlockMeta *current = (BlockMeta *)heap->blockMetaStart;
     word_t *currentBlockStart = heap->heapStart;
     LineMeta *lineMetas = (LineMeta *)heap->lineMetaStart;
     word_t *end = heap->blockMetaEnd;
+    MutatorThreads threadsCursor = mutatorThreads;
     while ((word_t *)current < end) {
         int size = 1;
         MutatorThread *recycleBlocksTo = threadsCursor->value;

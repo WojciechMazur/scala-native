@@ -131,7 +131,11 @@ object Lower {
       }
 
       val Inst.Label(firstLabel, _) = insts.head: @unchecked
-      var lastLabelId = firstLabel.id
+      val labelPositions = insts
+        .collect { case Inst.Label(id, _) => id }
+        .zipWithIndex
+        .toMap
+      var currentBlockPosition = labelPositions(firstLabel)
 
       genThisValueNullGuardIfUsed(
         currentDefn.get,
@@ -151,7 +155,6 @@ object Lower {
           ScopedVar.scoped(
             unwindHandler := newUnwindHandler(unwind)(inst.pos)
           ) {
-            genGCYieldpoint(buf)(inst.pos)
             genThrow(buf, v)(inst.pos)
           }
 
@@ -171,15 +174,17 @@ object Lower {
           implicit val pos: Position = inst.pos
           // Gen yieldpoint for backward jumps, eg. loops
           next match {
-            case Next.Label(target, _) if (target.id <= lastLabelId) =>
+            case Next.Label(target, _)
+                if labelPositions(target) < currentBlockPosition =>
               genGCYieldpoint(buf)
             case _ => ()
           }
           buf += Inst.Jump(genNext(buf, next))
 
         case inst @ Inst.Label(name, _) =>
-          lastLabelId = name.id
+          currentBlockPosition = labelPositions(name)
           buf += inst
+
         case inst =>
           buf += inst
       }

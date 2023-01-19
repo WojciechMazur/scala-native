@@ -123,7 +123,7 @@ jobs:
         with:
           path: /tmp/docker-registry
           key: docker-registry-${{ hashFiles('ci-docker/Dockerfile') }}-${{matrix.arch}}
-     
+
       - name: Prepare native config
         shell: bash
         # Following envs CROSS_ are always present in docker container
@@ -143,7 +143,8 @@ jobs:
                   )
                 ).!!.trim
               }.filter(_.nonEmpty)
-                .fold(List.empty[String]){ root =>
+               .filter(_ => ${{ !contains(matrix.arch}}, linux-x86 }} ) 
+               .fold(List.empty[String]){ root =>
                   List(
                     s"--sysroot=\${root}",
                     s"--gcc-toolchain=\${sys.env("CROSS_ROOT")}"
@@ -158,7 +159,7 @@ jobs:
                 .withOptimize(true)
                 .withCheck(true)
                 .withCheckFatalWarnings(true)
-                .withTargetTriple(sys.env("CROSS_TRIPLE"))
+                .withTargetTriple(sys.env.get("CROSS_TRIPLE"))
                 .withMultithreadingSupport(${{matrix.multithreading}})
                 .withCompileOptions(
                   prev.compileOptions ++ sysRoot ++ List("-fuse-ld=lld")
@@ -170,11 +171,7 @@ jobs:
           EOM
           )
 
-          if [[ "${{matrix.arch}}" == "linux-x86" ]]; then
-            echo set-native-config=nativeConfig ~= identity >> $GITHUB_ENV
-          else
-            echo set-native-config=${SetConfigTemplate} >> $GITHUB_ENV
-          fi
+          echo set-native-config=${SetConfigTemplate} >> $GITHUB_ENV
 
       # Conditionally disable some of the tests (Scala 2 only)
       - name: Set filters for partests

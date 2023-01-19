@@ -131,9 +131,10 @@ void scalanative_register_weak_reference_handler(void *handler) {}
 HANDLE scalanative_CreateThread(LPSECURITY_ATTRIBUTES threadAttributes,
                                 SIZE_T stackSize, ThreadStartRoutine routine,
                                 RoutineArgs args, DWORD creationFlags,
-                                DWORD *threadId){
+                                DWORD *threadId) {
     return CreateThread(threadAttributes, stackSize, routine, args,
-                        creationFlags, threadId)};
+                        creationFlags, threadId);
+}
 #else
 int scalanative_pthread_create(pthread_t *thread, pthread_attr_t *attr,
                                ThreadStartRoutine routine, RoutineArgs args) {

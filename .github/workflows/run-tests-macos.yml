@@ -133,6 +133,5 @@ jobs:
           if [[ "${{matrix.gc}}" == "boehm" ]]; then 
             unlink /usr/local/lib/libgc.dylib
           fi
-          export LLVM_BIN="$(brew --prefix llvm@14)/bin"
-          $LLVM_BIN/clang --version
+          clang --version
           sbt -J-Xmx5G "${TEST_COMMAND}"

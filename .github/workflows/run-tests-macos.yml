@@ -64,7 +64,7 @@ jobs:
 
       - name: Test scripted
         run: |
-          export LLVM_BIN=$(brew --prefix llvm@14)/bin
+          export LLVM_BIN=$(brew --prefix llvm@15)/bin
           sbt "test-scripted ${{matrix.scala}}"
 
   test-multihreading:
@@ -102,6 +102,7 @@ jobs:
                 .withCheck(true)
                 .withCheckFatalWarnings(true)
                 .withMultithreadingSupport(true)
+                .withLinkingOptions(prev.linkingOptions ++ Seq("-fuse-ld=lld") )
             }
           EOM
           )
@@ -132,5 +133,6 @@ jobs:
           if [[ "${{matrix.gc}}" == "boehm" ]]; then 
             unlink /usr/local/lib/libgc.dylib
           fi
-          clang --version
+          export LLVM_BIN="$(brew --prefix llvm@15)/bin"
+          $LLVM_BIN/clang --version
           sbt -J-Xmx5G "${TEST_COMMAND}"

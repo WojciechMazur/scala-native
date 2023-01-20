@@ -102,7 +102,6 @@ jobs:
                 .withCheck(true)
                 .withCheckFatalWarnings(true)
                 .withMultithreadingSupport(true)
-                .withLinkingOptions(prev.linkingOptions ++ Seq("-fuse-ld=lld", "-v") )
             }
           EOM
           )

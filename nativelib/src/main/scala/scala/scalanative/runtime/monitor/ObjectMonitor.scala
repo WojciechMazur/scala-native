@@ -231,7 +231,7 @@ private[monitor] class ObjectMonitor() {
 
     val savedRecursion = this.recursion
     this.recursion = 0
-    exit(currentThread)
+    exitMonitor(currentThread)
     // assert(ownerThread != currentThread)
 
     // Current thread is no longer the owner, wait for the notification
@@ -244,11 +244,14 @@ private[monitor] class ObjectMonitor() {
     val isTimedout = nanos > 0 && System.nanoTime() >= deadline
     if (node.state == WaiterNode.Waiting) {
       acquireWaitList()
-      try {
-        removeFromWaitList(node)
-        waiting -= 1
-        node.state = WaiterNode.Active
-      } finally releaseWaitList()
+      // Skip unlinking node if was moved from waitQueue to enterQueue by notify call
+      try
+        if (node.state == WaiterNode.Waiting) {
+          removeFromWaitList(node)
+          waiting -= 1
+          node.state = WaiterNode.Active
+        }
+      finally releaseWaitList()
     }
 
     atomic_thread_fence(memory_order_acquire)
@@ -390,10 +393,10 @@ private[monitor] class ObjectMonitor() {
       }
     }
 
-    if (!tryAcquire()) while (true) {
+    while (!tryAcquire()) {
       waitForLockRelease(0, backoffNanos = 1000)
-      if (tryAcquire()) return
     }
+    atomic_thread_fence(memory_order_seq_cst)
   }
 
   @alwaysinline private def releaseWaitList() = {
@@ -445,6 +448,7 @@ private[monitor] class ObjectMonitor() {
   }
 
   @inline private def removeFromWaitList(node: WaiterNode) = {
+    // assert(node.state == WaiterNode.Waiting)
     node.next match {
       case `node` =>
         waitQueue = null
@@ -476,19 +480,5 @@ private object ObjectMonitor {
       @volatile var isNotified: Boolean = false,
       @volatile var next: WaiterNode = null,
       @volatile var prev: WaiterNode = null
-  ) {
-    // For debug purpuses
-    // private def show(): String =
-    //   s"($thread, notified=$isNotified, state=${state})"
-    // override def toString(): String = {
-    //   val builder = new StringBuilder(this.show())
-    //   val c = next
-    //   while (c != null && c != this) {
-    //     builder.append("::")
-    //     builder.append(c.show())
-    //   }
-    //   builder.append("::Nil")
-    //   builder.toString()
-    // }
-  }
+  )
 }

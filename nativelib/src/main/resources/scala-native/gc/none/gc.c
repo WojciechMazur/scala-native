@@ -144,3 +144,4 @@ int scalanative_pthread_create(pthread_t *thread, pthread_attr_t *attr,
 #endif // SCALANATIVE_MULTITHREADING_ENABLED
 
 void scalanative_setMutatorThreadState(MutatorThreadState state) {}
+void scalanative_gcYield() {}

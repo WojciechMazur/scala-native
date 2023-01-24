@@ -1,3 +1,5 @@
+#ifndef NATIVE_THREAD_TLS_H
+#define NATIVE_THREAD_TLS_H
 #include <stddef.h>
 
 #ifndef thread_local
@@ -17,14 +19,11 @@
 typedef void *JavaThread;
 typedef void *NativeThread;
 
-thread_local JavaThread currentThread = NULL;
-thread_local NativeThread currentNativeThread = NULL;
+extern thread_local JavaThread currentThread;
+extern thread_local NativeThread currentNativeThread;
 
 void scalanative_assignCurrentThread(JavaThread thread,
-                                     NativeThread nativeThread) {
-    currentThread = thread;
-    currentNativeThread = nativeThread;
-}
-
-JavaThread scalanative_currentThread() { return currentThread; }
-NativeThread scalanative_currentNativeThread() { return currentNativeThread; }
+                                     NativeThread nativeThread);
+JavaThread scalanative_currentThread();
+NativeThread scalanative_currentNativeThread();
+#endif

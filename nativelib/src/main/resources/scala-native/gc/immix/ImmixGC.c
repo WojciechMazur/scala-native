@@ -124,3 +124,4 @@ int scalanative_pthread_create(pthread_t *thread, pthread_attr_t *attr,
 void scalanative_setMutatorThreadState(MutatorThreadState state) {
     MutatorThread_switchState(currentMutatorThread, state);
 }
+void scalanative_gcYield() { *scalanative_gc_safepoint; }

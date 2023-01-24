@@ -60,5 +60,6 @@ typedef enum scalanative_MutatorThreadState {
 } MutatorThreadState;
 
 void scalanative_setMutatorThreadState(MutatorThreadState);
+void scalanative_gcYield();
 
 #endif // SCALA_NATIVE_GC_H

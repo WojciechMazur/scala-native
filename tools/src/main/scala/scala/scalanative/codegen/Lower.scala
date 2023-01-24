@@ -611,7 +611,17 @@ object Lower {
         case Immix => true
         case _     => false
       }
-      val shallGeneratate = multithreadingEnabled && supportedGC
+      def defnNeedsSafepoints = {
+        val defn = currentDefn.get
+        defn.name match {
+          case Global.Member(_, sig) =>
+            // Exclude accessors and generated methods
+            !sig.isGenerated && defn.insts.size > 3
+          case _ => false // unreachable or generated
+        }
+      }
+      val shallGeneratate =
+        multithreadingEnabled && supportedGC && defnNeedsSafepoints
       if (shallGeneratate) {
         val handler =
           if (genUnwind && unwindHandler.isInitialized) unwind

@@ -49,7 +49,7 @@ object GC {
    *  the Boehm GC convention for overloading the pthread_create/CreateThread
    *  functions respectively for POSIX and Windows.
    */
-  private type pthread_t = CUnsignedLongLong
+  private type pthread_t = CUnsignedLongInt
   private type pthread_attr_t = CUnsignedLongLong
   private type Handle = Ptr[Byte]
   private type DWord = CUnsignedInt

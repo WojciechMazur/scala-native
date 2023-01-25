@@ -42,7 +42,7 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
   @volatile private var conditionIdx = ConditionUnset
 
   private val handle: pthread_t =
-    if (isMainThread) 0.toULong // main thread
+    if (isMainThread) 0.toUSize // main thread
     else if (!isMultithreadingEnabled)
       throw new LinkageError(
         "Multithreading support disabled - cannot create new threads"

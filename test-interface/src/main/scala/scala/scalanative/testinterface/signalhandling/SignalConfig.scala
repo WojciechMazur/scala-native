@@ -2,8 +2,9 @@ package scala.scalanative.testinterface.signalhandling
 
 import scala.scalanative.meta.LinktimeInfo._
 import scala.scalanative.libc.stdlib._
-import scala.scalanative.libc.signal._
 import scala.scalanative.libc.string._
+import scala.scalanative.posix.signal._
+import scala.scalanative.posix.signalOps.sigaction_ops
 import scala.scalanative.posix.unistd._
 import scala.scalanative.runtime.unwind
 import scala.scalanative.unsafe._
@@ -132,7 +133,15 @@ private[testinterface] object SignalConfig {
     val RESET = "\u001b[0;0m"
 
     def setHandler(sig: CInt): Unit = {
-      if (signal(sig, defaultHandler) == SIG_ERR)
+      val initialized = {
+        if (isWindows) signal(sig, defaultHandler) != SIG_ERR
+        else {
+          val sa, prevSa = stackalloc[sigaction]()
+          sa.sa_handler = defaultHandler
+          sigaction(sig, sa, prevSa) != -1
+        }
+      }
+      if (!initialized)
         Console.err.println(
           s"[${YELLOW}warn${RESET}] Could not set default handler for signal ${sig}"
         )

@@ -1,4 +1,4 @@
-
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
 #include "stdatomic.h"
 #include "nativeThreadTLS.h"
 #include "gc/shared/ScalaNativeGC.h"
@@ -50,3 +50,4 @@ ModuleRef __scalanative_loadModule(ModuleSlot slot, void *classInfo,
     }
     return module;
 }
+#endif

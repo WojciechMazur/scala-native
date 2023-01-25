@@ -85,6 +85,9 @@ jobs:
         gc: [boehm, immix, commix]
         multithreading: [true, false]
         exclude:
+          # LTO is broken on linux-x86/llvm-10
+          - arch: linux-x86
+            lto: thin
           # Release without LTO produces 1 big file taking long to compile, especially when emulated
           - build-mode: release-fast
             lto: none

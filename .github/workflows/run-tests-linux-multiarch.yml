@@ -85,11 +85,6 @@ jobs:
         gc: [boehm, immix, commix]
         multithreading: [true, false]
         exclude:
-          # Immix does not suppoort Immix/Commix GCs
-          - gc: immix
-            arch: linux-x86
-          - gc: commix
-            arch: linux-x86
           # Release without LTO produces 1 big file taking long to compile, especially when emulated
           - build-mode: release-fast
             lto: none

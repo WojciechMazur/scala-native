@@ -238,7 +238,7 @@ class AtomicLongTest extends JSR166Test {
     assertEquals(0.0f, ai.floatValue, delta.toFloat)
     for (x <- VALUES) {
       ai.set(x)
-      assertEquals(x.toFloat, ai.floatValue, delta)
+      assertEquals(x.toFloat, ai.floatValue, delta.toFloat)
     }
   }
 

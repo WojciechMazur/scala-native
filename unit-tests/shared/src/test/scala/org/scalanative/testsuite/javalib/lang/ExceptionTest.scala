@@ -20,7 +20,9 @@ class ExceptionTest {
 
     assumeSupportsStackTraces()
     assertTrue(
-      trace.contains("\tat org.scalanative.testsuite.javalib.lang.ExceptionTest")
+      trace.contains(
+        "\tat org.scalanative.testsuite.javalib.lang.ExceptionTest"
+      )
     )
   }
 

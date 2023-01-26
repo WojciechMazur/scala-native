@@ -8,7 +8,6 @@
 package org.scalanative.testsuite
 package javalib.util.concurrent.atomic
 
-
 import org.scalanative.testsuite.javalib.util.concurrent.JSR166Test
 import JSR166Test._
 

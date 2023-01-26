@@ -65,7 +65,8 @@ class ThrowablesTest {
       trace.startsWith(startText)
     )
 
-    val containsText = "\tat org.scalanative.testsuite.javalib.lang.ThrowablesTest"
+    val containsText =
+      "\tat org.scalanative.testsuite.javalib.lang.ThrowablesTest"
     assertTrue(
       s"Expected trace to contain '${containsText}' and it did not.",
       trace.contains(containsText)

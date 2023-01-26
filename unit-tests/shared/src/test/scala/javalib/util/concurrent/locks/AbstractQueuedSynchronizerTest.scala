@@ -19,7 +19,6 @@ import org.junit.Assert._
 import org.junit.Assume._
 
 import org.scalanative.testsuite.utils.AssertThrows.assertThrows
-import org.scalanative.testsuite.utils.ThrowsHelper.assertThrowsAnd
 import org.scalanative.testsuite.utils.Platform
 import org.scalanative.testsuite.javalib.util.concurrent.JSR166Test
 import scala.util.control.Breaks

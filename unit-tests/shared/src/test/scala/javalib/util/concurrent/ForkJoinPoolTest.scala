@@ -15,7 +15,6 @@ import java.util.concurrent.locks._
 import org.junit.Test
 import org.junit.Assert._
 import org.scalanative.testsuite.utils.AssertThrows.assertThrows
-import org.scalanative.testsuite.utils.ThrowsHelper.assertThrowsAnd
 
 object ForkJoinPoolTest {
   class MyError extends Error {}

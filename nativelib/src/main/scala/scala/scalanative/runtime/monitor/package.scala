@@ -101,32 +101,32 @@ package object monitor {
     // Thin monitor ops
     // ThreadId uses the most significent bits, so no mask is required.
     @alwaysinline def threadId: RawPtr =
-      if (is32bit) castIntToRawPtr(intValue >> ThreadIdOffset)
-      else castLongToRawPtr(longValue >> ThreadIdOffset)
+      if (is32bit) castIntToRawPtr(intValue >>> ThreadIdOffset)
+      else castLongToRawPtr(longValue >>> ThreadIdOffset)
 
     @alwaysinline def recursionCount =
-      if (is32bit) ((intValue & RecursionMask) >> RecursionOffset).toInt
-      else ((longValue & RecursionMask) >> RecursionOffset).toInt
+      if (is32bit) ((intValue & RecursionMask) >>> RecursionOffset).toInt
+      else ((longValue & RecursionMask) >>> RecursionOffset).toInt
 
     @alwaysinline def withIncreasedRecursion: RawPtr = {
       if (is32bit)
         castIntToRawPtr(
-          ((intValue >> RecursionOffset) + 1) << RecursionOffset
+          ((intValue >>> RecursionOffset) + 1) << RecursionOffset
         )
       else
         castLongToRawPtr(
-          ((longValue >> RecursionOffset) + 1) << RecursionOffset
+          ((longValue >>> RecursionOffset) + 1) << RecursionOffset
         )
     }
 
     @alwaysinline def withDecresedRecursion: RawPtr = {
       if (is32bit)
         castIntToRawPtr(
-          ((intValue >> RecursionOffset) - 1) << RecursionOffset
+          ((intValue >>> RecursionOffset) - 1) << RecursionOffset
         )
       else
         castLongToRawPtr(
-          ((longValue >> RecursionOffset) - 1) << RecursionOffset
+          ((longValue >>> RecursionOffset) - 1) << RecursionOffset
         )
     }
 

@@ -291,7 +291,9 @@ object Build {
       // Scaladoc in Scala 3 fails to generate documentation in javalib
       // https://github.com/lampepfl/dotty/issues/16709
       case "3" => _.settings(disabledDocsSettings)
-      case _   => _.settings(docsSettings)
+      case _ =>
+        _.settings(docsSettings)
+          .settings(Compile / doc / scalacOptions -= "-Xfatal-warnings")
     }
     .dependsOn(posixlib, windowslib, clib)
     .withNativeCompilerPlugin

@@ -47,7 +47,7 @@ object FileApi {
       filename: CString,
       desiredAccess: DWord,
       shareMode: DWord,
-      securityAttributes: SecurityAttributes,
+      securityAttributes: Ptr[SecurityAttributes],
       creationDisposition: DWord,
       flagsAndAttributes: UInt,
       templateFile: Handle
@@ -57,7 +57,7 @@ object FileApi {
       filename: CWString,
       desiredAccess: DWord,
       shareMode: DWord,
-      securityAttributes: SecurityAttributes,
+      securityAttributes: Ptr[SecurityAttributes],
       creationDisposition: DWord,
       flagsAndAttributes: UInt,
       templateFile: Handle
@@ -93,6 +93,7 @@ object FileApi {
       findFileData: Ptr[Win32FindDataW]
   ): Boolean = extern
   def FindClose(searchHandle: Handle): Boolean = extern
+  @blocking
   def FlushFileBuffers(handle: Handle): Boolean = extern
   def GetFileAttributesA(filename: CString): DWord = extern
   def GetFileAttributesW(filename: CWString): DWord = extern
@@ -157,6 +158,7 @@ object FileApi {
       bufferLength: DWord
   ): Boolean = extern
 
+  @blocking
   def ReadFile(
       fileHandle: Handle,
       buffer: Ptr[Byte],
@@ -185,7 +187,7 @@ object FileApi {
       lastWriteTime: Ptr[FileTime]
   ): Boolean = extern
 
-  def WriteFile(
+  @blocking def WriteFile(
       fileHandle: Handle,
       buffer: Ptr[Byte],
       bytesToRead: DWord,
@@ -201,7 +203,7 @@ object FileApi {
       nNumberOfBytesToLockHigh: DWord
   ): Boolean = extern
 
-  def LockFileEx(
+  @blocking def LockFileEx(
       hfile: Handle,
       dwFlags: DWord,
       dwReserved: DWord,

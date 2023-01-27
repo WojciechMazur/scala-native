@@ -3,6 +3,7 @@
 
 #define LAST_HOLE -1
 
+#include <stdatomic.h>
 #include <stdint.h>
 #include "LineMeta.h"
 #include "GCTypes.h"

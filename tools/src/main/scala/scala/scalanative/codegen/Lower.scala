@@ -24,9 +24,10 @@ object Lower {
 
   private final class Impl(implicit meta: Metadata) extends Transform {
     import meta._
+    import meta.config
 
     implicit val linked: Result = meta.linked
-    val is32BitPlatform = meta.is32BitPlatform
+    val is32BitPlatform = meta.config.is32BitPlatform
 
     val Object = linked.infos(Rt.Object.name).asInstanceOf[Class]
 
@@ -44,6 +45,7 @@ object Lower {
 
     private val fresh = new util.ScopedVar[Fresh]
     private val unwindHandler = new util.ScopedVar[Option[Local]]
+    private val currentDefn = new util.ScopedVar[Defn.Define]
 
     private val unreachableSlowPath = mutable.Map.empty[Option[Local], Local]
     private val nullPointerSlowPath = mutable.Map.empty[Option[Local], Local]
@@ -80,7 +82,8 @@ object Lower {
       case defn: Defn.Define =>
         val Type.Function(_, ty) = defn.ty: @unchecked
         ScopedVar.scoped(
-          fresh := Fresh(defn.insts)
+          fresh := Fresh(defn.insts),
+          currentDefn := defn
         ) {
           super.onDefn(defn)
         }
@@ -127,6 +130,19 @@ object Lower {
           ()
       }
 
+      val Inst.Label(firstLabel, _) = insts.head: @unchecked
+      val labelPositions = insts
+        .collect { case Inst.Label(id, _) => id }
+        .zipWithIndex
+        .toMap
+      var currentBlockPosition = labelPositions(firstLabel)
+
+      genThisValueNullGuardIfUsed(
+        currentDefn.get,
+        buf,
+        () => newUnwindHandler(Next.None)(insts.head.pos)
+      )
+
       insts.tail.foreach {
         case inst @ Inst.Let(n, op, unwind) =>
           ScopedVar.scoped(
@@ -151,11 +167,23 @@ object Lower {
 
         case inst @ Inst.Ret(v) =>
           implicit val pos: Position = inst.pos
+          genGCYieldpoint(buf)
           buf += Inst.Ret(genVal(buf, v))
 
         case inst @ Inst.Jump(next) =>
           implicit val pos: Position = inst.pos
+          // Gen yieldpoint for backward jumps, eg. loops
+          next match {
+            case Next.Label(target, _)
+                if labelPositions(target) < currentBlockPosition =>
+              genGCYieldpoint(buf)
+            case _ => ()
+          }
           buf += Inst.Jump(genNext(buf, next))
+
+        case inst @ Inst.Label(name, _) =>
+          currentBlockPosition = labelPositions(name)
+          buf += inst
 
         case inst =>
           buf += inst
@@ -247,7 +275,8 @@ object Lower {
             val toty = Val.Local(fresh(), Type.Ptr)
 
             buf.label(slowPath, Seq(obj, toty))
-            val fromty = buf.let(Op.Load(Type.Ptr, obj), unwind)
+            val fromty =
+              buf.let(Op.Load(Type.Ptr, obj), unwind)
             buf.call(
               throwClassCastTy,
               throwClassCastVal,
@@ -345,6 +374,8 @@ object Lower {
           genFieldloadOp(buf, n, op)
         case op: Op.Fieldstore =>
           genFieldstoreOp(buf, n, op)
+        case op: Op.Load =>
+          genLoadOp(buf, n, op)
         case op: Op.Store =>
           genStoreOp(buf, n, op)
         case op: Op.Method =>
@@ -376,9 +407,22 @@ object Lower {
         case op: Op.Var =>
           ()
         case Op.Varload(Val.Local(slot, Type.Var(ty))) =>
-          buf.let(n, Op.Load(ty, Val.Local(slot, Type.Ptr)), unwind)
+          buf.let(
+            n,
+            Op.Load(ty, Val.Local(slot, Type.Ptr)),
+            unwind
+          )
         case Op.Varstore(Val.Local(slot, Type.Var(ty)), value) =>
-          buf.let(n, Op.Store(ty, Val.Local(slot, Type.Ptr), value), unwind)
+          buf.let(
+            n,
+            Op.Store(
+              ty,
+              Val.Local(slot, Type.Ptr),
+              genVal(buf, value),
+              None
+            ),
+            unwind
+          )
         case op: Op.Arrayalloc =>
           genArrayallocOp(buf, n, op)
         case op: Op.Arrayload =>
@@ -445,18 +489,41 @@ object Lower {
         pos: Position
     ) = {
       val Op.Fieldload(ty, obj, name) = op
+      val FieldRef(_, field) = name: @unchecked
+      val isSynchronized = field.attrs.isFinal || field.attrs.isVolatile
+      val syncAttrs = SyncAttrs(
+        memoryOrder =
+          if (isSynchronized) MemoryOrder.Acquire
+          else MemoryOrder.Unordered,
+        isVolatile = isSynchronized,
+        scope = Some(field.name)
+      )
 
       val elem = genFieldElemOp(buf, genVal(buf, obj), name)
-      buf.let(n, Op.Load(ty, elem), unwind)
+      genLoadOp(buf, n, Op.Load(ty, elem, Some(syncAttrs)))
     }
 
     def genFieldstoreOp(buf: Buffer, n: Local, op: Op.Fieldstore)(implicit
         pos: Position
     ) = {
       val Op.Fieldstore(ty, obj, name, value) = op
+      val FieldRef(_, field) = name: @unchecked
+
+      val isSynchronized = field.attrs.isFinal || field.attrs.isVolatile
+      def syncAttrs = SyncAttrs(
+        memoryOrder =
+          if (isSynchronized) MemoryOrder.Release
+          else MemoryOrder.Unordered,
+        isVolatile = isSynchronized,
+        scope = Some(field.name)
+      )
+      val storeAttrs = Some(syncAttrs)
 
       val elem = genFieldElemOp(buf, genVal(buf, obj), name)
-      genStoreOp(buf, n, Op.Store(ty, elem, value))
+      genStoreOp(buf, n, Op.Store(ty, elem, value, storeAttrs))
+      if (field.attrs.isFinal) {
+        buf.let(Op.Fence(syncAttrs), unwind)
+      }
     }
 
     def genFieldOp(buf: Buffer, n: Local, op: Op)(implicit
@@ -467,11 +534,63 @@ object Lower {
       buf.let(n, Op.Copy(elem), unwind)
     }
 
+    def genLoadOp(buf: Buffer, n: Local, op: Op.Load)(implicit
+        pos: Position
+    ): Unit = {
+      op match {
+        case Op.Load(Type.Bool, ptr, syncAttrs @ Some(_)) =>
+          val asPtr, valueAsByte = fresh()
+          genConvOp(buf, asPtr, Op.Conv(Conv.Bitcast, Type.Ptr, ptr))
+          genLoadOp(
+            buf,
+            valueAsByte,
+            Op.Load(
+              Type.Byte,
+              Val.Local(asPtr, Type.Ptr),
+              syncAttrs
+            )
+          )
+          genConvOp(
+            buf,
+            n,
+            Op.Conv(Conv.Trunc, Type.Bool, Val.Local(valueAsByte, Type.Byte))
+          )
+
+        case Op.Load(ty, ptr, syncAttrs) =>
+          buf.let(
+            n,
+            Op.Load(ty, genVal(buf, ptr), syncAttrs),
+            unwind
+          )
+      }
+    }
+
     def genStoreOp(buf: Buffer, n: Local, op: Op.Store)(implicit
         pos: Position
-    ) = {
-      val Op.Store(ty, ptr, value) = op
-      buf.let(n, Op.Store(ty, genVal(buf, ptr), genVal(buf, value)), unwind)
+    ): Unit = {
+      op match {
+        case Op.Store(Type.Bool, ptr, value, syncAttrs @ Some(_)) =>
+          val asPtr, valueAsByte = fresh()
+          genConvOp(buf, asPtr, Op.Conv(Conv.Bitcast, Type.Ptr, ptr))
+          genConvOp(buf, valueAsByte, Op.Conv(Conv.Zext, Type.Byte, value))
+          genStoreOp(
+            buf,
+            n,
+            Op.Store(
+              Type.Byte,
+              Val.Local(asPtr, Type.Ptr),
+              Val.Local(valueAsByte, Type.Byte),
+              syncAttrs
+            )
+          )
+
+        case Op.Store(ty, ptr, value, syncAttrs) =>
+          buf.let(
+            n,
+            Op.Store(ty, genVal(buf, ptr), genVal(buf, value), syncAttrs),
+            unwind
+          )
+      }
     }
 
     def genCompOp(buf: Buffer, n: Local, op: Op.Comp)(implicit
@@ -483,19 +602,72 @@ object Lower {
       buf.let(n, Op.Comp(comp, ty, left, right), unwind)
     }
 
+    private def genGCYieldpoint(buf: Buffer, genUnwind: Boolean = true)(implicit
+        pos: Position
+    ): Unit = {
+      import scalanative.build.GC._
+      val multithreadingEnabled = meta.config.multithreadingSupport
+      def supportedGC = meta.config.gc match {
+        case Immix => true
+        case _     => false
+      }
+      def defnNeedsSafepoints = {
+        val defn = currentDefn.get
+        defn.name match {
+          case Global.Member(_, sig) =>
+            // Exclude accessors and generated methods
+            !sig.isGenerated && defn.insts.size > 3
+          case _ => false // unreachable or generated
+        }
+      }
+      val shallGeneratate =
+        multithreadingEnabled && supportedGC && defnNeedsSafepoints
+      if (shallGeneratate) {
+        val handler =
+          if (genUnwind && unwindHandler.isInitialized) unwind
+          else Next.None
+        buf.call(Type.Function(Nil, Type.Unit), GCYieldpoint, Nil, handler)
+      }
+    }
+
     def genCallOp(buf: Buffer, n: Local, op: Op.Call)(implicit
         pos: Position
     ): Unit = {
       val Op.Call(ty, ptr, args) = op
-      buf.let(
-        n,
-        Op.Call(
-          ty = ty,
-          ptr = genVal(buf, ptr),
-          args = args.map(genVal(buf, _))
-        ),
-        unwind
+      def genCall() = {
+        buf.let(
+          n,
+          Op.Call(
+            ty = ty,
+            ptr = genVal(buf, ptr),
+            args = args.map(genVal(buf, _))
+          ),
+          unwind
+        )
+      }
+
+      def switchThreadState(managed: Boolean) = buf.call(
+        GCSetMutatorThreadStateSig,
+        GCSetMutatorThreadState,
+        Seq(Val.Int(if (managed) 0 else 1)),
+        if (unwindHandler.isInitialized) unwind else Next.None
       )
+
+      def shouldSwitchThreadState(name: Global) =
+        config.multithreadingSupport && linked.infos.get(name).exists { info =>
+          val attrs = info.attrs
+          attrs.isExtern && attrs.isBlocking
+        }
+
+      ptr match {
+        case Val.Global(global, _) if shouldSwitchThreadState(global) =>
+          switchThreadState(managed = false)
+          genCall()
+          genGCYieldpoint(buf, genUnwind = false)
+          switchThreadState(managed = true)
+
+        case _ => genCall()
+      }
     }
 
     def genMethodOp(buf: Buffer, n: Local, op: Op.Method)(implicit
@@ -518,7 +690,7 @@ object Lower {
           Op.Elem(
             rtti(cls).struct,
             typeptr,
-            meta.RttiVtableIndex :+ Val.Int(vindex)
+            meta.RttiClassVtablePath :+ Val.Int(vindex)
           ),
           unwind
         )
@@ -530,7 +702,7 @@ object Lower {
         val sigid = dispatchTable.traitSigIds(sig)
         val typeptr = let(Op.Load(Type.Ptr, obj), unwind)
         val idptr =
-          let(Op.Elem(meta.Rtti, typeptr, meta.RttiTraitIdIndex), unwind)
+          let(Op.Elem(meta.Rtti, typeptr, meta.RttiTraitIdPath), unwind)
         val id = let(Op.Load(Type.Int, idptr), unwind)
         val rowptr = let(
           Op.Elem(
@@ -629,10 +801,11 @@ object Lower {
           meta.linked.dynsigs.zipWithIndex.find(_._1 == sig).get._2
 
         // Load the type information pointer
-        val typeptr = load(Type.Ptr, obj, unwind)
+        val typeptr = load(Type.Ptr, obj, unwind, None)
         // Load the dynamic hash map for given type, make sure it's not null
-        val mapelem = elem(classRttiType, typeptr, meta.RttiDynmapIndex, unwind)
-        val mapptr = load(Type.Ptr, mapelem, unwind)
+        val mapelem =
+          elem(classRttiType, typeptr, meta.RttiClassDynmapPath, unwind)
+        val mapptr = load(Type.Ptr, mapelem, unwind, None)
         // If hash map is not null, it has to contain at least one entry
         throwIfNull(mapptr)
         // Perform dynamic dispatch via dyndispatch helper
@@ -695,7 +868,7 @@ object Lower {
           val range = meta.ranges(cls)
           val typeptr = let(Op.Load(Type.Ptr, obj), unwind)
           val idptr =
-            let(Op.Elem(meta.Rtti, typeptr, meta.RttiClassIdIndex), unwind)
+            let(Op.Elem(meta.Rtti, typeptr, meta.RttiClassIdPath), unwind)
           val id = let(Op.Load(Type.Int, idptr), unwind)
           val ge =
             let(Op.Comp(Comp.Sle, Type.Int, Val.Int(range.start), id), unwind)
@@ -706,7 +879,7 @@ object Lower {
         case TraitRef(trt) =>
           val typeptr = let(Op.Load(Type.Ptr, obj), unwind)
           val idptr =
-            let(Op.Elem(meta.Rtti, typeptr, meta.RttiClassIdIndex), unwind)
+            let(Op.Elem(meta.Rtti, typeptr, meta.RttiClassIdPath), unwind)
           val id = let(Op.Load(Type.Int, idptr), unwind)
           val boolptr = let(
             Op.Elem(
@@ -768,7 +941,7 @@ object Lower {
     ): Unit = {
       val Op.Classalloc(ClassRef(cls)) = op: @unchecked
 
-      val size = MemoryLayout.sizeOf(layout(cls).struct, is32BitPlatform)
+      val size = layout(cls).size
       val allocMethod =
         if (size < LARGE_OBJECT_MIN_SIZE) alloc else largeAlloc
 
@@ -1048,10 +1221,10 @@ object Lower {
           buf.let(n, Op.Copy(Val.Global(instance, Type.Ptr)), unwind)
 
         case _ =>
-          val loadSig = Type.Function(Seq(), Type.Ref(name))
+          val loadSig = Type.Function(Seq.empty, Type.Ref(name))
           val load = Val.Global(name.member(Sig.Generated("load")), Type.Ptr)
 
-          buf.let(n, Op.Call(loadSig, load, Seq()), unwind)
+          buf.let(n, Op.Call(loadSig, load, Seq.empty), unwind)
       }
     }
 
@@ -1085,6 +1258,12 @@ object Lower {
       }
     }
 
+    private def arrayMemoryLayout(
+        ty: nir.Type,
+        length: Int = 0
+    ): Type.StructValue =
+      Type.StructValue(meta.ArrayHeader :+ Type.ArrayValue(ty, length))
+
     def genArrayloadOp(buf: Buffer, n: Local, op: Op.Arrayload)(implicit
         pos: Position
     ): Unit = {
@@ -1096,10 +1275,8 @@ object Lower {
       genArraylengthOp(buf, len, Op.Arraylength(arr))
       genGuardInBounds(buf, idx, Val.Local(len, Type.Int))
 
-      val arrTy = Type.StructValue(
-        Seq(Type.Ptr, Type.Int, Type.Int, Type.ArrayValue(ty, 0))
-      )
-      val elemPath = Seq(Val.Int(0), Val.Int(3), idx)
+      val arrTy = arrayMemoryLayout(ty)
+      val elemPath = Seq(Val.Int(0), meta.ArrayHeaderValuesIdx, idx)
       val elemPtr = buf.elem(arrTy, arr, elemPath, unwind)
       buf.let(n, Op.Load(ty, elemPtr), unwind)
     }
@@ -1114,11 +1291,9 @@ object Lower {
       genArraylengthOp(buf, len, Op.Arraylength(arr))
       genGuardInBounds(buf, idx, Val.Local(len, Type.Int))
 
-      val arrTy = Type.StructValue(
-        Seq(Type.Ptr, Type.Int, Type.Int, Type.ArrayValue(ty, 0))
-      )
-      val elemPtr =
-        buf.elem(arrTy, arr, Seq(Val.Int(0), Val.Int(3), idx), unwind)
+      val arrTy = arrayMemoryLayout(ty)
+      val elemPath = Seq(Val.Int(0), meta.ArrayHeaderValuesIdx, idx)
+      val elemPtr = buf.elem(arrTy, arr, elemPath, unwind)
       genStoreOp(buf, n, Op.Store(ty, elemPtr, value))
     }
 
@@ -1132,8 +1307,9 @@ object Lower {
       val func = arrayLength
 
       genGuardNotNull(buf, arr)
-      val arrTy = Type.StructValue(Seq(Type.Ptr, Type.Int))
-      val lenPtr = buf.elem(arrTy, arr, Seq(Val.Int(0), Val.Int(1)), unwind)
+      val arrTy = arrayMemoryLayout(Type.Nothing)
+      val lenPath = Seq(Val.Int(0), meta.ArrayHeaderLengthIdx)
+      val lenPtr = buf.elem(arrTy, arr, lenPath, unwind)
       buf.let(n, Op.Load(Type.Int, lenPtr), unwind)
     }
 
@@ -1145,12 +1321,11 @@ object Lower {
       val charsLength = Val.Int(chars.length)
       val charsConst = Val.Const(
         Val.StructValue(
-          Seq(
-            rtti(CharArrayCls).const,
-            charsLength,
-            Val.Int(0), // padding to get next field aligned properly
-            Val.ArrayValue(Type.Char, chars.toSeq.map(Val.Char(_)))
-          )
+          rtti(CharArrayCls).const ::
+            meta.lockWordField :::
+            charsLength ::
+            Val.Int(2) :: // Stride, effectively unused
+            Val.ArrayValue(Type.Char, chars.toSeq.map(Val.Char(_))) :: Nil
         )
       )
 
@@ -1162,7 +1337,56 @@ object Lower {
         case _                           => util.unreachable
       }
 
-      Val.Const(Val.StructValue(rtti(StringCls).const +: fieldValues))
+      Val.Const(
+        Val.StructValue(
+          rtti(StringCls).const ::
+            meta.lockWordField ++
+            fieldValues
+        )
+      )
+    }
+
+    private def genThisValueNullGuardIfUsed(
+        defn: Defn.Define,
+        buf: nir.Buffer,
+        createUnwindHandler: () => Option[Local]
+    ) = {
+      def usesValue(expected: Val): Boolean = {
+        var wasUsed = false
+        import scala.util.control.Breaks._
+        breakable {
+          new Traverse {
+            override def onVal(value: Val): Unit = {
+              wasUsed = expected eq value
+              if (wasUsed) break()
+              else super.onVal(value)
+            }
+            override def onType(ty: Type): Unit = ()
+            override def onNext(next: Next): Unit = ()
+          }.onDefn(defn)
+        }
+        wasUsed
+      }
+
+      val Global.Member(_, sig) = defn.name: @unchecked
+      val Inst.Label(_, args) = defn.insts.head: @unchecked
+
+      val canHaveThisValue =
+        !(sig.isStatic || sig.isClinit || sig.isGenerated || sig.isExtern)
+      if (canHaveThisValue) {
+        args.headOption.foreach { thisValue =>
+          thisValue.ty match {
+            case ref: Type.Ref if ref.isNullable && usesValue(thisValue) =>
+              implicit def pos: Position = defn.pos
+              ScopedVar.scoped(
+                unwindHandler := createUnwindHandler()
+              ) {
+                genGuardNotNull(buf, thisValue)
+              }
+            case _ => ()
+          }
+        }
+      }
     }
   }
 
@@ -1390,6 +1614,15 @@ object Lower {
   val throwNoSuchMethodVal =
     Val.Global(throwNoSuchMethod, Type.Ptr)
 
+  val GCYieldpointName = "scalanative_gc_safepoint"
+  val GCYieldpoint =
+    Val.Global(extern(GCYieldpointName), Type.Function(Nil, Type.Unit))
+
+  val GCSetMutatorThreadStateSig = Type.Function(Seq(Type.Int), Type.Unit)
+  val GCSetMutatorThreadState = Val.Global(
+    extern("scalanative_setMutatorThreadState"),
+    Type.Ptr
+  )
   val RuntimeNull = Type.Ref(Global.Top("scala.runtime.Null$"))
   val RuntimeNothing = Type.Ref(Global.Top("scala.runtime.Nothing$"))
 
@@ -1400,6 +1633,11 @@ object Lower {
     buf += Defn.Declare(Attrs.None, largeAllocName, allocSig)
     buf += Defn.Declare(Attrs.None, dyndispatchName, dyndispatchSig)
     buf += Defn.Declare(Attrs.None, throwName, throwSig)
+    buf += Defn.Declare(
+      Attrs(isExtern = true),
+      GCSetMutatorThreadState.name,
+      GCSetMutatorThreadStateSig
+    )
     buf.toSeq
   }
 

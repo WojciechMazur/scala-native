@@ -56,11 +56,27 @@ sealed trait NativeConfig {
   /** Shall we use the incremental compilation? */
   def useIncrementalCompilation: Boolean
 
+  /** Shall be compiled with multithreading support */
+  def multithreadingSupport: Boolean
+
   /** Map of user defined properties resolved at linktime */
   def linktimeProperties: NativeConfig.LinktimeProperites
 
   /** Configuration when doing optimization */
   def optimizerConfig: OptimizerConfig
+
+  /** Checksum used to detect changes to the build between compilation runs. */
+  private[scalanative] lazy val checksum = Seq(
+    // format: off
+    gc, mode, buildTarget, targetTriple,
+    clang,clangPP, linkingOptions, compileOptions,
+    linkStubs, check, checkFatalWarnings, dump,
+    asan, optimize, useIncrementalCompilation,
+    multithreadingSupport,
+    linktimeProperties,
+    optimizerConfig.checksum
+    // format: on
+  ).foldLeft(0L)(_ + _.toString().hashCode())
 
   private lazy val detectedTriple = Discover.targetTriple(clang)
 
@@ -157,6 +173,9 @@ sealed trait NativeConfig {
 
   def withEmbedResources(value: Boolean): NativeConfig
 
+  /** Create a new config with support for multithreading */
+  def withMultithreadingSupport(enabled: Boolean): NativeConfig
+
   /** Create a new config with given base artifact name. */
   def withBasename(value: String): NativeConfig
 
@@ -187,6 +206,7 @@ object NativeConfig {
       linkStubs = false,
       optimize = true,
       useIncrementalCompilation = true,
+      multithreadingSupport = false,
       linktimeProperties = Map.empty,
       embedResources = false,
       basename = "",
@@ -210,6 +230,7 @@ object NativeConfig {
       asan: Boolean,
       optimize: Boolean,
       useIncrementalCompilation: Boolean,
+      multithreadingSupport: Boolean,
       linktimeProperties: LinktimeProperites,
       embedResources: Boolean,
       basename: String,
@@ -268,6 +289,9 @@ object NativeConfig {
     override def withIncrementalCompilation(value: Boolean): NativeConfig =
       copy(useIncrementalCompilation = value)
 
+    def withMultithreadingSupport(enabled: Boolean): NativeConfig =
+      copy(multithreadingSupport = enabled)
+
     def withLinktimeProperties(v: LinktimeProperites): NativeConfig = {
       checkLinktimeProperties(v)
       copy(linktimeProperties = v)
@@ -319,6 +343,7 @@ object NativeConfig {
         | - linktimeProperties:     $listLinktimeProperties
         | - embedResources:         $embedResources
         | - incrementalCompilation: $useIncrementalCompilation
+        | - multithreading          $multithreadingSupport
         | - optimizerConfig:        ${optimizerConfig.show(" " * 3)}
         | - basename:               $basename
         |)""".stripMargin

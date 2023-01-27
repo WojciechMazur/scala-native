@@ -35,25 +35,25 @@ abstract class Charset protected (
 
   def canEncode(): Boolean = true
 
-  private lazy val cachedDecoder = {
+  private lazy val cachedDecoder = ThreadLocal.withInitial[CharsetDecoder](() =>
     this
       .newDecoder()
       .onMalformedInput(CodingErrorAction.REPLACE)
       .onUnmappableCharacter(CodingErrorAction.REPLACE)
-  }
+  )
 
-  private lazy val cachedEncoder = {
+  private lazy val cachedEncoder = ThreadLocal.withInitial[CharsetEncoder](() =>
     this
       .newEncoder()
       .onMalformedInput(CodingErrorAction.REPLACE)
       .onUnmappableCharacter(CodingErrorAction.REPLACE)
-  }
+  )
 
   final def decode(bb: ByteBuffer): CharBuffer =
-    cachedDecoder.decode(bb)
+    cachedDecoder.get().decode(bb)
 
   final def encode(cb: CharBuffer): ByteBuffer =
-    cachedEncoder.encode(cb)
+    cachedEncoder.get().encode(cb)
 
   final def encode(str: String): ByteBuffer =
     encode(CharBuffer.wrap(str))
@@ -76,6 +76,18 @@ object Charset {
 
   def isSupported(charsetName: String): Boolean =
     CharsetMap.contains(charsetName.toLowerCase)
+
+  def availableCharsets(): java.util.SortedMap[String, Charset] =
+    availableCharsetsResult
+
+  private lazy val availableCharsetsResult = {
+    val m =
+      new java.util.TreeMap[String, Charset](String.CASE_INSENSITIVE_ORDER)
+    allNativeCharsets.foreach { c =>
+      m.put(c.name(), c)
+    }
+    Collections.unmodifiableSortedMap(m)
+  }
 
   private lazy val CharsetMap = {
     val m =
@@ -139,5 +151,8 @@ object Charset {
 
     m
   }
+
+  private def allNativeCharsets =
+    Array(US_ASCII, ISO_8859_1, UTF_8, UTF_16BE, UTF_16LE, UTF_16)
 
 }

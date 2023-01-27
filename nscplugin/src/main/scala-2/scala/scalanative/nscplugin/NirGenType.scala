@@ -26,6 +26,9 @@ trait NirGenType[G <: Global with Singleton] { self: NirGenPhase[G] =>
       (isScalaModule || sym.isTraitOrInterface) &&
         sym.annotations.exists(_.symbol == ExternClass)
 
+    def isBlocking: Boolean =
+      sym.annotations.exists(_.symbol == BlockingClass)
+
     def isStruct: Boolean =
       sym.annotations.exists(_.symbol == StructClass)
 
@@ -44,6 +47,8 @@ trait NirGenType[G <: Global with Singleton] { self: NirGenPhase[G] =>
           CFuncPtrNClass.contains(parent.typeSymbol)
         }
       }
+
+    def isVolatile: Boolean = isField && sym.hasAnnotation(VolatileAttr)
   }
 
   object SimpleType {
@@ -60,7 +65,7 @@ trait NirGenType[G <: Global with Singleton] { self: NirGenPhase[G] =>
           abort("ClassInfoType to ArrayClass!")
         case ClassInfoType(_, _, sym) => SimpleType(sym, Seq.empty)
         case t: AnnotatedType         => fromType(t.underlying)
-        case tpe: ErasedValueType     => SimpleType(tpe.valueClazz, Seq())
+        case tpe: ErasedValueType     => SimpleType(tpe.valueClazz, Seq.empty)
       }
 
     implicit def fromSymbol(sym: Symbol): SimpleType =

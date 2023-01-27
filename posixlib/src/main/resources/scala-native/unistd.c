@@ -7,19 +7,32 @@
 #include <unistd.h>
 #include "types.h" // scalanative_* types, not <sys/types.h>
 
-extern char **environ;
-extern char *optarg;
-extern int opterr, optind, optopt;
+#if defined(__FreeBSD__)
 
-char **scalanative_environ() { return environ; }
-
-char *scalanative_optarg() { return optarg; }
-
-int scalanative_opterr() { return opterr; }
-
-int scalanative_optind() { return optind; }
-
-int scalanative_optopt() { return optopt; }
+/* Apply a Pareto cost/benefit analysis here.
+ *
+ * Some relevant constants are not defined on FreeBSD.
+ * This implementation is one of at least 3 design possibilities. One can:
+ *   1) cause a runtime or semantic error by returning "known wrong" values
+ *      as done here. This causes only the parts of applications which
+ *      actually use the constants to, hopefully, fail.
+ *
+ *   2) cause a link time error.
+ *
+ *   3) cause a compile time error.
+ *
+ * The last ensure that no wrong constants slip out to a user but they also
+ * prevent an application developer from getting the parts of an application
+ * which do not actually use the constants from running.
+ */
+#define _XOPEN_VERSION 0
+#define _PC_2_SYMLINKS 0
+#define _SC_SS_REPL_MAX 0
+#define _SC_TRACE_EVENT_NAME_MAX 0
+#define _SC_TRACE_NAME_MAX 0
+#define _SC_TRACE_SYS_MAX 0
+#define _SC_TRACE_USER_EVENT_MAX 0
+#endif // __FreeBSD__
 
 long scalanative__posix_version() { return _POSIX_VERSION; }
 
@@ -235,6 +248,8 @@ int scalanative__sc_mq_open_max() { return _SC_MQ_OPEN_MAX; };
 int scalanative__sc_mq_prio_max() { return _SC_MQ_PRIO_MAX; };
 
 int scalanative__sc_ngroups_max() { return _SC_NGROUPS_MAX; };
+
+int scalanative__sc_nprocessors_onln() { return _SC_NPROCESSORS_ONLN; }
 
 int scalanative__sc_open_max() { return _SC_OPEN_MAX; };
 

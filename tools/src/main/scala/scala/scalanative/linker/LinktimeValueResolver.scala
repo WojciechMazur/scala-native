@@ -3,6 +3,7 @@ package scala.scalanative.linker
 import scala.collection.mutable
 import scala.scalanative.nir._
 import scala.scalanative.build._
+import scala.annotation.nowarn
 
 trait LinktimeValueResolver { self: Reach =>
   import LinktimeValueResolver._
@@ -12,18 +13,17 @@ trait LinktimeValueResolver { self: Reach =>
     val linktimeInfo = "scala.scalanative.meta.linktimeinfo"
     val predefined: NativeConfig.LinktimeProperites = Map(
       s"$linktimeInfo.debugMode" -> (conf.mode == Mode.debug),
-      s"$linktimeInfo.releaseMode" -> (conf.mode == Mode.releaseFast || conf.mode == Mode.releaseFull),
+      s"$linktimeInfo.releaseMode" -> (conf.mode == Mode.releaseFast || conf.mode == Mode.releaseFull || conf.mode == Mode.releaseSize),
       s"$linktimeInfo.isWindows" -> Platform.isWindows,
       s"$linktimeInfo.isLinux" -> Platform.isLinux,
       s"$linktimeInfo.isMac" -> Platform.isMac,
       s"$linktimeInfo.isFreeBSD" -> Platform.isFreeBSD,
+      s"$linktimeInfo.isMultithreadingEnabled" -> conf.multithreadingSupport,
       s"$linktimeInfo.isWeakReferenceSupported" -> {
         conf.gc == GC.Immix ||
         conf.gc == GC.Commix
       },
       s"$linktimeInfo.is32BitPlatform" -> conf.is32BitPlatform,
-      s"$linktimeInfo.sizeOfPtr" -> (if (conf.is32BitPlatform) Val.Size(4)
-                                     else Val.Size(8)),
       s"$linktimeInfo.asanEnabled" -> conf.asan
     )
     NativeConfig.checkLinktimeProperties(predefined)
@@ -168,7 +168,6 @@ private[linker] object LinktimeValueResolver {
         case v: Float   => ComparableVal(v, Val.Float(v))
         case v: Double  => ComparableVal(v, Val.Double(v))
         case v: String  => ComparableVal(v, Val.String(v))
-        case v: Val     => fromNir(v)
         case other =>
           throw new LinkingException(
             s"Unsupported value for link-time resolving: $other"
@@ -186,7 +185,6 @@ private[linker] object LinktimeValueResolver {
         case Val.Short(value)  => ComparableVal(value, v)
         case Val.Int(value)    => ComparableVal(value, v)
         case Val.Long(value)   => ComparableVal(value, v)
-        case Val.Size(value)   => ComparableVal(value, v)
         case Val.Float(value)  => ComparableVal(value, v)
         case Val.Double(value) => ComparableVal(value, v)
         case Val.Null          => ComparableVal(null, v)
@@ -201,6 +199,7 @@ private[linker] object LinktimeValueResolver {
   object ComparableTuple {
     type ComparableTupleType =
       (Ordering[Any], ComparableVal[Any], ComparableVal[Any])
+    @nowarn
     def unapply(vals: (ComparableVal[_], ComparableVal[_])) = {
       vals match {
         case (l: ComparableVal[_], r: ComparableVal[_])

@@ -5,7 +5,7 @@
 #include "BlockAllocator.h"
 #include <stdio.h>
 #include <limits.h>
-#include "util/ThreadUtil.h"
+#include "ThreadUtil.h"
 #include <errno.h>
 #include <stdlib.h>
 #include "WeakRefGreyList.h"
@@ -39,23 +39,33 @@ void Phase_Init(Heap *heap, uint32_t initialBlockCount) {
     pid_t pid = process_getid();
     char startWorkersName[SEM_MAX_LENGTH];
     char startMasterName[SEM_MAX_LENGTH];
-    snprintf(startWorkersName, SEM_MAX_LENGTH, "mt_%d_commix", pid);
-    snprintf(startMasterName, SEM_MAX_LENGTH, "wk_%d_commix", pid);
+
+#if defined(__FreeBSD__)
+#define SEM_NAME_PREFIX "/" // FreeBSD semaphore names must start with '/'
+#else
+#define SEM_NAME_PREFIX ""
+#endif // __FreeBSD__
+
+    snprintf(startWorkersName, SEM_MAX_LENGTH, SEM_NAME_PREFIX "mt_%d_commix",
+             pid);
+    snprintf(startMasterName, SEM_MAX_LENGTH, SEM_NAME_PREFIX "wk_%d_commix",
+             pid);
+
     // only reason for using named semaphores here is for compatibility with
     // MacOs we do not share them across processes
     // We open the semaphores and try to check the call succeeded,
     // if not, we exit the process
-    heap->gcThreads.startWorkers = semaphore_open(startWorkersName, 0U);
-    if (heap->gcThreads.startWorkers == SEM_FAILED) {
+    if (!semaphore_open(&heap->gcThreads.startWorkers, startWorkersName, 0U)) {
         fprintf(stderr,
-                "Opening worker semaphore failed in commix Phase_Init\n");
+                "Opening worker semaphore failed in commix Phase_Init: %d\n",
+                errno);
         exit(errno);
     }
 
-    heap->gcThreads.startMaster = semaphore_open(startMasterName, 0U);
-    if (heap->gcThreads.startMaster == SEM_FAILED) {
+    if (!semaphore_open(&heap->gcThreads.startMaster, startMasterName, 0U)) {
         fprintf(stderr,
-                "Opening master semaphore failed in commix Phase_Init\n");
+                "Opening master semaphore failed in commix Phase_Init: %d\n",
+                errno);
         exit(errno);
     }
     // clean up when process closes

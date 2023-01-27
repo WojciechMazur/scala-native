@@ -1,10 +1,11 @@
---- 3.2.1/scala/runtime/LazyVals.scala
+--- 3.2.2/scala/runtime/LazyVals.scala
 +++ overrides-3/scala/runtime/LazyVals.scala
-@@ -1,42 +1,12 @@
- package scala.runtime
+@@ -3,44 +3,15 @@
+ import java.util.concurrent.CountDownLatch
  
--import scala.annotation.*
+ import scala.annotation.*
 +import scala.scalanative.runtime.*
++import scala.scalanative.annotation.*
  
  /**
   * Helper methods used in thread-safe lazy vals.
@@ -24,11 +25,13 @@
 -          new IllegalStateException("Can't find instance of sun.misc.Unsafe")
 -        }
 -      }
--
++  @alwaysinline private def LAZY_VAL_MASK = 3L
+ 
 -  private[this] val base: Int = {
 -    val processors = java.lang.Runtime.getRuntime.nn.availableProcessors()
 -    8 * processors * processors
 -  }
+-
 -  private[this] val monitors: Array[Object] =
 -    Array.tabulate(base)(_ => new Object)
 -
@@ -39,12 +42,13 @@
 -    monitors(id)
 -  }
 -
-   private final val LAZY_VAL_MASK = 3L
+-  private final val LAZY_VAL_MASK = 3L
 -  private final val debug = false
- 
+-
    /* ------------- Start of public API ------------- */
  
-@@ -44,79 +14,38 @@
+   @experimental
+@@ -71,96 +42,49 @@
  
    def STATE(cur: Long, ord: Int): Long = {
      val r = (cur >> (ord * BITS_PER_LAZY_VAL)) & LAZY_VAL_MASK
@@ -59,6 +63,14 @@
 -    val mask = ~(LAZY_VAL_MASK << ord * BITS_PER_LAZY_VAL)
 -    val n = (e & mask) | (v.toLong << (ord * BITS_PER_LAZY_VAL))
 -    unsafe.compareAndSwapLong(t, offset, e, n)
++    unexpectedUsage()
+   }
+ 
+   @experimental
+   def objCAS(t: Object, offset: Long, exp: Object, n: Object): Boolean = {
+-    if (debug)
+-      println(s"objCAS($t, $exp, $n)")
+-    unsafe.compareAndSwapObject(t, offset, exp, n)
 +    unexpectedUsage()
    }
  
@@ -110,11 +122,22 @@
 +    unexpectedUsage()
    }
  
+   // kept for backward compatibility
    def getOffset(clz: Class[_], name: String): Long = {
 -    @nowarn
 -    val r = unsafe.objectFieldOffset(clz.getDeclaredField(name))
 -    if (debug)
 -      println(s"getOffset($clz, $name) = $r")
+-    r
++    unexpectedUsage()
+   }
+ 
+   @experimental
+   def getStaticFieldOffset(field: java.lang.reflect.Field): Long = {
+-    @nowarn
+-    val r = unsafe.staticFieldOffset(field)
+-    if (debug)
+-      println(s"getStaticFieldOffset(${field.getDeclaringClass}, ${field.getName}) = $r")
 -    r
 +    unexpectedUsage()
    }

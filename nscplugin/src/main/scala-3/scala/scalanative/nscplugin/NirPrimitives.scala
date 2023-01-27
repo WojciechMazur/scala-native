@@ -147,6 +147,7 @@ class NirPrimitives(using ctx: Context) extends DottyPrimitives(ctx) {
     addPrimitive(defn.Array_clone, ARRAY_CLONE)
     addPrimitive(defnNir.CQuote_c, CQUOTE)
     addPrimitive(defnNir.Intrinsics_stackalloc, STACKALLOC)
+    addPrimitive(defnNir.Intrinsics_stackallocRaw, STACKALLOC)
     addPrimitive(defnNir.Intrinsics_divUInt, DIV_UINT)
     addPrimitive(defnNir.Intrinsics_divULong, DIV_ULONG)
     addPrimitive(defnNir.Intrinsics_remUInt, REM_UINT)

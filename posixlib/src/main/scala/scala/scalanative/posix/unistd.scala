@@ -33,22 +33,17 @@ object unistd {
   @name("scalanative__xopen_version")
   def _XOPEN_VERSION: CInt = extern
 
-  @name("scalanative_environ")
-  def environ: Ptr[CString] = extern
+  var environ: Ptr[CString] = extern
 
   // optarg, opterr, optopt, and optopt are used by getopt().
 
-  @name("scalanative_optarg")
-  def optarg: CString = extern
+  var optarg: CString = extern
 
-  @name("scalanative_opterr")
-  def opterr: CInt = extern
+  var opterr: CInt = extern
 
-  @name("scalanative_optind")
-  def optind: CInt = extern
+  var optind: CInt = extern
 
-  @name("scalanative_optopt")
-  def optopt: CInt = extern
+  var optopt: CInt = extern
 
 // Methods/functions
   def access(pathname: CString, mode: CInt): CInt = extern
@@ -93,12 +88,15 @@ object unistd {
   ): CInt = extern
 
   // POSIX SIO
+  @blocking
   def fdatasync(filedes: CInt): CInt = extern
 
   def fexecve(fd: CInt, argv: Ptr[CString], envp: Ptr[CString]): CInt = extern
   def fork(): pid_t = extern
   def fpathconf(fd: CInt, name: CInt): CLong = extern
+  @blocking
   def fsync(fildes: CInt): CInt = extern
+  @blocking
   def ftruncate(fildes: CInt, length: off_t): CInt = extern
 
   def getcwd(buf: CString, size: CSize): CString = extern
@@ -134,7 +132,7 @@ object unistd {
   ): CInt = extern
 
   // XSI
-  def lockf(fd: CInt, cmd: CInt, len: off_t): CInt = extern
+  @blocking def lockf(fd: CInt, cmd: CInt, len: off_t): CInt = extern
 
   def lseek(fildes: CInt, offset: off_t, whence: CInt): off_t = extern
 
@@ -142,13 +140,17 @@ object unistd {
   def nice(inc: CInt): CInt = extern
 
   def pathconf(path: CString, name: CInt): CLong = extern
+  @blocking
   def pause(): CInt = extern
   def pipe(fildes: Ptr[CInt]): CInt = extern
+  @blocking
   def pread(fd: CInt, buf: Ptr[Byte], count: size_t, offset: off_t): ssize_t =
     extern
+  @blocking
   def pwrite(fd: CInt, buf: Ptr[Byte], count: size_t, offset: off_t): ssize_t =
     extern
 
+  @blocking
   def read(fildes: CInt, buf: Ptr[_], nbyte: CSize): CInt = extern
   def readlink(path: CString, buf: CString, bufsize: CSize): CInt = extern
   def readlinkat(
@@ -172,6 +174,7 @@ object unistd {
 
   def setsid(): pid_t = extern
   def setuid(uid: uid_t): CInt = extern
+  @blocking
   def sleep(seconds: CUnsignedInt): CUnsignedInt = extern
 
 // XSI
@@ -181,6 +184,7 @@ object unistd {
   def symlinkat(path1: CString, fd: CInt, path2: CString): CInt = extern
 
 // XSI
+  @blocking
   def sync(): Unit = extern
 
   def sysconf(name: CInt): CLong = extern
@@ -205,7 +209,7 @@ object unistd {
     "Removed in POSIX.1-2008. Use POSIX time.h nanosleep().",
     since = "posixlib 0.4.5"
   )
-  def usleep(usecs: CUnsignedInt): CInt = extern
+  @blocking def usleep(usecs: CUnsignedInt): CInt = extern
 
   @deprecated(
     "Removed in POSIX.1-2008. Consider posix_spawn().",
@@ -213,7 +217,7 @@ object unistd {
   )
   def vfork(): CInt = extern
 
-  def write(fildes: CInt, buf: Ptr[_], nbyte: CSize): CInt = extern
+  @blocking def write(fildes: CInt, buf: Ptr[_], nbyte: CSize): CInt = extern
 
 // Symbolic constants
 
@@ -524,6 +528,9 @@ object unistd {
 
   @name("scalanative__sc_ngroups_max")
   def _SC_NGROUPS_MAX: CInt = extern
+
+  @name("scalanative__sc_nprocessors_onln")
+  def _SC_NPROCESSORS_ONLN: CInt = extern
 
   @name("scalanative__sc_open_max")
   def _SC_OPEN_MAX: CInt = extern

@@ -80,7 +80,7 @@ class MixinTest {
       log("C");
     }
 
-    def test() = {
+    @Test def test(): Unit = {
       val c = new C();
     }
   }

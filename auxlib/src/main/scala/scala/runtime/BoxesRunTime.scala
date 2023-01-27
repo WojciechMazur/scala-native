@@ -2,6 +2,7 @@ package scala.runtime
 
 import scala.math.ScalaNumber
 import scala.scalanative.unsafe._
+import scala.annotation.switch
 
 class BoxesRunTime
 
@@ -46,4 +47,97 @@ object BoxesRunTime {
   def hashFromFloat(o: java.lang.Float): Int = ???
   def hashFromDouble(o: java.lang.Double): Int = ???
   def hashFromLong(o: java.lang.Long): Int = ???
+
+  def equals(x: Any, y: Any): Boolean = {
+    (x, y) match {
+      case (x: AnyRef, y: AnyRef) => x eq y
+      case _                      => equals2(x, y)
+    }
+  }
+
+  /** Since all applicable logic has to be present in the equals method of a
+   *  ScalaNumber in any case, we dispatch to it as soon as we spot one on
+   *  either side.
+   */
+  def equals2(x: Any, y: Any): Boolean = {
+    x match {
+      case number: Number  => equalsNumObject(number, y)
+      case char: Character => equalsCharObject(char, y)
+      case _ =>
+        if (x == null) y == null
+        else x == y
+    }
+  }
+
+  def equalsNumObject(xn: Number, y: Any): Boolean = {
+    y match {
+      case number: Number       => equalsNumNum(xn, number)
+      case character: Character => equalsNumChar(xn, character)
+      case _ =>
+        if (xn == null) y == null
+        else xn == y
+    }
+  }
+
+  private final val CHAR = 0
+  /* BYTE = 1, SHORT = 2, */
+  private final val INT = 3
+  private final val LONG = 4
+  private final val FLOAT = 5
+  private final val DOUBLE = 6
+  private final val OTHER = 7
+
+  /** We don't need to return BYTE and SHORT, as everything which might care
+   *  widens to INT.
+   */
+  private def typeCode(a: Any): Int = {
+    a match {
+      case _: Integer         => INT
+      case _: Double          => DOUBLE
+      case _: Long            => LONG
+      case _: Character       => CHAR
+      case _: Float           => FLOAT
+      case _: Byte | _: Short => INT
+      case _                  => OTHER
+    }
+  }
+
+  def equalsNumNum(xn: Number, yn: Number): Boolean = {
+    val xcode = typeCode(xn)
+    val ycode = typeCode(yn)
+    val toMatch = if (ycode > xcode) ycode else xcode
+    (toMatch: @switch) match {
+      case INT    => xn.intValue == yn.intValue
+      case LONG   => xn.longValue == yn.longValue
+      case FLOAT  => xn.floatValue == yn.floatValue
+      case DOUBLE => xn.doubleValue == yn.doubleValue
+      case _ =>
+        if (yn.isInstanceOf[ScalaNumber] && !xn.isInstanceOf[ScalaNumber])
+          yn == xn
+        else if (xn == null) yn == null
+        else xn == yn
+    }
+  }
+
+  def equalsCharObject(xc: Character, y: Any): Boolean = {
+    y match {
+      case character: Character => return xc.charValue == character.charValue
+      case number: Number       => equalsNumChar(number, xc)
+      case _ =>
+        if (xc == null) y == null
+        else xc == y
+    }
+  }
+
+  def equalsNumChar(xn: Number, yc: Character): Boolean = {
+    if (yc == null) return xn == null
+    val ch = yc.charValue
+    (typeCode(xn): @switch) match {
+      case INT    => xn.intValue == ch
+      case LONG   => xn.longValue == ch
+      case FLOAT  => xn.floatValue == ch
+      case DOUBLE => xn.doubleValue == ch
+      case _      => xn == ch.toInt
+    }
+  }
 }

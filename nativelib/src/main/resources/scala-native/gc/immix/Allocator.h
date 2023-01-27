@@ -10,7 +10,6 @@
 typedef struct {
     word_t *blockMetaStart;
     Bytemap *bytemap;
-    BlockAllocator *blockAllocator;
     word_t *heapStart;
     BlockList recycledBlocks;
     uint32_t recycledBlockCount;
@@ -24,9 +23,7 @@ typedef struct {
     word_t *largeLimit;
 } Allocator;
 
-void Allocator_Init(Allocator *allocator, BlockAllocator *blockAllocator,
-                    Bytemap *bytemap, word_t *blockMetaStart,
-                    word_t *heapStart);
+void Allocator_Init(Allocator *allocator);
 bool Allocator_CanInitCursors(Allocator *allocator);
 void Allocator_InitCursors(Allocator *allocator);
 void Allocator_Clear(Allocator *allocator);

@@ -6,14 +6,14 @@
 #include "Log.h"
 #include "Allocator.h"
 #include "Marker.h"
+#include "State.h"
 
-INLINE void Block_recycleUnmarkedBlock(Allocator *allocator,
-                                       BlockMeta *blockMeta,
+INLINE void Block_recycleUnmarkedBlock(BlockMeta *blockMeta,
                                        word_t *blockStart) {
     memset(blockMeta, 0, sizeof(BlockMeta));
     // does not unmark in LineMetas because those are ignored by the allocator
-    BlockAllocator_AddFreeBlocks(allocator->blockAllocator, blockMeta, 1);
-    ObjectMeta_ClearBlockAt(Bytemap_Get(allocator->bytemap, blockStart));
+    BlockAllocator_AddFreeBlocks(&blockAllocator, blockMeta, 1);
+    ObjectMeta_ClearBlockAt(Bytemap_Get(heap.bytemap, blockStart));
 }
 
 /**
@@ -24,12 +24,12 @@ void Block_Recycle(Allocator *allocator, BlockMeta *blockMeta,
 
     // If the block is not marked, it means that it's completely free
     if (!BlockMeta_IsMarked(blockMeta)) {
-        Block_recycleUnmarkedBlock(allocator, blockMeta, blockStart);
+        Block_recycleUnmarkedBlock(blockMeta, blockStart);
     } else {
         // If the block is marked, we need to recycle line by line
         assert(BlockMeta_IsMarked(blockMeta));
         BlockMeta_Unmark(blockMeta);
-        Bytemap *bytemap = allocator->bytemap;
+        Bytemap *bytemap = heap.bytemap;
 
         // start at line zero, keep separate pointers into all affected data
         // structures
@@ -62,6 +62,7 @@ void Block_Recycle(Allocator *allocator, BlockMeta *blockMeta,
                 } else {
                     // Update the last recyclable line to point to the current
                     // one
+                    assert(lineIndex >= 0);
                     lastRecyclable->next = lineIndex;
                 }
                 ObjectMeta_ClearLineAt(bytemapCursor);

@@ -33,6 +33,7 @@ object Settings {
 
   // JDK version we are running with
   lazy val thisBuildSettings = Def.settings(
+    Global / parallelExecution := false,
     Global / javaVersion := {
       val fullVersion = System.getProperty("java.version")
       val v = fullVersion.stripPrefix("1.").takeWhile(_.isDigit).toInt
@@ -177,7 +178,7 @@ object Settings {
     ),
     mimaPreviousArtifacts ++= {
       // The previous releases of Scala Native with which this version is binary compatible.
-      val binCompatVersions = Set()
+      val binCompatVersions = Set.empty
       binCompatVersions
         .map { version =>
           ModuleID(organization.value, moduleName.value, version)
@@ -299,7 +300,30 @@ object Settings {
     // Make sure that tests run on JVM are using default defaults
     Test / javaOptions ++= Seq(
       "-Dfile.encoding=UTF-8" // Windows uses Cp1250 as default
-    )
+    ),
+    scalacOptions ++= CrossVersion
+      .partialVersion(scalaVersion.value)
+      .collect {
+        case (3, _) =>
+          Seq(
+            "constructor Short",
+            "constructor Integer in class Integer",
+            "constructor Long in class Long",
+            "constructor Float in class Float",
+            "constructor Double in class Double",
+            "constructor String in class String",
+            "method getBytes in class String",
+            "method >>",
+            "method <<",
+            "method weakCompareAndSet in class Atomic",
+            "method readLine in class DataInputStream",
+            "method divide in class BigDecimal",
+            "method setScale in class BigDecimal",
+            "method toIterator in trait IterableOnceOps",
+            "method replaceAllLiterally in class StringOps"
+          ).map(msg => s"-Wconf:cat=deprecation&msg=$msg:s")
+      }
+      .getOrElse(Nil)
   )
 
   lazy val testsExtCommonSettings = Def.settings(
@@ -517,7 +541,6 @@ object Settings {
   )
 
   lazy val commonJavalibSettings = Def.settings(
-    disabledDocsSettings,
     // This is required to have incremental compilation to work in javalib.
     // We put our classes on scalac's `javabootclasspath` so that it uses them
     // when compiling rather than the definitions from the JDK.
@@ -802,7 +825,9 @@ object Settings {
     Compile / publishArtifact := false,
     Test / parallelExecution := false,
     Test / unmanagedSourceDirectories +=
-      baseDirectory.value.getParentFile / "shared/src/test/scala",
+      baseDirectory.value
+        .getParentFile()
+        .getParentFile() / "shared/src/test/scala",
     Test / testOptions ++= Seq(
       Tests.Argument(TestFrameworks.JUnit, "-a", "-s", "-v"),
       Tests.Filter(_.endsWith("Assertions"))

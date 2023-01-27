@@ -127,7 +127,7 @@ abstract class NirPrimitives {
     addPrimitive(BoxedUnit_UNIT, BOXED_UNIT)
     addPrimitive(Array_clone, ARRAY_CLONE)
     addPrimitive(CQuoteMethod, CQUOTE)
-    addPrimitive(StackallocMethod, STACKALLOC)
+    StackallocMethods.foreach(addPrimitive(_, STACKALLOC))
     addPrimitive(DivUIntMethod, DIV_UINT)
     addPrimitive(DivULongMethod, DIV_ULONG)
     addPrimitive(RemUIntMethod, REM_UINT)

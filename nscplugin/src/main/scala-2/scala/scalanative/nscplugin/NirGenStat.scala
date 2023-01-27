@@ -153,7 +153,7 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       val sym = cd.symbol
       val annotationAttrs = sym.annotations.collect {
         case ann if ann.symbol == ExternClass =>
-          Attr.Extern
+          Attr.Extern(sym.isBlocking)
         case ann if ann.symbol == LinkClass =>
           val Apply(_, Seq(Literal(Constant(name: String)))) = ann.tree
           Attr.Link(name)
@@ -161,7 +161,7 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
           Attr.Stub
       }
       val abstractAttr =
-        if (sym.isAbstract) Seq(Attr.Abstract) else Seq()
+        if (sym.isAbstract) Seq(Attr.Abstract) else Seq.empty
 
       Attrs.fromSeq(annotationAttrs ++ abstractAttr)
     }
@@ -201,8 +201,14 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
         val ty = genType(f.tpe)
         val name = genFieldName(f)
         val pos: nir.Position = f.pos
+        // Thats what JVM backend does
+        // https://github.com/scala/scala/blob/fe724bcbbfdc4846e5520b9708628d994ae76798/src/compiler/scala/tools/nsc/backend/jvm/BTypesFromSymbols.scala#L760-L764
+        val fieldAttrs = attrs.copy(
+          isVolatile = f.isVolatile,
+          isFinal = !f.isMutable
+        )
 
-        buf += Defn.Var(attrs, name, ty, Val.Zero(ty))(pos)
+        buf += Defn.Var(fieldAttrs, name, ty, Val.Zero(ty))(pos)
       }
     }
 
@@ -275,7 +281,7 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
           // call to super constructor
           exprBuf.call(
             Type.Function(Seq(Type.Ref(superClass)), Type.Unit),
-            Val.Global(superClass.member(Sig.Ctor(Seq())), Type.Ptr),
+            Val.Global(superClass.member(Sig.Ctor(Seq.empty)), Type.Ptr),
             Seq(thisArg),
             unwind(curFresh)
           )
@@ -286,7 +292,7 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
 
         reflInstBuffer += Defn.Define(
           Attrs(),
-          reflInstBuffer.name.member(Sig.Ctor(Seq())),
+          reflInstBuffer.name.member(Sig.Ctor(Seq.empty)),
           nir.Type.Function(Seq(Type.Ref(reflInstBuffer.name)), Type.Unit),
           body
         )
@@ -364,11 +370,11 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
         )
 
         // Allocate and return an instance of the generated class.
-        allocAndConstruct(exprBuf, reflInstBuffer.name, Seq(), Seq())
+        allocAndConstruct(exprBuf, reflInstBuffer.name, Seq.empty, Seq.empty)
       }
 
       withFreshExprBuffer { exprBuf =>
-        exprBuf.label(curFresh(), Seq())
+        exprBuf.label(curFresh(), Seq.empty)
 
         val fqcnArg = Val.String(fqSymId)
         val runtimeClassArg = Val.ClassOf(fqSymName)
@@ -504,7 +510,12 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
 
           // Allocate an instance of the generated class.
           val instantiator =
-            allocAndConstruct(exprBuf, reflInstBuffer.name, Seq(), Seq())
+            allocAndConstruct(
+              exprBuf,
+              reflInstBuffer.name,
+              Seq.empty,
+              Seq.empty
+            )
 
           // Create the current constructor's info. We need:
           // - an array with the runtime classes of the ctor parameters.
@@ -554,7 +565,7 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
         Seq.empty
       else
         withFreshExprBuffer { exprBuf =>
-          exprBuf.label(curFresh(), Seq())
+          exprBuf.label(curFresh(), Seq.empty)
 
           val fqcnArg = Val.String(fqSymId)
           val runtimeClassArg = Val.ClassOf(fqSymName)
@@ -689,7 +700,7 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       Defn.Define(
         Attrs(inlineHint = Attr.AlwaysInline),
         methodName,
-        Type.Function(Seq(), retty),
+        Type.Function(Seq.empty, retty),
         buf.toSeq
       )
     }
@@ -702,9 +713,9 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
     ): Option[nir.Defn] = {
       val rhs = dd.rhs
       def externMethodDecl() = {
-        val externAttrs = Attrs(isExtern = true)
         val externSig = genExternMethodSig(curMethodSym)
-        val externDefn = Defn.Declare(externAttrs, name, externSig)(rhs.pos)
+        val externDefn = Defn.Declare(attrs, name, externSig)(rhs.pos)
+
         Some(externDefn)
       }
 
@@ -817,7 +828,10 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
           case NoOptimizeClass   => Attr.NoOpt
           case NoSpecializeClass => Attr.NoSpecialize
         }
-      val externAttrs = if (sym.owner.isExternType) Seq(Attr.Extern) else Nil
+      val externAttrs =
+        if (sym.owner.isExternType)
+          Seq(Attr.Extern(sym.isBlocking || sym.owner.isBlocking))
+        else Nil
 
       Attrs.fromSeq(inlineAttrs ++ annotatedAttrs ++ externAttrs)
     }

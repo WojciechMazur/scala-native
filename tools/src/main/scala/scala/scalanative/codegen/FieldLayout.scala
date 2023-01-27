@@ -4,9 +4,9 @@ package codegen
 import scalanative.nir._
 import scalanative.linker.{Class, Field}
 
-class FieldLayout(meta: Metadata, cls: Class) {
-  def index(fld: Field) =
-    entries.indexOf(fld) + 1
+class FieldLayout(cls: Class)(implicit meta: Metadata) {
+
+  def index(fld: Field) = entries.indexOf(fld) + meta.ObjectHeaderFieldsCount
   val entries: Seq[Field] = {
     val base = cls.parent.fold {
       Seq.empty[Field]
@@ -15,10 +15,9 @@ class FieldLayout(meta: Metadata, cls: Class) {
   }
   val struct: Type.StructValue = {
     val data = entries.map(_.ty)
-    val body = Type.Ptr +: data
-    Type.StructValue(body)
+    Type.StructValue(meta.ObjectHeader ++ data)
   }
-  val layout = MemoryLayout(struct.tys, meta.is32BitPlatform)
+  val layout = MemoryLayout(struct.tys, meta.config.is32BitPlatform)
   val size = layout.size
   val referenceOffsetsTy =
     Type.StructValue(Seq(Type.Ptr))

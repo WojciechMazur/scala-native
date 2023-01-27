@@ -49,6 +49,9 @@ import scala.scalanative.unsafe._
   // Linux CStruct1[CArray[CUnsignedLong, Nat.Digit[Nat._1, Nat._6]]]
   type sigset_t = Ptr[Byte]
 
+  @name("scalanative_sizeof_sigset_t")
+  def sizeof_sigset_t(): CSize = extern
+
   type pid_t = types.pid_t
   type pthread_attr_t = types.pthread_attr_t
 
@@ -353,6 +356,7 @@ import scala.scalanative.unsafe._
   def sigignore(sig: CInt): CInt = extern
   def siginterrupt(sig: CInt, flag: CInt): CInt = extern
   def sigismember(set: Ptr[sigset_t], signo: CInt): CInt = extern
+  @blocking
   def sigpause(sig: CInt): CInt = extern
   def sigpending(set: Ptr[sigset_t]): CInt = extern
   def sigprocmask(how: CInt, set: Ptr[sigset_t], oset: Ptr[sigset_t]): CInt =
@@ -361,13 +365,17 @@ import scala.scalanative.unsafe._
   def sigrelse(sig: CInt): CInt = extern
   def sigset(sig: CInt, disp: CFuncPtr1[CInt, Unit]): CFuncPtr1[CInt, Unit] =
     extern
+  @blocking
   def sigsuspend(sigmask: Ptr[sigset_t]): CInt = extern
+  @blocking
   def sigtimedwait(
       set: Ptr[sigset_t],
       info: Ptr[siginfo_t],
       timeout: Ptr[timespec]
   ): CInt = extern
+  @blocking
   def sigwait(set: Ptr[sigset_t], sig: Ptr[CInt]): CInt = extern
+  @blocking
   def sigwaitinfo(set: Ptr[sigset_t], info: Ptr[siginfo_t]): CInt = extern
 }
 

@@ -41,9 +41,9 @@ private[lang] object StackTrace {
     var buffer = mutable.ArrayBuffer.empty[StackTraceElement]
     if (!LinktimeInfo.asanEnabled) {
       Zone { implicit z =>
-        val cursor: Ptr[scala.Byte] = alloc[scala.Byte](2048.toUSize)
-        val context: Ptr[scala.Byte] = alloc[scala.Byte](2048.toUSize)
-        val offset: Ptr[scala.Byte] = alloc[scala.Byte](8.toUSize)
+        val cursor: Ptr[scala.Byte] = stackalloc[scala.Byte](4096.toUInt)
+        val context: Ptr[scala.Byte] = stackalloc[scala.Byte](4096.toUInt)
+        val offset: Ptr[scala.Byte] = stackalloc[scala.Byte](16.toUInt)
         val ip = alloc[CUnsignedLong]()
 
         unwind.get_context(context)

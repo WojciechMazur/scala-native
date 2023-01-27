@@ -1,5 +1,7 @@
 package scala.scalanative
 
+import scala.language.higherKinds
+
 import org.junit.Test
 import org.junit.Assert._
 import org.scalanative.testsuite.utils.AssertThrows.assertThrows
@@ -403,6 +405,7 @@ class IssuesTest {
   @Test def test_Issue2187(): Unit = {
     val args = List.empty[String]
     // In issue 2187 match with guards would not compile
+    @nowarn
     val res = "Hello, World!" match {
       case "Hello" if args.isEmpty  => "foo"
       case "Hello" if args.nonEmpty => "foo2"
@@ -578,6 +581,16 @@ class IssuesTest {
     free(ptr) // memory allocated by malloc(0) should always be safe to free
     srand(null) // CUnsignedInt -> Int should equal to srand(0UL)
     free(null)
+  }
+
+  @Test def `can initialize lazy vals using linktime if`() = {
+    object Foo {
+      val fooLiteral = "foo"
+      lazy val fooLazy =
+        if (scala.scalanative.meta.LinktimeInfo.isWindows) fooLiteral
+        else fooLiteral
+    }
+    assertEquals(Foo.fooLiteral, Foo.fooLazy)
   }
 
 }

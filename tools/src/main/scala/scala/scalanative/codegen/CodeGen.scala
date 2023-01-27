@@ -20,7 +20,7 @@ object CodeGen {
     val proxies = GenerateReflectiveProxies(linked.dynimpls, defns)
 
     implicit val meta: Metadata =
-      new Metadata(linked, proxies, config.compilerConfig.is32BitPlatform)
+      new Metadata(linked, config.compilerConfig, proxies)
 
     val generated = Generate(encodedMainClass(config), defns ++ proxies)
     val embedded = ResourceEmbedder(config)
@@ -120,7 +120,8 @@ object CodeGen {
 
       import build.Mode._
       (config.mode, config.LTO) match {
-        case (ReleaseFast | ReleaseFull, build.LTO.None) => single()
+        case (ReleaseFast | ReleaseSize | ReleaseFull, build.LTO.None) =>
+          single()
         case _ =>
           if (config.compilerConfig.useIncrementalCompilation)
             seperateIncrementally()

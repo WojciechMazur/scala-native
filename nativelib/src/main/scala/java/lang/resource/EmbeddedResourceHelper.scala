@@ -4,6 +4,7 @@ import scala.scalanative.runtime.libc
 import scala.scalanative.unsigned._
 import scala.scalanative.runtime.ByteArray
 import scala.scalanative.unsafe.Ptr
+import scala.scalanative.runtime.Intrinsics.castIntToRawSizeUnsigned
 
 private[lang] object EmbeddedResourceHelper {
 
@@ -18,7 +19,7 @@ private[lang] object EmbeddedResourceHelper {
       libc.memcpy(
         path.asInstanceOf[ByteArray].atRaw(0),
         EmbeddedResourceReader.getPathPtr(idx),
-        pathSize.toUInt
+        castIntToRawSizeUnsigned(pathSize)
       )
       new String(path)
     }

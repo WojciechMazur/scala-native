@@ -38,7 +38,7 @@ object Boxes {
     if (o == null) Intrinsics.castIntToRawSize(0)
     else o.asInstanceOf[Size].rawSize
   @inline def unboxToUSize(o: java.lang.Object): RawSize =
-    if (o == null) Intrinsics.castIntToRawSize(0)
+    if (o == null) Intrinsics.castIntToRawSizeUnsigned(0)
     else o.asInstanceOf[USize].rawSize
 
 %{

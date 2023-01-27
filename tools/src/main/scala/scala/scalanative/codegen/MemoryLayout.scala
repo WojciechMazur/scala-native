@@ -9,16 +9,16 @@ import scalanative.codegen.MemoryLayout.PositionedType
 
 final case class MemoryLayout(
     size: Long,
-    tys: Seq[MemoryLayout.PositionedType],
-    is32BitPlatform: Boolean
+    tys: Seq[MemoryLayout.PositionedType]
 ) {
-  lazy val offsetArray: Seq[Val] = {
+  def offsetArray(implicit meta: Metadata): Seq[Val] = {
     val ptrOffsets =
       tys.collect {
-        // offset in words without rtti
+        // offset in words without object header (rtti, lock)
         case MemoryLayout.PositionedType(_: RefKind, offset) =>
-          // refMapStruct is int64_t*
-          Val.Long(offset / MemoryLayout.BYTES_IN_LONG - 1)
+          Val.Long(
+            offset / MemoryLayout.BYTES_IN_LONG - meta.ObjectHeaderFieldsCount
+          )
       }
 
     ptrOffsets :+ Val.Long(-1)
@@ -79,11 +79,10 @@ object MemoryLayout {
       offset += sizeOf(ty, is32BitPlatform)
     }
 
-    val alignment = {
+    val alignment =
       if (tys.isEmpty) 1
       else tys.map(alignmentOf(_, is32BitPlatform)).max
-    }
 
-    MemoryLayout(align(offset, alignment), pos.toSeq, is32BitPlatform)
+    MemoryLayout(align(offset, alignment), pos.toSeq)
   }
 }

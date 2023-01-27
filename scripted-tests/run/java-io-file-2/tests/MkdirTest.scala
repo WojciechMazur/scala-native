@@ -2,14 +2,14 @@ object MkdirTest {
   import Files._
 
   def main(args: Array[String]): Unit = {
-    assert(!willBeCreatedDirectory.exists())
-    assert(willBeCreatedDirectory.mkdir())
-    assert(!willBeCreatedDirectory.mkdir())
-    assert(willBeCreatedDirectory.exists())
+    assert(!willBeCreatedDirectory.exists(), "not exists")
+    assert(willBeCreatedDirectory.mkdir(), "mkdir")
+    assert(!willBeCreatedDirectory.mkdir(), "mkdir repeat")
+    assert(willBeCreatedDirectory.exists(), "check exists")
 
-    assert(!nestedWillBeCreatedDirectory.exists())
-    assert(nestedWillBeCreatedDirectory.mkdirs())
-    assert(!nestedWillBeCreatedDirectory.mkdir())
-    assert(nestedWillBeCreatedDirectory.exists())
+    assert(!nestedWillBeCreatedDirectory.exists(), "nested !exists")
+    assert(nestedWillBeCreatedDirectory.mkdirs(), "nested mkdir")
+    assert(!nestedWillBeCreatedDirectory.mkdir(), "nested repeat mkdir")
+    assert(nestedWillBeCreatedDirectory.exists(), "check nested")
   }
 }

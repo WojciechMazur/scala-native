@@ -1,3 +1,4 @@
+// leave in this package for now - does not work on jvm
 package java.util
 
 import java.util._
@@ -8,6 +9,7 @@ import scala.scalanative.junit.utils.CollectionConverters._
 import org.scalanative.testsuite.utils.AssertThrows.assertThrows
 
 class ArrayListTest {
+
   @Test def constructor(): Unit = {
     val al = new ArrayList()
     assertTrue(al.size() == 0)
@@ -381,7 +383,7 @@ class ArrayListTest {
 
   @Test def removeRangeFromToEntireListAllElements(): Unit = {
     val aList = new ArrayList[Int](Seq(50, 72, 650, 12, 7, 28, 3).toJavaList)
-    val expected = new ArrayList[Int](Seq().toJavaList)
+    val expected = new ArrayList[Int](Seq.empty.toJavaList)
 
     aList.removeRange(0, aList.size)
 

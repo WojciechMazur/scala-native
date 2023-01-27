@@ -6,6 +6,7 @@
 #include "Object.h"
 #include "Log.h"
 #include "headers/ObjectHeader.h"
+#include "State.h"
 
 inline static int LargeAllocator_sizeToLinkedListIndex(size_t size) {
     assert(size >= MIN_BLOCK_SIZE);
@@ -45,13 +46,10 @@ void LargeAllocator_freeListInit(FreeList *freeList) {
     freeList->last = NULL;
 }
 
-void LargeAllocator_Init(LargeAllocator *allocator,
-                         BlockAllocator *blockAllocator, Bytemap *bytemap,
-                         word_t *blockMetaStart, word_t *heapStart) {
-    allocator->heapStart = heapStart;
-    allocator->blockMetaStart = blockMetaStart;
-    allocator->bytemap = bytemap;
-    allocator->blockAllocator = blockAllocator;
+void LargeAllocator_Init(LargeAllocator *allocator) {
+    allocator->blockMetaStart = heap.blockMetaStart;
+    allocator->bytemap = heap.bytemap;
+    allocator->heapStart = heap.heapStart;
 
     for (int i = 0; i < FREE_LIST_COUNT; i++) {
         LargeAllocator_freeListInit(&allocator->freeLists[i]);
@@ -103,8 +101,8 @@ Object *LargeAllocator_GetBlock(LargeAllocator *allocator,
     if (chunk == NULL) {
         uint32_t superblockSize = (uint32_t)MathUtils_DivAndRoundUp(
             actualBlockSize, BLOCK_TOTAL_SIZE);
-        BlockMeta *superblock = BlockAllocator_GetFreeSuperblock(
-            allocator->blockAllocator, superblockSize);
+        BlockMeta *superblock =
+            BlockAllocator_GetFreeSuperblock(&blockAllocator, superblockSize);
         if (superblock != NULL) {
             chunk = (Chunk *)BlockMeta_GetBlockStart(
                 allocator->blockMetaStart, allocator->heapStart, superblock);
@@ -153,12 +151,12 @@ void LargeAllocator_Sweep(LargeAllocator *allocator, BlockMeta *blockMeta,
     uint32_t superblockSize = BlockMeta_SuperblockSize(blockMeta);
     word_t *blockEnd = blockStart + WORDS_IN_BLOCK * superblockSize;
 
-    ObjectMeta *firstObject = Bytemap_Get(allocator->bytemap, blockStart);
+    ObjectMeta *firstObject = Bytemap_Get(heap.bytemap, blockStart);
     assert(!ObjectMeta_IsFree(firstObject));
     BlockMeta *lastBlock = blockMeta + superblockSize - 1;
     if (superblockSize > 1 && !ObjectMeta_IsMarked(firstObject)) {
         // release free superblock starting from the first object
-        BlockAllocator_AddFreeBlocks(allocator->blockAllocator, blockMeta,
+        BlockAllocator_AddFreeBlocks(&blockAllocator, blockMeta,
                                      superblockSize - 1);
 
         BlockMeta_SetFlag(lastBlock, block_superblock_start);
@@ -175,7 +173,7 @@ void LargeAllocator_Sweep(LargeAllocator *allocator, BlockMeta *blockMeta,
     ObjectMeta_Sweep(firstObject);
 
     word_t *current = lastBlockStart + (MIN_BLOCK_SIZE / WORD_SIZE);
-    ObjectMeta *currentMeta = Bytemap_Get(allocator->bytemap, current);
+    ObjectMeta *currentMeta = Bytemap_Get(heap.bytemap, current);
     while (current < blockEnd) {
         if (chunkStart == NULL) {
             // if (ObjectMeta_IsAllocated(currentMeta)||
@@ -199,7 +197,7 @@ void LargeAllocator_Sweep(LargeAllocator *allocator, BlockMeta *blockMeta,
     if (chunkStart == lastBlockStart) {
         // free chunk covers the entire last block, released it to the block
         // allocator
-        BlockAllocator_AddFreeBlocks(allocator->blockAllocator, lastBlock, 1);
+        BlockAllocator_AddFreeBlocks(&blockAllocator, lastBlock, 1);
     } else if (chunkStart != NULL) {
         size_t currentSize = (current - chunkStart) * WORD_SIZE;
         LargeAllocator_AddChunk(allocator, (Chunk *)chunkStart, currentSize);

@@ -59,7 +59,7 @@ private[scalanative] object LLVM {
 
     val compiler = if (isCpp) config.clangPP.abs else config.clang.abs
     val stdflag = {
-      if (isLl) Seq()
+      if (isLl) Seq.empty
       else if (isCpp) {
         // C++14 or newer standard is needed to compile code using Windows API
         // shipped with Windows 10 / Server 2016+ (we do not plan supporting older versions)
@@ -68,7 +68,13 @@ private[scalanative] object LLVM {
       } else Seq("-std=gnu11")
     }
     val platformFlags = {
-      if (config.targetsWindows) Seq("-g")
+      // if (config.targetsWindows)
+      Seq("-g")
+      // else Nil
+    }
+    val configFlags = {
+      if (config.compilerConfig.multithreadingSupport)
+        Seq("-DSCALANATIVE_MULTITHREADING_ENABLED")
       else Nil
     }
     val exceptionsHandling = {
@@ -78,7 +84,7 @@ private[scalanative] object LLVM {
     val flags: Seq[String] =
       buildTargetCompileOpts ++ flto ++ asan ++ target ++
         stdflag ++ platformFlags ++ exceptionsHandling ++
-        Seq("-fvisibility=hidden", opt) ++
+        configFlags ++ Seq("-fvisibility=hidden", opt) ++
         config.compileOptions
     val compilec: Seq[String] =
       Seq(compiler, "-c", inpath, "-o", outpath) ++ flags
@@ -151,6 +157,7 @@ private[scalanative] object LLVM {
       val platformsLinks =
         if (config.targetsWindows) Seq("Dbghelp")
         else Seq("pthread", "dl")
+
       platformsLinks ++ srclinks ++ gclinks
     }
     val linkopts = config.linkingOptions ++ links.map("-l" + _)
@@ -181,9 +188,11 @@ private[scalanative] object LLVM {
       val pw = new PrintWriter(configFile)
       try
         llvmLinkInfo.foreach {
+          // Paths containg whitespaces needs to be escaped, otherwise
+          // config file might be not interpretted correctly by the LLVM
           // in windows system, the file separator doesn't work very well, so we
           // replace it to linux file separator
-          str => pw.println(str.replace("\\", "/"))
+          str => pw.println(escapeWhitespaces(str.replace("\\", "/")))
         }
       finally pw.close()
     }
@@ -201,7 +210,7 @@ private[scalanative] object LLVM {
     val MIRScriptFile = workdir.resolve("MIRScript").toFile
     val pw = new PrintWriter(MIRScriptFile)
     try {
-      pw.println(s"CREATE ${config.artifactPath}")
+      pw.println(s"CREATE ${escapeWhitespaces(config.artifactPath.abs)}")
       objectPaths.foreach { path =>
         val uniqueName =
           workdir
@@ -210,7 +219,7 @@ private[scalanative] object LLVM {
             .replace(File.separator, "_")
         val newPath = workdir.resolve(uniqueName)
         Files.move(path, newPath, StandardCopyOption.REPLACE_EXISTING)
-        pw.println(s"ADDMOD ${newPath.abs}")
+        pw.println(s"ADDMOD ${escapeWhitespaces(newPath.abs)}")
       }
       pw.println("SAVE")
       pw.println("END")
@@ -277,6 +286,7 @@ private[scalanative] object LLVM {
     config.mode match {
       case Mode.Debug       => "-O0"
       case Mode.ReleaseFast => "-O2"
+      case Mode.ReleaseSize => "-Oz"
       case Mode.ReleaseFull => "-O3"
     }
 
@@ -307,5 +317,10 @@ private[scalanative] object LLVM {
   private def optionalPICflag(implicit config: Config): Seq[String] =
     if (config.targetsWindows) Nil
     else Seq("-fPIC")
+
+  private def escapeWhitespaces(str: String): String = {
+    if (str.exists(_.isWhitespace)) s""""$str""""
+    else str
+  }
 
 }

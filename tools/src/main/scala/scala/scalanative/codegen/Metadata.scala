@@ -4,12 +4,15 @@ package codegen
 import scala.collection.mutable
 import scalanative.nir._
 import scalanative.linker.{Trait, Class}
+import scala.scalanative.build.NativeConfig
 
 class Metadata(
     val linked: linker.Result,
-    proxies: Seq[Defn],
-    val is32BitPlatform: Boolean
+    val config: NativeConfig,
+    proxies: Seq[Defn]
 ) {
+  implicit private def self: Metadata = this
+
   val rtti = mutable.Map.empty[linker.Info, RuntimeTypeInformation]
   val vtable = mutable.Map.empty[linker.Class, VirtualTable]
   val layout = mutable.Map.empty[linker.Class, FieldLayout]
@@ -23,13 +26,55 @@ class Metadata(
   val dispatchTable = new TraitDispatchTable(this)
   val hasTraitTables = new HasTraitTables(this)
 
-  val Rtti = Type.StructValue(Seq(Type.Ptr, Type.Int, Type.Int, Type.Ptr))
-  val RttiClassIdIndex = Seq(Val.Int(0), Val.Int(1))
-  val RttiTraitIdIndex = Seq(Val.Int(0), Val.Int(2))
-  val RttiVtableIndex =
-    Seq(Val.Int(0), Val.Int(if (linked.dynsigs.isEmpty) 4 else 5))
-  val RttiDynmapIndex =
-    Seq(Val.Int(0), Val.Int(if (linked.dynsigs.isEmpty) -1 else 4))
+  val usesLockWord = config.multithreadingSupport
+  val lockWordType = if (usesLockWord) List(Type.Ptr) else Nil
+  val lockWordField = if (usesLockWord) List(Val.Null) else Nil
+
+  val Rtti = Type.StructValue(
+    Type.Ptr :: // ClassRtti
+      lockWordType ::: // LockWord - ThinLock or reference to FatLock
+      Type.Int :: // ClassId
+      Type.Int :: // Traitid
+      Type.Ptr :: // ClassName
+      Nil
+  )
+  final val RttiClassRttiIdx = 0
+  final val RttiLockWordIdx = if (usesLockWord) 1 else -1
+  final val RttiClassIdIdx = if (usesLockWord) 2 else 1
+  final val RttiTraitIdIdx = RttiClassIdIdx + 1
+  final val RttiClassNameIdx = RttiClassIdIdx + 1
+
+  val RttiClassIdPath = Seq(Val.Int(0), Val.Int(RttiClassIdIdx))
+  val RttiTraitIdPath = Seq(Val.Int(0), Val.Int(RttiTraitIdIdx))
+
+  // RTTI specific for classess, see class RuntimeTypeInformation
+  // At index 0 there's a struct with base Rtti defined above
+  final val usesDynMap = linked.dynsigs.nonEmpty
+  final val RttiClassSizeIdx = 1
+  final val RttiClassIdRangeIdx = 2
+  final val RttiClassReferenceOffsetsIdx = 3
+  final val RttiClassDynmapIdx = if (usesDynMap) 4 else -1
+  final val RttiClassVtableIdx = if (usesDynMap) 5 else 4
+
+  val RttiClassDynmapPath = Seq(Val.Int(0), Val.Int(RttiClassDynmapIdx))
+  val RttiClassVtablePath = Seq(Val.Int(0), Val.Int(RttiClassVtableIdx))
+
+  final val ObjectHeader = {
+    val rtti = Type.Ptr
+    rtti :: lockWordType
+  }
+  final val ObjectHeaderFieldsCount = ObjectHeader.size
+
+  final val ArrayHeader = {
+    val rtti = Type.Ptr
+    val length = Type.Int
+    val stride = Type.Int
+    rtti :: lockWordType ::: length :: stride :: Nil
+  }
+
+  final val ArrayHeaderLengthIdx = Val.Int(if (usesLockWord) 2 else 1)
+  final val ArrayHeaderStrideIdx = Val.Int(ArrayHeaderLengthIdx.value + 1)
+  final val ArrayHeaderValuesIdx = Val.Int(ArrayHeaderStrideIdx.value + 1)
 
   initClassMetadata()
   initTraitMetadata()
@@ -70,18 +115,18 @@ class Metadata(
 
   def initClassMetadata(): Unit = {
     classes.foreach { node =>
-      vtable(node) = new VirtualTable(this, node)
-      layout(node) = new FieldLayout(this, node)
-      if (linked.dynsigs.nonEmpty) {
-        dynmap(node) = new DynamicHashMap(this, node, proxies)
+      vtable(node) = new VirtualTable(node)
+      layout(node) = new FieldLayout(node)
+      if (usesDynMap) {
+        dynmap(node) = new DynamicHashMap(node, proxies)
       }
-      rtti(node) = new RuntimeTypeInformation(this, node)
+      rtti(node) = new RuntimeTypeInformation(node)
     }
   }
 
   def initTraitMetadata(): Unit = {
     traits.foreach { node =>
-      rtti(node) = new RuntimeTypeInformation(this, node)
+      rtti(node) = new RuntimeTypeInformation(node)
     }
   }
 }

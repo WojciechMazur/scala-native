@@ -33,6 +33,7 @@ final class NirDefinitions()(using ctx: Context) {
   @tu lazy val NameType = requiredClassRef("scala.scalanative.unsafe.name")
   @tu lazy val LinkType = requiredClassRef("scala.scalanative.unsafe.link")
   @tu lazy val ExternType = requiredClassRef("scala.scalanative.unsafe.extern")
+  @tu lazy val BlockingType = requiredClassRef("scala.scalanative.unsafe.blocking")
   @tu lazy val StructType = requiredClassRef("scala.scalanative.runtime.struct")
   @tu lazy val ResolvedAtLinktimeType = requiredClassRef("scala.scalanative.unsafe.resolvedAtLinktime")
   @tu lazy val ExportedType = requiredClassRef("scala.scalanative.unsafe.exported")
@@ -41,6 +42,7 @@ final class NirDefinitions()(using ctx: Context) {
   def NameClass(using Context) = NameType.symbol.asClass
   def LinkClass(using Context) = LinkType.symbol.asClass
   def ExternClass(using Context) = ExternType.symbol.asClass
+  def BlockingClass(using Context) = BlockingType.symbol.asClass
   def StructClass(using Context) = StructType.symbol.asClass
   def ResolvedAtLinktimeClass(using Context) = ResolvedAtLinktimeType.symbol.asClass
   def ExportedClass(using Context) = ExportedType.symbol.asClass
@@ -153,17 +155,10 @@ final class NirDefinitions()(using ctx: Context) {
   // Native runtime package
   @tu lazy val RuntimePackageVal = requiredModuleRef("scala.scalanative.runtime.package")
   @tu lazy val RuntimePackageClass = RuntimePackageVal.classSymbol.asClass
-  @tu lazy val RuntimePackage_getMonitorR = RuntimePackageClass.requiredMethodRef("getMonitor")
-  def RuntimePackage_getMonitor(using Context) = RuntimePackage_getMonitorR.symbol
-
-  @tu lazy val RuntimeMonitorType = requiredClassRef("scala.scalanative.runtime.Monitor")
-  @tu lazy val RuntimeMonitorModuleType = requiredModuleRef("scala.scalanative.runtime.Monitor")
-  def RuntimeMonitorClass(using Context) = RuntimeMonitorType.symbol.asClass
-  def RuntimeMonitorModule(using Context) = RuntimeMonitorModuleType.symbol.asClass
-  @tu lazy val RuntimeMonitor_enterR = RuntimeMonitorClass.requiredMethodRef("enter")
-  @tu lazy val RuntimeMonitor_exitR = RuntimeMonitorClass.requiredMethodRef("exit")
-  def RuntimeMonitor_enter(using Context) = RuntimeMonitor_enterR.symbol
-  def RuntimeMonitor_exit(using Context) = RuntimeMonitor_exitR.symbol
+  @tu lazy val RuntimePackage_enterMonitorR = RuntimePackageClass.requiredMethodRef("enterMonitor")
+  @tu lazy val RuntimePackage_exitMonitorR = RuntimePackageClass.requiredMethodRef("exitMonitor")
+  def RuntimePackage_enterMonitor(using Context) = RuntimePackage_enterMonitorR.symbol
+  def RuntimePackage_exitMonitor(using Context) = RuntimePackage_exitMonitorR.symbol
 
   // Runtime intriniscs
   @tu lazy val IntrinsicsModuleType = requiredModuleRef("scala.scalanative.runtime.Intrinsics")
@@ -220,7 +215,8 @@ final class NirDefinitions()(using ctx: Context) {
   @tu lazy val Intrinsics_castIntToRawSizeR = IntrinsicsModule.requiredMethodRef("castIntToRawSize")
   @tu lazy val Intrinsics_castIntToRawSizeUnsignedR = IntrinsicsModule.requiredMethodRef("castIntToRawSizeUnsigned")
   @tu lazy val Intrinsics_castLongToRawSizeR = IntrinsicsModule.requiredMethodRef("castLongToRawSize")
-  @tu lazy val Intrinsics_stackallocR = IntrinsicsModule.requiredMethodRef("stackalloc")
+  @tu lazy val Intrinsics_stackallocR = IntrinsicsModule.requiredMethodRef("stackalloc", List(USizeType))
+  @tu lazy val Intrinsics_stackallocRawR = IntrinsicsModule.requiredMethodRef("stackalloc", List(RawSizeType))
   @tu lazy val Intrinsics_classFieldRawPtrR = IntrinsicsModule.requiredMethodRef("classFieldRawPtr")
 
   def Intrinsics_divUInt(using Context) = Intrinsics_divUIntR.symbol
@@ -276,6 +272,7 @@ final class NirDefinitions()(using ctx: Context) {
   def Intrinsics_castIntToRawSizeUnsigned(using Context) = Intrinsics_castIntToRawSizeUnsignedR.symbol
   def Intrinsics_castLongToRawSize(using Context) = Intrinsics_castLongToRawSizeR.symbol
   def Intrinsics_stackalloc(using Context) = Intrinsics_stackallocR.symbol
+  def Intrinsics_stackallocRaw(using Context) = Intrinsics_stackallocRawR.symbol
   def Intrinsics_classFieldRawPtr(using Context) = Intrinsics_classFieldRawPtrR.symbol
 
   // Runtime types

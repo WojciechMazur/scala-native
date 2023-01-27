@@ -30,6 +30,9 @@ trait NirDefinitions {
     lazy val ExternClass = getRequiredClass(
       "scala.scalanative.unsafe.package$extern"
     )
+    lazy val BlockingClass = getRequiredClass(
+      "scala.scalanative.unsafe.package$blocking"
+    )
     lazy val ExportedClass = getRequiredClass(
       "scala.scalanative.unsafe.exported"
     )
@@ -132,16 +135,10 @@ trait NirDefinitions {
 
     lazy val RuntimePackage = getPackageObject("scala.scalanative.runtime")
 
-    lazy val RuntimeMonitorClass = getRequiredClass(
-      "scala.scalanative.runtime.Monitor"
-    )
-    lazy val RuntimeMonitorModule = getRequiredModule(
-      "scala.scalanative.runtime.Monitor"
-    )
-    lazy val RuntimeMonitorEnterMethod =
-      getDecl(RuntimeMonitorClass, TermName("enter"))
-    lazy val RuntimeMonitorExitMethod =
-      getDecl(RuntimeMonitorClass, TermName("exit"))
+    lazy val RuntimeEnterMonitorMethod =
+      getDecl(RuntimePackage, TermName("enterMonitor"))
+    lazy val RuntimeExitMonitorMethod =
+      getDecl(RuntimePackage, TermName("exitMonitor"))
 
     lazy val RuntimeTypeClass = getRequiredClass(
       "scala.scalanative.runtime.Type"
@@ -150,9 +147,6 @@ trait NirDefinitions {
     lazy val RuntimeModule = getRequiredModule(
       "scala.scalanative.runtime.package"
     )
-    lazy val GetMonitorMethod =
-      getMember(RuntimeModule, TermName("getMonitor"))
-
     lazy val IntrinsicsModule = getRequiredModule(
       "scala.scalanative.runtime.Intrinsics"
     )
@@ -239,8 +233,8 @@ trait NirDefinitions {
       getMember(IntrinsicsModule, TermName("castIntToRawPtr"))
     lazy val CastLongToRawPtrMethod =
       getMember(IntrinsicsModule, TermName("castLongToRawPtr"))
-    lazy val StackallocMethod =
-      getMember(IntrinsicsModule, TermName("stackalloc"))
+    lazy val StackallocMethods =
+      getMember(IntrinsicsModule, TermName("stackalloc")).alternatives
     lazy val ClassFieldRawPtrMethod =
       getMember(IntrinsicsModule, TermName("classFieldRawPtr"))
 

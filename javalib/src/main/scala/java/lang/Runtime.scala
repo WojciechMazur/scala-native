@@ -3,10 +3,25 @@ package java.lang
 import java.io.File
 import scala.scalanative.annotation.stub
 import scala.scalanative.libc.stdlib
+import scala.scalanative.posix.unistd._
+import scala.scalanative.meta.LinktimeInfo.isWindows
+import scala.scalanative.windows.SysInfoApi._
+import scala.scalanative.windows.SysInfoApiOps._
+import scala.scalanative.unsafe._
 
 class Runtime private () {
   import Runtime.ProcessBuilderOps
-  def availableProcessors(): Int = 1
+  def availableProcessors(): Int = {
+    if (isWindows) {
+      val sysInfo = stackalloc[SystemInfo]()
+      GetSystemInfo(sysInfo)
+      sysInfo.numberOfProcessors.toInt
+    } else {
+      val onlineCPUs = sysconf(_SC_NPROCESSORS_ONLN).toInt
+      assert(onlineCPUs > 0, "no available processors")
+      onlineCPUs
+    }
+  }
   def exit(status: Int): Unit = stdlib.exit(status)
   def gc(): Unit = ()
 

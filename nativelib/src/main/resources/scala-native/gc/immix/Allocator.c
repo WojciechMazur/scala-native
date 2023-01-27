@@ -1,25 +1,22 @@
 #include <stdlib.h>
 #include "Allocator.h"
 #include "Block.h"
+#include "State.h"
 #include <stdio.h>
 #include <memory.h>
+#include <assert.h>
 
 bool Allocator_getNextLine(Allocator *allocator);
 bool Allocator_newBlock(Allocator *allocator);
 
-void Allocator_Init(Allocator *allocator, BlockAllocator *blockAllocator,
-                    Bytemap *bytemap, word_t *blockMetaStart,
-                    word_t *heapStart) {
-    allocator->blockMetaStart = blockMetaStart;
-    allocator->blockAllocator = blockAllocator;
-    allocator->bytemap = bytemap;
-    allocator->heapStart = heapStart;
+void Allocator_Init(Allocator *allocator) {
+    allocator->blockMetaStart = heap.blockMetaStart;
+    allocator->bytemap = heap.bytemap;
+    allocator->heapStart = heap.heapStart;
 
-    BlockList_Init(&allocator->recycledBlocks, blockMetaStart);
+    BlockList_Init(&allocator->recycledBlocks, heap.blockMetaStart);
 
     allocator->recycledBlockCount = 0;
-
-    Allocator_InitCursors(allocator);
 }
 
 /**
@@ -31,21 +28,21 @@ void Allocator_Init(Allocator *allocator, BlockAllocator *blockAllocator,
  * otherwise.
  */
 bool Allocator_CanInitCursors(Allocator *allocator) {
-    uint64_t freeBlockCount = allocator->blockAllocator->freeBlockCount;
+    uint64_t freeBlockCount = blockAllocator.freeBlockCount;
     return freeBlockCount >= 2 ||
            (freeBlockCount == 1 && allocator->recycledBlockCount > 0);
 }
 
 void Allocator_InitCursors(Allocator *allocator) {
-
     // Init cursor
-    bool didInit = Allocator_newBlock(allocator);
-    assert(didInit);
-
-    // Init large cursor
-    BlockMeta *largeBlock =
-        BlockAllocator_GetFreeBlock(allocator->blockAllocator);
-    assert(largeBlock != NULL);
+    BlockMeta *largeBlock;
+    while (true) {
+        bool didInit = Allocator_newBlock(allocator);
+        largeBlock = BlockAllocator_GetFreeBlock(&blockAllocator);
+        if (didInit && largeBlock != NULL)
+            break;
+        Heap_Collect(&heap, &stack);
+    }
     allocator->largeBlock = largeBlock;
     word_t *largeBlockStart = BlockMeta_GetBlockStart(
         allocator->blockMetaStart, allocator->heapStart, largeBlock);
@@ -69,8 +66,7 @@ word_t *Allocator_overflowAllocation(Allocator *allocator, size_t size) {
     word_t *end = (word_t *)((uint8_t *)start + size);
 
     if (end > allocator->largeLimit) {
-        BlockMeta *block =
-            BlockAllocator_GetFreeBlock(allocator->blockAllocator);
+        BlockMeta *block = BlockAllocator_GetFreeBlock(&blockAllocator);
         if (block == NULL) {
             return NULL;
         }
@@ -96,7 +92,6 @@ word_t *Allocator_overflowAllocation(Allocator *allocator, size_t size) {
 INLINE word_t *Allocator_Alloc(Allocator *allocator, size_t size) {
     word_t *start = allocator->cursor;
     word_t *end = (word_t *)((uint8_t *)start + size);
-
     // Checks if the end of the block overlaps with the limit
     if (end > allocator->limit) {
         // If it overlaps but the block to allocate is a `medium` sized block,
@@ -108,7 +103,6 @@ INLINE word_t *Allocator_Alloc(Allocator *allocator, size_t size) {
             if (Allocator_getNextLine(allocator)) {
                 return Allocator_Alloc(allocator, size);
             }
-
             return NULL;
         }
     }
@@ -139,7 +133,7 @@ bool Allocator_getNextLine(Allocator *allocator) {
     BlockMeta_SetFirstFreeLine(block, lineMeta->next);
     uint16_t size = lineMeta->size;
     allocator->limit = line + (size * WORDS_IN_LINE);
-    assert(allocator->limit <= Block_GetBlockEnd(blockStart));
+    assert(allocator->limit <= Block_GetBlockEnd(blockStart)); // TODO, failed
 
     return true;
 }
@@ -149,6 +143,7 @@ bool Allocator_getNextLine(Allocator *allocator) {
  * free line of the new block.
  */
 bool Allocator_newBlock(Allocator *allocator) {
+    assert(allocator != NULL);
     BlockMeta *block = BlockList_Poll(&allocator->recycledBlocks);
     word_t *blockStart;
 
@@ -168,7 +163,7 @@ bool Allocator_newBlock(Allocator *allocator) {
         allocator->limit = line + (size * WORDS_IN_LINE);
         assert(allocator->limit <= Block_GetBlockEnd(blockStart));
     } else {
-        block = BlockAllocator_GetFreeBlock(allocator->blockAllocator);
+        block = BlockAllocator_GetFreeBlock(&blockAllocator);
         if (block == NULL) {
             return false;
         }

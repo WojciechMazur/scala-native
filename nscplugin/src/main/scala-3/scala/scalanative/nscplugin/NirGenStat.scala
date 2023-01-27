@@ -69,8 +69,9 @@ trait NirGenStat(using Context) {
   private def genClassAttrs(td: TypeDef): nir.Attrs = {
     val sym = td.symbol.asClass
     val annotationAttrs = sym.annotations.collect {
-      case ann if ann.symbol == defnNir.ExternClass => Attr.Extern
-      case ann if ann.symbol == defnNir.StubClass   => Attr.Stub
+      case ann if ann.symbol == defnNir.ExternClass =>
+        Attr.Extern(sym.isBlocking)
+      case ann if ann.symbol == defnNir.StubClass => Attr.Stub
       case ann if ann.symbol == defnNir.LinkClass =>
         val Apply(_, Seq(Literal(Constant(name: String)))) =
           ann.tree: @unchecked
@@ -136,7 +137,13 @@ trait NirGenStat(using Context) {
       if (isExtern && !mutable) {
         report.error("`extern` cannot be used in val definition")
       }
-      val attrs = nir.Attrs(isExtern = f.isExtern)
+      // That what JVM backend does
+      // https://github.com/lampepfl/dotty/blob/786ad3ff248cca39e2da80c3a15b27b38eec2ff6/compiler/src/dotty/tools/backend/jvm/BTypesFromSymbols.scala#L340-L347
+      val attrs = nir.Attrs(
+        isExtern = isExtern,
+        isVolatile = f.isVolatile,
+        isFinal = !f.is(Mutable)
+      )
       val ty = genType(f.info.resultType)
       val fieldName @ Global.Member(owner, sig) = genFieldName(f): @unchecked
       generatedDefns += Defn.Var(attrs, fieldName, ty, Val.Zero(ty))
@@ -246,10 +253,12 @@ trait NirGenStat(using Context) {
         case defnNir.NoOptimizeType   => Attr.NoOpt
         case defnNir.NoSpecializeType => Attr.NoSpecialize
         case defnNir.StubType         => Attr.Stub
-        case defnNir.ExternType       => Attr.Extern
       }
+    val externAttrs = Option.when(sym.isExtern) {
+      Attr.Extern(sym.isBlocking || sym.owner.isBlocking)
+    }
 
-    Attrs.fromSeq(inlineAttrs ++ annotatedAttrs)
+    Attrs.fromSeq(inlineAttrs ++ annotatedAttrs ++ externAttrs)
   }
 
   protected val curExprBuffer = ScopedVar[ExprBuffer]()
@@ -406,7 +415,7 @@ trait NirGenStat(using Context) {
     Defn.Define(
       Attrs(inlineHint = Attr.AlwaysInline),
       methodName,
-      Type.Function(Seq(), retty),
+      Type.Function(Seq.empty, retty),
       buf.toSeq
     )
   }
@@ -420,9 +429,8 @@ trait NirGenStat(using Context) {
     val rhs: Tree = dd.rhs
     given nir.Position = rhs.span
     def externMethodDecl() = {
-      val externAttrs = Attrs(isExtern = true)
       val externSig = genExternMethodSig(curMethodSym)
-      val externDefn = Defn.Declare(externAttrs, name, externSig)
+      val externDefn = Defn.Declare(attrs, name, externSig)
       Some(externDefn)
     }
 
@@ -434,9 +442,7 @@ trait NirGenStat(using Context) {
 
     rhs match {
       case _
-          if defaultArgs.nonEmpty || dd.name.is(
-            NameKinds.DefaultGetterName
-          ) =>
+          if defaultArgs.nonEmpty || dd.name.is(NameKinds.DefaultGetterName) =>
         report.error("extern method cannot have default argument")
         None
       case Apply(ref: RefTree, Seq())
@@ -509,7 +515,7 @@ trait NirGenStat(using Context) {
     for f <- classSym.info.decls
     do {
       // Exclude fields derived from extern trait
-      if (f.isField && !isInheritedField(f)) {
+      if (f.isField && !isInheritedField(f) && !f.is(Module)) {
         if !(externs.contains(f) || externs.contains(f.setter)) then
           report.error(
             s"extern objects may only contain extern fields",

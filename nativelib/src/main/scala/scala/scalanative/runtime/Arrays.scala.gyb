@@ -29,10 +29,10 @@ package runtime
 
 import scalanative.unsafe._
 import scalanative.unsigned._
-import scalanative.runtime.Intrinsics._
-import scala.scalanative.meta.LinktimeInfo.{is32BitPlatform, sizeOfPtr}
+import scalanative.runtime.Intrinsics.{castIntToRawSizeUnsigned => intToUSize, _}
 
-% sizePtr = 'sizeOfPtr'
+% sizePtr = 'SizeOfPtr'
+% sizeHeader = 'MemoryLayout.Array.ValuesOffset'
 
 sealed abstract class Array[T]
     extends java.io.Serializable
@@ -41,7 +41,7 @@ sealed abstract class Array[T]
   /** Number of elements of the array. */
   @inline def length: Int = {
     val rawptr = castObjectToRawPtr(this)
-    val lenptr = elemRawPtr(rawptr, ${sizePtr})
+    val lenptr = elemRawPtr(rawptr, intToUSize(MemoryLayout.Array.LengthOffset))
     loadInt(lenptr)
   }
 
@@ -150,14 +150,14 @@ object Array {
     } else {
       val leftPtr  = left.atRaw(leftPos)
       val rightPtr = right.atRaw(rightPos)
-      libc.memcmp(leftPtr, rightPtr, len.toUSize * left.stride)
+      libc.memcmp(leftPtr, rightPtr, (len.toUSize * left.stride).rawSize)
     }
   }
 }
 
 %{
    types = {'Boolean': 1, 'Char': 2, 'Byte': 1, 'Short': 2,
-            'Int': 4, 'Long': 8, 'Float': 4, 'Double': 8, 'Object': 'castRawSizeToInt(sizeOfPtr)'}
+            'Int': 4, 'Long': 8, 'Float': 4, 'Double': 8, 'Object': 'castRawSizeToInt(SizeOfPtr)'}
 }%
 % # BEWARE: Order of iteration of the dictionary depends on version of Python
 % #         used to run this script.
@@ -182,11 +182,7 @@ final class ${T}Array private () extends Array[${T}] {
       throwOutOfBounds(i)
     } else {
       val rawptr = castObjectToRawPtr(this)
-      elemRawPtr(
-        rawptr,
-        if (is32BitPlatform) castIntToRawSize((castRawSizeToInt(sizeOfPtr) + 8) + ${sizeT} * i)
-        else castLongToRawSize((castRawSizeToLong(sizeOfPtr) + 8L) + ${sizeT}.toLong * i.toLong)
-      )
+      elemRawPtr(rawptr, intToUSize(${sizeHeader} + ${sizeT} * i))
     }
 
   @inline def apply(i: Int): ${T} = load${T}(atRaw(i))
@@ -195,10 +191,7 @@ final class ${T}Array private () extends Array[${T}] {
 
   @inline override def clone(): ${T}Array = {
     val arrcls  = classOf[${T}Array]
-    val arrsize = new USize(
-      if (is32BitPlatform) castIntToRawSize((castRawSizeToInt(sizeOfPtr) + 8) + ${sizeT} * length)
-      else castLongToRawSize((castRawSizeToLong(sizeOfPtr) + 8L) + ${sizeT}.toLong * length.toLong)
-    )
+    val arrsize = intToUSize(${sizeHeader} + ${sizeT} * length)
     val arr     = ${alloc}(arrcls, arrsize)
     val src     = castObjectToRawPtr(this)
     libc.memcpy(arr, src, arrsize)
@@ -214,17 +207,10 @@ object ${T}Array {
     }
 
     val arrcls  = classOf[${T}Array]
-    val arrsize = new USize(
-      if (is32BitPlatform) castIntToRawSize((castRawSizeToInt(sizeOfPtr) + 8) + ${sizeT} * length)
-      else castLongToRawSize((castRawSizeToLong(sizeOfPtr) + 8L) + ${sizeT}.toLong * length.toLong)
-    )
+    val arrsize = intToUSize(${sizeHeader} + ${sizeT} * length)
     val arr     = ${alloc}(arrcls, arrsize)
-    storeInt(elemRawPtr(arr, ${sizePtr}), length)
-    storeInt(elemRawPtr(
-      arr,
-      if (is32BitPlatform) castIntToRawSize(castRawSizeToInt(${sizePtr}) + 4)
-      else castLongToRawSize(castRawSizeToLong(${sizePtr}) + 4L)
-    ), ${sizeT})
+    storeInt(elemRawPtr(arr, intToUSize(MemoryLayout.Array.LengthOffset)), length)
+    storeInt(elemRawPtr(arr, intToUSize(MemoryLayout.Array.StrideOffset)), ${sizeT})
     castRawPtrToObject(arr).asInstanceOf[${T}Array]
   }
 
@@ -232,10 +218,7 @@ object ${T}Array {
     val arr  = alloc(length)
     val dst  = arr.atRaw(0)
     val src  = data
-    val size = new USize(
-      if (is32BitPlatform) castIntToRawSize(${sizeT} * length)
-      else castLongToRawSize(${sizeT}.toLong * length.toLong)
-    )
+    val size = intToUSize(${sizeT} * length)
     libc.memcpy(dst, src, size)
     arr
   }

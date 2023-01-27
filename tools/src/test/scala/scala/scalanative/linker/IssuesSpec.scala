@@ -98,4 +98,69 @@ class IssuesSpec extends LinkerSpec with Matchers {
     }
   }
 
+  it should "define extern fields with correct attributes" in {
+    testLinked(s"""
+         |import scala.scalanative.unsafe._
+         |
+         |@extern trait lib {
+         |  var field: CInt = extern
+         |}
+         |@extern object lib extends lib
+         |
+         |object Test {
+         |  def main(args: Array[String]): Unit = {
+         |     val read = lib.field
+         |     lib.field = 42
+         |  }
+         |}""".stripMargin) { result =>
+      val Field = Sig.Extern("field")
+      val LibField = Global.Top("lib").member(Field)
+      val decls = result.defns
+        .collect {
+          case defn @ Defn.Declare(attrs, LibField, tpe) =>
+            assert(attrs.isExtern)
+        }
+      if (decls.isEmpty) fail("Not found extern declaration")
+    }
+  }
+
+  it should "blocking extern methods should have correct attributes" in {
+    testLinked(s"""
+      |import scala.scalanative.unsafe._
+      |
+      |@extern object lib {
+      |  @blocking def sync(): CInt = extern
+      |  def async(): CInt = extern
+      |}
+      |
+      |@extern @blocking object syncLib{
+      |  def foo(): CInt = extern
+      |}
+      |
+      |object Test {
+      |  def main(args: Array[String]): Unit = {
+      |     val a = lib.sync()
+      |     val b = lib.async()
+      |     val c = syncLib.foo()
+      |  }
+      |}""".stripMargin) { result =>
+      val Lib = Global.Top("lib$")
+      val SyncLib = Global.Top("syncLib$")
+      val LibSync = Lib.member(Sig.Extern("sync"))
+      val LibAsync = Lib.member(Sig.Extern("async"))
+      val SyncLibFoo = SyncLib.member(Sig.Extern("foo"))
+
+      val found = result.defns
+        .collect {
+          case Defn.Declare(attrs, LibSync, _) =>
+            assert(attrs.isExtern && attrs.isBlocking)
+          case Defn.Declare(attrs, LibAsync, _) =>
+            assert(attrs.isExtern && !attrs.isBlocking)
+          case Defn.Declare(attrs, SyncLibFoo, _) =>
+            assert(attrs.isExtern && attrs.isBlocking)
+        }
+      found.size shouldEqual 3
+    }
+  }
+
 }

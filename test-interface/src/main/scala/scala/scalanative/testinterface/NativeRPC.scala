@@ -1,4 +1,5 @@
-package scala.scalanative.testinterface
+package scala.scalanative
+package testinterface
 
 import java.io.{DataInputStream, DataOutputStream, EOFException}
 import java.net.Socket
@@ -34,7 +35,7 @@ private[testinterface] class NativeRPC(clientSocket: Socket) extends RPCCore {
     } else {
       val msg = Array.fill(msgLength)(inStream.readChar).mkString
       handleMessage(msg)
-      scalanative.runtime.loop()
+      runtime.testinterface.drainNativeExecutionContext()
       loop()
     }
   }

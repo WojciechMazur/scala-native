@@ -237,7 +237,14 @@ object Generate {
                 Op.Call(entryMainTy, entryMainMethod, Seq(arr)),
                 unwind
               ),
-              Inst.Let(Op.Call(RuntimeLoopSig, RuntimeLoop, Seq(rt)), unwind)
+              Inst.Let(
+                Op.Call(
+                  NativeExecutionContextLoopSig,
+                  NativeExecutionContextLoop,
+                  Seq(rt)
+                ),
+                unwind
+              )
             )
         }
       )
@@ -518,22 +525,25 @@ object Generate {
     val ObjectArray =
       Type.Ref(Global.Top("scala.scalanative.runtime.ObjectArray"))
 
-    val Runtime =
-      Rt.Runtime
+    val Runtime = Rt.Runtime
     val RuntimeInitSig =
       Type.Function(Seq(Runtime, Type.Int, Type.Ptr), ObjectArray)
     val RuntimeInitName =
       Runtime.name.member(
         Sig.Method("init", Seq(Type.Int, Type.Ptr, Type.Array(Rt.String)))
       )
-    val RuntimeInit =
-      Val.Global(RuntimeInitName, Type.Ptr)
-    val RuntimeLoopSig =
-      Type.Function(Seq(Runtime), Type.Unit)
-    val RuntimeLoopName =
-      Runtime.name.member(Sig.Method("loop", Seq(Type.Unit)))
-    val RuntimeLoop =
-      Val.Global(RuntimeLoopName, Type.Ptr)
+    val RuntimeInit = Val.Global(RuntimeInitName, Type.Ptr)
+
+    val NativeExecutionContext =
+      Type.Ref(Global.Top("scala.scalanative.runtime.NativeExecutionContext$"))
+    val NativeExecutionContextLoopSig =
+      Type.Function(Seq(NativeExecutionContext), Type.Unit)
+    val NativeExecutionContextLoopName =
+      NativeExecutionContext.name.member(
+        Sig.Method("loop", Seq(Type.Unit))
+      )
+    val NativeExecutionContextLoop =
+      Val.Global(NativeExecutionContextLoopName, Type.Ptr)
 
     val LibraryInitName = extern("ScalaNativeInit")
     val LibraryInitSig = Type.Function(Seq.empty, Type.Int)
@@ -575,7 +585,7 @@ object Generate {
       ObjectArray.name,
       Runtime.name,
       RuntimeInit.name,
-      RuntimeLoop.name,
+      NativeExecutionContextLoop.name,
       PrintStackTraceName
     )
 }

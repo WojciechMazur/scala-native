@@ -15,6 +15,7 @@ final class TestAdapter(config: TestAdapter.Config) {
 
   import TestAdapter._
 
+  println(config.binaryFile)
   require(
     config.binaryFile.exists(),
     "Attempted to create a TestAdapter with non existing binary file. "

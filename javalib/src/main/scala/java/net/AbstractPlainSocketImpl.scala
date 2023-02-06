@@ -307,10 +307,12 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
       if (timeout > 0 && inProgress) {
         tryPollOnConnect(timeout)
       } else {
+        val errno = lastError()
+        val strErr = fromCString(scala.scalanative.libc.string.strerror(errno))
         throw new ConnectException(
-          s"Could not connect to address: ${remoteAddress}"
+          s"Could2 not connect to address: ${remoteAddress}"
             + s" on port: ${inetAddr.getPort}"
-            + s", errno: ${lastError()}"
+            + s", errno:  ${errno} - ${strErr}"
         )
       }
     }

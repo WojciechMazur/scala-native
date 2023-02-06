@@ -1,4 +1,4 @@
-#if defined(_WIN32) || defined(__wasm)
+#if defined(_WIN32) // || defined(__wasm)
 // No Windows support. These are dummies for linking.
 int scalanative_iff_loopback() { return 0; }
 int scalanative_iff_multicast() { return 0; }

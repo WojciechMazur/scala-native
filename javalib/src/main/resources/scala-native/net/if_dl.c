@@ -1,6 +1,6 @@
 #ifdef _WIN32
 // NO Windows support
-#elif defined(__linux__)
+#elif defined(__linux__) 
 // Does not exist on Linux, so no check
 #elif defined(__wasm)
 // No WASM support

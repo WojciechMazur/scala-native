@@ -1,4 +1,4 @@
-#if defined(_WIN32) || defined(__wasm)
+#if defined(_WIN32) // || defined(__wasm)
 // No Windows support. These are dummies for linking.
 int getifaddrs(void *dummy) { return -1; };
 void freeifaddrs(void *dummy){};
@@ -38,15 +38,15 @@ struct scalanative_ifaddrs {
     unsigned int ifa_flags;       /* Flags from SIOCGIFFLAGS */
     struct sockaddr *ifa_addr;    /* Address of interface */
     struct sockaddr *ifa_netmask; /* Netmask of interface */
-#ifndef __linux__
-    struct sockaddr *ifa_dstaddr; // macOS/BSD #define's ifa_broadcast to this.
-#else
+#if defined(__linux__) || defined(__wasi__) || defined(__wasm) 
     union {
         struct sockaddr *ifu_broadaddr;
         /* Broadcast address of interface */
         struct sockaddr *ifu_dstaddr;
         /* Point-to-point destination address */
     } ifa_ifu;
+#else
+    struct sockaddr *ifa_dstaddr; // macOS/BSD #define's ifa_broadcast to this.
 #endif
     void *ifa_data;               /* Address-specific data */
 };

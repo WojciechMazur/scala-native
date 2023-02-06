@@ -171,6 +171,7 @@ object ScalaNativePluginInternal {
       val logger = streams.value.log
       val binary = nativeLink.value.getAbsolutePath
       val args = spaceDelimited("<arg>").parsed
+      
 
       logger.running(binary +: args)
 
@@ -224,7 +225,7 @@ object ScalaNativePluginInternal {
 
           val config = TestAdapter
             .Config()
-            .withBinaryFile(testBinary)
+            .withBinaryFile(testBinary.toPath().resolveSibling(testBinary.getName().stripSuffix(".wasm") + ".js").toFile())
             .withEnvVars(envVars)
             .withLogger(logger)
 

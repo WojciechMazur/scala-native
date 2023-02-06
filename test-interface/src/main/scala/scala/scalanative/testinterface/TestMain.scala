@@ -9,6 +9,7 @@ import signalhandling.SignalConfig
 import scalanative.posix.sys.socket._
 import scalanative.posix.netinet.in
 import scalanative.posix.unistd
+import scala.sys.exit
 
 object TestMain {
 
@@ -89,16 +90,23 @@ object TestMain {
     val serverAddr =
       if (!LinktimeInfo.isFreeBSD) iPv4Loopback
       else getFreeBSDLoopbackAddr()
+    println(serverAddr)
     val serverPort = args(0).toInt
+    println(serverPort)
     val clientSocket = new Socket(serverAddr, serverPort)
+    println(clientSocket)
     val nativeRPC = new NativeRPC(clientSocket)
+    println(nativeRPC)
     val bridge = new TestAdapterBridge(nativeRPC)
+    println(bridge)
 
     bridge.start()
+    println("started")
 
     SignalConfig.setDefaultHandlers()
 
     val exitCode = nativeRPC.loop()
+    println(exitCode)
     sys.exit(exitCode)
   }
 

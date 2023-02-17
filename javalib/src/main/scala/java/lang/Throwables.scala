@@ -42,13 +42,12 @@ private[lang] object StackTrace {
     var buffer = mutable.ArrayBuffer.empty[StackTraceElement]
     if (!LinktimeInfo.asanEnabled) {
       Zone { implicit z =>
-        val cursor: Ptr[scala.Byte] = alloc[scala.Byte](2048.toUSize)
-        val context: Ptr[scala.Byte] = alloc[scala.Byte](2048.toUSize)
-        val offset: Ptr[scala.Byte] = alloc[scala.Byte](8.toUSize)
+        val cursor: Ptr[scala.Byte] = alloc[scala.Byte](unwind.sizeOfCursor)
+        val context: Ptr[scala.Byte] = alloc[scala.Byte](unwind.sizeOfContext)
         val ip = alloc[CUnsignedLong]()
 
-        unwind.get_context(context)
-        unwind.init_local(cursor, context)
+        assert(0 == unwind.get_context(context), "unwind.get_context")
+        assert(0 == unwind.init_local(cursor, context), "unwind.init_local")
         while (unwind.step(cursor) > 0) {
           unwind.get_reg(cursor, unwind.UNW_REG_IP, ip)
           buffer += cachedStackTraceElement(cursor, !ip)

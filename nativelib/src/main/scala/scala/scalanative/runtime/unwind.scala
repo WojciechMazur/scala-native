@@ -27,4 +27,10 @@ object unwind {
 
   @name("scalanative_unw_reg_ip")
   def UNW_REG_IP: CInt = extern
+
+  @name("scalanative_sizeof_libunwind_context")
+  def sizeOfContext: CSize = extern
+
+  @name("scalanative_sizeof_libunwind_cursor")
+  def sizeOfCursor: CSize = extern
 }

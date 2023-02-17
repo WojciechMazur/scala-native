@@ -24,7 +24,7 @@ import scalanative.unsafe._
   def strtok(str: CString, delim: CString): CString = extern
   def memchr(ptr: Ptr[Byte], ch: CInt, count: CSize): Ptr[Byte] = extern
   def memcmp(lhs: Ptr[Byte], rhs: Ptr[Byte], count: CSize): CInt = extern
-  def memset(dest: Ptr[Byte], ch: CInt, count: CSize): Ptr[Byte] = extern
+  def memset[T](dest: Ptr[T], ch: CInt, count: CSize): Ptr[T] = extern
   def memcpy(dest: Ptr[Byte], src: Ptr[Byte], count: CSize): Ptr[Byte] = extern
   def memmove(dest: Ptr[Byte], src: Ptr[Byte], count: CSize): Ptr[Byte] =
     extern

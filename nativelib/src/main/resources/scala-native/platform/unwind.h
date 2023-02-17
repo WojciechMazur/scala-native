@@ -11,4 +11,7 @@ int scalanative_unwind_get_proc_name(void *cursor, char *buffer, size_t length,
 int scalanative_unwind_get_reg(void *cursor, int regnum, size_t *valp);
 int scalanative_unw_reg_ip();
 
+size_t scalanative_sizeof_libunwind_context();
+size_t scalanative_sizeof_libunwind_cursor();
+
 #endif

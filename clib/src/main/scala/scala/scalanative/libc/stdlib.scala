@@ -11,8 +11,8 @@ import scalanative.unsafe._
 
   def malloc(size: CSize): Ptr[Byte] = extern
   def calloc(num: CSize, size: CSize): Ptr[Byte] = extern
-  def realloc(ptr: Ptr[Byte], newSize: CSize): Ptr[Byte] = extern
-  def free(ptr: Ptr[Byte]): Unit = extern
+  def realloc[T](ptr: Ptr[T], newSize: CSize): Ptr[T] = extern
+  def free(ptr: Ptr[_]): Unit = extern
   def aligned_alloc(alignment: CSize, size: CSize): Unit = extern
 
   // Program utilities

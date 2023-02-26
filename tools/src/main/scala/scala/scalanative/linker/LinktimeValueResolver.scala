@@ -22,6 +22,10 @@ trait LinktimeValueResolver { self: Reach =>
         config.targetsWASM &&
         config.compilerConfig.targetTriple.exists(_.contains("wasi"))
       },
+      s"$linktimeInfo.isEmscripten" -> {
+        config.targetsWASM &&
+        config.compilerConfig.targetTriple.exists(_.contains("emscripten"))
+      },
       s"$linktimeInfo.isWeakReferenceSupported" -> {
         conf.gc == GC.Immix ||
         conf.gc == GC.Commix

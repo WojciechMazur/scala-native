@@ -28,6 +28,9 @@ object LinktimeInfo {
   @resolvedAtLinktime("scala.scalanative.meta.linktimeinfo.isWASI")
   def isWASI: Boolean = resolved
 
+  @resolvedAtLinktime("scala.scalanative.meta.linktimeinfo.isEmscripten")
+  def isEmscripten: Boolean = resolved
+
   @resolvedAtLinktime("scala.scalanative.meta.linktimeinfo.is32BitPlatform")
   def is32BitPlatform: Boolean = resolved
 

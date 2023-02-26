@@ -1269,9 +1269,9 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
               Some(ComplexCondition(bin, c1, c2)(condp.pos))
             case (None, None) => None
             case _ =>
-              globalError(
+              reporter.warning(
                 condp.pos,
-                "Mixing link-time and runtime conditions is not allowed"
+                "Mixing link-time and runtime conditions, none of the control flow would be eliminated"
               )
               None
           }

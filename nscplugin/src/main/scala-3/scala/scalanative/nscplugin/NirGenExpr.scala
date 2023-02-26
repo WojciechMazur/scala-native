@@ -2064,8 +2064,8 @@ trait NirGenExpr(using Context) {
               Some(ComplexCondition(bin, c1, c2))
             case (None, None) => None
             case _ =>
-              report.error(
-                "Mixing link-time and runtime conditions is not allowed",
+              report.warning(
+                "Mixing link-time and runtime conditions, none of the control flow would be eliminated",
                 condp.sourcePos
               )
               None

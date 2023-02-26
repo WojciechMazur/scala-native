@@ -223,9 +223,19 @@ object ScalaNativePluginInternal {
           val testBinary = nativeLink.value
           val envVars = (test / Keys.envVars).value
 
+          // Empty config just to get access to helper target triple methods
+          val buildConfig = scalanative.build.Config.empty
+            .withCompilerConfig((Test / nativeConfig).value)
+
           val config = TestAdapter
             .Config()
-            .withBinaryFile(testBinary.toPath().resolveSibling(testBinary.getName().stripSuffix(".wasm") + ".js").toFile())
+            .withBinaryFile(
+              if (buildConfig.targetsEmscripten) {
+                val jsBootstrapName =
+                  testBinary.getName().stripSuffix(".wasm") + ".js"
+                testBinary.toPath().resolveSibling(jsBootstrapName).toFile()
+              } else testBinary
+            )
             .withEnvVars(envVars)
             .withLogger(logger)
 

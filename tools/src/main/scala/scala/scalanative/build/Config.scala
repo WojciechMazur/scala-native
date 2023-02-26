@@ -101,6 +101,9 @@ sealed trait Config {
 
   private[scalanative] lazy val targetsWASM =
     compilerConfig.targetTriple.exists(_.contains("wasm"))
+
+  private[scalanative] lazy val targetsEmscripten = 
+    targetsWASM && compilerConfig.targetTriple.exists(_.contains("emscripten"))
 }
 
 object Config {

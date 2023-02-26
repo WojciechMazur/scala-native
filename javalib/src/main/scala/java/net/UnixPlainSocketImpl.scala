@@ -22,6 +22,8 @@ private[net] class UnixPlainSocketImpl extends AbstractPlainSocketImpl {
       if (streaming) socket.SOCK_STREAM
       else socket.SOCK_DGRAM
 
+    // TODO: emscripten gets stuck here
+    // Related issue https://github.com/emscripten-core/emscripten/issues/17972
     val sock = socket.socket(af, sockType, 0)
 
     if (sock < 0)

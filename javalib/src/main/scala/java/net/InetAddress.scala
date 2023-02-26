@@ -300,6 +300,7 @@ object InetAddress {
       hints.ai_protocol = IPPROTO_TCP
       hints.ai_flags = AI_NUMERICHOST
 
+      // TODO: emscripten gets stack in this call
       val gaiStatus = getaddrinfo(toCString(host), null, hints, addrinfo)
 
       if (gaiStatus != 0) {

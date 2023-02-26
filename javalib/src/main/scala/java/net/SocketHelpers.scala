@@ -10,7 +10,7 @@ import scala.scalanative.posix.sys.socket._
 import scala.scalanative.posix.sys.socketOps._
 import scala.scalanative.posix.string.memcpy
 
-import scala.scalanative.meta.LinktimeInfo.isWindows
+import scala.scalanative.meta.LinktimeInfo._
 
 import scala.scalanative.windows.WinSocketApi._
 import scala.scalanative.windows.WinSocketApiOps
@@ -44,7 +44,7 @@ object SocketHelpers {
 
   // True if at least one non-loopback interface has an IPv6 address.
   private def isIPv6Configured(): Boolean = {
-    if (isWindows) {
+    if (isWindows || isEmscripten) {
       false // Support for IPv6 is neither implemented nor tested.
     } else {
       /* The lookup can not be a local address. This one of two IPv6

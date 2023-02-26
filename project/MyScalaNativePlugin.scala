@@ -58,6 +58,7 @@ object MyScalaNativePlugin extends AutoPlugin {
             .toAbsolutePath()
           val emscriptenCommonOpts = Seq(
             "-g",
+            "-sUSE_PTHREADS",
             "-sNO_DISABLE_EXCEPTION_CATCHING"
           )
           val emscriptenCompileOpts = emscriptenCommonOpts ++ Seq(
@@ -68,6 +69,9 @@ object MyScalaNativePlugin extends AutoPlugin {
             "-sASSERTIONS=1",
             "-sSTACK_OVERFLOW_CHECK=1",
             "-error-limit=0",
+            "-lwebsocket.js",
+            "-sPROXY_POSIX_SOCKETS",
+            "-sPROXY_TO_PTHREAD",
             // "-sEXIT_RUNTIME=1"
             "-o",
             s"../${Option(prev.basename).filter(_.nonEmpty).getOrElse(moduleName.value)}-test.js"
@@ -94,16 +98,21 @@ object MyScalaNativePlugin extends AutoPlugin {
 
       val env = (run / envVars).value.toSeq
       val logger = streams.value.log
-      val binary = (Compile/nativeLink).value.toPath
+      val binary = (Compile / nativeLink).value.toPath
       val bootstrapScript = binary.resolveSibling(
         binary.getFileName.toString.stripSuffix(".wasm") + ".js"
       )
       val node = sys.env.get("EMSDK_NODE").getOrElse("node")
+      val nodeArgs =
+        Seq("--experimental-wasm-threads", "--experimental-wasm-bulk-memory")
       val args = spaceDelimited("<arg>").parsed
-      
-      
-      val cmd = Seq(node, bootstrapScript.toFile().getAbsolutePath()) ++ args
+
+      val cmd = Seq(
+        node,
+        bootstrapScript.toFile().getAbsolutePath()
+      ) ++ nodeArgs ++ args
       // logger.running(cmd)
+      println(s"Running: ${cmd.mkString("\n\t")}")
 
       val exitCode = {
         // It seems that previously used Scala Process has some bug leading

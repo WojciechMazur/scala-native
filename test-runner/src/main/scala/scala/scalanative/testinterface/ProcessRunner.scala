@@ -21,7 +21,7 @@ private[testinterface] class ProcessRunner(
           .filter(_.nonEmpty)
       val optEmulatorOptions = sys.props
         .get("scala.scalanative.testinterface.processrunner.emulator-args")
-        .map(_.split(" ").toList)
+        .map(_.split(";").toList)
         .getOrElse(Nil)
       optEmulator.toList ++ optEmulatorOptions
     }

@@ -1,6 +1,7 @@
 scalalib/src/
 scala-partest/fetchedSources/
 target/
+lib/
 _build/
 *.dot
 *.ppm

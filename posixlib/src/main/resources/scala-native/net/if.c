@@ -1,3 +1,5 @@
+#if !defined(__wasi__)
+
 #ifdef _WIN32
 #include <WinSock2.h>
 #pragma comment(lib, "Ws2_32.lib")
@@ -6,7 +8,6 @@
 #pragma comment(lib, "Iphlpapi.lib")
 #else
 #include <net/if.h>
-
 #include <stddef.h>
 
 struct scalanative_if_nameindex {
@@ -49,3 +50,5 @@ _Static_assert(offsetof(struct scalanative_if_nameindex, if_name) ==
  * buffer overrun defects.
  */
 int scalanative_if_namesize() { return IF_NAMESIZE + 1; }
+
+#endif // not wasi

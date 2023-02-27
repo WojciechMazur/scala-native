@@ -8,7 +8,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #else
-#include <pthread.h>
 #include <semaphore.h>
 #include <sched.h>
 #include <unistd.h>
@@ -35,7 +34,12 @@ typedef HANDLE thread_t;
 typedef HANDLE mutex_t;
 typedef HANDLE semaphore_t;
 typedef int pid_t;
+#elif defined(__wasi__)
+typedef void *thread_t;
+typedef void *mutex_t;
+typedef sem_t *semaphore_t;
 #else
+#include <pthread.h>
 typedef pthread_t thread_t;
 typedef pthread_mutex_t mutex_t;
 typedef sem_t *semaphore_t;

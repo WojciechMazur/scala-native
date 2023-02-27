@@ -43,6 +43,15 @@ long long scalanative_nano_time() {
             nano_time = count.QuadPart * nanosPerCount;
         }
     }
+#elif defined(__wasi__)
+#include <wasi/api.h>
+    __wasi_timestamp_t result;
+    __wasi_errno_t err =
+        __wasi_clock_time_get(__WASI_CLOCKID_MONOTONIC, 1000, &result);
+    if (err == __WASI_ERRNO_SUCCESS)
+        return (long long)result;
+    else
+        return -1;
 #else
 #if defined(__FreeBSD__)
     int clock = CLOCK_MONOTONIC_PRECISE; // OS has no CLOCK_MONOTONIC_RAW

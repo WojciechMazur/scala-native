@@ -76,38 +76,38 @@ void Prealloc_Or_Default() {
 }
 
 void scalanative_init() {
-// #ifndef GC_ASAN
-//     Prealloc_Or_Default();
-//     current = memoryMapPrealloc(CHUNK, DO_PREALLOC);
-//     if (current == NULL) {
-//         exitWithOutOfMemory();
-//     }
-//     end = current + CHUNK;
-// #ifdef _WIN32
-//     if (!memoryCommit(current, CHUNK)) {
-//         exitWithOutOfMemory();
-//     };
-// #endif // _WIN32
-// #endif // GC_ASAN
+    // #ifndef GC_ASAN
+    //     Prealloc_Or_Default();
+    //     current = memoryMapPrealloc(CHUNK, DO_PREALLOC);
+    //     if (current == NULL) {
+    //         exitWithOutOfMemory();
+    //     }
+    //     end = current + CHUNK;
+    // #ifdef _WIN32
+    //     if (!memoryCommit(current, CHUNK)) {
+    //         exitWithOutOfMemory();
+    //     };
+    // #endif // _WIN32
+    // #endif // GC_ASAN
 }
 
 void *scalanative_alloc(void *info, size_t size) {
     size = size + (8 - size % 8);
-// #ifndef GC_ASAN
-//     if (current + size < end) {
-//         void **alloc = current;
-//         *alloc = info;
-//         current += size;
-//         return alloc;
-//     } else {
-//         scalanative_init();
-//         return scalanative_alloc(info, size);
-//     }
-// #else
+    // #ifndef GC_ASAN
+    //     if (current + size < end) {
+    //         void **alloc = current;
+    //         *alloc = info;
+    //         current += size;
+    //         return alloc;
+    //     } else {
+    //         scalanative_init();
+    //         return scalanative_alloc(info, size);
+    //     }
+    // #else
     void **alloc = calloc(size, 1);
     *alloc = info;
     return alloc;
-// #endif
+    // #endif
 }
 
 void *scalanative_alloc_small(void *info, size_t size) {
@@ -141,8 +141,7 @@ int scalanative_pthread_create(pthread_t *thread, pthread_attr_t *attr,
     return pthread_create(thread, attr, routine, args);
 }
 #endif
-#endif // SCALANATIVE_MULTITHREADING_ENABLED
-
 // ScalaNativeGC interface stubs. None GC does not need STW
 void scalanative_gc_set_mutator_thread_state(MutatorThreadState unused){};
 void scalanative_gc_safepoint_poll(){};
+#endif // SCALANATIVE_MULTITHREADING_ENABLED

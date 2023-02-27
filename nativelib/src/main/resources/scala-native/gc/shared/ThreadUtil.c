@@ -1,3 +1,4 @@
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
 #include "ThreadUtil.h"
 #include <stdio.h>
 
@@ -100,3 +101,5 @@ bool semaphore_unlock(semaphore_t ref) {
     return sem_post(ref) == 0;
 #endif
 }
+
+#endif // SCALANATIVE_MULTITHREADING_ENABLED

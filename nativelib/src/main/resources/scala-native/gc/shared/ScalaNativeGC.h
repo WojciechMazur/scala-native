@@ -10,14 +10,7 @@
 #pragma comment(lib, "User32.lib")
 #pragma comment(lib, "Kernel32.lib")
 #include <windows.h>
-typedef DWORD ThreadRoutineReturnType;
-#else
-#include <pthread.h>
-typedef void *ThreadRoutineReturnType;
 #endif
-
-typedef ThreadRoutineReturnType (*ThreadStartRoutine)(void *);
-typedef void *RoutineArgs;
 
 void scalanative_init();
 void *scalanative_alloc(void *info, size_t size);
@@ -26,6 +19,19 @@ void *scalanative_alloc_large(void *info, size_t size);
 void *scalanative_alloc_atomic(void *info, size_t size);
 void scalanative_collect();
 void scalanative_register_weak_reference_handler(void *handler);
+
+// Conditionally protected memory address used for STW events polling
+typedef void **safepoint_t;
+
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
+#ifdef _WIN32 typedef DWORD ThreadRoutineReturnType;
+#else
+#include <pthread.h>
+typedef void *ThreadRoutineReturnType;
+#endif
+
+typedef ThreadRoutineReturnType (*ThreadStartRoutine)(void *);
+typedef void *RoutineArgs;
 
 // Functions used to create a new thread supporting multithreading support in
 // the garbage collector. Would execute a proxy startup routine to register
@@ -63,13 +69,13 @@ typedef enum scalanative_MutatorThreadState {
 // functions. Changes the internal state of current (calling) thread
 void scalanative_gc_set_mutator_thread_state(MutatorThreadState);
 
-// Conditionally protected memory address used for STW events polling
-typedef void **safepoint_t;
 extern safepoint_t scalanative_gc_safepoint;
 
 // Check for StopTheWorld event and wait for its end if needed
 // Used internally only in GC. Scala Native safepoints polling would be inlined
 // in the code.
 void scalanative_gc_safepoint_poll();
+
+#endif // SCALANATIVE_MULTITHREADING_ENABLED
 
 #endif // SCALA_NATIVE_GC_H

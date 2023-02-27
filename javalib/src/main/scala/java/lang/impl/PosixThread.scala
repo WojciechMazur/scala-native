@@ -26,7 +26,7 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
   import NativeThread._
   import PosixThread._
 
-  private[this] val _state = new scala.Array[scala.Byte](StateSize)
+  private[this] lazy val _state = new scala.Array[scala.Byte](StateSize)
   @volatile private[impl] var sleepInterruptEvent: CInt = UnsetEvent
   @volatile private var counter: Int = 0
   // index of currently used condition
@@ -184,6 +184,9 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
   private def sleepInterruptible(_millis: Long): Unit = {
     var millis = _millis
     if (millis <= 0) return
+    // No pipe on WASI, sleep uniterrutple
+    if (isWASI) return sleepNonInterruptible(millis, 0)
+    
     val deadline = System.currentTimeMillis() + millis
 
     import scala.scalanative.posix.pollOps._
@@ -238,10 +241,17 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
 
   override def sleepNanos(nanos: Int): Unit = {
     val millis = nanos / NanosInMillisecond
-    val remainingNanos = nanos % NanosInMillisecond
-    if (millis > 0) sleepInterruptible(millis)
-    if (!thread.isInterrupted() && remainingNanos > 0) {
-      sleepNonInterruptible(0, nanos)
+    val diff = if (millis > 0) {
+      val start = System.nanoTime()
+      sleepInterruptible(millis)
+      System.nanoTime() - start
+    } else 0
+    val remainingNanos = nanos - diff
+    if (remainingNanos > 0 && !thread.isInterrupted()) {
+      sleepNonInterruptible(
+        remainingNanos / NanosInMillisecond,
+        (remainingNanos % NanosInMillisecond).toInt
+      )
     }
   }
 
@@ -356,7 +366,8 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
 private[lang] object PosixThread extends NativeThread.Companion {
   override type Impl = PosixThread
 
-  private[this] val _state = new scala.Array[scala.Byte](CompanionStateSize)
+  private[this] lazy val _state =
+    new scala.Array[scala.Byte](CompanionStateSize)
 
   if (isMultithreadingEnabled) {
     checkStatus("relative-time conditions attrs init") {

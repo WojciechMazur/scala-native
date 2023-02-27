@@ -1,3 +1,4 @@
+#if !defined(__wasi__)
 #ifdef _WIN32
 #include <WinSock2.h>
 #include <ws2tcpip.h> // socklen_t
@@ -115,20 +116,10 @@ int scalanative_ni_namereqd() { return NI_NAMEREQD; }
 
 int scalanative_ni_numericserv() { return NI_NUMERICSERV; }
 
-int scalanative_ni_numericscope() {
-#if !defined(NI_NUMERICSCOPE)
-    /* Silently return a no-op flag.
-     * Do not disturb the tranquility of the vast majority of projects,
-     * which have absolutely no interest in NI_NUMERICSCOPE, by issuing the
-     * #warning one might expect.
-     *
-     * NI_NUMERICSCOPE is undefined on Linux and possibly Windows.
-     */
-    return 0;
-#else
-    return NI_NUMERICSCOPE;
+#ifdef NI_NUMERICSCOPE
+// NI_NUMERICSCOPE is undefined on Linux and possibly Windows.
+int scalanative_ni_numericscope() { return NI_NUMERICSCOPE; }
 #endif
-}
 
 int scalanative_ni_dgram() { return NI_DGRAM; }
 
@@ -176,10 +167,6 @@ int scalanative_eai_service() { return WSATYPE_NOT_FOUND; }
 
 int scalanative_eai_socktype() { return WSAESOCKTNOSUPPORT; }
 
-// Windows seems not to have an equivalent, use ubiquitous -1
-int scalanative_eai_system() { return -1; }
-
-// Windows seems not to have an equivalent, use ubiquitous -1
-int scalanative_eai_overflow() { return -1; }
-
 #endif // _Win32
+
+#endif // WASI

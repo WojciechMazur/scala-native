@@ -26,11 +26,9 @@ object MyScalaNativePlugin extends AutoPlugin {
           .withGC(GC.none)
 
         val usingWASI = {
-          val wasiVersion = 16
-          val wasiToolchain = java.nio.file.Path
-            .of(
-              s"/home/wmazur/projects/virtuslab/scala-native-2/wasi-sdk-$wasiVersion.0"
-            )
+          val wasiVersion = 19
+          val wasiToolchain =
+            java.nio.file.Path.of(s"lib/wasi-sdk-$wasiVersion.0").toAbsolutePath()
           val wasiSharedOpts = Seq(
             s"--sysroot=${wasiToolchain}/share/wasi-sysroot"
           )
@@ -86,8 +84,8 @@ object MyScalaNativePlugin extends AutoPlugin {
 
         // Choose ABI and run sandboxX/clean when switching
         // For Scala3 .wasm (and .js, .html for enscripten) file can be found in ./sandbox/.3/target/scala-3.1.3/sandbox.wasm
-        // usingWASI
-        usingEnscripten
+        usingWASI
+        // usingEnscripten
       }
     }.value,
     run := {
@@ -99,18 +97,37 @@ object MyScalaNativePlugin extends AutoPlugin {
       val env = (run / envVars).value.toSeq
       val logger = streams.value.log
       val binary = (Compile / nativeLink).value.toPath
-      val bootstrapScript = binary.resolveSibling(
-        binary.getFileName.toString.stripSuffix(".wasm") + ".js"
-      )
-      val node = sys.env.get("EMSDK_NODE").getOrElse("node")
-      val nodeArgs =
-        Seq("--experimental-wasm-threads", "--experimental-wasm-bulk-memory")
-      val args = spaceDelimited("<arg>").parsed
 
-      val cmd = Seq(
-        node,
-        bootstrapScript.toFile().getAbsolutePath()
-      ) ++ nodeArgs ++ args
+      // Empty config just to get access to helper target triple methods
+      val config = (Compile / nativeConfig).value
+      val targetsWASM = config.targetTriple.exists(_ contains "wasm")
+      val targetsEmscripten =
+        targetsWASM && config.targetTriple.exists(_ contains "emscripted")
+      
+      assert(targetsWASM, "not a WASM setup")
+
+      val startupCmd: Seq[String] = if (targetsEmscripten) {
+        val node = sys.env.get("EMSDK_NODE").getOrElse("node")
+        val jsBootstrapName =
+          binary.toFile.getName().stripSuffix(".wasm") + ".js"
+        val bootstrapper =
+          binary.resolveSibling(jsBootstrapName).toAbsolutePath().toString()
+        Seq(
+          node,
+          "--experimental-wasm-threads",
+          "--experimental-wasm-bulk-memory",
+          bootstrapper
+        )
+      } else {
+        val wasmtime = sys.env
+          .get("WASMTIME_HOME")
+          .map(_.stripSuffix("/") + "/bin/wasmtime")
+          .getOrElse("wasmtime")
+        Seq(wasmtime, binary.toAbsolutePath().toString())
+      }
+
+      val args = spaceDelimited("<arg>").parsed
+      val cmd = startupCmd ++ args
       // logger.running(cmd)
       println(s"Running: ${cmd.mkString("\n\t")}")
 

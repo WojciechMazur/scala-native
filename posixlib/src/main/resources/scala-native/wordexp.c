@@ -1,5 +1,6 @@
-#if (defined(__unix__) || defined(__unix) || defined(unix) ||                   \
-    (defined(__APPLE__) && defined(__MACH__)))
+#if !defined(__wasi__) &&                                                      \
+    ((defined(__unix__) || defined(__unix) || defined(unix) ||                 \
+      (defined(__APPLE__) && defined(__MACH__))))
 
 #include <stddef.h>
 #include <wordexp.h>
@@ -39,21 +40,6 @@ _Static_assert(offsetof(struct scalanative_wordexp_t, we_offs) ==
                "offset mismatch: wordexp_t we_offs");
 
 #endif // __STDC_VERSION__
-#endif // Unix or Mac OS
-
-#if defined(_WIN32) // bogus values to keep linker happy
-#define WRDE_APPEND -1
-#define WRDE_DOOFFS -1
-#define WRDE_NOCMD -1
-#define WRDE_REUSE -1
-#define WRDE_SHOWERR -1
-#define WRDE_UNDEF -1
-#define WRDE_BADCHAR -1
-#define WRDE_BADVAL -1
-#define WRDE_CMDSUB -1
-#define WRDE_NOSPACE -1
-#define WRDE_SYNTAX -1
-#endif // _WIN32
 
 // flags
 
@@ -79,3 +65,5 @@ int scalanative_wrde_cmdsub() { return WRDE_CMDSUB; };
 int scalanative_wrde_nospace() { return WRDE_NOSPACE; };
 
 int scalanative_wrde_syntax() { return WRDE_SYNTAX; };
+
+#endif // Unix or Mac OS

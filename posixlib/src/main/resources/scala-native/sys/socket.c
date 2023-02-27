@@ -63,8 +63,13 @@ _Static_assert(offsetof(struct scalanative_sockaddr, sa_data) ==
                    offsetof(struct sockaddr, sa_data),
                "offset mismatch: sockaddr sa_data");
 
+// TODO it's 48 bytes in WASI (sa_family_t alligned to 16 bytes and 32bytes)
+#ifdef __wasi__
+#warning "Size of struct sockaddr_storage is different then traditional 48 (WASI) vs 128 (Unix) bytes"
+#else
 _Static_assert(sizeof(struct sockaddr_storage) == 128,
                "unexpected size for sockaddr_storage");
+#endif
 
 // struct msghdr - POSIX 48 byte (padding) on 64 bit machines, 28 on 32 bit.
 struct scalanative_msghdr {
@@ -135,6 +140,7 @@ struct scalanative_cmsghdr {
     int cmsg_type;
 };
 
+#ifdef cmsghdr
 #if defined(__ILP32__)
 _Static_assert(sizeof(struct cmsghdr) == 12,
                "Unexpected size: struct cmsghdr, expected 12");
@@ -163,6 +169,7 @@ _Static_assert(offsetof(struct cmsghdr, cmsg_type) ==
                    offsetof(struct scalanative_cmsghdr, cmsg_type),
                "offset mismatch: OS & SN cmsg_type expected 8");
 #endif                   // POSIX cmsghdr
+#endif                   // cmsghdr
 #endif                   // structure size checking
 #endif                   // !_WIN32
 
@@ -176,151 +183,145 @@ int scalanative_scm_rights() {
 #endif
 }
 
+#ifdef SOCK_DGRAM
 int scalanative_sock_dgram() { return SOCK_DGRAM; }
-
+#endif
+#ifdef SOCK_RAW
 int scalanative_sock_raw() { return SOCK_RAW; }
-
+#endif
+#ifdef SOCK_SEQPACKET
 int scalanative_sock_seqpacket() { return SOCK_SEQPACKET; }
-
+#endif
+#ifdef SOCK_STREAM
 int scalanative_sock_stream() { return SOCK_STREAM; }
-
+#endif
+#ifdef SOL_SOCKET
 int scalanative_sol_socket() { return SOL_SOCKET; }
-
+#endif
+#ifdef SO_ACCEPTCONN
 int scalanative_so_acceptconn() { return SO_ACCEPTCONN; }
-
+#endif
+#ifdef SO_BROADCAST
 int scalanative_so_broadcast() { return SO_BROADCAST; }
-
+#endif
+#ifdef SO_DEBUG
 int scalanative_so_debug() { return SO_DEBUG; }
-
+#endif
+#ifdef SO_DONTROUTE
 int scalanative_so_dontroute() { return SO_DONTROUTE; }
-
+#endif
+#ifdef SO_ERROR
 int scalanative_so_error() { return SO_ERROR; }
-
+#endif
+#ifdef SO_KEEPALIVE
 int scalanative_so_keepalive() { return SO_KEEPALIVE; }
-
+#endif
+#ifdef SO_LINGER
 int scalanative_so_linger() { return SO_LINGER; }
-
+#endif
+#ifdef SO_OOBINLINE
 int scalanative_so_oobinline() { return SO_OOBINLINE; }
-
+#endif
+#ifdef SO_RCVBUF
 int scalanative_so_rcvbuf() { return SO_RCVBUF; }
-
+#endif
+#ifdef SO_RCVLOWAT
 int scalanative_so_rcvlowat() { return SO_RCVLOWAT; }
-
+#endif
+#ifdef SO_RCVTIMEO
 int scalanative_so_rcvtimeo() { return SO_RCVTIMEO; }
-
+#endif
+#ifdef SO_REUSEADDR
 int scalanative_so_reuseaddr() { return SO_REUSEADDR; }
-
-int scalanative_so_reuseport() {
+#endif
 #ifdef SO_REUSEPORT
-    return SO_REUSEPORT;
-#else
-    return 0;
+int scalanative_so_reuseport() { return SO_REUSEPORT; }
 #endif
-}
-
+#ifdef SO_SNDBUF
 int scalanative_so_sndbuf() { return SO_SNDBUF; }
-
+#endif
+#ifdef SO_SNDLOWAT
 int scalanative_so_sndlowat() { return SO_SNDLOWAT; }
-
+#endif
+#ifdef SO_SNDTIMEO
 int scalanative_so_sndtimeo() { return SO_SNDTIMEO; }
-
+#endif
+#ifdef SO_TYPE
 int scalanative_so_type() { return SO_TYPE; }
-
+#endif
+#ifdef SOMAXCONN
 int scalanative_somaxconn() { return SOMAXCONN; }
-
+#endif
+#ifdef MSG_CTRUNC
 int scalanative_msg_ctrunc() { return MSG_CTRUNC; }
-
+#endif
+#ifdef MSG_DONTROUTE
 int scalanative_msg_dontroute() { return MSG_DONTROUTE; }
-
-int scalanative_msg_eor() {
+#endif
 #ifdef MSG_EOR
-    return MSG_EOR;
-#else
-    return 0;
+int scalanative_msg_eor() { return MSG_EOR; }
 #endif
-}
-
+#ifdef MSG_OOB
 int scalanative_msg_oob() { return MSG_OOB; }
-
-int scalanative_msg_nosignal() {
+#endif
 #ifdef MSG_NOSIGNAL
-    return MSG_NOSIGNAL;
-#else
-    return 0;
+int scalanative_msg_nosignal() { return MSG_NOSIGNAL; }
 #endif
-}
-
+#ifdef MSG_PEEK
 int scalanative_msg_peek() { return MSG_PEEK; }
+#endif
 
+#if defined(MSG_TRUNC) &&                                                      \
+    !defined(__wasi__) // https://github.com/WebAssembly/wasi-libc/issues/305
 int scalanative_msg_trunc() { return MSG_TRUNC; }
-
+#endif
+#ifdef MSG_WAITALL
 int scalanative_msg_waitall() { return MSG_WAITALL; }
-
+#endif
+#ifdef AF_INET
 int scalanative_af_inet() { return AF_INET; }
-
+#endif
+#ifdef AF_INET6
 int scalanative_af_inet6() { return AF_INET6; }
-
+#endif
+#ifdef AF_UNIX
 int scalanative_af_unix() { return AF_UNIX; }
-
+#endif
+#ifdef AF_UNSPEC
 int scalanative_af_unspec() { return AF_UNSPEC; }
-
-int scalanative_shut_rd() {
+#endif
 #ifdef SHUT_RD
-    return SHUT_RD;
-#else // _WIN32
-    return 0;
+int scalanative_shut_rd() { return SHUT_RD; }
 #endif
-}
-
-int scalanative_shut_rdwr() {
 #ifdef SHUT_RDWR
-    return SHUT_RDWR;
-#else // _WIN32
-    return 0;
+int scalanative_shut_rdwr() { return SHUT_RDWR; }
 #endif
-}
-
-int scalanative_shut_wr() {
 #ifdef SHUT_WR
-    return SHUT_WR;
-#else // _WIN32
-    return 0;
+int scalanative_shut_wr() { return SHUT_WR; }
 #endif
-}
 
 // Macros
-#ifdef _WIN32
-void *scalanative_cmsg_data(void *cmsg) { return NULL; }
-#else
+#ifdef CMSG_DATA
 unsigned char *scalanative_cmsg_data(struct cmsghdr *cmsg) {
     return CMSG_DATA(cmsg);
 }
 #endif
 
-#ifdef _WIN32
-void *scalanative_cmsg_nxthdr(void *mhdr, void *cmsg) { return NULL; }
-#else
+#ifdef CMSG_NXTHDR
 struct cmsghdr *scalanative_cmsg_nxthdr(struct msghdr *mhdr,
                                         struct cmsghdr *cmsg) {
     return CMSG_NXTHDR(mhdr, cmsg);
 }
 #endif
 
-#ifdef _WIN32
-void *scalanative_cmsg_firsthdr(void *mhdr) { return NULL; }
-#else
+#ifdef CMSG_FIRSTHDR
 struct cmsghdr *scalanative_cmsg_firsthdr(struct msghdr *mhdr) {
     return CMSG_FIRSTHDR(mhdr);
 }
 #endif
 
 // Functions
-#ifdef _WIN32
-long scalanative_recvmsg(int socket, void *msg, int flags) {
-    errno = ENOTSUP;
-    return -1;
-}
-#else // unix
+#ifdef recvmsg
 long scalanative_recvmsg(int socket, struct msghdr *msg, int flags) {
 #if !defined(__linux__) || !defined(__LP64__)
     return recvmsg(socket, (struct msghdr *)msg, flags);
@@ -361,14 +362,9 @@ long scalanative_recvmsg(int socket, struct msghdr *msg, int flags) {
     return status;
 #endif
 }
-#endif // unix
+#endif
 
-#ifdef _WIN32
-long scalanative_sendmsg(int socket, void *msg, int flags) {
-    errno = ENOTSUP;
-    return -1;
-}
-#else // unix
+#ifdef sendmsg
 long scalanative_sendmsg(int socket, struct msghdr *msg, int flags) {
 #if !defined(__linux__) || !defined(__LP64__)
     return sendmsg(socket, (struct msghdr *)msg, flags);
@@ -398,22 +394,14 @@ long scalanative_sendmsg(int socket, struct msghdr *msg, int flags) {
     return status;
 #endif
 }
-#endif // unix
-
-int scalanative_sockatmark(int socket) {
-#if defined(_WIN32)
-    errno = ENOTSUP;
-    return -1;
-#else
-    return sockatmark(socket);
 #endif
-}
 
+#ifdef sockatmark
+int scalanative_sockatmark(int socket) { return sockatmark(socket); }
+#endif
+
+#ifdef socketpair
 int scalanative_socketpair(int domain, int type, int protocol, int *sv) {
-#if defined(_WIN32)
-    errno = ENOTSUP;
-    return -1;
-#else
     return socketpair(domain, type, protocol, sv);
-#endif
 }
+#endif

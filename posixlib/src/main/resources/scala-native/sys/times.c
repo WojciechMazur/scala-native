@@ -1,5 +1,5 @@
-#ifdef _WIN32
-// No Windows support
+#if defined(_WIN32) || defined(__wasi__) 
+// No Windows/WASI support
 #else
 #if !(defined __STDC_VERSION__) || (__STDC_VERSION__ < 201112L)
 #ifndef SCALANATIVE_SUPPRESS_STRUCT_CHECK_WARNING

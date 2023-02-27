@@ -8,7 +8,9 @@
 #endif
 #include "../netinet/in.h"
 
+#ifdef inet_ntoa
 char *scalanative_inet_ntoa(struct scalanative_in_addr *in) {
     // _Static_assert code in netinet/in.c allow this transform to be valid.
     return inet_ntoa(*((struct in_addr *)in));
 }
+#endif

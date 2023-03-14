@@ -44,7 +44,7 @@ struct scalanative_itimerspec {
     struct scalanative_timespec it_value;
 };
 
-#if !(defined __STDC_VERSION__) || (__STDC_VERSION__ < 201112L) || defined(__wasm__)
+#if !(defined __STDC_VERSION__) || (__STDC_VERSION__ < 201112L)
 #ifndef SCALANATIVE_SUPPRESS_STRUCT_CHECK_WARNING
 #warning "Size and order of C structures are not checked when -std < c11."
 #endif
@@ -91,6 +91,9 @@ _Static_assert(offsetof(struct scalanative_tm, tm_isdst) ==
                "offset mismatch: tm.tm_isdst");
 
 // struct timespec
+#if defined(__wasm__)
+#warning "WASM/WASI uses different memory layout for struct timespec
+#else 
 _Static_assert(sizeof(struct scalanative_timespec) == sizeof(struct timespec),
                "Unexpected size: struct timespec");
 
@@ -101,10 +104,14 @@ _Static_assert(offsetof(struct scalanative_timespec, tv_sec) ==
 _Static_assert(offsetof(struct scalanative_timespec, tv_nsec) ==
                    offsetof(struct timespec, tv_nsec),
                "offset mismatch: timespec.tv_nsec");
+#endif
 
 // struct itimer
 
 #if !defined(__APPLE__) // no itimer on Apple
+#if defined(__wasm__)
+#warning "WASM/WASI uses different memory layout for struct itimerspec
+#else
 _Static_assert(sizeof(struct scalanative_itimerspec) ==
                    sizeof(struct itimerspec),
                "Unexpected size: struct itimer");
@@ -116,6 +123,7 @@ _Static_assert(offsetof(struct scalanative_itimerspec, it_interval) ==
 _Static_assert(offsetof(struct scalanative_itimerspec, it_value) ==
                    offsetof(struct itimerspec, it_value),
                "offset mismatch: itimer.it_value");
+#endif // static assert
 #endif
 #endif // __STDC_VERSION__
 
@@ -143,8 +151,6 @@ int scalanative_clock_nanosleep(clockid_t clockid, int flags,
     rem.tv_sec = remain->tv_sec;
     rem.tv_nsec = remain->tv_nsec;
 
-    // printf("sleep until clock=%p %d %lld - %ld\n", clockid, clockid == CLOCK_MONOTONIC, req.tv_sec,
-    //        req.tv_nsec);
     int status = clock_nanosleep(clockid, flags, &req, &rem);
     remain->tv_sec = rem.tv_sec;
     remain->tv_nsec = rem.tv_nsec;
@@ -152,6 +158,26 @@ int scalanative_clock_nanosleep(clockid_t clockid, int flags,
 #else
     errno = ENOTSUP; // No clock_nanosleep() on Apple.
     return ENOTSUP;
+#endif
+}
+
+int scalanative_nanosleep(struct scalanative_timespec *request,
+                          struct scalanative_timespec *remain) {
+#if defined(__wasm__)
+    struct timespec req, rem = {};
+    req.tv_sec = request->tv_sec;
+    req.tv_nsec = request->tv_nsec;
+
+    rem.tv_sec = remain->tv_sec;
+    rem.tv_nsec = remain->tv_nsec;
+
+    int status = nanosleep(&req, &rem);
+
+    remain->tv_sec = rem.tv_sec;
+    remain->tv_nsec = rem.tv_nsec;
+    return status;
+#else
+    return nanosleep((struct timespec *)request, (struct timespec *)remain);
 #endif
 }
 

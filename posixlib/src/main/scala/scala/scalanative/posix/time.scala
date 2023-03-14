@@ -94,6 +94,7 @@ import scala.scalanative.posix.signal.sigevent
 
   def mktime(time: Ptr[tm]): time_t = extern
 
+  @name("scalanative_nanosleep")
   def nanosleep(requested: Ptr[timespec], remaining: Ptr[timespec]): CInt =
     extern
 

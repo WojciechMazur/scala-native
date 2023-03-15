@@ -6,10 +6,15 @@ import scala.concurrent.duration._
 
 object Hello extends IOApp.Simple {
   println("Hello world")
+  println(System.currentTimeMillis())
+  Thread.sleep(100)
+  println(System.currentTimeMillis())
 
   // EH is currently not available when using WASI-SDK, can work with Enscripten
-  // try throw new RuntimeException()
-  // catch {case ex: Throwable => println(ex)}
+  try throw new RuntimeException()
+  catch {case ex: Throwable => println(ex)}
+
+  println("foo")
  
   def sleepPrint(word: String, name: String, rand: Random[IO]) =
     for {

@@ -3,6 +3,7 @@ package scala.scalanative.codegen
 import java.nio.file.{Path, Paths}
 import java.{lang => jl}
 import scala.collection.mutable
+import scala.scalanative.build.Discover
 import scala.scalanative.codegen.compat.os.OsCompat
 import scala.scalanative.io.VirtualDirectory
 import scala.scalanative.nir.ControlFlow.{Block, Graph => CFG}
@@ -12,14 +13,14 @@ import scala.scalanative.util.{ShowBuilder, unreachable, unsupported}
 import scala.scalanative.{build, linker, nir}
 
 private[codegen] abstract class AbstractCodeGen(
-    val config: build.Config,
     env: Map[Global, Defn],
     defns: Seq[Defn]
-)(implicit meta: Metadata) {
-  val os: OsCompat
+)(implicit val meta: Metadata) {
+  import meta.platform
+  import platform._
 
-  private val targetTriple: Option[String] = config.compilerConfig.targetTriple
-  private val is32BitPlatform: Boolean = config.compilerConfig.is32BitPlatform
+  val os: OsCompat
+  val pointerType = if (useOpaquePointers) "ptr" else "i8*"
 
   private var currentBlockName: Local = _
   private var currentBlockSplit: Int = _
@@ -175,7 +176,7 @@ private[codegen] abstract class AbstractCodeGen(
 
     newline()
     str(if (isDecl) "declare " else "define ")
-    if (config.targetsWindows && !isDecl && attrs.isExtern) {
+    if (targetsWindows && !isDecl && attrs.isExtern) {
       // Generate export modifier only for extern (C-ABI compliant) signatures
       val Global.Member(_, sig) = name: @unchecked
       if (sig.isExtern) str("dllexport ")
@@ -237,14 +238,12 @@ private[codegen] abstract class AbstractCodeGen(
 
   private[codegen] def genFunctionReturnType(
       retty: Type
-  )(implicit sb: ShowBuilder): Unit = {
-    retty match {
-      case refty: Type.RefKind =>
-        genReferenceTypeAttribute(refty)
-      case _ =>
-        ()
-    }
-    genType(retty)
+  )(implicit sb: ShowBuilder): Unit = retty match {
+    case refty: Type.RefKind if refty != Type.Unit =>
+      genReferenceTypeAttribute(refty)
+      genType(retty)
+    case _ =>
+      genType(retty)
   }
 
   private[codegen] def genReferenceTypeAttribute(
@@ -318,6 +317,7 @@ private[codegen] abstract class AbstractCodeGen(
     if (!block.isEntry) {
       val params = block.params
       params.zipWithIndex.foreach {
+        case (Val.Local(name, Type.Unit), n) => () // skip
         case (Val.Local(name, ty), n) =>
           newline()
           str("%")
@@ -374,13 +374,15 @@ private[codegen] abstract class AbstractCodeGen(
   private[codegen] def genType(ty: Type)(implicit sb: ShowBuilder): Unit = {
     import sb._
     ty match {
-      case Type.Vararg                                           => str("...")
-      case _: Type.RefKind | Type.Ptr | Type.Null | Type.Nothing => str("i8*")
-      case Type.Bool                                             => str("i1")
+      case Type.Vararg => str("...")
+      case Type.Unit   => str("void")
+      case _: Type.RefKind | Type.Ptr | Type.Null | Type.Nothing =>
+        str(pointerType)
+      case Type.Bool          => str("i1")
       case i: Type.FixedSizeI => str("i"); str(i.width)
       case Type.Size =>
-        if (is32BitPlatform) str("i32")
-        else str("i64")
+        str("i")
+        str(platform.sizeOfPtrBits)
       case Type.Float  => str("float")
       case Type.Double => str("double")
       case Type.ArrayValue(ty, n) =>
@@ -436,10 +438,11 @@ private[codegen] abstract class AbstractCodeGen(
       case Val.True     => str("true")
       case Val.False    => str("false")
       case Val.Null     => str("null")
+      case Val.Unit     => str("void")
       case Val.Zero(ty) => str("zeroinitializer")
       case Val.Byte(v)  => str(v)
       case Val.Size(v) =>
-        if (!is32BitPlatform) str(v)
+        if (!platform.is32Bit) str(v)
         else if (v.toInt == v) str(v.toInt)
         else unsupported("Emitting size values that exceed the platform bounds")
       case Val.Char(v)   => str(v.toInt)
@@ -462,11 +465,17 @@ private[codegen] abstract class AbstractCodeGen(
         str("%")
         genLocal(n)
       case Val.Global(n, ty) =>
-        str("bitcast (")
-        genType(lookup(n))
-        str("* @")
-        genGlobal(n)
-        str(" to i8*)")
+        if (useOpaquePointers) {
+          lookup(n)
+          str("@")
+          genGlobal(n)
+        } else {
+          str("bitcast (")
+          genType(lookup(n))
+          str("* @")
+          genGlobal(n)
+          str(" to i8*)")
+        }
       case _ =>
         unsupported(v)
     }
@@ -509,8 +518,10 @@ private[codegen] abstract class AbstractCodeGen(
 
   private[codegen] def genVal(value: Val)(implicit sb: ShowBuilder): Unit = {
     import sb._
-    genType(value.ty)
-    str(" ")
+    if (value != Val.Unit) {
+      genType(value.ty)
+      str(" ")
+    }
     genJustVal(value)
   }
 
@@ -663,114 +674,173 @@ private[codegen] abstract class AbstractCodeGen(
         }
         genCall(genBind, callDef, unwind)
 
-      case Op.Load(ty, ptr) =>
+      case Op.Load(ty, ptr, syncAttrs) =>
         val pointee = fresh()
+        val isAtomic = isMultithreadingEnabled && syncAttrs.isDefined
+        val isVolatile =
+          isMultithreadingEnabled && syncAttrs.exists(_.isVolatile)
 
-        newline()
-        str("%")
-        genLocal(pointee)
-        str(" = bitcast ")
-        genVal(ptr)
-        str(" to ")
-        genType(ty)
-        str("*")
+        if (!useOpaquePointers) {
+          newline()
+          str("%")
+          genLocal(pointee)
+          str(" = bitcast ")
+          genVal(ptr)
+          str(" to ")
+          genType(ty)
+          str("*")
+        }
 
         newline()
         genBind()
         str("load ")
+        if (isAtomic) str("atomic ")
+        if (isVolatile) str("volatile ")
         genType(ty)
         str(", ")
-        genType(ty)
-        str("* %")
-        genLocal(pointee)
-        ty match {
-          case refty: Type.RefKind =>
-            val (nonnull, deref, size) = toDereferenceable(refty)
-            if (nonnull) {
-              str(", !nonnull !{}")
-            }
-            str(", !")
-            str(deref)
-            str(" !{i64 ")
-            str(size)
-            str("}")
-          case _ =>
-            ()
+        if (useOpaquePointers) genVal(ptr)
+        else {
+          genType(ty)
+          str("* %")
+          genLocal(pointee)
+        }
+        if (isAtomic) {
+          str(" ")
+          syncAttrs.foreach(genSyncAttrs)
+          str(", align ")
+          str(MemoryLayout.alignmentOf(ty))
+        } else {
+          ty match {
+            case refty: Type.RefKind =>
+              val (nonnull, deref, size) = toDereferenceable(refty)
+              if (nonnull) {
+                str(", !nonnull !{}")
+              }
+              str(", !")
+              str(deref)
+              str(" !{i")
+              str(platform.sizeOfPtrBits)
+              str(" ")
+              str(size)
+              str("}")
+            case _ =>
+              ()
+          }
         }
 
-      case Op.Store(ty, ptr, value) =>
+      case Op.Store(ty, ptr, value, syncAttrs) =>
         val pointee = fresh()
+        val isAtomic = isMultithreadingEnabled && syncAttrs.isDefined
+        val isVolatile =
+          isMultithreadingEnabled && syncAttrs.exists(_.isVolatile)
 
-        newline()
-        str("%")
-        genLocal(pointee)
-        str(" = bitcast ")
-        genVal(ptr)
-        str(" to ")
-        genType(ty)
-        str("*")
+        if (!useOpaquePointers) {
+          newline()
+          str("%")
+          genLocal(pointee)
+          str(" = bitcast ")
+          genVal(ptr)
+          str(" to ")
+          genType(ty)
+          str("*")
+        }
 
         newline()
         genBind()
         str("store ")
+        if (isAtomic) str("atomic ")
+        if (isVolatile) str("volatile ")
         genVal(value)
-        str(", ")
-        genType(ty)
-        str("* %")
-        genLocal(pointee)
+        if (useOpaquePointers) {
+          str(", ptr")
+          genJustVal(ptr)
+        } else {
+          str(", ")
+          genType(ty)
+          str("* %")
+          genLocal(pointee)
+        }
+        if (isAtomic) syncAttrs.foreach {
+          str(" ")
+          genSyncAttrs(_)
+        }
+        str(", align ")
+        str(MemoryLayout.alignmentOf(ty))
 
       case Op.Elem(ty, ptr, indexes) =>
         val pointee = fresh()
         val derived = fresh()
 
-        newline()
-        str("%")
-        genLocal(pointee)
-        str(" = bitcast ")
-        genVal(ptr)
-        str(" to ")
-        genType(ty)
-        str("*")
+        if (!useOpaquePointers) {
+          newline()
+          str("%")
+          genLocal(pointee)
+          str(" = bitcast ")
+          genVal(ptr)
+          str(" to ")
+          genType(ty)
+          str("*")
+        }
 
         newline()
-        str("%")
-        genLocal(derived)
-        str(" = getelementptr ")
+        if (useOpaquePointers) genBind()
+        else {
+          str("%")
+          genLocal(derived)
+          str(" = ")
+        }
+        str("getelementptr ")
         genType(ty)
         str(", ")
-        genType(ty)
-        str("* %")
-        genLocal(pointee)
+        if (ty.isInstanceOf[Type.AggregateKind] || !useOpaquePointers) {
+          genType(ty)
+          str("*")
+        } else str(pointerType)
+        str(" ")
+        if (useOpaquePointers) genJustVal(ptr)
+        else {
+          str("%")
+          genLocal(pointee)
+        }
         str(", ")
         rep(indexes, sep = ", ")(genVal)
 
-        newline()
-        genBind()
-        str("bitcast ")
-        genType(ty.elemty(indexes.tail))
-        str("* %")
-        genLocal(derived)
-        str(" to i8*")
+        if (!useOpaquePointers) {
+          newline()
+          genBind()
+          str("bitcast ")
+          genType(ty.elemty(indexes.tail))
+          str("* %")
+          genLocal(derived)
+          str(" to i8*")
+        }
 
       case Op.Stackalloc(ty, n) =>
         val pointee = fresh()
 
         newline()
-        str("%")
-        genLocal(pointee)
-        str(" = alloca ")
+        if (useOpaquePointers) genBind()
+        else {
+          str("%")
+          genLocal(pointee)
+          str(" = ")
+        }
+        str("alloca ")
         genType(ty)
         str(", ")
         genVal(n)
-        str(if (is32BitPlatform) ", align 4" else ", align 8")
+        str(", align ")
+        str(platform.sizeOfPtr)
 
-        newline()
-        genBind()
-        str("bitcast ")
-        genType(ty)
-        str("* %")
-        genLocal(pointee)
-        str(" to i8*")
+        if (!useOpaquePointers) {
+          newline()
+          genBind()
+          str("bitcast ")
+          genType(ty)
+          str("* %")
+          genLocal(pointee)
+          str(" to i8*")
+        }
 
       case _ =>
         newline()
@@ -786,18 +856,6 @@ private[codegen] abstract class AbstractCodeGen(
   )(implicit fresh: Fresh, sb: ShowBuilder): Unit = {
     import sb._
     call match {
-      case Op.Call(_, Lower.GCSafepoint, _) =>
-        // Temporal hack until volatile store is implemented
-        // Safepoint load needs to be volatile, otherwise it would be optimized out
-        touch(Lower.GCSafepoint.name)
-        val safepoint, pollResult = fresh().id
-        val Sig.Extern(name) = Lower.GCSafepointName.sig.unmangled: @unchecked
-
-        newline()
-        str(s"%_$safepoint = load i8*, i8** @$name, align 8")
-        newline()
-        str(s"%_$pollResult = load volatile i8, i8* %_$safepoint, align 1")
-
       case Op.Call(ty, Val.Global(pointee, _), args) if lookup(pointee) == ty =>
         val Type.Function(argtys, _) = ty: @unchecked
         touch(pointee)
@@ -837,30 +895,27 @@ private[codegen] abstract class AbstractCodeGen(
 
         val pointee = fresh()
 
-        newline()
-        str("%")
-        genLocal(pointee)
-        str(" = bitcast ")
-        genVal(ptr)
-        str(" to ")
-        genType(ty)
-        str("*")
+        if (!useOpaquePointers) {
+          newline()
+          str("%")
+          genLocal(pointee)
+          str(" = bitcast ")
+          genVal(ptr)
+          str(" to ")
+          genType(ty)
+          str("*")
+        }
 
         newline()
         genBind()
         str(if (unwind ne Next.None) "invoke " else "call ")
-        ty match {
-          case nir.Type.Function(args, Type.Unit) =>
-            ptr match {
-              case Val.Global(pointee: Global.Member, _)
-                  if pointee.sig.isExtern =>
-                str("void")
-              case _ => genCallFunctionType(ty)
-            }
-          case _ => genCallFunctionType(ty)
+        genCallFunctionType(ty)
+        str(" ")
+        if (useOpaquePointers) genJustVal(ptr)
+        else {
+          str("%")
+          genLocal(pointee)
         }
-        str(" %")
-        genLocal(pointee)
         str("(")
         rep(args, sep = ", ")(genCallArgument)
         str(")")
@@ -902,7 +957,9 @@ private[codegen] abstract class AbstractCodeGen(
     v match {
       case Val.Local(_, refty: Type.RefKind) =>
         val (nonnull, deref, size) = toDereferenceable(refty)
-        genType(refty)
+        // Primitive unit value cannot be passed as argument, probably BoxedUnit is expected
+        if (refty == Type.Unit) genType(Type.Ptr)
+        else genType(refty)
         if (nonnull) {
           str(" nonnull")
         }
@@ -975,9 +1032,33 @@ private[codegen] abstract class AbstractCodeGen(
         genVal(v)
         str(" to ")
         genType(ty)
+      case Op.Fence(syncAttrs) =>
+        str("fence ")
+        genSyncAttrs(syncAttrs)
+
       case op =>
         unsupported(op)
     }
+  }
+
+  private def genSyncAttrs(
+      attrs: SyncAttrs
+  )(implicit sb: ShowBuilder): Unit = {
+    import sb._
+    val SyncAttrs(memoryOrder, _, scope) = attrs
+    scope.foreach { scope =>
+      str("syncscope(")
+      genGlobal(scope)
+      str(") ")
+    }
+    str(memoryOrder match {
+      case MemoryOrder.Unordered => "unordered"
+      case MemoryOrder.Monotonic => "monotonic"
+      case MemoryOrder.Acquire   => "acquire"
+      case MemoryOrder.Release   => "release"
+      case MemoryOrder.AcqRel    => "acq_rel"
+      case MemoryOrder.SeqCst    => "seq_cst"
+    })
   }
 
   private[codegen] def genNext(next: Next)(implicit sb: ShowBuilder): Unit = {
@@ -1004,15 +1085,13 @@ private[codegen] abstract class AbstractCodeGen(
   ): Unit = conv match {
     case Conv.ZSizeCast | Conv.SSizeCast =>
       val fromSize = fromType match {
-        case Type.Size =>
-          if (is32BitPlatform) 32 else 64
+        case Type.Size             => platform.sizeOfPtrBits
         case Type.FixedSizeI(s, _) => s
         case o                     => unsupported(o)
       }
 
       val toSize = toType match {
-        case Type.Size =>
-          if (is32BitPlatform) 32 else 64
+        case Type.Size             => platform.sizeOfPtrBits
         case Type.FixedSizeI(s, _) => s
         case o                     => unsupported(o)
       }

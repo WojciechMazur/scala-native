@@ -1,9 +1,12 @@
-// Ported from Scala.js commit: 9dc4d5b dated: 11 Oct 2018
+/*
+ * Written by Doug Lea with assistance from members of JCP JSR-166
+ * Expert Group and released to the public domain, as explained at
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
 
 package java.util.concurrent
 
-import java.util._
-
 trait ThreadFactory {
-  def newThread(r: Runnable): Thread
+
+  def newThread(runnable: Runnable): Thread
 }

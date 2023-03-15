@@ -11,8 +11,10 @@ import java.io.{
   InputStreamReader,
   OutputStream,
   OutputStreamWriter,
+  StringWriter,
   UncheckedIOException
 }
+
 import java.nio.file.attribute._
 import java.nio.charset.{Charset, StandardCharsets}
 import java.nio.channels.{FileChannel, SeekableByteChannel}
@@ -28,12 +30,16 @@ import java.util.{
   Set
 }
 import java.util.stream.{Stream, WrappedScalaStream}
+
+import scala.annotation.tailrec
+
 import scalanative.unsigned._
 import scalanative.unsafe._
 import scalanative.libc._
-import scalanative.posix.{dirent, fcntl, limits, unistd}
-import dirent._
+
 import scalanative.posix.errno.{errno, EEXIST, ENOENT, ENOTEMPTY}
+import scalanative.posix.dirent, dirent._
+import scalanative.posix.{fcntl, limits, unistd}
 
 import java.nio.file.StandardCopyOption.{COPY_ATTRIBUTES, REPLACE_EXISTING}
 import scalanative.nio.fs.unix.UnixException
@@ -53,7 +59,9 @@ import java.io.FileNotFoundException
 
 object Files {
 
-  private val `1U` = 1.toUInt
+  private final val `1U` = 1.toUInt
+
+  private final val emptyPath = Paths.get("", Array.empty)
 
   // def getFileStore(path: Path): FileStore
   // def probeContentType(path: Path): String
@@ -191,15 +199,14 @@ object Files {
       throw new IOException()
     }
 
-  def createFile(path: Path, attrs: Array[FileAttribute[_]]): Path =
+  def createFile(path: Path, attrs: Array[FileAttribute[_]]): Path = {
     if (exists(path, Array.empty))
       throw new FileAlreadyExistsException(path.toString)
-    else if (FileHelpers.createNewFile(path.toString)) {
+    else if (FileHelpers.createNewFile(path.toString, throwOnError = true)) {
       setAttributes(path, attrs)
-      path
-    } else {
-      throw new IOException()
     }
+    path
+  }
 
   def createLink(link: Path, existing: Path): Path = Zone { implicit z =>
     if (isWindows) {
@@ -527,11 +534,25 @@ object Files {
   def lines(path: Path, cs: Charset): Stream[String] =
     newBufferedReader(path, cs).lines(true)
 
-  def list(dir: Path): Stream[Path] =
+  def list(dir: Path): Stream[Path] = {
+    /* Fix Issue 3165 - From Java "Path" documentation URL:
+     * https://docs.oracle.com/javase/8/docs/api/java/nio/file/Path.html
+     *
+     * "Accessing a file using an empty path is equivalent to accessing the
+     * default directory of the file system."
+     *
+     * Operating Systems can not opendir() an empty string, so expand "" to
+     * "./".
+     */
+    val dirString =
+      if (dir.equals(emptyPath)) "./"
+      else dir.toString()
+
     new WrappedScalaStream(
-      FileHelpers.list(dir.toString, (n, _) => dir.resolve(n)).toScalaStream,
+      FileHelpers.list(dirString, (n, _) => dir.resolve(n)).toScalaStream,
       None
     )
+  }
 
   def move(source: Path, target: Path, options: Array[CopyOption]): Path = {
     lazy val replaceExisting = options.contains(REPLACE_EXISTING)
@@ -646,7 +667,13 @@ object Files {
     val filter = new DirectoryStream.Filter[Path] {
       private val matcher =
         FileSystems.getDefault().getPathMatcher("glob:" + glob)
-      override def accept(p: Path): Boolean = matcher.matches(p)
+
+      /* Fix Issue 2937 - Java considers "" & "./" to be the same: current
+       * default directory. To ease comparison here and follow JDK practice,
+       * change "./" to "" on candidate path. See related "" to "./ "
+       * comment in "def list()" above.
+       */
+      override def accept(p: Path): Boolean = matcher.matches(p.normalize())
     }
     newDirectoryStream(dir, filter)
   }
@@ -770,6 +797,24 @@ object Files {
       }
       map
     }
+  }
+
+  // Since: Java 11
+  def readString(path: Path): String = {
+    readString(path, StandardCharsets.UTF_8)
+  }
+
+  // Since: Java 11
+  def readString(path: Path, cs: Charset): String = {
+    val reader = newBufferedReader(path, cs)
+    try {
+      // Guess an cost-effective amortized size.
+      val writer = new StringWriter(2 * 1024)
+      reader.transferTo(writer)
+      writer.toString()
+      // No need to close() StringWriter, so no inner try/finally.
+    } finally
+      reader.close()
   }
 
   def readSymbolicLink(link: Path): Path =
@@ -1094,5 +1139,62 @@ object Files {
       "user" -> classOf[UserDefinedFileAttributeView],
       "posix" -> classOf[PosixFileAttributeView]
     )
+
+  // Since: Java 11
+  def writeString(
+      path: Path,
+      csq: java.lang.CharSequence,
+      cs: Charset,
+      options: Array[OpenOption]
+  ): Path = {
+    import java.io.Reader
+
+    // Java API has no CharSequenceReader, but the concept is useful here.
+    class CharSequenceReader(csq: CharSequence) extends Reader {
+      private var closed = false
+      private var pos = 0
+
+      override def close(): Unit = closed = true
+
+      override def read(cbuf: Array[Char], off: Int, len: Int): Int = {
+        if (closed)
+          throw new IOException("Operation on closed stream")
+
+        if (off < 0 || len < 0 || len > cbuf.length - off)
+          throw new IndexOutOfBoundsException
+
+        if (len == 0) 0
+        else {
+          val count = Math.min(len, csq.length() - pos)
+          var i = 0
+          while (i < count) {
+            cbuf(off + i) = csq.charAt(pos + i)
+            i += 1
+          }
+          pos += count
+          if (count == 0) -1 else count
+        }
+      }
+    }
+
+    val reader = new CharSequenceReader(csq)
+    val writer = newBufferedWriter(path, cs, options)
+    try {
+      reader.transferTo(writer)
+      // No need to close() CharSequenceReader, so no inner try/finally.
+    } finally
+      writer.close()
+
+    path
+  }
+
+  // Since: Java 11
+  def writeString(
+      path: Path,
+      csq: java.lang.CharSequence,
+      options: Array[OpenOption]
+  ): Path = {
+    writeString(path, csq, StandardCharsets.UTF_8, options)
+  }
 
 }

@@ -32,6 +32,9 @@ object Show {
   def apply(v: Op): String = { val b = newBuilder; b.op_(v); b.toString }
   def apply(v: Type): String = { val b = newBuilder; b.type_(v); b.toString }
   def apply(v: Val): String = { val b = newBuilder; b.val_(v); b.toString }
+  def apply(v: nir.MemoryOrder): String = {
+    val b = newBuilder; b.memoryOrder_(v); b.toString
+  }
 
   type DefnString = (Global, String)
 
@@ -93,14 +96,19 @@ object Show {
         str("dyn")
       case Attr.Stub =>
         str("stub")
-      case Attr.Extern =>
+      case Attr.Extern(isBlocking) =>
         str("extern")
+        if (isBlocking) str(" blocking")
       case Attr.Link(name) =>
         str("link(\"")
         str(escapeQuotes(name))
         str("\")")
       case Attr.Abstract =>
         str("abstract")
+      case Attr.Volatile =>
+        str("volatile")
+      case Attr.Final =>
+        str("final")
     }
 
     def next_(next: Next): Unit = next match {
@@ -203,18 +211,30 @@ object Show {
         str("(")
         rep(args, sep = ", ")(val_)
         str(")")
-      case Op.Load(ty, ptr) =>
+      case Op.Load(ty, ptr, syncAttrs) =>
+        val isAtomic = syncAttrs.isDefined
+        if (isAtomic) str("atomic ")
         str("load[")
         type_(ty)
         str("] ")
         val_(ptr)
-      case Op.Store(ty, ptr, value) =>
+        syncAttrs.foreach {
+          str(" ")
+          syncAttrs_(_)
+        }
+      case Op.Store(ty, ptr, value, syncAttrs) =>
+        val isAtomic = syncAttrs.isDefined
+        if (isAtomic) str("atomic ")
         str("store[")
         type_(ty)
         str("] ")
         val_(ptr)
         str(", ")
         val_(value)
+        syncAttrs.foreach {
+          str(" ")
+          syncAttrs_(_)
+        }
       case Op.Elem(ty, ptr, indexes) =>
         str("elem[")
         type_(ty)
@@ -262,6 +282,9 @@ object Show {
         type_(ty)
         str("] ")
         val_(v)
+      case Op.Fence(syncAttrs) =>
+        str("fence ")
+        syncAttrs_(syncAttrs)
 
       case Op.Classalloc(name) =>
         str("classalloc ")
@@ -315,8 +338,12 @@ object Show {
       case Op.Copy(value) =>
         str("copy ")
         val_(value)
-      case Op.Sizeof(ty) =>
-        str("sizeof[")
+      case Op.SizeOf(ty) =>
+        str("sizeOf[")
+        type_(ty)
+        str("] ")
+      case Op.AlignmentOf(ty) =>
+        str("alignmentOf[")
         type_(ty)
         str("] ")
       case Op.Box(ty, v) =>
@@ -422,6 +449,15 @@ object Show {
       case Conv.Ptrtoint  => str("ptrtoint")
       case Conv.Inttoptr  => str("inttoptr")
       case Conv.Bitcast   => str("bitcast")
+    }
+
+    def memoryOrder_(v: MemoryOrder): Unit = v match {
+      case MemoryOrder.Unordered => str("unordered")
+      case MemoryOrder.Monotonic => str("monotonic")
+      case MemoryOrder.Acquire   => str("acquire")
+      case MemoryOrder.Release   => str("release")
+      case MemoryOrder.AcqRel    => str("acq_rel")
+      case MemoryOrder.SeqCst    => str("seq_cst")
     }
 
     def val_(value: Val): Unit = value match {
@@ -645,6 +681,18 @@ object Show {
       str(local.id)
     }
 
+    def syncAttrs_(attrs: SyncAttrs): Unit = {
+      if (attrs.isVolatile) str("volatile ")
+      memoryOrder_(attrs.memoryOrder)
+      str(" ")
+      attrs.scope.foreach { scope =>
+        str("syncscope(")
+        global_(scope)
+        str(")")
+        str(" ")
+      }
+    }
+
     def linktimeCondition(cond: LinktimeCondition): Unit = {
       import LinktimeCondition._
       cond match {
@@ -666,8 +714,9 @@ object Show {
       """([^\\]|^)\n""".r.replaceAllIn(
         s,
         _.matched.toSeq match {
-          case Seq(sngl)     => s"""\\\\n"""
-          case Seq(fst, snd) => s"""${fst}\\\\n"""
+          case Seq(sngl)     => raw"\\n"
+          case Seq('$', snd) => raw"\$$\\n"
+          case Seq(fst, snd) => raw"\${fst}\\n"
         }
       )
 

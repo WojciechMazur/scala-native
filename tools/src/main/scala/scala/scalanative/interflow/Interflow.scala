@@ -2,9 +2,10 @@ package scala.scalanative
 package interflow
 
 import scala.collection.mutable
-import scalanative.nir._
-import scalanative.linker._
-import scalanative.util.ScopedVar
+import scala.scalanative.codegen.PlatformInfo
+import scala.scalanative.nir._
+import scala.scalanative.linker._
+import scala.scalanative.util.ScopedVar
 import java.util.function.Supplier
 
 class Interflow(val config: build.Config)(implicit
@@ -18,6 +19,8 @@ class Interflow(val config: build.Config)(implicit
     with PolyInline
     with Intrinsics
     with Log {
+  implicit val platform: PlatformInfo = PlatformInfo(config)
+
   private val originals = {
     val out = mutable.Map.empty[Global, Defn]
     linked.defns.foreach { defn => out(defn.name) = defn }
@@ -148,7 +151,6 @@ class Interflow(val config: build.Config)(implicit
   }
 
   protected def mode: build.Mode = config.compilerConfig.mode
-  protected def is32BitPlatform: Boolean = config.compilerConfig.is32BitPlatform
 }
 
 object Interflow {
@@ -158,4 +160,22 @@ object Interflow {
     interflow.visitLoop()
     interflow.result()
   }
+
+  object LLVMIntrinsics {
+    private val externAttrs = Attrs(isExtern = true)
+    private val LLVMI = Global.Top("scala.scalanative.runtime.LLVMIntrinsics$")
+    private def llvmIntrinsic(id: String) =
+      Val.Global(LLVMI.member(Sig.Extern(id)), Type.Ptr)
+
+    val StackSave = llvmIntrinsic("llvm.stacksave")
+    val StackSaveSig = Type.Function(Nil, Type.Ptr)
+
+    val StackRestore = llvmIntrinsic("llvm.stackrestore")
+    val StackRestoreSig = Type.Function(Seq(Type.Ptr), Type.Unit)
+  }
+
+  val depends: Seq[Global] = Seq(
+    LLVMIntrinsics.StackSave.name,
+    LLVMIntrinsics.StackRestore.name
+  )
 }

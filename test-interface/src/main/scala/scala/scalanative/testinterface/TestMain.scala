@@ -108,6 +108,8 @@ object TestMain {
       }
     }
 
+    SignalConfig.setDefaultHandlers()
+
     val serverAddr =
       if (!LinktimeInfo.isFreeBSD) iPv4Loopback
       else getFreeBSDLoopbackAddr()
@@ -122,8 +124,6 @@ object TestMain {
 
     bridge.start()
     println("bridge started")
-
-    SignalConfig.setDefaultHandlers()
 
     val exitCode = nativeRPC.loop()
     sys.exit(exitCode)

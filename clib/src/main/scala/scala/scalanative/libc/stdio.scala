@@ -2,6 +2,7 @@ package scala.scalanative
 package libc
 
 import scalanative.unsafe._
+import stddef.size_t
 
 @extern object stdio extends stdio
 
@@ -34,7 +35,7 @@ import scalanative.unsafe._
    *  @return
    *    0 on success, EOF otherwise
    */
-  def fclose(stream: Ptr[FILE]): CInt = extern
+  @blocking def fclose(stream: Ptr[FILE]): CInt = extern
 
   /** For output streams (and for update streams on which the last operation was
    *  output), writes any unwritten data from the stream's buffer to the
@@ -151,13 +152,12 @@ import scalanative.unsafe._
    *  @see
    *    [[https://en.cppreference.com/w/c/io/fread]]
    */
-  def fread(
+  @blocking def fread(
       buffer: Ptr[Byte],
       size: CSize,
       count: CSize,
       stream: Ptr[FILE]
-  ): CSize =
-    extern
+  ): CSize = extern
 
   /** Writes count of objects from the given array buffer to the output stream
    *  stream. The objects are written as if by reinterpreting each object as an
@@ -189,13 +189,12 @@ import scalanative.unsafe._
    *    [[https://en.cppreference.com/w/c/io/fwrite]]
    */
 
-  def fwrite(
+  @blocking def fwrite(
       buffer: Ptr[Byte],
       size: CSize,
       count: CSize,
       stream: Ptr[FILE]
-  ): CSize =
-    extern
+  ): CSize = extern
 
   // Unformatted input/output
   /** Reads the next character from the given input stream.
@@ -211,7 +210,7 @@ import scalanative.unsafe._
    *  @see
    *    [[https://en.cppreference.com/w/c/io/fgetc]]
    */
-  def fgetc(stream: Ptr[FILE]): CInt = extern
+  @blocking def fgetc(stream: Ptr[FILE]): CInt = extern
 
   /** Same as fgetc, except that if getc is implemented as a macro, it may
    *  evaluate stream more than once, so the corresponding argument should never
@@ -228,7 +227,7 @@ import scalanative.unsafe._
    *  @see
    *    [[https://en.cppreference.com/w/c/io/fgetc]]
    */
-  def getc(stream: Ptr[FILE]): CInt = extern
+  @blocking def getc(stream: Ptr[FILE]): CInt = extern
 
   /** Reads at most count - 1 characters from the given file stream and stores
    *  them in the character array pointed to by str. Parsing stops if a newline
@@ -254,7 +253,8 @@ import scalanative.unsafe._
    *    indicator (see ferror()) on stream. The contents of the array pointed to
    *    by str are indeterminate (it may not even be null-terminated).
    */
-  def fgets(str: CString, count: CInt, stream: Ptr[FILE]): CString = extern
+  @blocking def fgets(str: CString, count: CInt, stream: Ptr[FILE]): CString =
+    extern
 
   /** Writes a character ch to the given output stream stream. putc() may be
    *  implemented as a macro and evaluate stream more than once, so the
@@ -274,7 +274,7 @@ import scalanative.unsafe._
    *  @see
    *    [[https://en.cppreference.com/w/c/io/fputc]]
    */
-  def fputc(ch: CInt, stream: Ptr[FILE]): CInt = extern
+  @blocking def fputc(ch: CInt, stream: Ptr[FILE]): CInt = extern
 
   /** Writes a character ch to the given output stream stream. putc() may be
    *  implemented as a macro and evaluate stream more than once, so the
@@ -294,7 +294,7 @@ import scalanative.unsafe._
    *  @see
    *    [[https://en.cppreference.com/w/c/io/fputc]]
    */
-  def putc(ch: CInt, stream: Ptr[FILE]): CInt = extern
+  @blocking def putc(ch: CInt, stream: Ptr[FILE]): CInt = extern
 
   /** Writes every character from the null-terminated string str to the output
    *  stream stream, as if by repeatedly executing fputc.
@@ -311,7 +311,7 @@ import scalanative.unsafe._
    *  @see
    *    [[https://en.cppreference.com/w/c/io/fputs]]
    */
-  def fputs(str: CString, stream: Ptr[FILE]): CInt = extern
+  @blocking def fputs(str: CString, stream: Ptr[FILE]): CInt = extern
 
   /** Reads the next character from stdin.
    *
@@ -321,7 +321,7 @@ import scalanative.unsafe._
    *    indicator (see feof()) on stdin. If the failure has been caused by some
    *    other error, sets the error indicator (see ferror()) on stdin.
    */
-  def getchar(): CInt = extern
+  @blocking def getchar(): CInt = extern
 
   /** Reads stdin into given character string until a newline character is found
    *  or end-of-file occurs.
@@ -336,7 +336,7 @@ import scalanative.unsafe._
    *  @see
    *    [[https://en.cppreference.com/w/cpp/io/c/gets]]
    */
-  def gets(str: CString): CString = extern
+  @blocking def gets(str: CString): CString = extern
 
   /** Writes a character ch to stdout. Internally, the character is converted to
    *  unsigned char just before being written.
@@ -353,7 +353,7 @@ import scalanative.unsafe._
    *  @see
    *    [[https://en.cppreference.com/w/c/io/ferror]] for error indicators.
    */
-  def putchar(ch: CInt): CInt = extern
+  @blocking def putchar(ch: CInt): CInt = extern
 
   /** Writes every character from the null-terminated string str and one
    *  additional newline character '\n' to the output stream stdout, as if by
@@ -373,7 +373,7 @@ import scalanative.unsafe._
    *  @see
    *    [[https://en.cppreference.com/w/c/io/ferror]] for error indicators.
    */
-  def puts(str: CString): CInt = extern
+  @blocking def puts(str: CString): CInt = extern
 
   /** If ch does not equal EOF, pushes the character ch (reinterpreted as
    *  unsigned char) into the input buffer associated with the stream stream in
@@ -412,9 +412,79 @@ import scalanative.unsafe._
    *    ch on success. Otherwise returns EOF and the given stream remains
    *    unchanged.
    */
-  def ungetc(ch: CInt, stream: Ptr[FILE]): CInt = extern
+  @blocking def ungetc(ch: CInt, stream: Ptr[FILE]): CInt = extern
 
   // Formatted input/output
+
+  /** Reads data from stdin and stores them according to the parameter format
+   *  into the locations pointed by the additional arguments.
+   *  @param format
+   *    C string that contains a sequence of characters that control how
+   *    characters extracted from the stream are treated
+   *
+   *  @param vargs
+   *    Depending on the format string, the function may expect a sequence of
+   *    additional arguments, each containing a pointer to allocated storage
+   *    where the interpretation of the extracted characters is stored with the
+   *    appropriate type. There should be at least as many of these arguments as
+   *    the number of values stored by the format specifiers. Additional
+   *    arguments are ignored by the function.
+   *  @return
+   *    the number of items of the argument listsuccessfully filled on success.
+   *    If a reading error happens or the end-of-file is reached while reading,
+   *    the proper indicator is set (feof or ferror). And, if either happens
+   *    before any data could be successfully read, EOF is returned.
+   */
+  @blocking def scanf(format: CString, vargs: Any*): CInt = extern
+
+  /** Reads data from the stream and stores them according to the parameter
+   *  format into the locations pointed by the additional arguments.
+   *  @param stream
+   *    Pointer to a FILE object that identifies the input stream to read data
+   *    from.
+   *  @param format
+   *    C string that contains a sequence of characters that control how
+   *    characters extracted from the stream are treated
+   *
+   *  @param vargs
+   *    Depending on the format string, the function may expect a sequence of
+   *    additional arguments, each containing a pointer to allocated storage
+   *    where the interpretation of the extracted characters is stored with the
+   *    appropriate type. There should be at least as many of these arguments as
+   *    the number of values stored by the format specifiers. Additional
+   *    arguments are ignored by the function.
+   *  @return
+   *    the number of items of the argument listsuccessfully filled on success.
+   *    If a reading error happens or the end-of-file is reached while reading,
+   *    the proper indicator is set (feof or ferror). And, if either happens
+   *    before any data could be successfully read, EOF is returned.
+   */
+  @blocking def fscanf(stream: Ptr[FILE], format: CString, vargs: Any*): CInt =
+    extern
+
+  /** Reads data from s and stores them according to parameter format into the
+   *  locations given by the additional arguments, as if scanf was used, but
+   *  reading from s instead of the standard input
+   *  @param s
+   *    C string that the function processes as its source to retrieve the data.
+   *  @param format
+   *    C string that contains a sequence of characters that control how
+   *    characters extracted from the stream are treated
+   *
+   *  @param vargs
+   *    Depending on the format string, the function may expect a sequence of
+   *    additional arguments, each containing a pointer to allocated storage
+   *    where the interpretation of the extracted characters is stored with the
+   *    appropriate type. There should be at least as many of these arguments as
+   *    the number of values stored by the format specifiers. Additional
+   *    arguments are ignored by the function.
+   *  @return
+   *    the number of items of the argument listsuccessfully filled on success.
+   *    If a reading error happens or the end-of-file is reached while reading,
+   *    the proper indicator is set (feof or ferror). And, if either happens
+   *    before any data could be successfully read, EOF is returned.
+   */
+  @blocking def sscanf(s: CString, format: CString, vargs: Any*): CInt = extern
 
   /** Read formatted data into variable argument list Reads data from the
    *  standard input (stdin) and stores them according to parameter format into
@@ -433,7 +503,7 @@ import scalanative.unsafe._
    *    the proper indicator is set (feof or ferror). And, if either happens
    *    before any data could be successfully read, EOF is returned.
    */
-  def vscanf(format: CString, valist: CVarArgList): CInt = extern
+  @blocking def vscanf(format: CString, valist: CVarArgList): CInt = extern
 
   /** Read formatted data from stream into variable argument list Reads data
    *  from the stream and stores them according to parameter format into the
@@ -456,7 +526,11 @@ import scalanative.unsafe._
    *  @see
    *    [[https://www.cplusplus.com/reference/cstdio/vfscanf/]]
    */
-  def vfscanf(stream: Ptr[FILE], format: CString, valist: CVarArgList): CInt =
+  @blocking def vfscanf(
+      stream: Ptr[FILE],
+      format: CString,
+      valist: CVarArgList
+  ): CInt =
     extern
 
   /** Reads the data from stdin
@@ -473,8 +547,181 @@ import scalanative.unsafe._
    *    Number of receiving arguments successfully assigned, or EOF if read
    *    failure occurs before the first receiving argument was assigned
    */
-  def vsscanf(buffer: CString, format: CString, valist: CVarArgList): CInt =
+  @blocking def vsscanf(
+      buffer: CString,
+      format: CString,
+      valist: CVarArgList
+  ): CInt =
     extern
+
+  /** Writes the results to stdout.
+   *  @param format
+   *    pointer to a null-terminated character string specifying how to
+   *    interpret the data
+   *  @param vargs
+   *    variable argument list containing the data to print.
+   *
+   *  @return
+   *    The number of characters written if successful or negative value if an
+   *    error occurred.
+   *  @see
+   *    [[https://en.cppreference.com/w/c/io/printf]]
+   */
+  @blocking def printf(format: CString, vargs: Any*): CInt = extern
+
+  /** Writes the results to selected stream.
+   *  @param stream
+   *    output file stream to write to
+   *  @param format
+   *    pointer to a null-terminated character string specifying how to
+   *    interpret the data
+   *  @param vargs
+   *    variable argument list containing the data to print.
+   *
+   *  @return
+   *    The number of characters written if successful or negative value if an
+   *    error occurred.
+   *  @see
+   *    [[https://en.cppreference.com/w/c/io/fprintf]]
+   */
+  @blocking def fprintf(stream: Ptr[FILE], format: CString, vargs: Any*): CInt =
+    extern
+
+  /** Writes the results to a character string buffer.
+   *  @param buffer
+   *    pointer to a character string to write to
+   *  @param format
+   *    pointer to a null-terminated character string specifying how to
+   *    interpret the data
+   *  @param vargs
+   *    variable argument list containing the data to print.
+   *
+   *  @return
+   *    The number of characters written if successful or negative value if an
+   *    error occurred.
+   *  @see
+   *    [[https://en.cppreference.com/w/c/io/sprintf]]
+   */
+  def sprintf(
+      buffer: Ptr[CChar],
+      format: CString,
+      vargs: Any*
+  ): CInt = extern
+
+  /** Writes the results to a character string buffer. At most bufsz - 1
+   *  characters are written. The resulting character string will be terminated
+   *  with a null character, unless bufsz is zero. If bufsz is zero, nothing is
+   *  written and buffer may be a null pointer, however the return value (number
+   *  of bytes that would be written not including the null terminator) is still
+   *  calculated and returned.
+   *  @param buffer
+   *    pointer to a character string to write to
+   *  @param busz
+   *    number of character to write
+   *  @param format
+   *    pointer to a null-terminated character string specifying how to
+   *    interpret the data
+   *  @param vargs
+   *    variable argument list containing the data to print.
+   *
+   *  @return
+   *    The number of characters written if successful or negative value if an
+   *    error occurred.
+   *  @see
+   *    [[https://en.cppreference.com/w/c/io/snprintf]]
+   */
+  def snprintf(
+      buffer: Ptr[CChar],
+      bufsz: size_t,
+      format: CString,
+      vargs: Any*
+  ): CInt = extern
+
+  /** Writes the results to stdout.
+   *  @param format
+   *    pointer to a null-terminated character string specifying how to
+   *    interpret the data
+   *  @param vargs
+   *    variable argument list containing the data to print.
+   *
+   *  @return
+   *    The number of characters written if successful or negative value if an
+   *    error occurred.
+   *  @see
+   *    [[https://en.cppreference.com/w/c/io/printf_s]]
+   */
+  @blocking def printf_s(format: CString, vargs: Any*): CInt = extern
+
+  /** Writes the results to selected stream.
+   *  @param stream
+   *    output file stream to write to
+   *  @param format
+   *    pointer to a null-terminated character string specifying how to
+   *    interpret the data
+   *  @param vargs
+   *    variable argument list containing the data to print.
+   *
+   *  @return
+   *    The number of characters written if successful or negative value if an
+   *    error occurred.
+   *  @see
+   *    [[https://en.cppreference.com/w/c/io/fprintf_s]]
+   */
+  @blocking def fprintf_s(
+      stream: Ptr[FILE],
+      format: CString,
+      vargs: Any*
+  ): CInt = extern
+
+  /** Writes the results to a character string buffer.
+   *  @param buffer
+   *    pointer to a character string to write to
+   *  @param format
+   *    pointer to a null-terminated character string specifying how to
+   *    interpret the data
+   *  @param vargs
+   *    variable argument list containing the data to print.
+   *
+   *  @return
+   *    The number of characters written if successful or negative value if an
+   *    error occurred.
+   *  @see
+   *    [[https://en.cppreference.com/w/c/io/sprintf_s]]
+   */
+  def sprintf_s(
+      buffer: Ptr[CChar],
+      format: CString,
+      vargs: Any*
+  ): CInt = extern
+
+  /** Writes the results to a character string buffer. At most bufsz - 1
+   *  characters are written. The resulting character string will be terminated
+   *  with a null character, unless bufsz is zero. If bufsz is zero, nothing is
+   *  written and buffer may be a null pointer, however the return value (number
+   *  of bytes that would be written not including the null terminator) is still
+   *  calculated and returned.
+   *  @param buffer
+   *    pointer to a character string to write to
+   *  @param busz
+   *    number of character to write
+   *  @param format
+   *    pointer to a null-terminated character string specifying how to
+   *    interpret the data
+   *  @param vargs
+   *    variable argument list containing the data to print.
+   *
+   *  @return
+   *    The number of characters written if successful or negative value if an
+   *    error occurred.
+   *  @see
+   *    [[https://en.cppreference.com/w/c/io/snprintf_s]]
+   */
+  def snprintf_s(
+      buffer: Ptr[CChar],
+      bufsz: size_t,
+      format: CString,
+      vargs: Any*
+  ): CInt = extern
 
   /** Writes the results to stdout.
    *  @param format
@@ -489,7 +736,7 @@ import scalanative.unsafe._
    *  @see
    *    [[https://en.cppreference.com/w/c/io/vfprintf]]
    */
-  def vprintf(format: CString, valist: CVarArgList): CInt = extern
+  @blocking def vprintf(format: CString, valist: CVarArgList): CInt = extern
 
   /** Writes the results to a file stream stream.
    *  @param stream
@@ -506,7 +753,11 @@ import scalanative.unsafe._
    *  @see
    *    [[https://en.cppreference.com/w/c/io/vfprintf]]
    */
-  def vfprintf(stream: Ptr[FILE], format: CString, valist: CVarArgList): CInt =
+  @blocking def vfprintf(
+      stream: Ptr[FILE],
+      format: CString,
+      valist: CVarArgList
+  ): CInt =
     extern
 
   /** Writes the results to a character string buffer.
@@ -524,7 +775,11 @@ import scalanative.unsafe._
    *  @see
    *    [[https://en.cppreference.com/w/c/io/vfprintf]]
    */
-  def vsprintf(buffer: CString, format: CString, valist: CVarArgList): CInt =
+  @blocking def vsprintf(
+      buffer: CString,
+      format: CString,
+      valist: CVarArgList
+  ): CInt =
     extern
 
   /** The number of characters written if successful or negative value if an
@@ -549,13 +804,12 @@ import scalanative.unsafe._
    *  @see
    *    [[https://en.cppreference.com/w/c/io/vfprintf]]
    */
-  def vsnprintf(
+  @blocking def vsnprintf(
       buffer: CString,
       bufsz: CInt,
       format: CString,
       valist: CVarArgList
-  ): CInt =
-    extern
+  ): CInt = extern
 
   // File positioning
 

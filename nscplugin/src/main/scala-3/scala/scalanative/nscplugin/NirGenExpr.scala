@@ -452,16 +452,15 @@ trait NirGenExpr(using Context) {
         given nir.Position = thenp.span
         buf.label(thenn)
         val thenv = genExpr(thenp)
-        buf.jump(mergen, Seq(thenv))
+        buf.jumpExcludeUnitValue(retty)(mergen, thenv)
       }
       locally {
         given nir.Position = elsep.span
         buf.label(elsen)
         val elsev = genExpr(elsep)
-        buf.jump(mergen, Seq(elsev))
+        buf.jumpExcludeUnitValue(retty)(mergen, elsev)
       }
-      buf.label(mergen, Seq(mergev))
-      mergev
+      buf.labelExcludeUnitValue(mergen, mergev)
     }
 
     def genJavaSeqLiteral(tree: JavaSeqLiteral): Val = {
@@ -490,14 +489,17 @@ trait NirGenExpr(using Context) {
 
       val (labelEntry, labelExit) = curMethodLabels.enterLabel(label)
       val labelExitParam = Val.Local(fresh(), genType(bind.tpe))
+      curMethodLabels.enterExitType(labelExit, labelExitParam.ty)
 
       buf.jump(Next(labelEntry))
 
       buf.label(labelEntry, Nil)
-      buf.jump(labelExit, Seq(genExpr(label.expr)))
+      buf.jumpExcludeUnitValue(labelExitParam.ty)(
+        labelExit,
+        genExpr(label.expr)
+      )
 
-      buf.label(labelExit, Seq(labelExitParam))
-      labelExitParam
+      buf.labelExcludeUnitValue(labelExit, labelExitParam)
     }
 
     def genLiteral(lit: Literal): Val = {
@@ -578,16 +580,17 @@ trait NirGenExpr(using Context) {
         val scrut = genExpr(scrutp)
         buf.switch(scrut, defaultnext, casenexts)
         buf.label(defaultnext.name)(using defaultCasePos)
-        buf.jump(merge, Seq(genExpr(defaultp)))(using defaultCasePos)
+        buf.jumpExcludeUnitValue(retty)(merge, genExpr(defaultp))(using
+          defaultCasePos
+        )
         caseps.foreach {
           case Case(n, _, expr, pos) =>
             given nir.Position = pos
             buf.label(n)
             val caseres = genExpr(expr)
-            buf.jump(merge, Seq(caseres))
+            buf.jumpExcludeUnitValue(retty)(merge, caseres)
         }
-        buf.label(merge, Seq(mergev))
-        mergev
+        buf.labelExcludeUnitValue(merge, mergev)
       }
 
       def genIfsChain(): Val = {
@@ -695,8 +698,11 @@ trait NirGenExpr(using Context) {
         else value
 
       from match {
-        case Some(label) => buf.jump(label, Seq(retv))
-        case _           => buf.ret(retv)
+        case Some(label) =>
+          val retty = curMethodLabels.resolveExitType(label)
+          buf.jumpExcludeUnitValue(retty)(label, retv)
+        case _ if retv.ty == Type.Unit => buf.ret(Val.Unit)
+        case _                         => buf.ret(retv)
       }
       Val.Unit
     }
@@ -781,12 +787,12 @@ trait NirGenExpr(using Context) {
       scoped(curUnwindHandler := Some(handler)) {
         nested.label(normaln)
         val res = nested.genExpr(expr)
-        nested.jump(mergen, Seq(res))
+        nested.jumpExcludeUnitValue(retty)(mergen, res)
       }
       locally {
         nested.label(handler, Seq(excv))
         val res = nested.genTryCatch(retty, excv, mergen, catches)
-        nested.jump(mergen, Seq(res))
+        nested.jumpExcludeUnitValue(retty)(mergen, res)
       }
 
       // Append finally to the try/catch instructions and merge them back.
@@ -797,8 +803,7 @@ trait NirGenExpr(using Context) {
       // Append try/catch instructions to the outher instruction buffer.
       buf.jump(Next(normaln))
       buf ++= insts
-      buf.label(mergen, Seq(mergev))
-      mergev
+      buf.labelExcludeUnitValue(mergen, mergev)
     }
 
     private def genTryCatch(
@@ -823,7 +828,7 @@ trait NirGenExpr(using Context) {
               curMethodEnv.enter(sym, cast)
             }
             val res = genExpr(body)
-            buf.jump(mergen, Seq(res))
+            buf.jumpExcludeUnitValue(retty)(mergen, res)
             Val.Unit
           }
           (excty, f, exprPos)
@@ -1029,6 +1034,8 @@ trait NirGenExpr(using Context) {
       else if (code == STACKALLOC) genStackalloc(app)
       else if (code == CQUOTE) genCQuoteOp(app)
       else if (code == CLASS_FIELD_RAWPTR) genClassFieldRawPtr(app)
+      else if (code == SIZE_OF) genSizeOf(app)
+      else if (code == ALIGNMENT_OF) genAlignmentOf(app)
       else if (code == REFLECT_SELECTABLE_SELECTDYN)
         // scala.reflect.Selectable.selectDynamic
         genReflectiveCall(app, isSelectDynamic = true)
@@ -1051,11 +1058,9 @@ trait NirGenExpr(using Context) {
 
       val funSym = fun.symbol
       val value = genExpr(receiverp)
-      def boxed = boxValue(receiverp.tpe, value)(using receiverp.span)
-
       if (funSym == defn.Object_synchronized)
         assert(argsp.size == 1, "synchronized with wrong number of args")
-        genSynchronized(ValTree(boxed), argsp.head)
+        genSynchronized(receiverp, argsp.head)
       else genTypeApply(tApply)
     }
 
@@ -1455,36 +1460,85 @@ trait NirGenExpr(using Context) {
       }
     }
 
-    def genMethodArgs(sym: Symbol, argsp: Seq[Tree]): Seq[Val] = {
-      if !sym.isExtern then genSimpleArgs(argsp)
-      else {
-        val res = Seq.newBuilder[Val]
-        argsp.zip(sym.paramInfo.paramInfoss.flatten).foreach {
-          case (argp, paramTpe) =>
-            given nir.Position = argp.span
-            val externType = genExternType(paramTpe.finalResultType)
-            val arg = (genExpr(argp), Type.box.get(externType)) match {
-              case (value @ Val.Null, Some(unboxedType)) =>
-                externType match {
-                  case Type.Ptr | _: Type.RefKind => value
-                  case _ =>
-                    report.warning(
-                      s"Passing null as argument of type ${paramTpe.show} to the extern method is unsafe. " +
-                        s"The argument would be unboxed to primitive value of type $externType.",
-                      argp.srcPos
-                    )
-                    Val.Zero(unboxedType)
-                }
-              case (value, _) => value
-            }
-            res += toExtern(externType, arg)
-        }
-        res.result()
-      }
-    }
+    def genMethodArgs(sym: Symbol, argsp: Seq[Tree]): Seq[Val] =
+      if sym.isExtern
+      then genExternMethodArgs(sym, argsp)
+      else genSimpleArgs(argsp)
 
-    private def genSimpleArgs(argsp: Seq[Tree]): Seq[Val] = {
-      argsp.map(genExpr)
+    private def genSimpleArgs(argsp: Seq[Tree]): Seq[Val] = argsp.map(genExpr)
+
+    private def genExternMethodArgs(sym: Symbol, argsp: Seq[Tree]): Seq[Val] = {
+      val res = Seq.newBuilder[Val]
+      val Type.Function(argTypes, _) = genExternMethodSig(sym)
+      val paramTypes = sym.paramInfo.paramInfoss.flatten
+      assert(
+        argTypes.size == argsp.size && argTypes.size == paramTypes.size,
+        "Different number of arguments passed to method signature and apply method"
+      )
+
+      def genArg(
+          argp: Tree,
+          paramTpe: Types.Type
+      ): nir.Val = {
+        given nir.Position = argp.span
+        val externType = genExternType(paramTpe.finalResultType)
+        val value = (genExpr(argp), Type.box.get(externType)) match {
+          case (value @ Val.Null, Some(unboxedType)) =>
+            externType match {
+              case Type.Ptr | _: Type.RefKind => value
+              case _ =>
+                report.warning(
+                  s"Passing null as argument of type ${paramTpe.show} to the extern method is unsafe. " +
+                    s"The argument would be unboxed to primitive value of type $externType.",
+                  argp.srcPos
+                )
+                Val.Zero(unboxedType)
+            }
+          case (value, _) => value
+        }
+        toExtern(externType, value)
+      }
+
+      for ((argp, sigType), paramTpe) <- argsp zip argTypes zip paramTypes
+      do
+        sigType match {
+          case nir.Type.Vararg =>
+            argp match {
+              case Apply(_, List(seqLiteral: JavaSeqLiteral)) =>
+                for tree <- seqLiteral.elems
+                do
+                  given nir.Position = tree.span
+                  val arg = genArg(tree, tree.tpe)
+                  def isUnsigned = Type.isUnsignedType(genType(tree.tpe))
+                  // Decimal varargs needs to be promoted to at least Int, and Float needs to be promoted to Double
+                  val promotedArg = arg.ty match {
+                    case Type.Float =>
+                      this.genCastOp(Type.Float, Type.Double, arg)
+                    case Type.FixedSizeI(width, _) if width < Type.Int.width =>
+                      val conv =
+                        if (isUnsigned) nir.Conv.Zext
+                        else nir.Conv.Sext
+                      buf.conv(conv, Type.Int, arg, unwind)
+                    case Type.Long =>
+                      // On 32-bit systems Long needs to be truncated to Int
+                      // Cast it to size to make undependent from architecture
+                      val conv =
+                        if (isUnsigned) nir.Conv.ZSizeCast
+                        else nir.Conv.SSizeCast
+                      buf.conv(conv, Type.Size, arg, unwind)
+
+                    case _ => arg
+                  }
+                  res += promotedArg
+              case _ =>
+                report.error(
+                  "Unable to extract vararg arguments, varargs to extern methods must be passed directly to the applied function",
+                  argp.srcPos
+                )
+            }
+          case _ => res += genArg(argp, paramTpe)
+        }
+      res.result()
     }
 
     private def genArrayOp(app: Apply, code: Int): Val = {
@@ -1588,27 +1642,43 @@ trait NirGenExpr(using Context) {
     def genSynchronized(
         receiverp: Tree
     )(bodyGen: ExprBuffer => Val)(using nir.Position): Val = {
-      val monitor =
-        genApplyModuleMethod(
-          defnNir.RuntimePackageClass,
-          defnNir.RuntimePackage_getMonitor,
-          Seq(receiverp)
-        )
-      val enter = genApplyMethod(
-        defnNir.RuntimeMonitor_enter,
-        statically = true,
-        monitor,
-        Seq.empty
-      )
-      val ret = bodyGen(this)
-      val exit = genApplyMethod(
-        defnNir.RuntimeMonitor_exit,
-        statically = true,
-        monitor,
-        Seq.empty
-      )
+      // Here we wrap the synchronized call into the try-finally block
+      // to ensure that monitor would be released even in case of the exception
+      // or in case of non-local returns
+      val nested = new ExprBuffer()
+      val normaln = fresh()
+      val handler = fresh()
+      val mergen = fresh()
 
-      ret
+      // scalanative.runtime.`package`.enterMonitor(receiver)
+      genExpr(Apply(ref(defnNir.RuntimePackage_enterMonitor), List(receiverp)))
+
+      // synchronized block
+      val retValue = scoped(curUnwindHandler := Some(handler)) {
+        nested.label(normaln)
+        bodyGen(nested)
+      }
+      val retty = retValue.ty
+      val mergev = Val.Local(fresh(), retty)
+      nested.jumpExcludeUnitValue(retty)(mergen, retValue)
+
+      // dummy exception handler,
+      // monitorExit call would be added to it in genTryFinally transformer
+      locally {
+        val excv = Val.Local(fresh(), Rt.Object)
+        nested.label(handler, Seq(excv))
+        nested.raise(excv, unwind)
+        nested.jumpExcludeUnitValue(retty)(mergen, Val.Zero(retty))
+      }
+
+      // Append try/catch instructions to the outher instruction buffer.
+      buf.jump(Next(normaln))
+      buf ++= genTryFinally(
+        // scalanative.runtime.`package`.exitMonitor(receiver)
+        Apply(ref(defnNir.RuntimePackage_exitMonitor), List(receiverp)),
+        nested.toSeq
+      )
+      buf.labelExcludeUnitValue(mergen, mergev)
     }
 
     private def genThrow(tree: Tree, args: List[Tree]): Val = {
@@ -1749,8 +1819,10 @@ trait NirGenExpr(using Context) {
           Some(nir.Conv.Bitcast)
         case (Type.F(w1), Type.FixedSizeI(w2, _)) if w1 == w2 =>
           Some(nir.Conv.Bitcast)
-        case _ if fromty == toty => None
-        case _                   => unsupported(s"cast from $fromty to $toty")
+        case _ if fromty == toty       => None
+        case (Type.Float, Type.Double) => Some(nir.Conv.Fpext)
+        case (Type.Double, Type.Float) => Some(nir.Conv.Fptrunc)
+        case _ => unsupported(s"cast from $fromty to $toty")
       }
 
     /** Boxes a value of the given type before `elimErasedValueType`.
@@ -1868,7 +1940,9 @@ trait NirGenExpr(using Context) {
         case LOAD_RAW_SIZE => nir.Type.Size
         case LOAD_OBJECT   => Rt.Object
       }
-      buf.load(ty, ptr, unwind)
+      val syncAttrs =
+        Option.when(ptrp.symbol.isVolatile)(SyncAttrs(MemoryOrder.Acquire))
+      buf.load(ty, ptr, unwind, syncAttrs)
     }
 
     private def genRawPtrStoreOp(app: Apply, code: Int): Val = {
@@ -1891,7 +1965,10 @@ trait NirGenExpr(using Context) {
         case STORE_RAW_SIZE => nir.Type.Size
         case STORE_OBJECT   => Rt.Object
       }
-      buf.store(ty, ptr, value, unwind)
+      val syncAttrs = Option.when(ptrp.symbol.isVolatile)(
+        SyncAttrs(MemoryOrder.Release)
+      )
+      buf.store(ty, ptr, value, unwind, syncAttrs)
     }
 
     private def genRawPtrElemOp(app: Apply, code: Int): Val = {
@@ -2079,7 +2156,13 @@ trait NirGenExpr(using Context) {
       val Apply(_, Seq(sizep)) = app
 
       val size = genExpr(sizep)
-      val unboxed = buf.unbox(size.ty, size, unwind)(using sizep.span)
+      val sizeTy = Type.normalize(size.ty)
+      val unboxed =
+        if Type.isSizeBox(sizeTy) then
+          buf.unbox(sizeTy, size, unwind)(using sizep.span)
+        else
+          assert(Type.box.contains(sizeTy), s"Not a primitive type: ${sizeTy}")
+          size
 
       buf.stackalloc(nir.Type.Byte, unboxed, unwind)(using app.span)
     }
@@ -2161,14 +2244,60 @@ trait NirGenExpr(using Context) {
         }
     }
 
+    def genSizeOf(app: Apply): Val =
+      genLayoutValueOf("sizeOf", buf.sizeOf(_, unwind))(app)
+    def genAlignmentOf(app: Apply): Val =
+      genLayoutValueOf("alignmentOf", buf.alignmentOf(_, unwind))(app)
+
+    private def genLayoutValueOf(
+        opType: => String,
+        toVal: nir.Position ?=> nir.Type => nir.Val
+    )(app: Apply): Val = {
+      given nir.Position = app.span
+      def fail(msg: => String) =
+        report.error(msg, app.srcPos)
+        Val.Zero(Type.Size)
+
+      app.getAttachment(NirDefinitions.NonErasedType) match
+        case None =>
+          app.args match {
+            case Seq(Literal(cls: Constant)) =>
+              val nirTpe = genType(cls.typeValue, deconstructValueTypes = false)
+              toVal(nirTpe)
+            case _ =>
+              fail(
+                s"Method $opType(Class[_]) requires single class literal argument, if you used $opType[T] report it as a bug"
+              )
+          }
+        case Some(tpe) if tpe.typeSymbol.isTraitOrInterface =>
+          fail(
+            s"Type ${tpe.show} is a trait or interface, its $opType cannot be calculated"
+          )
+        case Some(tpe) =>
+          try {
+            val nirTpe = genType(tpe, deconstructValueTypes = true)
+            toVal(nirTpe)
+          } catch {
+            case ex: Throwable =>
+              fail(
+                s"Failed to generate exact NIR type of ${tpe.show} - ${ex.getMessage}"
+              )
+          }
+    }
+
     def genLoadExtern(ty: nir.Type, externTy: nir.Type, sym: Symbol)(using
         nir.Position
     ): Val = {
       assert(sym.isExtern, "loadExtern was not extern")
 
       val name = Val.Global(genName(sym), Type.Ptr)
-
-      fromExtern(ty, buf.load(externTy, name, unwind))
+      val syncAttrs = Option.when(sym.isVolatile)(
+        SyncAttrs(MemoryOrder.Acquire)
+      )
+      fromExtern(
+        ty,
+        buf.load(externTy, name, unwind, syncAttrs)
+      )
     }
 
     def genStoreExtern(externTy: nir.Type, sym: Symbol, value: Val)(using
@@ -2177,8 +2306,11 @@ trait NirGenExpr(using Context) {
       assert(sym.isExtern, "storeExtern was not extern")
       val name = Val.Global(genName(sym), Type.Ptr)
       val externValue = toExtern(externTy, value)
+      val syncAttrs = Option.when(sym.isVolatile)(
+        SyncAttrs(MemoryOrder.Release)
+      )
 
-      buf.store(externTy, name, externValue, unwind)
+      buf.store(externTy, name, externValue, unwind, syncAttrs)
     }
 
     def toExtern(expectedTy: nir.Type, value: Val)(using nir.Position): Val =
@@ -2335,7 +2467,7 @@ trait NirGenExpr(using Context) {
         if (!isAdapted) sig
         else {
           val params :+ retty = evidences
-            .map(genType)
+            .map(genType(_))
             .map(t => nir.Type.box.getOrElse(t, t)): @unchecked
           Type.Function(params, retty)
         }
@@ -2536,6 +2668,22 @@ trait NirGenExpr(using Context) {
         }
       }
     }
+
+    private def labelExcludeUnitValue(label: Local, value: nir.Val.Local)(using
+        nir.Position
+    ): nir.Val =
+      value.ty match
+        case Type.Unit => buf.label(label); Val.Unit
+        case _         => buf.label(label, Seq(value)); value
+
+    private def jumpExcludeUnitValue(
+        mergeType: nir.Type
+    )(label: Local, value: nir.Val)(using
+        nir.Position
+    ): Unit =
+      mergeType match
+        case Type.Unit => buf.jump(label, Nil)
+        case _         => buf.jump(label, Seq(value))
 
   }
 

@@ -31,9 +31,9 @@ trait LinktimeValueResolver { self: Reach =>
         conf.gc == GC.Commix
       },
       s"$linktimeInfo.is32BitPlatform" -> conf.is32BitPlatform,
-      s"$linktimeInfo.sizeOfPtr" -> (if (conf.is32BitPlatform) Val.Size(4)
-                                     else Val.Size(8)),
-      s"$linktimeInfo.asanEnabled" -> conf.asan
+      s"$linktimeInfo.asanEnabled" -> conf.asan,
+      s"$linktimeInfo.isMsys" -> Platform.isMsys,
+      s"$linktimeInfo.isCygwin" -> Platform.isCygwin
     )
     NativeConfig.checkLinktimeProperties(predefined)
     predefined ++ conf.linktimeProperties
@@ -177,7 +177,6 @@ private[linker] object LinktimeValueResolver {
         case v: Float   => ComparableVal(v, Val.Float(v))
         case v: Double  => ComparableVal(v, Val.Double(v))
         case v: String  => ComparableVal(v, Val.String(v))
-        case v: Val     => fromNir(v)
         case other =>
           throw new LinkingException(
             s"Unsupported value for link-time resolving: $other"
@@ -195,7 +194,6 @@ private[linker] object LinktimeValueResolver {
         case Val.Short(value)  => ComparableVal(value, v)
         case Val.Int(value)    => ComparableVal(value, v)
         case Val.Long(value)   => ComparableVal(value, v)
-        case Val.Size(value)   => ComparableVal(value, v)
         case Val.Float(value)  => ComparableVal(value, v)
         case Val.Double(value) => ComparableVal(value, v)
         case Val.Null          => ComparableVal(null, v)

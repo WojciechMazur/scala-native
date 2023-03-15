@@ -1,8 +1,8 @@
 #ifndef IMMIX_STACKTRACE_H
 #define IMMIX_STACKTRACE_H
 
-#if !defined(_WIN32) && !defined(__wasm)
-#include "../../platform/posix/libunwind/libunwind.h"
+#if !defined(__wasm)
+#include "../../platform/unwind.h"
 #endif
 
 void StackTrace_PrintStackTrace();

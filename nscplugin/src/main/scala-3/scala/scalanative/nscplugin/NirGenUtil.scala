@@ -11,6 +11,7 @@ import scalanative.util.unsupported
 import scalanative.util.ScopedVar.scoped
 import scalanative.nir.Fresh
 import dotty.tools.dotc.core.Phases
+import dotty.tools.dotc.core.Symbols
 trait NirGenUtil(using Context) { self: NirCodeGen =>
 
   private lazy val materializeClassTagTypes: Map[Symbol, Symbol] = Map(
@@ -31,7 +32,8 @@ trait NirGenUtil(using Context) { self: NirCodeGen =>
     defnNir.NullClassTag -> defn.NullClass
   )
 
-  private lazy val materializePrimitiveTypeMethodTypes = Map(
+  private lazy val materializePrimitiveTypeMethodTypes
+      : Map[Symbol, ClassSymbol] = Map(
     defnNir.UnsafeTag_materializeUnitTag -> defn.UnitClass,
     defnNir.UnsafeTag_materializeByteTag -> defn.ByteClass,
     defnNir.UnsafeTag_materializeBooleanTag -> defn.BooleanClass,
@@ -47,7 +49,9 @@ trait NirGenUtil(using Context) { self: NirCodeGen =>
     defnNir.UnsafeTag_materializeULongTag -> defnNir.ULongClass,
     defnNir.UnsafeTag_materializePtrTag -> defnNir.PtrClass,
     defnNir.UnsafeTag_materializeSizeTag -> defnNir.SizeClass,
-    defnNir.UnsafeTag_materializeUSizeTag -> defnNir.USizeClass
+    defnNir.UnsafeTag_materializeUSizeTag -> defnNir.USizeClass,
+    defnNir.UnsafeTag_materializePtrWildcardTag -> defnNir.PtrClass,
+    defnNir.UnsafeTag_materializePtrClassNotGivenClassTag -> defnNir.PtrClass
   )
 
   protected def desugarTree(tree: Tree): Tree = {
@@ -122,12 +126,16 @@ trait NirGenUtil(using Context) { self: NirCodeGen =>
         }
 
         def resolveGiven = Option.when(s.is(Given)) {
-          atPhase(Phases.postTyperPhase) {
+          val evidenceType = atPhase(Phases.postTyperPhase) {
             val givenTpe = s.denot.info.argInfos.head
-            // make sure to dealias the type here,
-            // information about underlying opaque type would not be available after erasue
-            fromType(givenTpe.widenDealias)
+            // In the backend (genBCode on JVM or this compiler plugin) opaque type should be dealiased
+            // to the underlying type otherwise non-existing types might be missing when classloading.
+            // Information about underlying opaque type would not be available after erasue
+            givenTpe.typeSymbol.opaqueAlias
+              .orElse(givenTpe)
+              .widenDealias
           }
+          fromType(evidenceType)
         }
 
         materializePrimitiveTypeMethodTypes

@@ -11,9 +11,12 @@ import core.Types._
 import core.Symbols._
 import core.StdNames._
 import core.TypeErasure._
+import dotty.tools.dotc.report
+import dotty.tools.dotc.typer.TyperPhase
 import dotty.tools.dotc.transform.SymUtils._
 
 import scala.scalanative.nir
+import scala.scalanative.util.unsupported
 
 trait NirGenType(using Context) {
   self: NirCodeGen =>
@@ -54,8 +57,15 @@ trait NirGenType(using Context) {
       (isScalaModule || sym.isTraitOrInterface) &&
         sym.hasAnnotation(defnNir.ExternClass)
 
+    def isBlocking: Boolean =
+      sym.exists && sym.hasAnnotation(defnNir.BlockingClass)
+
     def isStruct: Boolean =
       sym.hasAnnotation(defnNir.StructClass)
+
+    def isAnonymousStruct: Boolean = defnNir.CStructClasses.contains(sym)
+
+    def isFixedSizeArray: Boolean = sym == defnNir.CArrayClass
 
     def isUnsignedType: Boolean =
       sym.isClass && UnsignedTypes.contains(sym.asClass)
@@ -95,12 +105,11 @@ trait NirGenType(using Context) {
     SimpleType(sym, sym.typeParams.map(fromSymbol))
   }
   given fromType: Conversion[Type, SimpleType] = {
+    def ObjectClassType = SimpleType(defn.ObjectClass, Nil)
     _.widenDealias match {
       case ThisType(tref) =>
-        if (tref == defn.ArrayType)
-          SimpleType(defn.ObjectClass, Nil)
-        else
-          SimpleType(tref.symbol, Nil)
+        if (tref == defn.ArrayType) ObjectClassType
+        else SimpleType(tref.symbol, Nil)
       case JavaArrayType(elemTpe) =>
         SimpleType(defn.ArrayClass, fromType(elemTpe) :: Nil)
       case ConstantType(c)            => fromType(c.tpe)
@@ -110,7 +119,9 @@ trait NirGenType(using Context) {
       case AppliedType(tycon, args) =>
         SimpleType(tycon.typeSymbol, args.map(fromType))
       case t @ TermRef(_, _) => fromType(t.info.resultType)
-      case t => throw new RuntimeException(s"unknown fromType($t)")
+      case WildcardType      => ObjectClassType
+      case TypeBounds(_, _)  => ObjectClassType
+      case t                 => unsupported(s"unknown fromType($t)")
     }
   }
 
@@ -141,8 +152,14 @@ trait NirGenType(using Context) {
   }
 
   @inline
-  def genType(st: SimpleType): nir.Type = {
-    PrimitiveSymbolToNirTypes.getOrElse(st.sym, genRefType(st))
+  def genType(
+      st: SimpleType,
+      deconstructValueTypes: Boolean = false
+  ): nir.Type = {
+    PrimitiveSymbolToNirTypes.getOrElse(
+      st.sym,
+      genRefType(st, deconstructValueTypes)
+    )
   }
 
   private lazy val PrimitiveSymbolToNirTypes = Map[Symbol, nir.Type](
@@ -160,7 +177,10 @@ trait NirGenType(using Context) {
     defnNir.RawSizeClass -> nir.Type.Size
   )
 
-  def genRefType(st: SimpleType): nir.Type = {
+  def genRefType(
+      st: SimpleType,
+      deconstructValueTypes: Boolean = false
+  ): nir.Type = {
     val SimpleType(sym, targs) = st
     if (sym == defn.ObjectClass) nir.Rt.Object
     else if (sym == defn.UnitClass) nir.Type.Unit
@@ -168,7 +188,14 @@ trait NirGenType(using Context) {
     else if (sym == defn.NullClass) nir.Rt.RuntimeNull
     else if (sym == defn.ArrayClass) nir.Type.Array(genType(targs.head))
     else if (sym.isStruct) genStruct(st)
-    else nir.Type.Ref(genTypeName(sym))
+    else if (deconstructValueTypes) {
+      if (sym.isAnonymousStruct) genAnonymousStruct(st)
+      else if (sym.isFixedSizeArray) genFixedSizeArray(st)
+      else {
+        val ref = nir.Type.Ref(genTypeName(st.sym))
+        nir.Type.unbox.getOrElse(nir.Type.normalize(ref), ref)
+      }
+    } else nir.Type.Ref(genTypeName(sym))
   }
 
   def genTypeValue(st: SimpleType): nir.Val =
@@ -182,6 +209,10 @@ trait NirGenType(using Context) {
         case code => genTypeValue(defnNir.RuntimePrimitive(code))
       }
 
+  private def genAnonymousStruct(st: SimpleType): nir.Type = {
+    nir.Type.StructValue(st.targs.map(genType(_, deconstructValueTypes = true)))
+  }
+
   private def genStruct(st: SimpleType): nir.Type = {
     val symInfo = st.sym.info
     // In Scala 2 we used fields to create struct type, but this seems to be broken in Scala 3 -
@@ -193,7 +224,6 @@ trait NirGenType(using Context) {
     // Since structs in the current form are a legacy feature, and are used only to
     // receive output from native function returning Struct by value (only in LLVMIntriniscs)
     // we can leave it as it is in the current, simplified form using constructor arguments
-
     def ctorParams =
       symInfo
         .member(nme.CONSTRUCTOR)
@@ -204,6 +234,25 @@ trait NirGenType(using Context) {
         .map(genType(_))
 
     nir.Type.StructValue(ctorParams)
+  }
+
+  private def genFixedSizeArray(st: SimpleType): nir.Type = {
+    def natClassToInt(st: SimpleType): Int =
+      if (st.targs.isEmpty) defnNir.NatBaseClasses.indexOf(st.sym)
+      else
+        st.targs.foldLeft(0) {
+          case (acc, st) => acc * 10 + defnNir.NatBaseClasses.indexOf(st.sym)
+        }
+
+    val SimpleType(_, Seq(elemType, size)) = st
+    val tpe = genType(elemType, deconstructValueTypes = true)
+    val elems = natClassToInt(size)
+    nir.Type
+      .ArrayValue(tpe, elems)
+      .ensuring(
+        _.n >= 0,
+        s"fixed size array size needs to be positive integer, got $size"
+      )
   }
 
   def genArrayCode(st: SimpleType): Char =
@@ -233,38 +282,69 @@ trait NirGenType(using Context) {
       sym: Symbol,
       isExtern: Boolean
   ): nir.Type.Function = {
-    require(
-      sym.is(Method) || sym.isStatic,
-      s"symbol ${sym.owner} $sym is not a method"
-    )
+    def resolve() = {
+      require(
+        sym.is(Method) || sym.isStatic,
+        s"symbol ${sym.owner} $sym is not a method"
+      )
 
-    val owner = sym.owner
-    val paramtys = genMethodSigParamsImpl(sym, isExtern)
-    val selfty = Option.unless(isExtern || sym.isStaticInNIR) {
-      genType(owner)
+      val owner = sym.owner
+      val paramtys = genMethodSigParamsImpl(sym, isExtern)
+      val selfty = Option.unless(isExtern || sym.isStaticInNIR) {
+        genType(owner)
+      }
+      val resultType = sym.info.resultType
+      val retty =
+        if (sym.isConstructor) nir.Type.Unit
+        else if (isExtern) genExternType(resultType)
+        else genType(resultType)
+      nir.Type.Function(selfty ++: paramtys, retty)
     }
-    val resultType = sym.info.resultType
-    val retty =
-      if (sym.isConstructor) nir.Type.Unit
-      else if (isExtern) genExternType(resultType)
-      else genType(resultType)
 
-    nir.Type.Function(selfty ++: paramtys, retty)
+    cachedMethodSig.getOrElseUpdate((sym, isExtern), resolve())
   }
 
   private def genMethodSigParamsImpl(
       sym: Symbol,
       isExtern: Boolean
-  ): Seq[nir.Type] = {
+  )(using Context): Seq[nir.Type] = {
+    import core.Phases._
+    val repeatedParams = if (sym.isExtern) {
+      atPhase(typerPhase) {
+        sym.paramInfo match {
+          // @extern def foo(a: Int): Int
+          case MethodTpe(paramNames, paramTypes, _) =>
+            for (name, tpe) <- paramNames zip paramTypes
+            yield name -> tpe.isRepeatedParam
+          // @extern def foo[T](ptr: Ptr[T]): Int
+          case PolyType(_, MethodTpe(paramNames, paramTypes, _)) =>
+            for (name, tpe) <- paramNames zip paramTypes
+            yield name -> tpe.isRepeatedParam
+          // @extern def foo: Int
+          case ExprType(_) => Nil
+          // @extern var foo: Int
+          case TypeRef(_, _) => Nil
+          // @extern def foo: Ptr[Int]
+          case AppliedType(_, _) => Nil
+          case _ =>
+            report.warning(
+              "Unable to resolve method sig params for symbol, extern VarArgs would not work",
+              sym.srcPos
+            )
+            Nil
+        }
+      }.toMap
+    } else Map.empty
 
+    val info = sym.info
     for {
-      paramList <- sym.info.paramInfoss
-      param <- paramList
+      (paramTypes, paramNames) <- info.paramInfoss zip info.paramNamess
+      (paramType, paramName) <- paramTypes zip paramNames
     } yield {
-      if (param.isRepeatedParam && sym.isExtern)
-        nir.Type.Vararg
-      else if (isExtern) genExternType(param)
-      else genType(param)
+      def isRepeated = repeatedParams.getOrElse(paramName, false)
+      if (isExtern && isRepeated) nir.Type.Vararg
+      else if (isExtern) genExternType(paramType)
+      else genType(paramType)
     }
   }
 }

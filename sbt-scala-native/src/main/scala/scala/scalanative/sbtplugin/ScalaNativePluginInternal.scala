@@ -19,8 +19,24 @@ import scala.scalanative.testinterface.adapter.TestAdapter
 import scala.sys.process.Process
 import scala.util.Try
 import scala.scalanative.build.Platform
+import sjsonnew.BasicJsonProtocol._
 import java.nio.file.{Files, Path}
 
+/** ScalaNativePlugin delegates to this object
+ *
+ *  Note: All logic should be in the Config, NativeConfig, or the build itself.
+ *  Logic should not be in this plugin (sbt) to avoid logic duplication in other
+ *  downstream build tools like Mill and scala-cli.
+ *
+ *  Call order on load:
+ *    - scalaNativeProjectSettings
+ *    - scalaNativeBaseSettings
+ *    - scalaNativeCompileSettings
+ *    - scalaNativeTestSettings
+ *    - scalaNativeGlobalSettings
+ *    - scalaNativeConfigSettings -> 6 times for each project, Scala versions
+ *      (currently 3), and test true and false for each
+ */
 object ScalaNativePluginInternal {
 
   val nativeWarnOldJVM =
@@ -63,19 +79,18 @@ object ScalaNativePluginInternal {
 
   lazy val scalaNativeBaseSettings: Seq[Setting[_]] = Seq(
     crossVersion := ScalaNativeCrossVersion.binary,
-    platformDepsCrossVersion := ScalaNativeCrossVersion.binary,
-    nativeClang := nativeConfig.value.clang.toFile,
-    nativeClangPP := nativeConfig.value.clangPP.toFile,
-    nativeCompileOptions := nativeConfig.value.compileOptions,
-    nativeLinkingOptions := nativeConfig.value.linkingOptions,
-    nativeMode := nativeConfig.value.mode.name,
-    nativeGC := nativeConfig.value.gc.name,
-    nativeLTO := nativeConfig.value.lto.name,
-    nativeLinkStubs := nativeConfig.value.linkStubs,
-    nativeCheck := nativeConfig.value.check,
-    nativeDump := nativeConfig.value.dump
+    platformDepsCrossVersion := ScalaNativeCrossVersion.binary
   )
 
+  /** Called by overridden method in plugin
+   *
+   *  A nativeConfig object is created to satisfy sbt scope: `Global /
+   *  nativeConfig` otherwise we get errors in configSettings because
+   *  nativeConfig does not exist.
+   *
+   *  @see
+   *    [[ScalaNativePlugin#globalSettings]]
+   */
   lazy val scalaNativeGlobalSettings: Seq[Setting[_]] = Seq(
     nativeConfig := build.NativeConfig.empty
       .withClang(interceptBuildException(Discover.clang()))
@@ -106,50 +121,29 @@ object ScalaNativePluginInternal {
     }
   )
 
+  /** Config settings are called for each project, for each Scala version, and
+   *  for test and app configurations. The total with 3 Scala versions equals 6
+   *  times per project.
+   */
   def scalaNativeConfigSettings(testConfig: Boolean): Seq[Setting[_]] = Seq(
     nativeConfig := {
       val config = nativeConfig.value
       config
-        // Use overrides defined in legacy setting keys
-        .withClang(nativeClang.value.toPath)
-        .withClangPP(nativeClangPP.value.toPath)
-        .withCompileOptions(nativeCompileOptions.value)
-        .withLinkingOptions(nativeLinkingOptions.value)
-        .withGC(build.GC(nativeGC.value))
-        .withMode(build.Mode(nativeMode.value))
-        .withLTO(build.LTO(nativeLTO.value))
-        .withLinkStubs(nativeLinkStubs.value)
-        .withCheck(nativeCheck.value)
-        .withDump(nativeDump.value)
-        // Set values for project-specific settings
-        .withBasename(
-          // Use basename defined by user, if not set use name of project
-          Option(config.basename)
-            .filterNot(_.isEmpty)
-            .getOrElse(moduleName.value)
-        )
     },
     nativeLink := Def
       .task {
         val classpath = fullClasspath.value.map(_.data.toPath)
-        val mainClass = nativeConfig.value.buildTarget match {
-          case BuildTarget.Application =>
-            selectMainClass.value.orElse {
-              throw new MessageOnlyException("No main class detected.")
-            }
-          case _: BuildTarget.Library => None
-        }
         val logger = streams.value.log.toLogger
 
-        val baseConfig =
+        val config =
           build.Config.empty
             .withLogger(logger)
             .withClassPath(classpath)
-            .withBasedir(crossTarget.value.toPath())
+            .withBaseDir(crossTarget.value.toPath())
+            .withModuleName(moduleName.value)
+            .withMainClass(selectMainClass.value)
             .withTestConfig(testConfig)
             .withCompilerConfig(nativeConfig.value)
-
-        val config = mainClass.foldLeft(baseConfig)(_.withMainClass(_))
 
         interceptBuildException {
           // returns config.artifactPath
@@ -248,9 +242,24 @@ object ScalaNativePluginInternal {
               case (tf, Some(adapter)) => (tf, adapter)
             }
             .toMap
+        },
+
+        // Override default to avoid triggering a Test/nativeLink in a Test/compile
+        // without losing autocompletion.
+        definedTestNames := {
+          definedTests
+            .map(_.map(_.name).distinct)
+            .storeAs(definedTestNames)
+            .triggeredBy(loadedTestFrameworks)
+            .value
         }
       )
 
+  /** Called by overridden method in plugin
+   *
+   *  @see
+   *    [[ScalaNativePlugin#projectSettings]]
+   */
   lazy val scalaNativeProjectSettings: Seq[Setting[_]] =
     scalaNativeDependencySettings ++
       scalaNativeBaseSettings ++

@@ -143,9 +143,9 @@ final class Check(implicit linked: linker.Result) {
         case _ =>
           error("call type must be a function type")
       }
-    case Op.Load(ty, ptr) =>
+    case Op.Load(ty, ptr, _) =>
       expect(Type.Ptr, ptr)
-    case Op.Store(ty, ptr, value) =>
+    case Op.Store(ty, ptr, value, _) =>
       expect(Type.Ptr, ptr)
       expect(ty, value)
     case Op.Elem(ty, ptr, indexes) =>
@@ -173,6 +173,7 @@ final class Check(implicit linked: linker.Result) {
       checkCompOp(comp, ty, l, r)
     case Op.Conv(conv, ty, value) =>
       checkConvOp(conv, ty, value)
+    case Op.Fence(_) => ok
     case Op.Classalloc(name) =>
       linked.infos
         .get(name)
@@ -278,7 +279,29 @@ final class Check(implicit linked: linker.Result) {
       expect(Rt.Object, obj)
     case Op.Copy(value) =>
       ok
-    case Op.Sizeof(ty) =>
+    case Op.SizeOf(ty) =>
+      ty match {
+        case _: Type.ValueKind                               => ok
+        case Type.Ptr | Type.Nothing | Type.Null | Type.Unit => ok
+        case ScopeRef(kind) =>
+          kind match {
+            case _: Class => ok
+            case _: Trait => error(s"can't calculate size of a trait")
+          }
+        case _ => error(s"can't calucate size of ${ty.show}")
+      }
+      ok
+    case Op.AlignmentOf(ty) =>
+      ty match {
+        case _: Type.ValueKind                               => ok
+        case Type.Ptr | Type.Nothing | Type.Null | Type.Unit => ok
+        case ScopeRef(kind) =>
+          kind match {
+            case _: Class => ok
+            case _: Trait => error(s"can't calculate alignment of a trait")
+          }
+        case _ => error(s"can't calucate alignment of ${ty.show}")
+      }
       ok
     case Op.Box(ty, value) =>
       Type.unbox

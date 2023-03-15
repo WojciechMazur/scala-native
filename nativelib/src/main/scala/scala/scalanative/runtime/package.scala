@@ -4,6 +4,7 @@ import scalanative.annotation.alwaysinline
 import scalanative.unsafe._
 import scalanative.unsigned.USize
 import scalanative.runtime.Intrinsics._
+import scalanative.runtime.monitor._
 import scala.scalanative.meta.LinktimeInfo.{
   isMultithreadingEnabled,
   is32BitPlatform
@@ -14,8 +15,33 @@ package object runtime {
   /** Used as a stub right hand of intrinsified methods. */
   def intrinsic: Nothing = throwUndefined()
 
+  /** Enter monitor of given object. */
+  @alwaysinline def enterMonitor(obj: Object): Unit =
+    if (isMultithreadingEnabled) {
+      getMonitor(obj).enter(obj)
+    }
+
+  /** Enter monitor of given object. */
+
+  @alwaysinline def exitMonitor(obj: Object): Unit =
+    if (isMultithreadingEnabled) {
+      getMonitor(obj).exit(obj)
+    }
+
   /** Get monitor for given object. */
-  @alwaysinline def getMonitor(obj: Object): Monitor = Monitor.dummy
+  @alwaysinline def getMonitor(obj: Object) = {
+    if (isMultithreadingEnabled)
+      new BasicMonitor(
+        elemRawPtr(
+          castObjectToRawPtr(obj),
+          castIntToRawSize(MemoryLayout.Object.LockWordOffset)
+        )
+      )
+    else
+      throw new IllegalStateException(
+        "Monitors unavilable in single threaded mode"
+      )
+  }
 
   /** Initialize runtime with given arguments and return the rest as Java-style
    *  array.
@@ -60,6 +86,8 @@ package object runtime {
   @alwaysinline def toRawSize(size: USize): RawSize =
     Boxes.unboxToUSize(size)
 
+  @alwaysinline def sizeOfPtr = Intrinsics.sizeOf[Ptr[_]]
+
   /** Run the runtime's event loop. The method is called from the generated
    *  C-style after the application's main method terminates.
    */
@@ -72,12 +100,11 @@ package object runtime {
 
   /** Called by the generated code in case of incorrect class cast. */
   @noinline def throwClassCast(from: RawPtr, to: RawPtr): Nothing = {
-    // 64-bit systems align pointer to 8 bytes
     val fromName = loadObject(
-      elemRawPtr(from, castIntToRawSize(if (is32BitPlatform) 12 else 16))
+      elemRawPtr(from, castIntToRawSizeUnsigned(MemoryLayout.Rtti.NameOffset))
     )
     val toName = loadObject(
-      elemRawPtr(to, castIntToRawSize(if (is32BitPlatform) 12 else 16))
+      elemRawPtr(to, castIntToRawSizeUnsigned(MemoryLayout.Rtti.NameOffset))
     )
     throw new java.lang.ClassCastException(
       s"$fromName cannot be cast to $toName"

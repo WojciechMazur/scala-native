@@ -285,7 +285,7 @@ object Settings {
       else Nil
     },
     Test / testOptions ++= Seq(
-      Tests.Argument(TestFrameworks.JUnit, "-a", "-s", "-v")
+      Tests.Argument(TestFrameworks.JUnit, "-a", "-s")
     ),
     Test / envVars ++= Map(
       "USER" -> "scala-native",
@@ -304,7 +304,7 @@ object Settings {
 
   lazy val testsExtCommonSettings = Def.settings(
     Test / testOptions ++= Seq(
-      Tests.Argument(TestFrameworks.JUnit, "-a", "-s", "-v")
+      Tests.Argument(TestFrameworks.JUnit, "-a", "-s")
     )
   )
 
@@ -335,10 +335,19 @@ object Settings {
   }
 
   // Get all blacklisted tests from a file
-  def blacklistedFromFile(file: File) =
-    IO.readLines(file)
-      .filter(l => l.nonEmpty && !l.startsWith("#"))
-      .toSet
+  def blacklistedFromFile(
+      file: File,
+      ignoreMissing: Boolean = false
+  ): Set[String] =
+    if (file.exists())
+      IO.readLines(file)
+        .filter(l => l.nonEmpty && !l.startsWith("#"))
+        .toSet
+    else {
+      if (ignoreMissing) System.err.println(s"Ignore not existing file $file")
+      else throw new RuntimeException(s"Missing file: $file")
+      Set.empty
+    }
 
   // Get all scala sources from a directory
   def allScalaFromDir(dir: File): Seq[(String, java.io.File)] =
@@ -777,18 +786,13 @@ object Settings {
             }
           }
 
-          val useless =
-            path.contains("/scala/collection/parallel/") ||
-              path.contains("/scala/util/parsing/")
-          if (!useless) {
-            if (!patchGlob.matches(sourcePath))
-              addSource(path)(Some(sourcePath.toFile))
-            else {
-              val sourceName = path.stripSuffix(".patch")
-              addSource(sourceName)(
-                tryApplyPatch(sourceName)
-              )
-            }
+          if (!patchGlob.matches(sourcePath))
+            addSource(path)(Some(sourcePath.toFile))
+          else {
+            val sourceName = path.stripSuffix(".patch")
+            addSource(sourceName)(
+              tryApplyPatch(sourceName)
+            )
           }
         }
 
@@ -822,7 +826,7 @@ object Settings {
         .getParentFile()
         .getParentFile() / "shared/src/test/scala",
     Test / testOptions ++= Seq(
-      Tests.Argument(TestFrameworks.JUnit, "-a", "-s", "-v"),
+      Tests.Argument(TestFrameworks.JUnit, "-a", "-s"),
       Tests.Filter(_.endsWith("Assertions"))
     ),
     Test / scalacOptions --= Seq("-deprecation", "-Xfatal-warnings"),

@@ -5,11 +5,9 @@ import scala.scalanative.runtime.GC.{ThreadRoutineArg, ThreadStartRoutine}
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
 import scala.scalanative.meta.LinktimeInfo.isMultithreadingEnabled
-// TODO: atomics
-//import scala.scalanative.runtime.libc.atomic_thread_fence
-//import scala.scalanative.runtime.libc.memory_order._
-// TODO: implement actual ConcurrentHashMap
-import java.util.concurrent.ConcurrentHashMap
+import scala.scalanative.runtime.libc.atomic_thread_fence
+import scala.scalanative.runtime.libc.memory_order._
+import scala.collection.concurrent.TrieMap
 
 trait NativeThread {
   import NativeThread._
@@ -86,18 +84,17 @@ object NativeThread {
   @alwaysinline def currentThread: Thread = TLS.currentThread
   @alwaysinline def currentNativeThread: NativeThread = TLS.currentNativeThread
 
-  @alwaysinline def onSpinWait(): Unit = () // TODO: spin: libc.onSpinWait()
+  @alwaysinline def onSpinWait(): Unit = Platform.yieldProcessor()
 
   @inline def holdsLock(obj: Object): Boolean = if (isMultithreadingEnabled) {
-    // TODO: monitors: getMonitor(obj).isLockedBy(currentThread)
-    false
+    getMonitor(obj).isLockedBy(currentThread)
   } else false
 
   def threadRoutineArgs(thread: NativeThread): ThreadRoutineArg =
     fromRawPtr[scala.Byte](castObjectToRawPtr(thread))
 
   object Registry {
-    private val _aliveThreads = new ConcurrentHashMap[Long, NativeThread]()
+    private val _aliveThreads = TrieMap.empty[Long, NativeThread]
 
     private[NativeThread] def add(thread: NativeThread): Unit =
       _aliveThreads.put(thread.thread.getId(), thread)
@@ -106,10 +103,7 @@ object NativeThread {
       _aliveThreads.remove(thread.thread.getId())
 
     def aliveThreads: scala.Array[NativeThread] =
-      _aliveThreads
-        .values()
-        .toArray()
-        .asInstanceOf[scala.Array[NativeThread]]
+      _aliveThreads.values.toArray
 
     def onMainThreadTermination() = {
       _aliveThreads.remove(MainThreadId)
@@ -128,7 +122,7 @@ object NativeThread {
     import nativeThread.thread
     TLS.assignCurrentThread(thread, nativeThread)
     nativeThread.state = State.Running
-    // TODO: atomics: atomic_thread_fence(memory_order_seq_cst)
+    atomic_thread_fence(memory_order_seq_cst)
     // Ensure Java Thread already assigned the Native Thread instance
     // Otherwise park/unpark events might be lost
     while (thread.getState() == Thread.State.NEW) onSpinWait()
@@ -162,6 +156,12 @@ object NativeThread {
 
     @name("scalanative_currentThread")
     def currentThread: Thread = extern
+  }
+
+  @extern object Platform {
+    @blocking
+    @name("scalanative_yield_processor")
+    def yieldProcessor(): Unit = extern
   }
 
 }

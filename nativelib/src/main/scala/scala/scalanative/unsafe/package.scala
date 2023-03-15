@@ -98,19 +98,15 @@ package object unsafe extends unsafe.UnsafePackageCompat {
   /** Materialize tag for given type. */
   @alwaysinline def tagof[T](implicit tag: Tag[T]): Tag[T] = tag
 
-  /** The C 'sizeof' operator. */
-  @alwaysinline def sizeof[T](implicit tag: Tag[T]): CSize = tag.size
-
-  /** The C 'ssizeof' operator. */
-  @alwaysinline def ssizeof[T](implicit tag: Tag[T]): CSSize = tag.size.toSize
-
-  /** C-style alignment operator. */
-  @alwaysinline def alignmentof[T](implicit tag: Tag[T]): CSize = tag.alignment
-
   /** An annotation that is used to mark objects that contain externally-defined
    *  members
    */
   final class extern extends scala.annotation.StaticAnnotation
+
+  /** An annotation that is used to mark methods that contain externally-defined
+   *  and potentially blocking methods
+   */
+  final class blocking extends scala.annotation.StaticAnnotation
 
   /** Used as right hand side of external method and field declarations. */
   def extern: Nothing = intrinsic

@@ -153,7 +153,7 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       val sym = cd.symbol
       val annotationAttrs = sym.annotations.collect {
         case ann if ann.symbol == ExternClass =>
-          Attr.Extern
+          Attr.Extern(sym.isBlocking)
         case ann if ann.symbol == LinkClass =>
           val Apply(_, Seq(Literal(Constant(name: String)))) = ann.tree
           Attr.Link(name)
@@ -201,8 +201,14 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
         val ty = genType(f.tpe)
         val name = genFieldName(f)
         val pos: nir.Position = f.pos
+        // Thats what JVM backend does
+        // https://github.com/scala/scala/blob/fe724bcbbfdc4846e5520b9708628d994ae76798/src/compiler/scala/tools/nsc/backend/jvm/BTypesFromSymbols.scala#L760-L764
+        val fieldAttrs = attrs.copy(
+          isVolatile = f.isVolatile,
+          isFinal = !f.isMutable
+        )
 
-        buf += Defn.Var(attrs, name, ty, Val.Zero(ty))(pos)
+        buf += Defn.Var(fieldAttrs, name, ty, Val.Zero(ty))(pos)
       }
     }
 
@@ -707,9 +713,9 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
     ): Option[nir.Defn] = {
       val rhs = dd.rhs
       def externMethodDecl() = {
-        val externAttrs = Attrs(isExtern = true)
         val externSig = genExternMethodSig(curMethodSym)
-        val externDefn = Defn.Declare(externAttrs, name, externSig)(rhs.pos)
+        val externDefn = Defn.Declare(attrs, name, externSig)(rhs.pos)
+
         Some(externDefn)
       }
 
@@ -822,7 +828,10 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
           case NoOptimizeClass   => Attr.NoOpt
           case NoSpecializeClass => Attr.NoSpecialize
         }
-      val externAttrs = if (sym.owner.isExternType) Seq(Attr.Extern) else Nil
+      val externAttrs =
+        if (sym.owner.isExternType)
+          Seq(Attr.Extern(sym.isBlocking || sym.owner.isBlocking))
+        else Nil
 
       Attrs.fromSeq(inlineAttrs ++ annotatedAttrs ++ externAttrs)
     }

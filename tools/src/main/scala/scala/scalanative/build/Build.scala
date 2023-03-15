@@ -3,9 +3,6 @@ package build
 
 import java.nio.file.{Files, Path, Paths}
 import scala.scalanative.util.Scope
-import scala.scalanative.build.core.Filter
-import scala.scalanative.build.core.NativeLib
-import scala.scalanative.build.core.ScalaNative
 import scala.util.Try
 
 /** Utility methods for building code using Scala Native. */
@@ -34,16 +31,17 @@ object Build {
    *        NativeConfig.empty
    *        .withGC(GC.default)
    *        .withMode(Mode.default)
+   *        .withMultithreadingSupport(enabled = false)
    *        .withClang(clang)
    *        .withClangPP(clangpp)
    *        .withLinkingOptions(linkopts)
    *        .withCompileOptions(compopts)
    *        .withLinkStubs(true)
-   *        .withBasename("myapp")
    *      }
    *      .withMainClass(main)
    *      .withClassPath(classpath)
-   *      .withBasedir(basedir)
+   *      .withBaseDir(basedir)
+   *      .withModuleName(moduleName)
    *      .withTestConfig(false)
    *      .withLogger(logger)
    *
@@ -53,19 +51,15 @@ object Build {
    *  @param config
    *    The configuration of the toolchain.
    *  @return
-   *    `outpath`, the path to the resulting native binary.
+   *    [[Config#artifactPath]], the path to the resulting native binary.
    */
   def build(config: Config)(implicit scope: Scope): Path =
     config.logger.time("Total") {
-      // create workdir if needed
-      if (Files.notExists(config.workdir)) {
-        Files.createDirectories(config.workdir)
-      }
-      // validate classpath - use fconfig below
-      val fconfig = {
-        val fclasspath = NativeLib.filterClasspath(config.classPath)
-        config.withClassPath(fclasspath)
-      }
+      // called each time for clean or directory removal
+      checkWorkdirExists(config)
+
+      // validate Config
+      val fconfig = Validator.validate(config)
 
       // find and link
       val linked = {
@@ -78,7 +72,8 @@ object Build {
       // optimize and generate ll
       val generated = {
         val optimized = ScalaNative.optimize(config, linked)
-        ScalaNative.codegen(config, optimized)
+        ScalaNative.codegen(config, optimized) ++:
+          ScalaNative.genBuildInfo(fconfig) // ident list may be empty
       }
 
       val objectPaths = fconfig.logger.time("Compiling to native code") {
@@ -132,4 +127,13 @@ object Build {
         NativeLib.compileNativeLibrary(config, linkerResult, nativeLib)
       )
   }
+
+  // create workDir if it doesn't exist
+  private def checkWorkdirExists(config: Config): Unit = {
+    val workDir = config.workDir
+    if (Files.notExists(workDir)) {
+      Files.createDirectories(workDir)
+    }
+  }
+
 }

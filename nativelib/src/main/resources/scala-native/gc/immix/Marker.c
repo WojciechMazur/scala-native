@@ -15,11 +15,15 @@ extern int __modules_size;
 
 #define LAST_FIELD_OFFSET -1
 
+static inline void Marker_markLockWords(Heap *heap, Stack *stack,
+                                        Object *object);
+
 void Marker_markObject(Heap *heap, Stack *stack, Bytemap *bytemap,
                        Object *object, ObjectMeta *objectMeta) {
     assert(ObjectMeta_IsAllocated(objectMeta));
     assert(object->rtti != NULL);
 
+    Marker_markLockWords(heap, stack, object);
     if (Object_IsWeakReference(object)) {
         // Added to the WeakReference stack for additional later visit
         Stack_Push(&weakRefStack, object);
@@ -34,10 +38,31 @@ static inline void Marker_markField(Heap *heap, Stack *stack, Field_t field) {
     if (Heap_IsWordInHeap(heap, field)) {
         ObjectMeta *fieldMeta = Bytemap_Get(heap->bytemap, field);
         if (ObjectMeta_IsAllocated(fieldMeta)) {
-            Marker_markObject(heap, stack, heap->bytemap, (Object *)field,
-                              fieldMeta);
+            Object *object = (Object *)field;
+            Marker_markObject(heap, stack, heap->bytemap, object, fieldMeta);
         }
     }
+}
+
+/* If compiling with enabled lock words check if object monitor is inflated and
+ * can be marked. Otherwise, in singlethreaded mode this funciton is no-op
+ */
+static inline void Marker_markLockWords(Heap *heap, Stack *stack,
+                                        Object *object) {
+#ifdef USES_LOCKWORD
+    if (object != NULL) {
+        Field_t rttiLock = object->rtti->rt.lockWord;
+        if (Field_isInflatedLock(rttiLock)) {
+            Marker_markField(heap, stack, Field_allignedLockRef(rttiLock));
+        }
+
+        Field_t objectLock = object->lockWord;
+        if (Field_isInflatedLock(objectLock)) {
+            Field_t field = Field_allignedLockRef(objectLock);
+            Marker_markField(heap, stack, field);
+        }
+    }
+#endif
 }
 
 void Marker_markConservative(Heap *heap, Stack *stack, word_t *address) {
@@ -84,7 +109,7 @@ NO_SANITIZE void Marker_markRange(Heap *heap, Stack *stack, word_t **from,
     assert(to != NULL);
     for (word_t **current = from; current <= to; current += 1) {
         word_t *addr = *current;
-        if (Heap_IsWordInHeap(heap, addr)) {
+        if (Heap_IsWordInHeap(heap, addr) && Bytemap_isPtrAligned(addr)) {
             Marker_markConservative(heap, stack, addr);
         }
     }

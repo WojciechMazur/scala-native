@@ -27,22 +27,22 @@ static mutex_t synchronizerLock;
 #define SafepointInstance (scalanative_gc_safepoint)
 
 #ifdef _WIN32
-static LPTOP_LEVEL_EXCEPTION_FILTER defaultFilter;
-static long SafepointTrapHandler(EXCEPTION_POINTERS *ex) {
+static LONG WINAPI SafepointTrapHandler(EXCEPTION_POINTERS *ex) {
     switch (ex->ExceptionRecord->ExceptionCode) {
     case EXCEPTION_ACCESS_VIOLATION:
         ULONG_PTR addr = ex->ExceptionRecord->ExceptionInformation[1];
         if (SafepointInstance == (void *)addr) {
             Synchronizer_wait();
             return EXCEPTION_CONTINUE_EXECUTION;
-        } else if (defaultFilter != NULL) {
-            return defaultFilter(ex);
         }
-        break;
+        fprintf(stderr, "Cought exception code %p in GC exception handler\n",
+                (void *)(uintptr_t)ex->ExceptionRecord->ExceptionCode);
+        fflush(stdout);
+        StackTrace_PrintStackTrace(ex);
+    // pass-through
     default:
-        break;
+        return EXCEPTION_CONTINUE_SEARCH;
     }
-    return EXCEPTION_EXECUTE_HANDLER;
 }
 #else
 #ifdef __APPLE__
@@ -68,7 +68,8 @@ static void SafepointTrapHandler(int signal, siginfo_t *siginfo, void *uap) {
 
 static void SetupPageFaultHandler() {
 #ifdef _WIN32
-    defaultFilter = SetUnhandledExceptionFilter(&SafepointTrapHandler);
+    // Call it as last exception handler
+    AddVectoredExceptionHandler(1, &SafepointTrapHandler);
 #else
     sigemptyset(&threadWakupSignals);
     sigaddset(&threadWakupSignals, THREAD_WAKUP_SIGNAL);

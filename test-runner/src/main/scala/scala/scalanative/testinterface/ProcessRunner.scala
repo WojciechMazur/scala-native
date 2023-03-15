@@ -63,11 +63,9 @@ private[testinterface] class ProcessRunner(
         builder.environment().put(k, v)
     }
 
-    logger.info(s"Starting process '$executableFile' on port '$port'.")
-
     assert(Proxy.instance.isAlive())
-
-    proc
+    logger.info(s"Starting process '$executableFile' on port '$port'.")
+    builder.start()
   }
 
   private[this] val runnerPromise: Promise[Unit] = Promise[Unit]()

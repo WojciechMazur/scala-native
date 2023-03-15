@@ -91,7 +91,7 @@ object Logger {
     override def debug(msg: String): Unit = debugFn(msg)
     override def info(msg: String): Unit = infoFn(msg)
     override def warn(msg: String): Unit = warnFn(msg)
-    override def error(msg: String): Unit = errorFn(msg)
+    override def error(msg: String): Unit = if(msg.contains("warning: ")) warn(msg) else errorFn(msg)
   }
 
   /** Turns the given logger into a `ProcessLogger`. */

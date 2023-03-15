@@ -166,7 +166,6 @@ sealed trait Config {
 
   private[scalanative] lazy val targetsEmscripten =
     targetsWASM && compilerConfig.targetTriple.exists(_.contains("emscripten"))
-}
 
   private[scalanative] lazy val targetsLinux: Boolean = Platform.isLinux ||
     compilerConfig.targetTriple.exists { customTriple =>

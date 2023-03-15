@@ -97,7 +97,7 @@ object MyScalaNativePlugin extends AutoPlugin {
             "-sWEBSOCKET_DEBUG",
             "-sEXIT_RUNTIME=1",
             "-o",
-            s"../${Option(prev.basename).filter(_.nonEmpty).getOrElse(moduleName.value)}-test.html"
+            s"../${Option(prev.baseName).filter(_.nonEmpty).getOrElse(moduleName.value)}-test.html"
           )
           commonConfig
             .withTargetTriple("wasm32-unknown-emscripten")

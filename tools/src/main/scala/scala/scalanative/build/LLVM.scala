@@ -160,7 +160,9 @@ private[scalanative] object LLVM {
     val outPath = config.artifactPath
     config.compilerConfig.buildTarget match {
       case BuildTarget.Application =>
-        Files.copy(buildPath, outPath, StandardCopyOption.REPLACE_EXISTING)
+        // TODO: fixme, using custom -o path
+        outPath
+        // Files.copy(buildPath, outPath, StandardCopyOption.REPLACE_EXISTING)
       case _: BuildTarget.Library => outPath
     }
   }

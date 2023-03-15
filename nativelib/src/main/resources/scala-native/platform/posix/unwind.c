@@ -38,7 +38,7 @@ int scalanative_unw_reg_ip() {
     //  return UNW_REG_IP;
 }
 
-size_t scalanative_unwind_sizeof_context() { return sizeof(unw_context_t); }
-size_t scalanative_unwind_sizeof_cursor() { return sizeof(unw_cursor_t); }
+size_t scalanative_unwind_sizeof_context() { return 8;} // sizeof(unw_context_t); }
+size_t scalanative_unwind_sizeof_cursor() { return 8;} // sizeof(unw_cursor_t); }
 
 #endif // Unix or Mac OS

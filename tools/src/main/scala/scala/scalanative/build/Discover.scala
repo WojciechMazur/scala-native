@@ -203,7 +203,7 @@ object Discover {
   def targetTriple(clang: Path): String = clangInfo(clang).targetTriple
 
   def targetTriple(implicit config: NativeConfig) = cache("target-triple") {
-    _ => "wasm32-unknown-unknown" //clangInfo.targetTriple
+    _ => "wasm32-unknown-unknown" // clangInfo.targetTriple
   }
 
   private def silentLogger(): ProcessLogger =
@@ -228,9 +228,9 @@ object Discover {
         } catch {
           case ex: Exception =>
             System.err.println(
-              "Failed to detect version of clang, assuming opaque-pointers are not supported"
+              "Failed to detect version of clang, assuming opaque-pointers are supported"
             )
-            Unavailable
+            Enabled
         }
       }
 

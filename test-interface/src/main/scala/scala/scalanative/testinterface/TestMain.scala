@@ -10,6 +10,8 @@ import scalanative.posix.sys.socket._
 import scalanative.posix.netinet.in
 import scalanative.posix.unistd
 import scala.sys.exit
+import scala.scalanative.unsafe._
+import scala.scalanative.unsigned._
 
 object TestMain {
 
@@ -82,20 +84,44 @@ object TestMain {
 
   /** Main method of the test runner. */
   def main(args: Array[String]): Unit = {
-    if (args.length != 1) {
-      System.err.println(usage)
-      throw new IllegalArgumentException("One argument expected")
+    // TODO:  Works (kinda) only in browser, Node.js has no support for websockets
+
+    if (LinktimeInfo.isEmscripten) {
+      import emscripten._
+      assert(emscripten_websocket_is_supported(), "unsupported")
+      val bridgeSocket = emscripten_init_websocket_to_posix_socket_bridge(
+        c"ws://localhost:8888"
+      )
+      assert(bridgeSocket != -1)
+      val readyState = stackalloc[UShort]()
+      !readyState = 0.toUShort
+      while ({
+        emscripten_websocket_get_ready_state(bridgeSocket, readyState)
+        val state = !readyState
+        state.toInt == 0
+      }) Thread.sleep(100) // fail at runtime: emscripten_thread_sleep(100)
+      println(s"connected to WebSocket proxy")
+    } else {
+      if (args.length != 1) {
+        System.err.println(usage)
+        throw new IllegalArgumentException("One argument expected")
+      }
     }
 
     val serverAddr =
       if (!LinktimeInfo.isFreeBSD) iPv4Loopback
       else getFreeBSDLoopbackAddr()
-    val serverPort = args(0).toInt
+
+    println("Waiting for port number from stdin:")
+    val serverPort = scala.io.StdIn.readInt()
+    println(s"Connecting to $serverPort")
+
     val clientSocket = new Socket(serverAddr, serverPort)
     val nativeRPC = new NativeRPC(clientSocket)
     val bridge = new TestAdapterBridge(nativeRPC)
 
     bridge.start()
+    println("bridge started")
 
     SignalConfig.setDefaultHandlers()
 
@@ -103,4 +129,19 @@ object TestMain {
     sys.exit(exitCode)
   }
 
+}
+
+@extern object emscripten {
+  type EMSCRIPTEN_WEBSOCKET_T = CInt
+
+  def emscripten_init_websocket_to_posix_socket_bridge(
+      proxyUrl: CString
+  ): EMSCRIPTEN_WEBSOCKET_T = extern
+
+  def emscripten_websocket_get_ready_state(
+      webSocket: EMSCRIPTEN_WEBSOCKET_T,
+      state: Ptr[UShort]
+  ): Int = extern
+  def emscripten_thread_sleep(millis: CInt): Unit = extern
+  def emscripten_websocket_is_supported(): Boolean = extern
 }

@@ -2,7 +2,7 @@
 #include <string.h>
 #include "in.h"
 
-#if !(defined __STDC_VERSION__) || (__STDC_VERSION__ < 201112L) || defined(__wasm)
+#if !(defined __STDC_VERSION__) || (__STDC_VERSION__ < 201112L)
 #ifndef SCALANATIVE_SUPPRESS_STRUCT_CHECK_WARNING
 #warning "Size and order of C structures are not checked when -std < c11."
 #endif

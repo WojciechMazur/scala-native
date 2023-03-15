@@ -319,10 +319,15 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
 
     this.address = inetAddr.getAddress
     this.port = inetAddr.getPort
-    this.localport = fetchLocalPort(family).getOrElse {
-      throw new ConnectException(
-        "Could not resolve a local port when connecting"
-      )
+    if (!scalanative.meta.LinktimeInfo.isEmscripten) {
+      // TODO: WASM/emscripten
+      // getsockname is bugged: https://github.com/emscripten-core/emscripten/issues/12895
+      // test interface should be able to work without it
+      this.localport = fetchLocalPort(family).getOrElse {
+        throw new ConnectException(
+          "Could not resolve a local port when connecting"
+        )
+      }
     }
   }
 

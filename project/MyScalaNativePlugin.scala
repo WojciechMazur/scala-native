@@ -69,10 +69,13 @@ object MyScalaNativePlugin extends AutoPlugin {
             "-error-limit=0",
             "-lwebsocket.js",
             "-sPROXY_POSIX_SOCKETS",
+            "-ssUSE_PTHREADS",
             "-sPROXY_TO_PTHREAD",
-            // "-sEXIT_RUNTIME=1"
+            "-sSOCKET_DEBUG",
+            "-sWEBSOCKET_DEBUG",
+            "-sEXIT_RUNTIME=1",
             "-o",
-            s"../${Option(prev.basename).filter(_.nonEmpty).getOrElse(moduleName.value)}-test.js"
+            s"../${Option(prev.basename).filter(_.nonEmpty).getOrElse(moduleName.value)}-test.html"
           )
           commonConfig
             .withTargetTriple("wasm32-unknown-emscripten")
@@ -84,8 +87,8 @@ object MyScalaNativePlugin extends AutoPlugin {
 
         // Choose ABI and run sandboxX/clean when switching
         // For Scala3 .wasm (and .js, .html for enscripten) file can be found in ./sandbox/.3/target/scala-3.1.3/sandbox.wasm
-        usingWASI
-        // usingEnscripten
+        // usingWASI
+        usingEnscripten
       }
     }.value,
     run := {
@@ -102,7 +105,7 @@ object MyScalaNativePlugin extends AutoPlugin {
       val config = (Compile / nativeConfig).value
       val targetsWASM = config.targetTriple.exists(_ contains "wasm")
       val targetsEmscripten =
-        targetsWASM && config.targetTriple.exists(_ contains "emscripted")
+        targetsWASM && config.targetTriple.exists(_ contains "emscripten")
       
       assert(targetsWASM, "not a WASM setup")
 

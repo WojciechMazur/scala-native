@@ -4,6 +4,23 @@ import java.io.File
 import scala.concurrent.{Future, Promise}
 import scala.scalanative.build.Logger
 
+object Proxy {
+  lazy val instance = {
+    val proxyThread = new Thread(() => {
+      println(
+        s"starting sockets proxy on port 8888 in ${Thread.currentThread()}"
+      )
+      val proxy = new ProcessBuilder(
+        "./lib/emsdk/upstream/emscripten/tools/websocket_to_posix_proxy/websocket_to_posix_proxy",
+        "8888"
+      ).inheritIO().redirectErrorStream(true).start()
+    })
+    proxyThread.setDaemon(true)
+    proxyThread.start()
+    proxyThread
+  }
+}
+
 private[testinterface] class ProcessRunner(
     executableFile: File,
     envVars: Map[String, String],
@@ -31,10 +48,13 @@ private[testinterface] class ProcessRunner(
 
     val builder =
       new ProcessBuilder(
-        emulatorOpts ++:
-          executableFile.getAbsolutePath() +:
-          port.toString +:
-          args: _*
+        "google-chrome",
+        "--enable-features=SharedArrayBuffer",
+        "http://localhost:3000/test-interface-test"
+        // emulatorOpts ++:
+        //   executableFile.getAbsolutePath() +:
+        //   port.toString +:
+        //   args: _*
       )
         .inheritIO()
 
@@ -44,7 +64,10 @@ private[testinterface] class ProcessRunner(
     }
 
     logger.info(s"Starting process '$executableFile' on port '$port'.")
-    builder.start()
+
+    assert(Proxy.instance.isAlive())
+
+    proc
   }
 
   private[this] val runnerPromise: Promise[Unit] = Promise[Unit]()

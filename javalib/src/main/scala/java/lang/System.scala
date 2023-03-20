@@ -96,14 +96,14 @@ object System {
     else "\n"
   }
 
-  private lazy val systemProperties = loadProperties()
-  // private lazy val systemProperties = {
-  //   Platform.setOSProps { (key: CString, value: CString) =>
-  //     systemProperties0.setProperty(fromCString(key), fromCString(value))
-  //     ()
-  //   }
-  //   systemProperties0
-  // }
+  private lazy val systemProperties0 = loadProperties()
+  private lazy val systemProperties = {
+    Platform.setOSProps { (key: CString, value: CString) =>
+      systemProperties0.setProperty(fromCString(key), fromCString(value))
+      ()
+    }
+    systemProperties0
+  }
   def getProperties(): Properties = systemProperties
 
   def clearProperty(key: String): String =

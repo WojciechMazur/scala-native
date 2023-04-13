@@ -175,6 +175,51 @@ private[java] class PosixThread(val thread: Thread, stackSize: Long)
     }
   }
 
+  @volatile var stackTrace: scala.Array[StackTraceElement] = _
+  override def getStackTrace(): scala.Array[StackTraceElement] = {
+    import scala.scalanative.posix.signal._
+    if (PosixThread.currentNativeThread() eq this)
+      new RuntimeException().getStackTrace()
+    else {
+      println(s"Set signal to ${this.thread} -> $handle")
+      pthread_kill(handle, SIGUSR1)
+      while (stackTrace == null) Thread.`yield`()
+      // this.stackTrace.dropWhile { v =>
+      //   val str = v.toString
+      //   str.contains("java.lang.impl.PosixThread") && str.contains(
+      //     "getStackTraceHandler"
+      //   )
+      // }
+      val trace = this.stackTrace
+      this.stackTrace = null
+      trace
+    }
+  }
+
+  override def setSignalHandler(): Unit = {
+    import scala.scalanative.posix.signal._
+
+    val sig = SIGUSR1
+    if (signal(sig, PosixThread.getStackTraceHandler) == SIG_ERR)
+      Console.err.println(
+        s"[warn] Could not set default handler for signal ${sig}"
+      )
+
+    // val signalSet = stackalloc[sigset_t]()
+    // sigemptyset(signalSet);
+    // sigaddset(signalSet, SIGQUIT);
+    // sigprocmask(SIG_BLOCK, &signalSet, null);
+
+    // val sa = stackalloc[sigaction]()
+    // sigemptyset(sa.at2);
+    // sa.sa_sigaction = &SafepointTrapHandler;
+    // sa.sa_flags = SA_SIGINFO | SA_RESTART;
+    // if (sigaction(SAFEPOINT_TRAP_SIGNAL, &sa, &defaultAction) == -1) {
+    //     perror("Error: cannot setup safepoint synchronization handler");
+    //     exit(errno);
+    // }
+  }
+
   override def sleep(millis: Long): Unit =
     if (isMultithreadingEnabled) sleepInterruptible(millis)
     else sleepNonInterruptible(millis, 0)
@@ -418,5 +463,29 @@ private[lang] object PosixThread extends NativeThread.Companion {
       throw new RuntimeException(
         s"Cannot initialize thread: $label, status=$status"
       )
+  }
+
+  val getStackTraceHandler = CFuncPtr1.fromScalaFunction[CInt, Unit] {
+    (sig: CInt) =>
+      val nativeThread = PosixThread.currentNativeThread()
+      // assert(nativeThread.stackTrace != null)
+      println(s"getStackTrace of ${nativeThread.thread}")
+      nativeThread.stackTrace = new RuntimeException().getStackTrace()
+    // var buffer = mutable.ArrayBuffer.empty[StackTraceElement]
+    //   Zone { implicit z =>
+    //     val cursor = alloc[scala.Byte](unwind.sizeOfCursor)
+    //     val context = alloc[scala.Byte](unwind.sizeOfContext)
+    //     val ip = stackalloc[CSize]()
+
+    //     unwind.get_context(context)
+    //     unwind.init_local(cursor, context)
+    //     while (unwind.step(cursor) > 0) {
+    //       unwind.get_reg(cursor, unwind.UNW_REG_IP, ip)
+    //       buffer += cachedStackTraceElement(cursor, !ip)
+    //     }
+    //   }
+
+    // buffer.toArray
+    // asyncSafePrintStackTrace(sig)
   }
 }

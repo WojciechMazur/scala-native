@@ -57,6 +57,10 @@ trait NativeThread {
     state = NativeThread.State.Terminated
     Registry.remove(this)
   }
+
+  def getStackTrace(): scala.Array[StackTraceElement] = scala.Array.empty
+
+  def setSignalHandler(): Unit = ()
 }
 
 object NativeThread {
@@ -123,6 +127,8 @@ object NativeThread {
   private def threadEntryPoint(nativeThread: NativeThread): Unit = {
     import nativeThread.thread
     TLS.assignCurrentThread(thread, nativeThread)
+    nativeThread.setSignalHandler()
+
     nativeThread.state = State.Running
     atomic_thread_fence(memory_order_seq_cst)
     // Ensure Java Thread already assigned the Native Thread instance

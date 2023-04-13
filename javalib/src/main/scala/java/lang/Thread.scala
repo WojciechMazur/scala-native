@@ -179,7 +179,10 @@ class Thread private[lang] (
   }
 
   def getStackTrace(): Array[StackTraceElement] =
-    new Array[StackTraceElement](0)
+    if (isVirtual()) new Array[StackTraceElement](0)
+    else {
+      platformCtx.nativeThread.getStackTrace()
+    }
 
   def getState(): State = {
     assert(!isVirtual(), "should be overriden by virtual threads")
@@ -548,7 +551,17 @@ object Thread {
     .enumerate(list)
 
   def getAllStackTraces(): java.util.Map[Thread, Array[StackTraceElement]] =
-    throw new UnsupportedOperationException()
+    if (isMultithreadingEnabled) {
+      val result = new java.util.HashMap[Thread, Array[StackTraceElement]]
+      NativeThread.Registry.aliveThreads.foreach { nativeThread =>
+        val thread = nativeThread.thread
+        thread.synchronized {
+          if (thread.isAlive())
+            result.put(thread, nativeThread.getStackTrace())
+        }
+      }
+      result
+    } else throw new UnsupportedOperationException()
 
   private var defaultExceptionHandler: UncaughtExceptionHandler = _
   def getDefaultUncaughtExceptionHandler(): UncaughtExceptionHandler =

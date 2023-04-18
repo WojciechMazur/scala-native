@@ -19,6 +19,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           ref: ${{ inputs.scala-native-version }}
+          repository: scala-native/scala-native
       - uses: ./.github/actions/linux-setup-env
         with:
           scala-version: ${{ inputs.scala-version }}

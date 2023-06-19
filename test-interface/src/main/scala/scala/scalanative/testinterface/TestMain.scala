@@ -6,13 +6,15 @@ import scalanative.meta.LinktimeInfo
 import java.net.Socket
 import signalhandling.SignalConfig
 
-import scalanative.posix.sys.socket._
-import scalanative.posix.netinet.in
-import scalanative.posix.unistd
 import scala.sys.exit
+import scala.scalanative.posix.sys.socket._
+import scala.scalanative.posix.netinet.in
+import scala.scalanative.posix.unistd
 import scala.scalanative.unsafe._
 import scala.scalanative.unsigned._
+import scala.scalanative.posix.errno._
 
+import java.io._
 object TestMain {
 
   private val usage: String = {
@@ -86,40 +88,57 @@ object TestMain {
   def main(args: Array[String]): Unit = {
     // TODO:  Works (kinda) only in browser, Node.js has no support for websockets
 
-    if (LinktimeInfo.isEmscripten) {
-      import emscripten._
-      assert(emscripten_websocket_is_supported(), "unsupported")
-      val bridgeSocket = emscripten_init_websocket_to_posix_socket_bridge(
-        c"ws://localhost:8888"
-      )
-      assert(bridgeSocket != -1)
-      val readyState = stackalloc[UShort]()
-      !readyState = 0.toUShort
-      while ({
-        emscripten_websocket_get_ready_state(bridgeSocket, readyState)
-        val state = !readyState
-        state.toInt == 0
-      }) Thread.sleep(100) // fail at runtime: emscripten_thread_sleep(100)
-      println(s"connected to WebSocket proxy")
-    } else {
-      if (args.length != 1) {
-        System.err.println(usage)
-        throw new IllegalArgumentException("One argument expected")
+    println("Hello world")
+    // int preopen_fd = getenv("DEBUGGER_FD") ? 4 : 3;
+
+    // val serverPort = if (LinktimeInfo.isEmscripten) {
+    //   import emscripten._
+    //   assert(emscripten_websocket_is_supported(), "unsupported")
+    //   val bridgeSocket = emscripten_init_websocket_to_posix_socket_bridge(
+    //     c"ws://localhost:8888"
+    //   )
+    //   assert(bridgeSocket != -1)
+    //   val readyState = stackalloc[UShort]()
+    //   !readyState = 0.toUShort
+    //   while ({
+    //     emscripten_websocket_get_ready_state(bridgeSocket, readyState)
+    //     val state = !readyState
+    //     state.toInt == 0
+    //   }) Thread.sleep(100) // fail at runtime: emscripten_thread_sleep(100)
+    //   println(s"connected to WebSocket proxy")
+
+    //   println("Waiting for port number from stdin:")
+    //   scala.io.StdIn.readInt()
+    // } else {
+    //   if (args.length != 1) {
+    //     System.err.println(usage)
+    //     throw new IllegalArgumentException("One argument expected")
+    //   }
+    //   args(0).toInt
+    // }
+
+    // SignalConfig.setDefaultHandlers()
+
+    // val serverAddr =
+    //   if (!LinktimeInfo.isFreeBSD) iPv4Loopback
+    //   else getFreeBSDLoopbackAddr()
+
+    // println(s"Connecting to $serverPort")
+    val socket = new SimpleSocket(fd = {
+      val preOpenFd = 3
+      val addrOut = ??? //stackalloc[sockaddr]()
+      val addrLen = ??? //stackalloc[socklen_t]()
+      var fd = -1
+      while (fd == -1) {
+        fd = accept4(preOpenFd, addrOut, addrLen, 0)
+        // int new_connection_fd = accept4(preopen_fd, &addr_out_ignored, &addr_len_out_ignored, SOCK_NONBLOCK);
+        Thread.sleep(1)
       }
-    }
-
-    SignalConfig.setDefaultHandlers()
-
-    val serverAddr =
-      if (!LinktimeInfo.isFreeBSD) iPv4Loopback
-      else getFreeBSDLoopbackAddr()
-
-    println("Waiting for port number from stdin:")
-    val serverPort = scala.io.StdIn.readInt()
-    println(s"Connecting to $serverPort")
-
-    val clientSocket = new Socket(serverAddr, serverPort)
-    val nativeRPC = new NativeRPC(clientSocket)
+      println(s"Connected on socketFd=$preOpenFd, fd=$fd")
+      fd
+    })
+    val nativeRPC =
+      new NativeRPC(socket.getInputStream(), socket.getOutputStream())
     val bridge = new TestAdapterBridge(nativeRPC)
 
     bridge.start()
@@ -129,6 +148,157 @@ object TestMain {
     sys.exit(exitCode)
   }
 
+}
+
+class SimpleSocket(fd: Int) extends Socket() {
+  private def socket = this
+  var closed = false
+  override def isClosed() = closed
+  override def getOutputStream: OutputStream = new OutputStream {
+    override def close(): Unit = {
+      socket.close()
+      closed = true
+    }
+
+    override def write(b: Array[Byte]) = socket.write(b, 0, b.length)
+
+    override def write(b: Array[Byte], off: Int, len: Int) = {
+      if (b == null)
+        throw new NullPointerException("Buffer parameter is null")
+
+      if (off < 0 || off > b.length || len < 0 || len > b.length - off)
+        throw new ArrayIndexOutOfBoundsException("Invalid length or offset")
+
+      socket.write(b, off, len)
+    }
+
+    override def write(b: Int) = {
+      socket.write(Array[Byte](b.toByte), 0, 1)
+    }
+  }
+
+  override def getInputStream: InputStream = {
+    // if (isClosed) {
+    //   throw new SocketException("Socket is closed")
+    // }
+    // if (shutInput) {
+    //   throw new SocketException("Socket input is shutdown")
+    // }
+    new InputStream {
+
+      override def close(): Unit = socket.close()
+
+      override def available(): Int = socket.available()
+
+      override def read(): Int = {
+        val buffer = new Array[Byte](1)
+        socket.read(buffer, 0, 1) match {
+          case -1 => -1
+          case _ => buffer(0) & 0xff // Convert to Int with _no_ sign extension.
+        }
+      }
+
+      override def read(buffer: Array[Byte]) = read(buffer, 0, buffer.length)
+
+      override def read(buffer: Array[Byte], offset: Int, count: Int): Int = {
+        if (buffer == null) throw new NullPointerException("Buffer is null")
+
+        if (count == 0) return 0
+
+        if (offset < 0 || offset >= buffer.length) {
+          throw new ArrayIndexOutOfBoundsException(
+            "Offset out of bounds: " + offset
+          )
+        }
+
+        if (count < 0 || offset + count > buffer.length) {
+          throw new ArrayIndexOutOfBoundsException(
+            "Reading would result in buffer overflow"
+          )
+        }
+
+        socket.read(buffer, offset, count)
+      }
+    }
+  }
+
+  override def shutdownOutput(): Unit = {
+    println("shutdown output")
+    shutdown(fd, 1) match {
+      case 0 =>//  shutOutput = true
+      case _ => ???
+        // throw new SocketException("Error while shutting down socket's output")
+    }
+  }
+
+  override def shutdownInput(): Unit = {
+    println("shutdown input")
+    shutdown(fd, 0) match {
+      case 0 =>// shutInput = true
+      case _ => ???
+        // throw new SocketException("Error while shutting down socket's input")
+    }
+  }
+
+  def write(buffer: Array[Byte], offset: Int, count: Int): Int = {
+    // if (shutOutput) {
+    //   throw new IOException("Trying to write to a shut down socket")
+    // } else 
+    if (isClosed) {
+      0
+    } else {
+      val cArr = buffer.at(offset)
+      var sent = 0
+      while (sent < count) {
+        val ret = send(fd, cArr + sent, (count - sent).toUInt, 0).toInt
+        if (ret < 0) {
+          throw new IOException("Could not send the packet to the client")
+        }
+        sent += ret
+      }
+      sent
+    }
+  }
+
+  def read(buffer: Array[Byte], offset: Int, count: Int): Int = {
+    // if (shutInput) -1
+    // else {
+      val bytesNum = recv(fd, buffer.at(offset), count.toUInt, 0)
+        .toInt
+
+      def timeoutDetected = errno == EAGAIN || errno == EWOULDBLOCK
+
+      bytesNum match {
+        case _ if (bytesNum > 0) => bytesNum
+
+        case 0 => if (count == 0) 0 else -1
+
+        case b if timeoutDetected =>
+          println(s"timeout - $errno, bytes = $b")
+          throw new java.net.SocketTimeoutException("Socket timeout while reading data")
+
+        case _ => ???
+          // throw new SocketException(s"read failed, errno: ${lastError()}")
+      }
+    }
+  // }
+
+  def available(): Int = {
+    import scala.scalanative.posix.sys.ioctl._
+    // if (shutInput) {
+      // 0
+    // } else {
+      val bytesAvailable = stackalloc[CInt]()
+      ioctl(fd, FIONREAD, bytesAvailable.asInstanceOf[Ptr[Byte]])
+      !bytesAvailable match {
+        case -1 =>
+          throw new IOException(
+            "Error while trying to estimate available bytes to read"
+          )
+        case x => x
+      }
+    }
+  // }
 }
 
 @extern object emscripten {

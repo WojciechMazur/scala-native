@@ -37,12 +37,16 @@ _Static_assert(offsetof(struct scalanative_sockaddr_in, sin_addr) ==
                    offsetof(struct sockaddr_in, sin_addr),
                "Unexpected offset: sockaddr_in.sin_addr");
 // IPv6
+#if defined(__wasi__)
+#warning WASM/WASI uses different memory layout for sockaddr_in6
+#else
 _Static_assert(sizeof(struct scalanative_sockaddr_in6) == 28,
                "Unexpected size: scalanative_sockaddr_in6");
 
 _Static_assert(sizeof(struct scalanative_sockaddr_in6) ==
                    sizeof(struct sockaddr_in6),
                "Unexpected size: os sockaddr_in");
+#endif
 
 // For systems which define/use IETF RFC SIN6_LEN macro, sin6_family &
 // sin6_len see comment above for corresponding scalanative_sockaddr_in6.

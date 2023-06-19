@@ -507,23 +507,24 @@ object Files {
   def isSameFile(path: Path, path2: Path): Boolean =
     path.toFile().getCanonicalPath() == path2.toFile().getCanonicalPath()
 
-  def isSymbolicLink(path: Path): Boolean = Zone { implicit z =>
-    if (isWindows) {
-      val filename = toCWideStringUTF16LE(path.toFile().getPath())
-      val attrs = FileApi.GetFileAttributesW(filename)
-      val exists = attrs != INVALID_FILE_ATTRIBUTES
-      def isReparsePoint = (attrs & FILE_ATTRIBUTE_REPARSE_POINT) != 0.toUInt
-      exists & isReparsePoint
-    } else {
-      val filename = toCString(path.toFile().getPath())
-      val buf = alloc[stat.stat]()
-      if (stat.lstat(filename, buf) == 0) {
-        stat.S_ISLNK(buf._13) == 1
-      } else {
-        false
-      }
-    }
-  }
+  def isSymbolicLink(path: Path): Boolean = false
+  //  Zone { implicit z =>
+  //   if (isWindows) {
+  //     val filename = toCWideStringUTF16LE(path.toFile().getPath())
+  //     val attrs = FileApi.GetFileAttributesW(filename)
+  //     val exists = attrs != INVALID_FILE_ATTRIBUTES
+  //     def isReparsePoint = (attrs & FILE_ATTRIBUTE_REPARSE_POINT) != 0.toUInt
+  //     exists & isReparsePoint
+  //   } else {
+  //     val filename = toCString(path.toFile().getPath())
+  //     val buf = alloc[stat.stat]()
+  //     if (stat.lstat(filename, buf) == 0) {
+  //       stat.S_ISLNK(buf._13) == 1
+  //     } else {
+  //       false
+  //     }
+  //   }
+  // }
 
   def isWritable(path: Path): Boolean =
     path.toFile().canWrite()

@@ -11,6 +11,18 @@ import scala.scalanative.posix.sys.socket
 
 import java.io.{FileDescriptor, IOException}
 import scala.annotation.tailrec
+import scala.scalanative.meta.LinktimeInfo.isWASI
+
+@extern object wasi{
+  type errno_t = UShort
+  type wasi_fd_t = CInt
+  type wasi_fdflags_t = UShort
+  def __wasi_sock_accept(
+    fd: wasi_fd_t,
+    flags: wasi_fdflags_t,
+    ret: Ptr[wasi_fd_t]
+  ): errno_t = extern
+}
 
 private[net] class UnixPlainSocketImpl extends AbstractPlainSocketImpl {
 
@@ -23,10 +35,13 @@ private[net] class UnixPlainSocketImpl extends AbstractPlainSocketImpl {
       if (streaming) socket.SOCK_STREAM
       else socket.SOCK_DGRAM
 
-    // TODO: emscripten gets stuck here
-    // Related issue https://github.com/emscripten-core/emscripten/issues/17972
-    val sock = socket.socket(af, sockType, 0)
-
+    val sock =
+      if (isWASI) 3
+      else {
+        // TODO: emscripten gets stuck here
+        // Related issue https://github.com/emscripten-core/emscripten/issues/17972
+        socket.socket(af, sockType, 0)
+      }
     if (sock < 0)
       throw new IOException(
         s"Could not create a socket in address family: ${af}" +
@@ -34,6 +49,17 @@ private[net] class UnixPlainSocketImpl extends AbstractPlainSocketImpl {
       )
 
     fd = new FileDescriptor(sock)
+    println("create")
+    // val fd2 = stackalloc[CInt]
+    // !fd2 = -1
+    // while({
+    //   println(wasi.__wasi_sock_accept(3, sockType.toUShort, fd2))
+    //   println(!fd2)
+    //   !fd2 == -1
+    // })Thread.sleep(100)
+    // socket.accept(fd)
+    // println(fd)
+    // this.accept(this)
   }
 
   final protected def tryPollOnConnect(timeout: Int): Unit = {
@@ -127,35 +153,35 @@ private[net] class UnixPlainSocketImpl extends AbstractPlainSocketImpl {
       fd: FileDescriptor,
       blocking: Boolean
   ): Unit = {
-    updateSocketFdOpts(fd.fd) { oldOpts =>
-      if (blocking) oldOpts & ~O_NONBLOCK
-      else oldOpts | O_NONBLOCK
-    }
+    // updateSocketFdOpts(fd.fd) { oldOpts =>
+    //   if (blocking) oldOpts & ~O_NONBLOCK
+    //   else oldOpts | O_NONBLOCK
+    // }
   }
 
   @inline
-  private def getSocketFdOpts(fdFd: Int): CInt = {
-    val opts = fcntl(fdFd, F_GETFL, 0)
+  private def getSocketFdOpts(fdFd: Int): CInt = { 0
+    // val opts = fcntl(fdFd, F_GETFL, 0)
 
-    if (opts == -1) {
-      throw new ConnectException(
-        s"connect failed, fcntl F_GETFL, errno: $errno"
-      )
-    }
+    // if (opts == -1) {
+    //   throw new ConnectException(
+    //     s"connect failed, fcntl F_GETFL, errno: $errno"
+    //   )
+    // }
 
-    opts
+    // opts
   }
 
   @inline
   private def setSocketFdOpts(fdFd: Int, opts: Int): Unit = {
-    val ret = fcntl(fdFd, F_SETFL, opts)
+    // val ret = fcntl(fdFd, F_SETFL, opts)
 
-    if (ret == -1) {
-      throw new ConnectException(
-        "connect failed, " +
-          s"fcntl F_SETFL for opts: $opts, errno: $errno"
-      )
-    }
+    // if (ret == -1) {
+    //   throw new ConnectException(
+    //     "connect failed, " +
+    //       s"fcntl F_SETFL for opts: $opts, errno: $errno"
+    //   )
+    // }
   }
 
   @inline

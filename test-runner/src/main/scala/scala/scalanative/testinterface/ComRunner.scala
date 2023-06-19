@@ -10,18 +10,21 @@ import scala.scalanative.build.Logger
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
 
+import scala.scalanative.testinterface.ProcessRunner
+
 /** Represents a distant program with whom we communicate over the network.
  *  @param logger
  *    Logger to log to.
  */
-private[testinterface] class ComRunner(
+private[testinterface] abstract class ComRunner(
     processRunner: ProcessRunner,
-    serverSocket: ServerSocket,
     logger: Logger,
     handleMessage: String => Unit
 ) extends AutoCloseable {
   import ComRunner._
   implicit val executionContext: ExecutionContext = ExecutionContext.global
+
+  protected def awaitConnection(): Unit
 
   processRunner.future.onComplete {
     case Failure(exception) => forceClose(exception)
@@ -115,25 +118,13 @@ private[testinterface] class ComRunner(
     }
   }
 
-  private def onNativeTerminated(): Unit = {
-    close()
+  protected def onNativeTerminated(): Unit = close()
 
-    /*
-     * Interrupt receiver if we are still waiting for connection.
-     * Should only be relevant if we are still awaiting the connection.
-     * Note: We cannot do this in close(), otherwise if the JVM side closes
-     * before the Native side connected, the Native VM will fail instead of terminate
-     * normally.
-     */
-    serverSocket.close()
-  }
-
-  private def forceClose(cause: Throwable): Unit = {
+  protected def forceClose(cause: Throwable): Unit = {
     logger.warn(s"Force close $cause")
     promise.tryFailure(cause)
     close()
     processRunner.close()
-    serverSocket.close()
   }
 
   private def handleThrowable(cause: Throwable): Unit = {
@@ -142,31 +133,7 @@ private[testinterface] class ComRunner(
       throw cause
   }
 
-  private def awaitConnection(): Unit = {
-    var comSocket: Socket = null
-    var jvm2native: DataOutputStream = null
-    var native2jvm: DataInputStream = null
-
-    try {
-      serverSocket.setSoTimeout(40 * 1000)
-      comSocket = serverSocket.accept()
-      serverSocket.close() // we don't need it anymore.
-      jvm2native = new DataOutputStream(
-        new BufferedOutputStream(comSocket.getOutputStream)
-      )
-      native2jvm = new DataInputStream(
-        new BufferedInputStream(comSocket.getInputStream)
-      )
-
-      onConnected(Connected(comSocket, jvm2native, native2jvm))
-    } catch {
-      case t: Throwable =>
-        closeAll(comSocket, jvm2native, native2jvm)
-        throw t
-    }
-  }
-
-  private def onConnected(c: Connected): Unit = synchronized {
+  final protected def onConnected(c: Connected): Unit = synchronized {
     state match {
       case AwaitingConnection(msgs) =>
         msgs.reverse.foreach(writeMsg(c.jvm2native, _))
@@ -182,6 +149,99 @@ private[testinterface] class ComRunner(
 }
 
 private[testinterface] object ComRunner {
+  class Default(
+      processRunner: ProcessRunner,
+      serverSocket: ServerSocket,
+      logger: Logger,
+      handleMessage: String => Unit
+  ) extends ComRunner(processRunner, logger, handleMessage) {
+
+    override def forceClose(cause: Throwable): Unit = {
+      super.forceClose(cause)
+      serverSocket.close()
+    }
+
+    override protected def onNativeTerminated(): Unit = {
+      super.onNativeTerminated()
+      /*
+       * Interrupt receiver if we are still waiting for connection.
+       * Should only be relevant if we are still awaiting the connection.
+       * Note: We cannot do this in close(), otherwise if the JVM side closes
+       * before the Native side connected, the Native VM will fail instead of terminate
+       * normally.
+       */
+      serverSocket.close()
+    }
+
+    override protected def awaitConnection(): Unit = {
+      var comSocket: Socket = null
+      var jvm2native: DataOutputStream = null
+      var native2jvm: DataInputStream = null
+
+      try {
+        serverSocket.setSoTimeout(40 * 1000)
+        comSocket = serverSocket.accept()
+        serverSocket.close() // we don't need it anymore.
+        jvm2native = new DataOutputStream(
+          new BufferedOutputStream(comSocket.getOutputStream)
+        )
+        native2jvm = new DataInputStream(
+          new BufferedInputStream(comSocket.getInputStream)
+        )
+
+        onConnected(Connected(comSocket, jvm2native, native2jvm))
+      } catch {
+        case t: Throwable =>
+          closeAll(comSocket, jvm2native, native2jvm)
+          throw t
+      }
+    }
+  }
+
+  class AsClient(
+      processRunner: ProcessRunner,
+      logger: Logger,
+      handleMessage: String => Unit
+  ) extends ComRunner(processRunner, logger, handleMessage) {
+    var connected = false
+    val socket = processRunner match {
+      case p: ProcessRunner.WasmtimeListener => p.socket
+      case _ => throw new IllegalArgumentException("Unsupported runner type")
+    }
+
+    override def forceClose(cause: Throwable): Unit = {
+      super.forceClose(cause)
+      socket.close()
+    }
+
+    override protected def onNativeTerminated(): Unit = {
+      super.onNativeTerminated()
+      socket.close()
+    }
+
+    override protected def awaitConnection(): Unit = {
+      var comSocket: Socket = null
+      var jvm2native: DataOutputStream = null
+      var native2jvm: DataInputStream = null
+
+      try {
+        comSocket = this.socket
+        jvm2native = new DataOutputStream(
+          new BufferedOutputStream(comSocket.getOutputStream)
+        )
+        native2jvm = new DataInputStream(
+          new BufferedInputStream(comSocket.getInputStream)
+        )
+
+        onConnected(Connected(comSocket, jvm2native, native2jvm))
+      } catch {
+        case t: Throwable =>
+          closeAll(comSocket, jvm2native, native2jvm)
+          throw t
+      }
+    }
+  }
+
   private def closeAll(c: Closeable*): Unit =
     c.withFilter(_ != null).foreach(_.close())
 

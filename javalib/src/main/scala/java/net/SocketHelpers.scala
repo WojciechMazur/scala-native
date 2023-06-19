@@ -44,7 +44,7 @@ object SocketHelpers {
 
   // True if at least one non-loopback interface has an IPv6 address.
   private def isIPv6Configured(): Boolean = {
-    if (isWindows || isEmscripten) {
+    if (isWindows || isEmscripten || isWASI) {
       false // Support for IPv6 is neither implemented nor tested.
     } else {
       /* The lookup can not be a local address. This one of two IPv6

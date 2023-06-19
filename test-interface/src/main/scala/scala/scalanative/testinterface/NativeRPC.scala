@@ -7,13 +7,12 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.scalanative.testinterface.common.RPCCore
 import scala.util.{Failure, Success, Try}
 import java.nio.charset.StandardCharsets
+import java.io._
 
 /** Native RPC Core. */
-private[testinterface] class NativeRPC(clientSocket: Socket) extends RPCCore {
-  private lazy val inStream = new DataInputStream(clientSocket.getInputStream)
-  private lazy val outStream = new DataOutputStream(
-    clientSocket.getOutputStream
-  )
+private[testinterface] class NativeRPC(_inStream: InputStream, _outStream: OutputStream) extends RPCCore {
+  private lazy val inStream = new DataInputStream(_inStream)
+  private lazy val outStream = new DataOutputStream(_outStream)
 
   override def send(msg: String): Unit = {
     outStream.writeInt(msg.length)

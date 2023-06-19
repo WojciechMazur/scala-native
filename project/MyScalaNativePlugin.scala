@@ -43,25 +43,28 @@ object MyScalaNativePlugin extends AutoPlugin {
         val prev = nativeConfig.value
         import scala.scalanative.build._
         val commonConfig = prev
-          .withLTO(LTO.default)
-          .withMode(Mode.default)
+          .withMode(Mode.releaseFast)
+          .withIncrementalCompilation(false)
+          // .withLTO(LTO.thin)
           .withGC(GC.none)
 
         val usingWASI = {
           val wasiVersion = 19
           val wasiToolchain =
-            java.nio.file.Path.of(s"lib/wasi-sdk-$wasiVersion.0").toAbsolutePath()
+            java.nio.file.Path
+              .of(s"lib/wasi-sdk-$wasiVersion.0")
+              .toAbsolutePath()
           val wasiSharedOpts = Seq(
             s"--sysroot=${wasiToolchain}/share/wasi-sysroot"
           )
           val wasiCompileOpts = wasiSharedOpts ++ Seq(
             "-D_WASI_EMULATED_MMAN",
-            "-D_WASI_EMULATED_PROCESS_CLOCKS",
+            //   "-D_WASI_EMULATED_PROCESS_CLOCKS",
             "-D_WASI_EMULATED_SIGNAL"
           )
           val wasiLinkOpts = wasiSharedOpts ++ Seq(
             "-lwasi-emulated-mman",
-            "-lwasi-emulated-process-clocks",
+            //   "-lwasi-emulated-process-clocks",
             "-lwasi-emulated-signal"
           )
           commonConfig
@@ -78,23 +81,25 @@ object MyScalaNativePlugin extends AutoPlugin {
             .toAbsolutePath()
           val emscriptenCommonOpts = Seq(
             "-g",
-            "-sUSE_PTHREADS",
-            "-sNO_DISABLE_EXCEPTION_CATCHING"
+            // "-sUSE_PTHREADS",
+            "-sNO_DISABLE_EXCEPTION_CATCHING",
+            // "-pthread",
           )
           val emscriptenCompileOpts = emscriptenCommonOpts ++ Seq(
           )
           val emscriptenLinkOpts = emscriptenCommonOpts ++ Seq(
-            "-sALLOW_MEMORY_GROWTH",
-            "-sSAFE_HEAP=1",
-            "-sASSERTIONS=1",
-            "-sSTACK_OVERFLOW_CHECK=1",
-            "-error-limit=0",
-            "-lwebsocket.js",
-            "-sPROXY_POSIX_SOCKETS",
-            "-ssUSE_PTHREADS",
-            "-sPROXY_TO_PTHREAD",
-            "-sSOCKET_DEBUG",
-            "-sWEBSOCKET_DEBUG",
+            // "-sALLOW_MEMORY_GROWTH",
+            // "-sSAFE_HEAP=1",
+            // "-sASSERTIONS=1",
+            // "-sSTACK_OVERFLOW_CHECK=1",
+            // "-error-limit=0",
+            // "-lwebsocket.js",
+            // "-sPROXY_POSIX_SOCKETS",
+            // "-sUSE_PTHREADS",
+            // "-sPROXY_TO_PTHREAD",
+            // "-sSHARED_MEMORY",
+            // "-sSOCKET_DEBUG",
+            // "-sWEBSOCKET_DEBUG",
             "-sEXIT_RUNTIME=1",
             "-o",
             s"../${Option(prev.baseName).filter(_.nonEmpty).getOrElse(moduleName.value)}-test.html"
@@ -109,8 +114,9 @@ object MyScalaNativePlugin extends AutoPlugin {
 
         // Choose ABI and run sandboxX/clean when switching
         // For Scala3 .wasm (and .js, .html for enscripten) file can be found in ./sandbox/.3/target/scala-3.1.3/sandbox.wasm
-        // usingWASI
-        usingEnscripten
+        // commonConfig
+        usingWASI
+        // usingEnscripten
       }
     }.value,
     run := {

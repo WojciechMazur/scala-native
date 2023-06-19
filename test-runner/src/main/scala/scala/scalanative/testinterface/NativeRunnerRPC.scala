@@ -8,6 +8,7 @@ import scala.concurrent.ExecutionContext
 import scala.scalanative.build.Logger
 import scala.scalanative.testinterface.common._
 
+import scala.scalanative.testinterface.ProcessRunner
 /** RPC Core for use with native rpc. */
 private[testinterface] final class NativeRunnerRPC(
     executableFile: File,
@@ -17,18 +18,13 @@ private[testinterface] final class NativeRunnerRPC(
 )(implicit ec: ExecutionContext)
     extends RPCCore() {
 
-  private[this] val serverSocket: ServerSocket = new ServerSocket(
-    /* port = */ 0,
-    /* backlog = */ 1
-  )
-  val processRunner = new ProcessRunner(
+  val processRunner = new ProcessRunner.WasmtimeListener(
     executableFile,
     envVars,
     args,
-    logger,
-    serverSocket.getLocalPort
+    logger
   )
-  val runner = new ComRunner(processRunner, serverSocket, logger, handleMessage)
+  val runner = new ComRunner.AsClient(processRunner, logger, handleMessage)
 
   /* Once the com closes, ensure all still pending calls are failing.
    * Note: We do not need to give a grace time here, since the reply

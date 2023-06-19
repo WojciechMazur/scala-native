@@ -65,6 +65,7 @@ private[testinterface] final class RunMuxRPC(rpc: RPCCore) {
 
         attach { r =>
           Option(dispatch.get(r.runId)).fold {
+            println("unknown run" -> r.runId)
             throw new IllegalArgumentException(s"Unknown run ${r.runId}")
           } { f => f(r.value) }
         }

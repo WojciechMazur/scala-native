@@ -1,8 +1,10 @@
-#if defined(__unix__) || defined(__unix) || defined(unix) ||                   \
-    (defined(__APPLE__) && defined(__MACH__))
+// #if defined(__unix__) || defined(__unix) || defined(unix) ||                   \
+//     (defined(__APPLE__) && defined(__MACH__))
 #include <fcntl.h>
 
+#if defined(F_DUPFD)
 int scalanative_f_dupfd() { return F_DUPFD; }
+#endif 
 
 int scalanative_f_getfd() { return F_GETFD; }
 
@@ -12,23 +14,39 @@ int scalanative_f_getfl() { return F_GETFL; }
 
 int scalanative_f_setfl() { return F_SETFL; }
 
+#if defined(F_GETLK)
 int scalanative_f_getlk() { return F_GETLK; }
+#endif
 
+#if defined(F_SETLK)
 int scalanative_f_setlk() { return F_SETLK; }
+#endif
 
+#if defined(F_SETLKW)
 int scalanative_f_setlkw() { return F_SETLKW; }
+#endif
 
+#if defined(F_GETOWN)
 int scalanative_f_getown() { return F_GETOWN; }
+#endif
 
+#if defined(F_SETOWN)
 int scalanative_f_setown() { return F_SETOWN; }
+#endif 
 
 int scalanative_fd_cloexec() { return FD_CLOEXEC; }
 
+#if defined(F_RDLCK)
 int scalanative_f_rdlck() { return F_RDLCK; }
+#endif
 
+#if defined(F_UNLCK)
 int scalanative_f_unlck() { return F_UNLCK; }
+#endif
 
+#if defined(F_WRLCK)
 int scalanative_f_wrlck() { return F_WRLCK; }
+#endif
 
 int scalanative_o_creat() { return O_CREAT; }
 
@@ -85,4 +103,4 @@ int scalanative_open_m(const char *pathname, int flags, mode_t mode) {
     return open(pathname, flags, mode);
 }
 
-#endif // Unix or Mac OS
+// #endif // Unix or Mac OS

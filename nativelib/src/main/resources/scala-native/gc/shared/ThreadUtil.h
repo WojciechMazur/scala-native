@@ -37,6 +37,7 @@ typedef HANDLE semaphore_t;
 typedef int pid_t;
 #elif defined(__wasi__)
 typedef void *thread_t;
+typedef void *thread_id;
 typedef void *mutex_t;
 typedef sem_t *semaphore_t;
 #else

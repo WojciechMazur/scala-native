@@ -209,7 +209,7 @@ object Generate {
       implicit val fresh = Fresh()
       buf += Defn.Define(
         Attrs.None,
-        MainName,
+        MainName(meta.platform),
         MainSig,
         withExceptionHandler { unwindProvider =>
           val entryMainTy = Type.Function(Seq(ObjectArray), Type.Unit)
@@ -538,7 +538,9 @@ object Generate {
     val LibraryInitName = extern("ScalaNativeInit")
     val LibraryInitSig = Type.Function(Seq.empty, Type.Int)
 
-    val MainName = extern("__main_argc_argv")
+    def MainName(implicit platform: PlatformInfo) =
+      if (platform.isWASM) extern("__main_argc_argv")
+      else extern("main")
     val MainSig = Type.Function(Seq(Type.Int, Type.Ptr), Type.Int)
 
     val ThrowableName = Global.Top("java.lang.Throwable")

@@ -25,15 +25,19 @@ private[net] class SocketInputStream(socket: AbstractPlainSocketImpl)
 
     if (count == 0) return 0
 
-    if (offset < 0 || offset >= buffer.length)
+    if (offset < 0 || offset >= buffer.length){
+      println("err1")
       throw new ArrayIndexOutOfBoundsException(
         "Offset out of bounds: " + offset
       )
+    }
 
-    if (count < 0 || offset + count > buffer.length)
+    if (count < 0 || offset + count > buffer.length){
+      println("err2")
       throw new ArrayIndexOutOfBoundsException(
         "Reading would result in buffer overflow"
       )
+    }
 
     socket.read(buffer, offset, count)
   }

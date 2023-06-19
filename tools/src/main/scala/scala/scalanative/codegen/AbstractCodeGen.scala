@@ -181,16 +181,7 @@ private[codegen] abstract class AbstractCodeGen(
       val Global.Member(_, sig) = name: @unchecked
       if (sig.isExtern) str("dllexport ")
     }
-    retty match {
-      case Type.Unit if attrs.isExtern && insts.isEmpty || {
-            name match {
-              case Global.Member(_, sig) => sig.isExtern
-              case _                     => false
-            }
-          } =>
-        str("void")
-      case _ => genFunctionReturnType(retty)
-    }
+    genFunctionReturnType(retty)
     str(" @")
     genGlobal(name)
     str("(")
@@ -718,9 +709,7 @@ private[codegen] abstract class AbstractCodeGen(
               }
               str(", !")
               str(deref)
-              str(" !{i")
-              str(platform.sizeOfPtrBits)
-              str(" ")
+              str(" !{i64 ")
               str(size)
               str("}")
             case _ =>
@@ -863,15 +852,7 @@ private[codegen] abstract class AbstractCodeGen(
         newline()
         genBind()
         str(if (unwind ne Next.None) "invoke " else "call ")
-        ty match {
-          case Type.Function(_, Type.Unit) =>
-            pointee match {
-              case pointee: Global.Member if pointee.sig.isExtern =>
-                str("void")
-              case _ => genCallFunctionType(ty)
-            }
-          case _ => genCallFunctionType(ty)
-        }
+        genCallFunctionType(ty)
         str(" @")
         genGlobal(pointee)
         str("(")

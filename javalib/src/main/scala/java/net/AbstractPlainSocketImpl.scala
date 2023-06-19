@@ -28,6 +28,8 @@ import scala.scalanative.windows._
 import scala.scalanative.windows.WinSocketApi._
 import scala.scalanative.windows.WinSocketApiExt._
 
+import scala.scalanative.meta.LinktimeInfo
+
 private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
   import AbstractPlainSocketImpl._
 
@@ -35,7 +37,7 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
   protected def tryPollOnConnect(timeout: Int): Unit
   protected def tryPollOnAccept(): Unit
 
-  protected[net] var fd = new FileDescriptor
+  protected[net] var fd = new FileDescriptor(4, false)
   protected[net] var localport = 0
   protected[net] var address: InetAddress = null
   protected[net] var port = 0
@@ -64,36 +66,37 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
   }
 
   private def fetchLocalPort(family: Int): Option[Int] = {
-    val len = stackalloc[socket.socklen_t]()
-    val portOpt = if (family == socket.AF_INET) {
-      val sin = stackalloc[in.sockaddr_in]()
-      !len = sizeof[in.sockaddr_in].toUInt
+    None
+    // val len = stackalloc[socket.socklen_t]()
+    // val portOpt = if (family == socket.AF_INET) {
+    //   val sin = stackalloc[in.sockaddr_in]()
+    //   !len = sizeof[in.sockaddr_in].toUInt
 
-      if (socket.getsockname(
-            fd.fd,
-            sin.asInstanceOf[Ptr[socket.sockaddr]],
-            len
-          ) == -1) {
-        None
-      } else {
-        Some(sin.sin_port)
-      }
-    } else {
-      val sin = stackalloc[in.sockaddr_in6]()
-      !len = sizeof[in.sockaddr_in6].toUInt
+    //   if (socket.getsockname(
+    //         fd.fd,
+    //         sin.asInstanceOf[Ptr[socket.sockaddr]],
+    //         len
+    //       ) == -1) {
+    //     None
+    //   } else {
+    //     Some(sin.sin_port)
+    //   }
+    // } else {
+    //   val sin = stackalloc[in.sockaddr_in6]()
+    //   !len = sizeof[in.sockaddr_in6].toUInt
 
-      if (socket.getsockname(
-            fd.fd,
-            sin.asInstanceOf[Ptr[socket.sockaddr]],
-            len
-          ) == -1) {
-        None
-      } else {
-        Some(sin.sin6_port)
-      }
-    }
+    //   if (socket.getsockname(
+    //         fd.fd,
+    //         sin.asInstanceOf[Ptr[socket.sockaddr]],
+    //         len
+    //       ) == -1) {
+    //     None
+    //   } else {
+    //     Some(sin.sin6_port)
+    //   }
+    // }
 
-    portOpt.map(inet.ntohs(_).toInt)
+    // portOpt.map(inet.ntohs(_).toInt)
   }
 
   /* Fill in the given sockaddr_in6 with the given InetAddress, either
@@ -108,6 +111,7 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
       port: Int,
       sa6: Ptr[in.sockaddr_in6]
   ): Unit = {
+    if(scalanative.meta.LinktimeInfo.isWASI) return ()
 
     /* BEWARE: This is Unix-only code.
      *   Currently (2022-08-27) execution on Windows never get here. IPv4Only
@@ -221,10 +225,11 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
     !len = sizeof[in.sockaddr_in6].toUInt
 
     val newFd =
-      socket.accept(fd.fd, storage.asInstanceOf[Ptr[socket.sockaddr]], len)
+      socket.accept(4, storage.asInstanceOf[Ptr[socket.sockaddr]], len)
     if (newFd == -1) {
+      println("accept failed")
       throw new SocketException("Accept failed")
-    }
+    } else println("got fd" -> newFd)
     val family =
       storage.asInstanceOf[Ptr[socket.sockaddr_storage]].ss_family.toInt
     val ipstr: Ptr[CChar] = stackalloc[CChar](in.INET6_ADDRSTRLEN.toUSize)
@@ -252,7 +257,7 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
       )
     }
 
-    s.address = InetAddress.getByName(fromCString(ipstr))
+    // s.address = InetAddress.getByName(fromCString(ipstr))
     s.port = port
     s.localport = this.localport
     s.fd = new FileDescriptor(newFd)
@@ -267,71 +272,86 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
     connect(new InetSocketAddress(address, port), 0)
   }
 
-  private def connect4(address: SocketAddress, timeout: Int): Unit = {
+  private def connect4(address: SocketAddress, timeout: Int): Unit = Zone { implicit z =>
+    val cIP = c"127.0.0.1"
     val inetAddr = address.asInstanceOf[InetSocketAddress]
-    val hints = stackalloc[addrinfo]()
+    val cPort = toCString(inetAddr.getPort.toString)
     val ret = stackalloc[Ptr[addrinfo]]()
-    hints.ai_family = socket.AF_UNSPEC
-    hints.ai_flags = AI_NUMERICHOST | AI_NUMERICSERV
-    hints.ai_socktype = socket.SOCK_STREAM
-    val remoteAddress = inetAddr.getAddress.getHostAddress()
+    val hints = stackalloc[addrinfo]()
+    val retCode = getaddrinfo(cIP, cPort, hints, ret)
 
-    Zone { implicit z =>
-      val cIP = toCString(remoteAddress)
-      val cPort = toCString(inetAddr.getPort.toString)
-
-      val retCode = getaddrinfo(cIP, cPort, hints, ret)
-
-      if (retCode != 0) {
+    val connectRet = socket.connect(fd.fd, (!ret).ai_addr, (!ret).ai_addrlen)
+    println(connectRet)
+    if (retCode != 0) {
         throw new ConnectException(
-          s"Could not resolve address: ${remoteAddress}"
+          s"Could not connect with "
             + s" on port: ${inetAddr.getPort}"
             + s" return code: ${retCode}"
         )
-      }
     }
 
-    val family = (!ret).ai_family
-    if (timeout != 0)
-      setSocketFdBlocking(fd, blocking = false)
 
-    val connectRet = socket.connect(fd.fd, (!ret).ai_addr, (!ret).ai_addrlen)
+    // val hints = stackalloc[addrinfo]()
+    // hints.ai_family = socket.AF_UNSPEC
+    // hints.ai_flags = AI_NUMERICHOST | AI_NUMERICSERV
+    // hints.ai_socktype = socket.SOCK_STREAM
+    // val remoteAddress = inetAddr.getAddress.getHostAddress()
 
-    freeaddrinfo(!ret) // Must be after last use of ai_addr.
+    // Zone { implicit z =>
+    //   val cIP = toCString(remoteAddress)
+    //   val cPort = toCString(inetAddr.getPort.toString)
 
-    if (connectRet < 0) {
-      def inProgress = mapLastError(
-        onUnix = _ == EINPROGRESS,
-        onWindows = {
-          case WSAEINPROGRESS | WSAEWOULDBLOCK => true
-          case _                               => false
-        }
-      )
-      if (timeout > 0 && inProgress) {
-        tryPollOnConnect(timeout)
-      } else {
-        val errno = lastError()
-        val strErr = fromCString(scala.scalanative.libc.string.strerror(errno))
-        throw new ConnectException(
-          s"Could2 not connect to address: ${remoteAddress}"
-            + s" on port: ${inetAddr.getPort}"
-            + s", errno:  ${errno} - ${strErr}"
-        )
-      }
-    }
 
-    this.address = inetAddr.getAddress
-    this.port = inetAddr.getPort
-    if (!scalanative.meta.LinktimeInfo.isEmscripten) {
-      // TODO: WASM/emscripten
-      // getsockname is bugged: https://github.com/emscripten-core/emscripten/issues/12895
-      // test interface should be able to work without it
-      this.localport = fetchLocalPort(family).getOrElse {
-        throw new ConnectException(
-          "Could not resolve a local port when connecting"
-        )
-      }
-    }
+    //   if (retCode != 0) {
+    //     throw new ConnectException(
+    //       s"Could not resolve address: ${remoteAddress}"
+    //         + s" on port: ${inetAddr.getPort}"
+    //         + s" return code: ${retCode}"
+    //     )
+    //   }
+    // }
+
+    // val family = (!ret).ai_family
+    // if (timeout != 0)
+    //   setSocketFdBlocking(fd, blocking = false)
+
+    // val connectRet = socket.connect(fd.fd, (!ret).ai_addr, (!ret).ai_addrlen)
+
+    // freeaddrinfo(!ret) // Must be after last use of ai_addr.
+
+    // if (connectRet < 0) {
+    //   def inProgress = mapLastError(
+    //     onUnix = _ == EINPROGRESS,
+    //     onWindows = {
+    //       case WSAEINPROGRESS | WSAEWOULDBLOCK => true
+    //       case _                               => false
+    //     }
+    //   )
+    //   if (timeout > 0 && inProgress) {
+    //     tryPollOnConnect(timeout)
+    //   } else {
+    //     val errno = lastError()
+    //     val strErr = fromCString(scala.scalanative.libc.string.strerror(errno))
+    //     throw new ConnectException(
+    //       s"Could2 not connect to address: ${remoteAddress}"
+    //         + s" on port: ${inetAddr.getPort}"
+    //         + s", errno:  ${errno} - ${strErr}"
+    //     )
+    //   }
+    // }
+
+    // // this.address = inetAddr.getAddress
+    // // this.port = inetAddr.getPort
+    // if (!LinktimeInfo.isEmscripten && LinktimeInfo.isWASI) {
+    //   // TODO: WASM/emscripten
+    //   // getsockname is bugged: https://github.com/emscripten-core/emscripten/issues/12895
+    //   // test interface should be able to work without it
+    //   this.localport = fetchLocalPort(family).getOrElse {
+    //     throw new ConnectException(
+    //       "Could not resolve a local port when connecting"
+    //     )
+    //   }
+    // }
   }
 
   private def connect6(address: SocketAddress, timeout: Int): Unit = {
@@ -388,7 +408,7 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
   override def connect(address: SocketAddress, timeout: Int): Unit = {
     throwIfClosed("connect") // Do not send negative fd.fd to poll()
 
-    connectFunc(address, timeout)
+    // connectFunc(address, timeout)
   }
 
   override def close(): Unit = {
@@ -446,7 +466,7 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
       var sent = 0
       while (sent < count) {
         val ret = socket
-          .send(fd.fd, cArr + sent, (count - sent).toUInt, socket.MSG_NOSIGNAL)
+          .send(fd.fd, cArr + sent, (count - sent).toUInt, 0)
           .toInt
         if (ret < 0) {
           throw new IOException("Could not send the packet to the client")
@@ -475,9 +495,11 @@ private[net] abstract class AbstractPlainSocketImpl extends SocketImpl {
         case 0 => if (count == 0) 0 else -1
 
         case _ if timeoutDetected =>
+          println("timeout")
           throw new SocketTimeoutException("Socket timeout while reading data")
 
         case _ =>
+          println(s"read failed, errno: ${lastError()}")
           throw new SocketException(s"read failed, errno: ${lastError()}")
       }
     }

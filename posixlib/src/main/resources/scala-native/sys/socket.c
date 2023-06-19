@@ -199,6 +199,9 @@ int scalanative_sock_seqpacket() { return SOCK_SEQPACKET; }
 #ifdef SOCK_STREAM
 int scalanative_sock_stream() { return SOCK_STREAM; }
 #endif
+#ifdef SOCK_NONBLOCK
+int scalanative_sock_nonblock() { return SOCK_NONBLOCK; }
+#endif
 #ifdef SOL_SOCKET
 int scalanative_sol_socket() { return SOL_SOCKET; }
 #endif

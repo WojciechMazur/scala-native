@@ -8,7 +8,8 @@ private[scalanative] case class PlatformInfo(
     is32Bit: Boolean,
     isMultithreadingEnabled: Boolean,
     useOpaquePointers: Boolean
-) {
+    ) {
+  val isWASM = targetTriple.exists(_.startsWith("wasm"))
   val sizeOfPtr = if (is32Bit) 4 else 8
   val sizeOfPtrBits = sizeOfPtr * 8
 }

@@ -138,6 +138,10 @@ object socket {
   @name("scalanative_sock_stream")
   def SOCK_STREAM: CInt = extern
 
+  @name("scalanative_sock_nonblock")
+  def SOCK_NONBLOCK: CInt = extern
+
+
   @name("scalanative_sol_socket")
   def SOL_SOCKET: CInt = extern
 
@@ -280,6 +284,15 @@ object socket {
       address: Ptr[sockaddr],
       address_len: Ptr[socklen_t]
   ): CInt = extern
+
+  @blocking
+  def accept4(
+      socket: CInt,
+      address: Ptr[sockaddr],
+      address_len: Ptr[socklen_t],
+      flags: CInt
+  ): CInt = extern
+
 
   def bind(socket: CInt, address: Ptr[sockaddr], address_len: socklen_t): CInt =
     extern

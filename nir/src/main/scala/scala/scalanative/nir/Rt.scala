@@ -54,6 +54,7 @@ object Rt {
 
   val GenericArray = Ref(Global.Top("scala.scalanative.runtime.Array"))
 
+  val Token = Ref(Global.Top("scala.scalanative.runtime.LLVMIntrinsics$Token"))
   val arrayAlloc: Map[Sig, Global.Top] = Seq(
     "BooleanArray",
     "CharArray",

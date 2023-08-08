@@ -258,6 +258,9 @@ private[codegen] abstract class AbstractCodeGen(
       }
     }
     str(")")
+    val isCoro =insts.exists{case Inst.Let(_, op,_) => op.resty == Rt.Token; case _ => false}
+    if(isCoro) str(" presplitcoroutine")
+
     if (attrs.opt eq Attr.NoOpt) {
       str(" optnone noinline")
     } else {
@@ -300,7 +303,7 @@ private[codegen] abstract class AbstractCodeGen(
   private[codegen] def genFunctionReturnType(
       retty: Type
   )(implicit sb: ShowBuilder): Unit = retty match {
-    case refty: Type.RefKind if refty != Type.Unit =>
+    case refty: Type.RefKind if refty != Type.Unit && refty.className != Rt.Token.name =>
       genReferenceTypeAttribute(refty)
       genType(retty)
     case _ =>
@@ -468,9 +471,10 @@ private[codegen] abstract class AbstractCodeGen(
 
   private[codegen] def genType(ty: Type)(implicit sb: ShowBuilder): Unit = {
     import sb._
-    ty match {
+    Type.normalize(ty) match {
       case Type.Vararg => str("...")
       case Type.Unit   => str("void")
+      case Rt.Token    => str("token")
       case _: Type.RefKind | Type.Ptr | Type.Null | Type.Nothing =>
         str(pointerType)
       case Type.Bool          => str("i1")
@@ -815,7 +819,8 @@ private[codegen] abstract class AbstractCodeGen(
           str(", align ")
           str(MemoryLayout.alignmentOf(ty))
         } else {
-          ty match {
+          Type.normalize(ty) match {
+            case Rt.Token => ()
             case refty: Type.RefKind =>
               val (nonnull, deref, size) = toDereferenceable(refty)
               if (nonnull) {
@@ -992,7 +997,7 @@ private[codegen] abstract class AbstractCodeGen(
         str(" @")
         genGlobal(pointee)
         str("(")
-        rep(args, sep = ", ")(genCallArgument)
+        rep(args.zip(argtys), sep = ", ")((genCallArgument _).tupled)
         str(")")
         if (unwind eq Next.None) genDbgPosition()
         else {
@@ -1009,7 +1014,7 @@ private[codegen] abstract class AbstractCodeGen(
         }
 
       case Op.Call(ty, ptr, args) =>
-        val Type.Function(_, resty) = ty
+        val Type.Function(argtys, resty) = ty
 
         val pointee = fresh()
 
@@ -1035,7 +1040,7 @@ private[codegen] abstract class AbstractCodeGen(
           genLocal(pointee)
         }
         str("(")
-        rep(args, sep = ", ")(genCallArgument)
+        rep(args.zip(argtys), sep = ", ")((genCallArgument _).tupled)
         str(")")
         if (unwind eq Next.None) genDbgPosition()
         else {
@@ -1070,11 +1075,12 @@ private[codegen] abstract class AbstractCodeGen(
   }
 
   private[codegen] def genCallArgument(
-      v: Val
+      v: Val,      ty: Type
   )(implicit sb: ShowBuilder): Unit = {
     import sb._
     v match {
-      case Val.Local(_, refty: Type.RefKind) =>
+      case Val.Null if Type.normalize(ty) == Rt.Token => str("token none")
+      case Val.Local(_, refty: Type.RefKind) if refty.className != Rt.Token.name =>
         val (nonnull, deref, size) = toDereferenceable(refty)
         // Primitive unit value cannot be passed as argument, probably BoxedUnit is expected
         if (refty == Type.Unit) genType(Type.Ptr)

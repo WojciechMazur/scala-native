@@ -84,4 +84,24 @@ object LLVMIntrinsics {
   def `llvm.cttz.i64`(source: Long, iszeroundef: Boolean): Long = extern
   def `llvm.stacksave`(): RawPtr = extern
   def `llvm.stackrestore`(state: RawPtr): Unit = extern
+
+  type Promise = RawPtr
+  type CoroutineAddr = RawPtr
+  type FunctionAddr = RawPtr
+  type Frame = RawPtr
+  type CoroHandle = RawPtr
+  
+  final abstract class Token
+
+  import  scala.scalanative.unsigned._
+  def `llvm.coro.id`(align: Int, promise: Promise, coroAddr: CoroutineAddr, fnAddr: FunctionAddr): Token = extern
+  def `llvm.coro.size.i32`(): UInt = extern
+  def `llvm.coro.begin`(token: Token, memoryAddr: RawPtr): Frame = extern
+  def `llvm.coro.save`(handle: CoroHandle): Token = extern
+  def `llvm.coro.suspend`(save: Token, isFinal: Boolean): Byte = extern
+  def `llvm.coro.resume`(handle: CoroHandle): Unit = extern
+  def `llvm.coro.alloc`(id: Token): Boolean = extern
+  def `llvm.coro.free`(id: Token, frame: Frame): RawPtr = extern
+  def `llvm.coro.end`(handle: CoroHandle, unwind: Boolean): Boolean = extern
+  def `llvm.coro.destroy`(handle: CoroHandle): Unit = extern
 }

@@ -65,7 +65,7 @@ object MyScalaNativePlugin extends AutoPlugin {
       nc.withCheck(true)
         .withCheckFatalWarnings(true)
         .withDump(true)
-        .withDebugMetadata(true)
+        .withDebugMetadata(false)
         .withMultithreadingSupport(
           multithreadingEnabledBySbtSysProps()
             .getOrElse(nc.multithreadingSupport)

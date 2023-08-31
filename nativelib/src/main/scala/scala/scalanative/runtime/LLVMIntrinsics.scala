@@ -100,6 +100,8 @@ object LLVMIntrinsics {
   def `llvm.coro.save`(handle: CoroHandle): Token = extern
   def `llvm.coro.suspend`(save: Token, isFinal: Boolean): Byte = extern
   def `llvm.coro.resume`(handle: CoroHandle): Unit = extern
+  def `llvm.coro.promise`(handle: CoroHandle, alignment: Int, from: Boolean): Promise = extern
+  def `llvm.coro.done`(handle: CoroHandle): Boolean = extern
   def `llvm.coro.alloc`(id: Token): Boolean = extern
   def `llvm.coro.free`(id: Token, frame: Frame): RawPtr = extern
   def `llvm.coro.end`(handle: CoroHandle, unwind: Boolean): Boolean = extern

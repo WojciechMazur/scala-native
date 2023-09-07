@@ -540,37 +540,41 @@ object Build {
     MultiScalaProject("scalalib")
       .enablePlugins(MyScalaNativePlugin)
       .settings(mavenPublishSettings, disabledDocsSettings)
-      .withNativeCompilerPlugin
+      .dependsOn(auxlib, javalib)
       .mapBinaryVersions {
         case version @ ("2.12" | "2.13") =>
-          _.settings(
-            commonScalalibSettings("scala-library", None),
-            scalacOptions ++= Seq(
-              "-deprecation:false",
-              "-language:postfixOps",
-              "-language:implicitConversions",
-              "-language:existentials",
-              "-language:higherKinds"
-            ),
-            /* Used to disable fatal warnings due to problems with compilation of `@nowarn` annotation */
-            scalacOptions --= {
-              scalaVersionsDependendent(scalaVersion.value)(
-                List.empty[String]
-              ) {
-                case (2, 12)
-                    if scalaVersion.value
-                      .stripPrefix("2.12.")
-                      .takeWhile(_.isDigit)
-                      .toInt >= 13 =>
-                  List("-Xfatal-warnings")
+          _.withNativeCompilerPlugin(nscPlugin.forBinaryVersion(version))
+            .settings(
+              commonScalalibSettings("scala-library", None),
+              scalacOptions ++= Seq(
+                "-deprecation:false",
+                "-language:postfixOps",
+                "-language:implicitConversions",
+                "-language:existentials",
+                "-language:higherKinds"
+              ),
+              /* Used to disable fatal warnings due to problems with compilation of `@nowarn` annotation */
+              scalacOptions --= {
+                scalaVersionsDependendent(scalaVersion.value)(
+                  List.empty[String]
+                ) {
+                  case (2, 12)
+                      if scalaVersion.value
+                        .stripPrefix("2.12.")
+                        .takeWhile(_.isDigit)
+                        .toInt >= 13 =>
+                    List("-Xfatal-warnings")
+                }
               }
-            }
-          )
+            )
         case version @ ("3" | "3-next") =>
           val stdlibVersion = version match {
             case "3"      => scala3libSourcesVersion
             case "3-next" => ScalaVersions.scala3Nightly
           }
+          val nscpluginName = s"nscplugin_${stdlibVersion}"
+          val nscpluginDep = "org.scala-native" % nscpluginName % nativeVersion
+
           _.settings(
             name := "scala3lib",
             commonScalalibSettings(
@@ -583,14 +587,71 @@ object Build {
             libraryDependencies += ("org.scala-native" %%% "scalalib" % nativeVersion)
               .excludeAll(ExclusionRule("org.scala-native"))
               .cross(CrossVersion.for3Use2_13),
+            // Compile stdlib sources with the same Scala version
+            // It's safe, becouse we don't publish neighter TASTy or Bytecode, only NIR
+            scalaVersion := stdlibVersion,
+            // Override nscplugin to one for version matching version of stdlib
+            dependencyOverrides += compilerPlugin(nscpluginDep),
+            scalacOptions += {
+              val report = update.value
+              val s = streams.value
+              lazy val lm = {
+                import sbt.librarymanagement.ivy._
+                val ivyConfig = InlineIvyConfiguration()
+                  .withLog(s.log)
+                IvyDependencyResolution(
+                  ivyConfig.withResolvers(
+                    ivyConfig.resolvers :+ sbt.librarymanagement.Resolver.defaultLocal
+                  )
+                )
+              }
+              lazy val nscpluginJar = lm
+                .retrieve(
+                  nscpluginDep,
+                  scalaModuleInfo = None,
+                  retrieveDirectory = IO.temporaryDirectory,
+                  log = s.log
+                )
+                .map { v =>
+                  v.find(
+                    _.name.endsWith(s"$nscpluginName-${nativeVersion}.jar")
+                  )
+                }
+                .toOption
+                .flatten
+                .getOrElse(
+                  throw new RuntimeException(
+                    s"Failed to found nscpluging for Scala $stdlibVersion"
+                  )
+                )
+              s"-Xplugin:${nscpluginJar.getAbsolutePath()}"
+            },
             update := {
-              update.dependsOn {
-                Def.taskDyn(scalalib.v2_13 / Compile / publishLocal)
-              }.value
+              update
+                .dependsOn(
+                  Def.taskDyn(scalalib.v2_13 / Compile / publishLocal),
+                  Def.taskDyn(Def.task {
+                    val currentState = state.value
+                    val updatedState = currentState.appendWithoutSession(
+                      Seq(
+                        nscPlugin.v3 / scalaVersion := stdlibVersion
+                      ),
+                      currentState
+                    )
+                    sbt.Project
+                      .runTask(nscPlugin.v3 / publishLocal, updatedState)
+                      .map(_._2.toEither.toOption)
+                      .getOrElse(
+                        throw new RuntimeException(
+                          s"Failed to publish nscplugin for Scala $stdlibVersion required for scalalib"
+                        )
+                      )
+                  })
+                )
+                .value
             }
           )
       }
-      .dependsOn(auxlib, javalib)
 
   // Tests ------------------------------------------------
   lazy val tests = MultiScalaProject("tests", file("unit-tests") / "native")
@@ -1026,6 +1087,12 @@ object Build {
       testInterface % "test"
     )
 
+  implicit class ProjectOps(val project: Project) extends AnyVal {
+    def withNativeCompilerPlugin(nscplugin: Project): Project = {
+      if (isGeneratingForIDE) project
+      else project.dependsOn(nscplugin % "plugin")
+    }
+  }
   implicit class MultiProjectOps(val project: MultiScalaProject)
       extends AnyVal {
 

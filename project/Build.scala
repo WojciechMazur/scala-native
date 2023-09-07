@@ -536,6 +536,8 @@ object Build {
     .dependsOn(nativelib, clib)
     .withNativeCompilerPlugin
 
+  private var scalalib3DepsPublished = false
+
   lazy val scalalib: MultiScalaProject =
     MultiScalaProject("scalalib")
       .enablePlugins(MyScalaNativePlugin)
@@ -629,24 +631,42 @@ object Build {
             update := {
               update
                 .dependsOn(
-                  Def.taskDyn(scalalib.v2_13 / Compile / publishLocal),
-                  Def.taskDyn(Def.task {
-                    val currentState = state.value
-                    val updatedState = currentState.appendWithoutSession(
-                      Seq(
-                        nscPlugin.v3 / scalaVersion := stdlibVersion
-                      ),
-                      currentState
-                    )
-                    sbt.Project
-                      .runTask(nscPlugin.v3 / publishLocal, updatedState)
-                      .map(_._2.toEither.toOption)
-                      .getOrElse(
-                        throw new RuntimeException(
-                          s"Failed to publish nscplugin for Scala $stdlibVersion required for scalalib"
-                        )
+                  Def.taskDyn {
+                    if (!scalalib3DepsPublished) {
+                      println(
+                        "Publishing locally scalalib3 dependenices (lazily)"
                       )
-                  })
+                      Def
+                        .task({
+                          // Comment this out eagery publish deps on each build
+                          scalalib3DepsPublished = true
+                        })
+                        .dependsOn(
+                          Def.taskDyn(scalalib.v2_13 / Compile / publishLocal),
+                          Def.taskDyn(Def.task {
+                            val currentState = state.value
+                            val updatedState =
+                              currentState.appendWithoutSession(
+                                Seq(
+                                  nscPlugin.v3 / scalaVersion := stdlibVersion
+                                ),
+                                currentState
+                              )
+                            sbt.Project
+                              .runTask(
+                                nscPlugin.v3 / publishLocal,
+                                updatedState
+                              )
+                              .map(_._2.toEither.toOption)
+                              .getOrElse(
+                                throw new RuntimeException(
+                                  s"Failed to publish nscplugin for Scala $stdlibVersion required for scalalib"
+                                )
+                              )
+                          })
+                        )
+                    } else Def.task(())
+                  }
                 )
                 .value
             }

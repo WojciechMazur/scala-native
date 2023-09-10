@@ -64,17 +64,20 @@ object coro {
   inline def suspendable[T: Tag](
       inline body: Suspendable[T]
   ): SuspendedFunction[T] = {
+    // init
     val promise = Intrinsics.stackalloc[T]()
     val token = `llvm.coro.id`(0, promise, null, null)
     val addr = malloc(`llvm.coro.size.i32`())
     val handle = `llvm.coro.begin`(token, addr)
     val retAddr = `llvm.coro.free`(token, null)
+
     val res = boundary[CoroutineCleanup[T]] {
       val ctx = CoroutineCtx[T](retAddr, handle, promise)
       val value = body(using ctx)
       ctx.suspend(value, isFinal = true)
       CoroutineCleanup(1, ctx.fnHandle)
     }
+    // cleanup
     if (res.state == 1) free(retAddr)
     `llvm.coro.end`(handle, unwind = res.state == -1)
     res.fn
@@ -86,46 +89,33 @@ object coro {
     ctx.suspend(value)
 }
 
-object Test {
   import coro.*
 
-
-  def main(args: Array[String]): Unit = {
-    println("Hello, World!")
-    val hdl1 = f2(0)
-    def getValue() = println(
-      s"isDone=${hdl1.isDone}, promise value=${hdl1.get}"
+  @main def run(): Unit = {
+    val generator = simpleGenerator(from = 0)
+    def lookup() = println(
+      s"isDone=${generator.isDone}, promise value=${generator.get}"
     )
-    while (!hdl1.isDone) {
-      getValue()
-      hdl1.resume()
+    while (!generator.isDone) {
+      lookup()
+      generator.resume()
     }
-    getValue()
-    hdl1.destroy()
-    getValue()
-    // getValue()
-    // println("resume")
-    // getValue()
-    // hdl1.resume()
-    // println("resume")
-    // getValue()
-    // hdl1.resume()
-    // println("destroy")
-    // println(hdl1)
-    // hdl1.destroy()
-    // println("done")
-    // getValue()
+    lookup()
+    generator.destroy()
+    lookup()
   }
 
-  def f2(v: Int) = suspendable[Int] {
-    var state = v
+  def simpleGenerator(from: Int) = suspendable[Int] {
+    var state = from
     while (state < 3) {
       println(state)
       state += 1
       println("doSuspend")
       suspend(state)
+
       println("afterSuspend")
       suspend(-state)
+      
       println("after 2nd suspend")
     }
     -1

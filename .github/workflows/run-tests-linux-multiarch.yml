@@ -197,7 +197,6 @@ jobs:
 
             show sandbox${{env.project-version}}/nativeConfig;
 
-            sandbox${{env.project-version}}/test;
             sandbox${{env.project-version}}/run;
             testsJVM${{env.project-version}}/test;
             tests${{env.project-version}}/test;

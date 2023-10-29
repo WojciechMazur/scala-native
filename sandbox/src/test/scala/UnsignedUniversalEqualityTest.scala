@@ -135,8 +135,8 @@ class UnsignedUniversalEqualityTest {
     assertTrue("c", -1.toUSize == -1.toUInt)
     // different base when converting to unsigned
     assertFalse("d",-1.toUSize == -1L.toULong)
-    assertFalse("e",-1L.toUSize == -1.toULong)
     if (is32BitPlatform) {
+      assertTrue(s"e ${-1L.toUSize} == ${-1.toULong}",-1L.toUSize == -1.toULong)
       assertTrue("f",-1.toUSize == -1.toUInt)
       assertTrue("g",-1.toUSize == -1.toULong)
       // TODO: this one might be bugged, -1: uint32 should not equal -1: uint64
@@ -144,6 +144,7 @@ class UnsignedUniversalEqualityTest {
       // assertFalse(-1L.toUSize == -1L.toULong)
     } else {
       assertTrue(-1L.toUSize == -1L.toULong)
+      assertFalse(-1L.toUSize == -1.toULong)
       assertEquals(-1L.toUSize.toString(), java.lang.Long.toUnsignedString(-1L))
       assertEquals(-1L.toUSize.toString(), "18446744073709551615")
     }

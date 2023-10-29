@@ -130,11 +130,11 @@ class UnsignedUniversalEqualityTest {
     testUniversalEquality(_.toSize)(_.toUInt)
     testUniversalEquality(_.toSize)(_.toULong)
     testUniversalEquality(_.toSize)(_.toUSize)
-    assertTrue("a",-1.toSize == -1)
-    assertTrue("b",-1.toUSize == 4294967295L)
+    assertTrue("a", -1.toSize == -1)
+    assertTrue("b", -1.toUSize == 4294967295L)
     assertTrue("c", -1.toUSize == -1.toUInt)
     // different base when converting to unsigned
-    assertFalse("d",-1.toUSize == -1L.toULong)
+    assertFalse("d", -1.toUSize == -1L.toULong)
     assertEquals(-1.toUSize.toString(), "4294967295")
     if (is32BitPlatform) {
       assertEquals(-1L.toUSize.toString, "4294967295")

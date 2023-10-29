@@ -135,6 +135,10 @@ class UnsignedUniversalEqualityTest {
     assertTrue("c", -1.toUSize == -1.toUInt)
     // different base when converting to unsigned
     assertFalse("d",-1.toUSize == -1L.toULong)
+    println(-1.toUSize)
+    println(-1L.toUSize)
+    println(-1.toULong)
+    println(-1L.toULong)
     if (is32BitPlatform) {
       assertTrue(s"e ${-1L.toUSize} == ${-1.toULong}",-1L.toUSize == -1.toULong)
       assertTrue("f",-1.toUSize == -1.toUInt)

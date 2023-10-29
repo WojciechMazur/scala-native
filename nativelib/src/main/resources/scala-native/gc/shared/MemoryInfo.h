@@ -82,7 +82,7 @@ size_t getMemorySize() {
     int mib[2];
     mib[0] = CTL_HW;
 #if defined(HW_REALMEM)
-    mib[1] = HW_REALMEM; /* FreeBSD. ----------------- */
+    mib[1] = HW_REALMEM;   /* FreeBSD. ----------------- */
 #elif defined(HW_PYSMEM)
     mib[1] = HW_PHYSMEM; /* Others. ------------------ */
 #endif

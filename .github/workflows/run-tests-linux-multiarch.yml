@@ -85,38 +85,6 @@ jobs:
         build-mode: [debug]
         lto: [none]
         gc: [immix]
-        exclude:
-          # LTO is broken on linux-x86/llvm-10
-          - arch: linux-x86
-            lto: thin
-          # Release without LTO produces 1 big file taking long to compile, especially when emulated
-          - build-mode: release-fast
-            lto: none
-          - build-mode: release-size
-            lto: none
-          - build-mode: debug
-            lto: thin
-          # Reduce ammount of builds combinations
-          - gc: immix
-            lto: none
-          - gc: immix
-            build-mode: debug
-          - gc: commix
-            lto: none
-          - gc: commix
-            build-mode: debug
-          - gc: boehm
-            build-mode: release-fast
-          - gc: boehm
-            build-mode: release-size
-          - scala: 3-next
-            build-mode: debug
-          - scala: 3-next
-            lto: none
-          - scala: 3-next
-            gc: boehm
-          - scala: 3-next
-            gc: commix
     steps:
       - uses: actions/checkout@v3
       - uses: ./.github/actions/linux-setup-env
@@ -197,6 +165,7 @@ jobs:
 
             show sandbox${{env.project-version}}/nativeConfig;
 
+            sandbox${{env.project-version}}/test;
             sandbox${{env.project-version}}/run;
             testsJVM${{env.project-version}}/test;
             tests${{env.project-version}}/test;

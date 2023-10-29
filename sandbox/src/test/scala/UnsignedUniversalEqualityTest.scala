@@ -81,48 +81,48 @@ class UnsignedUniversalEqualityTest {
     )
   }
 
-  // @Test def testByte(): Unit = {
-  //   testUniversalEquality(_.toByte)(_.toUByte)
-  //   testUniversalEquality(_.toByte)(_.toUShort)
-  //   testUniversalEquality(_.toByte)(_.toUInt)
-  //   testUniversalEquality(_.toByte)(_.toULong)
-  //   testUniversalEquality(_.toByte)(_.toUSize)
-  //   assertTrue(-1.toUByte == 255)
-  //   assertNotEquals(-1.toUByte, 255)
-  // }
+  @Test def testByte(): Unit = {
+    testUniversalEquality(_.toByte)(_.toUByte)
+    testUniversalEquality(_.toByte)(_.toUShort)
+    testUniversalEquality(_.toByte)(_.toUInt)
+    testUniversalEquality(_.toByte)(_.toULong)
+    testUniversalEquality(_.toByte)(_.toUSize)
+    assertTrue(-1.toUByte == 255)
+    assertNotEquals(-1.toUByte, 255)
+  }
 
-  // @Test def testShort(): Unit = {
-  //   testUniversalEquality(_.toShort)(_.toUByte)
-  //   testUniversalEquality(_.toShort)(_.toUShort)
-  //   testUniversalEquality(_.toShort)(_.toUInt)
-  //   testUniversalEquality(_.toShort)(_.toULong)
-  //   testUniversalEquality(_.toShort)(_.toUSize)
-  //   assertTrue(-1.toUShort == 65535)
-  //   assertNotEquals(-1.toUShort, 65535)
-  // }
+  @Test def testShort(): Unit = {
+    testUniversalEquality(_.toShort)(_.toUByte)
+    testUniversalEquality(_.toShort)(_.toUShort)
+    testUniversalEquality(_.toShort)(_.toUInt)
+    testUniversalEquality(_.toShort)(_.toULong)
+    testUniversalEquality(_.toShort)(_.toUSize)
+    assertTrue(-1.toUShort == 65535)
+    assertNotEquals(-1.toUShort, 65535)
+  }
 
-  // @Test def testInt(): Unit = {
-  //   testUniversalEquality(_.toInt)(_.toUByte)
-  //   testUniversalEquality(_.toInt)(_.toUShort)
-  //   testUniversalEquality(_.toInt)(_.toUInt)
-  //   testUniversalEquality(_.toInt)(_.toULong)
-  //   testUniversalEquality(_.toInt)(_.toUSize)
-  //   assertTrue(-1.toUInt == java.lang.Integer.toUnsignedLong(-1))
-  //   assertTrue(-1.toUInt == 4294967295L)
-  //   assertNotEquals(-1.toUInt, 4294967295L)
-  // }
+  @Test def testInt(): Unit = {
+    testUniversalEquality(_.toInt)(_.toUByte)
+    testUniversalEquality(_.toInt)(_.toUShort)
+    testUniversalEquality(_.toInt)(_.toUInt)
+    testUniversalEquality(_.toInt)(_.toULong)
+    testUniversalEquality(_.toInt)(_.toUSize)
+    assertTrue(-1.toUInt == java.lang.Integer.toUnsignedLong(-1))
+    assertTrue(-1.toUInt == 4294967295L)
+    assertNotEquals(-1.toUInt, 4294967295L)
+  }
 
-  // @Test def testLong(): Unit = {
-  //   testUniversalEquality(_.toLong)(_.toUByte)
-  //   testUniversalEquality(_.toLong)(_.toUShort)
-  //   testUniversalEquality(_.toLong)(_.toUInt)
-  //   testUniversalEquality(_.toLong)(_.toULong)
-  //   testUniversalEquality(_.toLong)(_.toUSize)
-  //   assertTrue(-1.toULong == java.lang.Integer.toUnsignedLong(-1))
-  //   assertTrue(-1.toULong == 4294967295L)
-  //   assertEquals(-1L.toULong.toString(), java.lang.Long.toUnsignedString(-1L))
-  //   assertEquals(-1L.toULong.toString(), "18446744073709551615")
-  // }
+  @Test def testLong(): Unit = {
+    testUniversalEquality(_.toLong)(_.toUByte)
+    testUniversalEquality(_.toLong)(_.toUShort)
+    testUniversalEquality(_.toLong)(_.toUInt)
+    testUniversalEquality(_.toLong)(_.toULong)
+    testUniversalEquality(_.toLong)(_.toUSize)
+    assertTrue(-1.toULong == java.lang.Integer.toUnsignedLong(-1))
+    assertTrue(-1.toULong == 4294967295L)
+    assertEquals(-1L.toULong.toString(), java.lang.Long.toUnsignedString(-1L))
+    assertEquals(-1L.toULong.toString(), "18446744073709551615")
+  }
 
   @Test def testSize(): Unit = {
     testUniversalEquality(_.toSize)(_.toUByte)
@@ -135,41 +135,36 @@ class UnsignedUniversalEqualityTest {
     assertTrue("c", -1.toUSize == -1.toUInt)
     // different base when converting to unsigned
     assertFalse("d",-1.toUSize == -1L.toULong)
-    println(-1.toUSize)
-    println(-1L.toUSize)
-    println(-1.toULong)
-    println(-1L.toULong)
+    assertEquals(-1.toUSize.toString(), "4294967295")
     if (is32BitPlatform) {
-      assertTrue(s"e ${-1L.toUSize} == ${-1.toULong}",-1L.toUSize == -1.toULong)
-      assertTrue("f",-1.toUSize == -1.toUInt)
-      assertTrue("g",-1.toUSize == -1.toULong)
-      // TODO: this one might be bugged, -1: uint32 should not equal -1: uint64
-      // uses USize.== not the universal equality resolved using BoxesRunTime
-      // assertFalse(-1L.toUSize == -1L.toULong)
+      assertEquals(-1L.toUSize.toString, "4294967295")
+      assertTrue(-1L.toUSize == -1.toUInt)
+      assertTrue(-1.toUSize == -1.toUInt)
+      assertTrue(-1.toUSize == -1.toULong)
     } else {
+      assertEquals(-1L.toUSize.toString(), "18446744073709551615")
       assertTrue(-1L.toUSize == -1L.toULong)
       assertFalse(-1L.toUSize == -1.toULong)
       assertEquals(-1L.toUSize.toString(), java.lang.Long.toUnsignedString(-1L))
-      assertEquals(-1L.toUSize.toString(), "18446744073709551615")
     }
   }
 
-  // @Test def testChar(): Unit = {
-  //   testUniversalEquality(_.toChar)(_.toUByte)
-  //   testUniversalEquality(_.toChar)(_.toUShort)
-  //   testUniversalEquality(_.toChar)(_.toUInt)
-  //   testUniversalEquality(_.toChar)(_.toULong)
-  //   testUniversalEquality(_.toChar)(_.toUSize)
-  //   assertFalse(-1.toUByte == -1.toChar)
-  //   assertTrue(-1.toUByte == 255.toChar)
+  @Test def testChar(): Unit = {
+    testUniversalEquality(_.toChar)(_.toUByte)
+    testUniversalEquality(_.toChar)(_.toUShort)
+    testUniversalEquality(_.toChar)(_.toUInt)
+    testUniversalEquality(_.toChar)(_.toULong)
+    testUniversalEquality(_.toChar)(_.toUSize)
+    assertFalse(-1.toUByte == -1.toChar)
+    assertTrue(-1.toUByte == 255.toChar)
 
-  //   assertTrue(-1.toUShort == -1.toChar)
-  //   assertTrue(-1.toUShort == 65535.toChar)
+    assertTrue(-1.toUShort == -1.toChar)
+    assertTrue(-1.toUShort == 65535.toChar)
 
-  //   assertFalse(-1.toUInt == -1.toChar)
-  //   assertFalse(-1.toULong == -1.toChar)
-  //   // variant observed in testUniversalEquality
-  //   assertTrue(-1.toChar.toUInt == -1.toChar)
-  //   assertTrue(-1.toChar.toULong == -1.toChar)
-  // }
+    assertFalse(-1.toUInt == -1.toChar)
+    assertFalse(-1.toULong == -1.toChar)
+    // variant observed in testUniversalEquality
+    assertTrue(-1.toChar.toUInt == -1.toChar)
+    assertTrue(-1.toChar.toULong == -1.toChar)
+  }
 }

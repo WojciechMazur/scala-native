@@ -80,7 +80,7 @@ trait NirGenExpr(using Context) {
       }
     }
 
-    object SafeZoneInstance extends Property.Key[nir.Val]
+    object SafeZoneInstance extends Property.Key[nir.Val.Local]
 
     def genApply(app: Apply): nir.Val = {
       given nir.Position = app.span
@@ -122,7 +122,10 @@ trait NirGenExpr(using Context) {
               genType(componentType.typeValue),
               length,
               unwind,
-              zone = app.getAttachment(SafeZoneInstance)
+              allocationHint = app
+                .getAttachment(SafeZoneInstance)
+                .map(nir.AllocationHint.SafeZone(_))
+                .getOrElse(nir.AllocationHint.GC)
             )
           else genApplyMethod(sym, statically = isStatic, qualifier, args)
         case _ =>
@@ -994,8 +997,27 @@ trait NirGenExpr(using Context) {
       given nir.Position = vd.span
       val localNames = curMethodLocalNames.get
       val isMutable = curMethodInfo.mutableVars.contains(vd.symbol)
+
+      val defnNir = self.defnNir
+      val hint =
+        vd.getAttachment(NirDefinitions.AllocationHintAnnot).map { annotation =>
+          annotation.symbol match {
+            case defnNir.AllocationHint_GC_Class    => nir.AllocationHint.GC
+            case defnNir.AllocationHint_Stack_Class => nir.AllocationHint.Stack
+            case defnNir.AllocationHint_Zone_Class =>
+              nir.AllocationHint.UnsafeZone {
+                val value = genExpr(annotation.argument(0).get)
+                value.asInstanceOf[nir.Val.Local]
+              }
+          }
+        }
       def name = genLocalName(vd.symbol)
-      val rhs = genExpr(vd.rhs) match {
+
+      val rhs = {
+        scoped(
+          curAllocationHint := hint.orElse(curAllocationHint.get)
+        ) { genExpr(vd.rhs) }
+      } match {
         case v @ nir.Val.Local(id, _) =>
           if !(localNames.contains(id) || isMutable)
           then localNames.update(id, name)
@@ -1177,7 +1199,26 @@ trait NirGenExpr(using Context) {
     private def genApplyNew(app: Apply): nir.Val = {
       val Apply(fun @ Select(New(tpt), nme.CONSTRUCTOR), args) = app: @unchecked
       given nir.Position = app.span
+      val allocationHint = app
+        .getAttachment(SafeZoneInstance)
+        .map(nir.AllocationHint.SafeZone(_))
+        .orElse(curAllocationHint.get)
+        // .orElse {
+        //   val nirDefn = self.defnNir
+        //   println(
+        //     fun.getAttachment(NirDefinitions.AllocationHintAnnot) -> app
+        //       .getAttachment(NirDefinitions.AllocationHintAnnot) -> fun
+        //   )
+        //   fun.getAttachment(NirDefinitions.AllocationHintAnnot).collect {
+        //     case nirDefn.AllocationHint_GC_Class    => nir.AllocationHint.GC
+        //     case nirDefn.AllocationHint_Stack_Class => nir.AllocationHint.Stack
+        //     case nirDefn.AllocationHint_Zone_Class =>
+        //       ???
+        //   }
+        // }
+        .getOrElse(nir.AllocationHint.default)
 
+      println(allocationHint -> app.show)
       fromType(tpt.tpe) match {
         case st if st.sym.isStruct =>
           genApplyNewStruct(st, args)
@@ -1190,10 +1231,10 @@ trait NirGenExpr(using Context) {
           )
 
           genApplyNew(
-            cls,
-            ctor,
-            args,
-            zone = app.getAttachment(SafeZoneInstance)
+            clssym = cls,
+            ctorsym = ctor,
+            args = args,
+            allocationHint = allocationHint
           )
 
         case SimpleType(sym, targs) =>
@@ -1217,11 +1258,11 @@ trait NirGenExpr(using Context) {
         clssym: Symbol,
         ctorsym: Symbol,
         args: List[Tree],
-        zone: Option[nir.Val]
+        allocationHint: nir.AllocationHint = nir.AllocationHint.GC
     )(using
         nir.Position
     ): nir.Val = {
-      val alloc = buf.classalloc(genTypeName(clssym), unwind, zone)
+      val alloc = buf.classalloc(genTypeName(clssym), unwind, allocationHint)
       genApplyMethod(ctorsym, statically = true, alloc, args)
       alloc
     }
@@ -1891,7 +1932,7 @@ trait NirGenExpr(using Context) {
 
           // new StringBuidler(approxBuilderSize)
           val stringBuilder =
-            buf.classalloc(jlStringBuilderRef.name, unwind, None)
+            buf.classalloc(jlStringBuilderRef.name, unwind)
           buf.call(
             jlStringBuilderCtorSig,
             nir.Val.Global(jlStringBuilderCtor, nir.Type.Ptr),

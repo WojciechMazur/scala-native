@@ -261,7 +261,8 @@ trait NirGenStat(using Context) {
       curScopeId := nir.ScopeId.TopLevel,
       curScopes := scopes,
       curUnwindHandler := None,
-      curMethodLocalNames := localNamesBuilder()
+      curMethodLocalNames := localNamesBuilder(),
+      curAllocationHint := None
     ) {
       val sym = dd.symbol
       val owner = curClassSym.get

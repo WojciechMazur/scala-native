@@ -361,6 +361,13 @@ final class BinarySerializer(channel: WritableByteChannel) {
       case MemoryOrder.SeqCst    => putTag(T.SeqCstOrder)
     }
 
+    private def putAllocationHint(value: AllocationHint): Unit = value match {
+      case AllocationHint.GC               => putTag(T.AllocationHintGC)
+      case AllocationHint.Stack            => putTag(T.AllocationHintStack)
+      case AllocationHint.UnsafeZone(zone) => putTag(T.AllocationHintUnsafeZone); putVal(zone)
+      case AllocationHint.SafeZone(zone)   => putTag(T.AllocationHintSafeZone); putVal(zone)
+    }
+
     private def putLinktimeCondition(cond: LinktimeCondition): Unit = cond match {
       case LinktimeCondition.SimpleCondition(propertyName, comparison, value) =>
         putTag(LinktimeCondition.Tag.SimpleCondition)
@@ -388,14 +395,14 @@ final class BinarySerializer(channel: WritableByteChannel) {
         putTag(T.ModuleOp)
         putGlobal(name)
 
-      case Op.Classalloc(n, None) =>
+      case Op.Classalloc(n, AllocationHint.Default()) =>
         putTag(T.ClassallocOp)
         putGlobal(n)
 
-      case Op.Classalloc(n, Some(zone)) =>
-        putTag(T.ClassallocZoneOp)
+      case Op.Classalloc(n, hint) =>
+        putTag(T.ClassallocHintedOp)
         putGlobal(n)
-        putVal(zone)
+        putAllocationHint(hint)
 
       case Op.Field(v, name) =>
         putTag(T.FieldOp)
@@ -487,16 +494,16 @@ final class BinarySerializer(channel: WritableByteChannel) {
         putType(ty)
         putVal(n)
 
-      case Op.Arrayalloc(ty, init, None) =>
+      case Op.Arrayalloc(ty, init, nir.AllocationHint.Default()) =>
         putTag(T.ArrayallocOp)
         putType(ty)
         putVal(init)
 
-      case Op.Arrayalloc(ty, init, Some(zone)) =>
+      case Op.Arrayalloc(ty, init, allocHint) =>
         putTag(T.ArrayallocZoneOp)
         putType(ty)
         putVal(init)
-        putVal(zone)
+        putAllocationHint(allocHint)
 
       case Op.Arrayload(ty, arr, idx) =>
         putTag(T.ArrayloadOp)

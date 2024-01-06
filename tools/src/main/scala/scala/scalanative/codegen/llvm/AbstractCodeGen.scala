@@ -11,6 +11,8 @@ import scala.scalanative.nir.ControlFlow.{Block, Graph => CFG}
 import scala.scalanative.nir.Defn.Define.DebugInfo
 import scala.scalanative.util.ShowBuilder.FileShowBuilder
 import scala.scalanative.util.{ShowBuilder, unreachable, unsupported}
+import scala.scalanative.linker.ClassRef
+import scala.scalanative.linker.ReachabilityAnalysis
 import scala.scalanative.{build, linker, nir}
 import scala.util.control.NonFatal
 import scala.scalanative.codegen.{Metadata => CodeGenMetadata}
@@ -30,6 +32,8 @@ private[codegen] abstract class AbstractCodeGen(
 
   val os: OsCompat
   val pointerType = if (useOpaquePointers) "ptr" else "i8*"
+
+  implicit def analysis: ReachabilityAnalysis.Result = meta.analysis
 
   private var currentBlockName: nir.Local = _
   private var currentBlockSplit: Int = _
@@ -939,7 +943,10 @@ private[codegen] abstract class AbstractCodeGen(
           str(" = ")
         }
         str("alloca ")
-        genType(ty)
+        ty match {
+          case ClassRef(cls) => genType(meta.layout(cls).struct)
+          case _             => genType(ty)
+        }
         str(", ")
         genVal(n)
         str(", align ")

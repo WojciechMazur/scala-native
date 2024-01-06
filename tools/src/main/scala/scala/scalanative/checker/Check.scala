@@ -210,7 +210,7 @@ final class Check(implicit analysis: ReachabilityAnalysis.Result)
     case nir.Op.Conv(conv, ty, value) =>
       checkConvOp(conv, ty, value)
     case nir.Op.Fence(_) => ok
-    case nir.Op.Classalloc(name, zone) =>
+    case nir.Op.Classalloc(name, allocHint) =>
       analysis.infos
         .get(name)
         .fold {
@@ -229,7 +229,7 @@ final class Check(implicit analysis: ReachabilityAnalysis.Result)
           case _ =>
             error(s"can't instantiate ${name.show} with clasalloc")
         }
-      zone.foreach(checkZone)
+      checkAllocationHint(allocHint)
 
     case nir.Op.Fieldload(ty, obj, name) =>
       checkFieldOp(ty, obj, name, None)
@@ -343,7 +343,7 @@ final class Check(implicit analysis: ReachabilityAnalysis.Result)
         case _ =>
           error(s"can't initialize array with ${init.show}")
       }
-      zone.foreach(checkZone)
+    // zone.foreach(checkZone) // TODO
     case nir.Op.Arrayload(ty, arr, idx) =>
       val arrty = nir.Type.Ref(nir.Type.toArrayClass(ty))
       expect(arrty, arr)
@@ -355,16 +355,6 @@ final class Check(implicit analysis: ReachabilityAnalysis.Result)
       expect(ty, value)
     case nir.Op.Arraylength(arr) =>
       expect(nir.Rt.GenericArray, arr)
-  }
-
-  def checkZone(zone: nir.Val): Unit = zone match {
-    case nir.Val.Null | nir.Val.Unit =>
-      error(s"zone defined with null or unit")
-    case v =>
-      v.ty match {
-        case nir.Type.Ptr | _: nir.Type.RefKind => ()
-        case _ => error(s"zone defind with non reference type")
-      }
   }
 
   def checkAggregateOp(
@@ -527,6 +517,22 @@ final class Check(implicit analysis: ReachabilityAnalysis.Result)
       case nir.Comp.Fge => checkFloatOp(comp.show, ty, l, r)
       case nir.Comp.Flt => checkFloatOp(comp.show, ty, l, r)
       case nir.Comp.Fle => checkFloatOp(comp.show, ty, l, r)
+    }
+
+  private def checkZone(zone: nir.Val.Local): Unit = zone.ty match {
+    case nir.Type.Null | nir.Type.Nothing | nir.Type.Unit =>
+      error(s"zone defined with void type")
+    case nir.Type.Ptr | _: nir.Type.RefKind => ok
+    case _ => error(s"zone defind with non reference type")
+  }
+
+  def checkAllocationHint(allocationHint: nir.AllocationHint): Unit =
+    allocationHint match {
+      case nir.AllocationHint.GC               => ok
+      case nir.AllocationHint.Stack            => ok
+      case nir.AllocationHint.UnsafeZone(zone) => checkZone(zone)
+      case nir.AllocationHint.SafeZone(zone)   => checkZone(zone)
+
     }
 
   def checkConvOp(conv: nir.Conv, ty: nir.Type, value: nir.Val): Unit =

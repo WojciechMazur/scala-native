@@ -89,8 +89,8 @@ trait Traverse {
       onType(ty)
       onVal(v)
 
-    case Op.Classalloc(n, zone) =>
-      zone.foreach(onVal)
+    case Op.Classalloc(n, hint) =>
+      onAllocationHint(hint)
     case Op.Fieldload(ty, v, n) =>
       onType(ty)
       onVal(v)
@@ -126,10 +126,10 @@ trait Traverse {
     case Op.Varstore(elem, value) =>
       onVal(elem)
       onVal(value)
-    case Op.Arrayalloc(ty, init, zone) =>
+    case Op.Arrayalloc(ty, init, allocHint) =>
       onType(ty)
       onVal(init)
-      zone.foreach(onVal)
+      onAllocationHint(allocHint)
     case Op.Arrayload(ty, arr, idx) =>
       onType(ty)
       onVal(arr)
@@ -181,4 +181,11 @@ trait Traverse {
     case Next.Unwind(n, next) => onNext(next)
     case Next.Label(n, args)  => args.foreach(onVal)
   }
+
+  private def onAllocationHint(hint: AllocationHint): Unit =
+    hint match {
+      case AllocationHint.GC | AllocationHint.Stack => ()
+      case AllocationHint.UnsafeZone(zone)          => onVal(zone)
+      case AllocationHint.SafeZone(zone)            => onVal(zone)
+    }
 }

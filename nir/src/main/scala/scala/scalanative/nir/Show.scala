@@ -302,13 +302,14 @@ object Show {
         str("fence ")
         onMemoryOrder(memoryOrder)
 
-      case Op.Classalloc(name, zone) =>
+      case Op.Classalloc(name, hint) =>
         str("classalloc ")
         onGlobal(name)
-        zone.foreach { v =>
-          str(" inZone ")
-          onVal(v)
-        }
+        str(s" in ${hint}") // TODO
+        // zone.foreach { v =>
+        //   str(" inZone ")
+        //   onVal(v)
+        // }
       case Op.Fieldload(ty, obj, name) =>
         str("fieldload[")
         onType(ty)
@@ -388,15 +389,16 @@ object Show {
         onVal(slot)
         str(", ")
         onVal(value)
-      case Op.Arrayalloc(ty, init, zone) =>
+      case Op.Arrayalloc(ty, init, allocHint) =>
         str("arrayalloc[")
         onType(ty)
         str("] ")
         onVal(init)
-        zone.foreach { v =>
-          str(" inZone ")
-          onVal(v)
-        }
+        str(s" in $allocHint ") // TODO
+        // zone.foreach { v =>
+        //   str(" inZone ")
+        //   onVal(v)
+        // }
       case Op.Arrayload(ty, arr, idx) =>
         str("arrayload[")
         onType(ty)

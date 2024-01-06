@@ -369,29 +369,29 @@ final class BinaryDeserializer(buffer: ByteBuffer, nirSource: NIRSource) {
       case T.ConvOp        => Op.Conv(getConv(), getType(), getVal())
       case T.FenceOp       => Op.Fence(getMemoryOrder())
 
-      case T.ClassallocOp     => Op.Classalloc(getGlobal().narrow[nir.Global.Top], None)
-      case T.ClassallocZoneOp => Op.Classalloc(getGlobal().narrow[nir.Global.Top], Some(getVal()))
-      case T.FieldloadOp      => Op.Fieldload(getType(), getVal(), getGlobal().narrow[nir.Global.Member])
-      case T.FieldstoreOp     => Op.Fieldstore(getType(), getVal(), getGlobal().narrow[nir.Global.Member], getVal())
-      case T.FieldOp          => Op.Field(getVal(), getGlobal().narrow[nir.Global.Member])
-      case T.MethodOp         => Op.Method(getVal(), getSig())
-      case T.DynmethodOp      => Op.Dynmethod(getVal(), getSig())
-      case T.ModuleOp         => Op.Module(getGlobal().narrow[nir.Global.Top])
-      case T.AsOp             => Op.As(getType(), getVal())
-      case T.IsOp             => Op.Is(getType(), getVal())
-      case T.CopyOp           => Op.Copy(getVal())
-      case T.BoxOp            => Op.Box(getType(), getVal())
-      case T.UnboxOp          => Op.Unbox(getType(), getVal())
-      case T.VarOp            => Op.Var(getType())
-      case T.VarloadOp        => Op.Varload(getVal())
-      case T.VarstoreOp       => Op.Varstore(getVal(), getVal())
-      case T.ArrayallocOp     => Op.Arrayalloc(getType(), getVal(), None)
-      case T.ArrayallocZoneOp => Op.Arrayalloc(getType(), getVal(), Some(getVal()))
-      case T.ArrayloadOp      => Op.Arrayload(getType(), getVal(), getVal())
-      case T.ArraystoreOp     => Op.Arraystore(getType(), getVal(), getVal(), getVal())
-      case T.ArraylengthOp    => Op.Arraylength(getVal())
-      case T.SizeOfOp         => Op.SizeOf(getType())
-      case T.AlignmentOfOp    => Op.AlignmentOf(getType())
+      case T.ClassallocOp       => Op.Classalloc(getGlobal().narrow[nir.Global.Top], nir.AllocationHint.default)
+      case T.ClassallocHintedOp => Op.Classalloc(getGlobal().narrow[nir.Global.Top], getAllocationHint())
+      case T.FieldloadOp        => Op.Fieldload(getType(), getVal(), getGlobal().narrow[nir.Global.Member])
+      case T.FieldstoreOp       => Op.Fieldstore(getType(), getVal(), getGlobal().narrow[nir.Global.Member], getVal())
+      case T.FieldOp            => Op.Field(getVal(), getGlobal().narrow[nir.Global.Member])
+      case T.MethodOp           => Op.Method(getVal(), getSig())
+      case T.DynmethodOp        => Op.Dynmethod(getVal(), getSig())
+      case T.ModuleOp           => Op.Module(getGlobal().narrow[nir.Global.Top])
+      case T.AsOp               => Op.As(getType(), getVal())
+      case T.IsOp               => Op.Is(getType(), getVal())
+      case T.CopyOp             => Op.Copy(getVal())
+      case T.BoxOp              => Op.Box(getType(), getVal())
+      case T.UnboxOp            => Op.Unbox(getType(), getVal())
+      case T.VarOp              => Op.Var(getType())
+      case T.VarloadOp          => Op.Varload(getVal())
+      case T.VarstoreOp         => Op.Varstore(getVal(), getVal())
+      case T.ArrayallocOp       => Op.Arrayalloc(getType(), getVal(), nir.AllocationHint.default)
+      case T.ArrayallocZoneOp   => Op.Arrayalloc(getType(), getVal(), getAllocationHint())
+      case T.ArrayloadOp        => Op.Arrayload(getType(), getVal(), getVal())
+      case T.ArraystoreOp       => Op.Arraystore(getType(), getVal(), getVal(), getVal())
+      case T.ArraylengthOp      => Op.Arraylength(getVal())
+      case T.SizeOfOp           => Op.SizeOf(getType())
+      case T.AlignmentOfOp      => Op.AlignmentOf(getType())
     }
   }
 
@@ -462,6 +462,13 @@ final class BinaryDeserializer(buffer: ByteBuffer, nirSource: NIRSource) {
     case T.ReleaseOrder   => MemoryOrder.Release
     case T.AcqRelOrder    => MemoryOrder.AcqRel
     case T.SeqCstOrder    => MemoryOrder.SeqCst
+  }
+
+  private def getAllocationHint(): AllocationHint = (getTag(): @switch) match {
+    case T.AllocationHintGC         => AllocationHint.GC
+    case T.AllocationHintStack      => AllocationHint.Stack
+    case T.AllocationHintUnsafeZone => AllocationHint.UnsafeZone(getVal().narrow[Val.Local])
+    case T.AllocationHintSafeZone   => AllocationHint.SafeZone(getVal().narrow[Val.Local])
   }
 
   private def getLinktimeCondition(): LinktimeCondition =

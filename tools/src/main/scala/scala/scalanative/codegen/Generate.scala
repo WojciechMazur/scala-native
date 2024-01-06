@@ -420,7 +420,7 @@ object Generate {
                 nir.Inst.Label(initialize, Seq.empty),
                 nir.Inst.Let(
                   alloc.id,
-                  nir.Op.Classalloc(name, zone = None),
+                  nir.Op.Classalloc(name, nir.AllocationHint.GC),
                   nir.Next.None
                 ),
                 nir.Inst.Let(nir.Op.Store(clsTy, slot, alloc), nir.Next.None),

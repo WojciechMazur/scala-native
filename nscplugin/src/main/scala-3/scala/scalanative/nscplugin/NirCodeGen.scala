@@ -63,6 +63,7 @@ class NirCodeGen(val settings: GenNIR.Settings)(using ctx: Context)
   })
 
   protected val curUnwindHandler = new util.ScopedVar[Option[nir.Local]]
+  protected val curAllocationHint = new util.ScopedVar[Option[nir.AllocationHint]]
 
   protected val lazyValsAdapter = AdaptLazyVals(defnNir)
 

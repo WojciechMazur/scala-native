@@ -129,11 +129,14 @@ class Buffer(implicit fresh: Fresh) {
       scope: ScopeId
   ): Val.Local = let(Op.Conv(conv, ty, value), unwind)
 
-  def classalloc(name: Global.Top, unwind: Next, zone: Option[Val] = None)(
-      implicit
+  def classalloc(
+      name: Global.Top,
+      unwind: Next,
+      allocationHint: AllocationHint = AllocationHint.default
+  )(implicit
       pos: Position,
       scope: ScopeId
-  ): Val.Local = let(Op.Classalloc(name, zone), unwind)
+  ): Val.Local = let(Op.Classalloc(name, allocationHint), unwind)
 
   def fieldload(ty: Type, obj: Val, name: Global.Member, unwind: Next)(implicit
       pos: Position,
@@ -226,9 +229,9 @@ class Buffer(implicit fresh: Fresh) {
       ty: Type,
       init: Val,
       unwind: Next,
-      zone: Option[Val] = None
+      allocationHint: AllocationHint = AllocationHint.default
   )(implicit pos: Position, scope: ScopeId): Val.Local =
-    let(Op.Arrayalloc(ty, init, zone), unwind)
+    let(Op.Arrayalloc(ty, init, allocationHint), unwind)
 
   def arrayload(ty: Type, arr: Val, idx: Val, unwind: Next)(implicit
       pos: Position,

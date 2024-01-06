@@ -74,9 +74,9 @@ trait NoOpt { self: Interflow =>
       noOptVal(v)
     case nir.Op.Fence(_) => ()
 
-    case nir.Op.Classalloc(n, zone) =>
+    case nir.Op.Classalloc(n, allocHint) =>
       noOptGlobal(n)
-      zone.foreach(noOptVal)
+      allocHint.allocator.foreach(noOptVal)
     case nir.Op.Fieldload(_, v, n) =>
       noOptVal(v)
       noOptGlobal(n)
@@ -125,9 +125,9 @@ trait NoOpt { self: Interflow =>
     case nir.Op.Varstore(slot, value) =>
       noOptVal(slot)
       noOptVal(value)
-    case nir.Op.Arrayalloc(_, init, zone) =>
+    case nir.Op.Arrayalloc(_, init, allocHint) =>
       noOptVal(init)
-      zone.foreach(noOptVal)
+      allocHint.allocator.foreach(noOptVal)
     case nir.Op.Arrayload(_, arr, idx) =>
       noOptVal(arr)
       noOptVal(idx)

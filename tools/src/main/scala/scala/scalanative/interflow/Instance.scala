@@ -28,9 +28,8 @@ sealed abstract class Instance(implicit
       s"EscapedInstance(${value.show})"
     case DelayedInstance(op) =>
       s"DelayedInstance(${op.show})"
-    case VirtualInstance(kind, cls, values, zone) =>
-      val allocation = zone.fold("Heap")(instance => s"SafeZone{$instance}")
-      s"VirtualInstance($kind, ${cls.name.show}, Array(${values.map(_.show)}), $allocation)"
+    case VirtualInstance(kind, cls, values, allocHint) =>
+      s"VirtualInstance($kind, ${cls.name.show}, Array(${values.map(_.show)}), $allocHint)"
   }
 }
 
@@ -51,7 +50,7 @@ final case class VirtualInstance(
     kind: Kind,
     cls: Class,
     values: Array[nir.Val],
-    zone: Option[nir.Val]
+    allocHint: nir.AllocationHint
 )(implicit srcPosition: nir.Position, scopeId: nir.ScopeId)
     extends Instance {
 
@@ -64,7 +63,7 @@ final case class VirtualInstance(
         Arrays.equals(
           values.asInstanceOf[Array[Object]],
           other.values.asInstanceOf[Array[Object]]
-        ) && zone == other.zone
+        ) && allocHint == other.allocHint
     case _ =>
       false
   }

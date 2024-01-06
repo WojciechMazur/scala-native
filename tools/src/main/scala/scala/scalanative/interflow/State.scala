@@ -31,20 +31,21 @@ final class State(block: nir.Local)(preserveDebugInfo: Boolean) {
       kind: Kind,
       cls: Class,
       values: Array[nir.Val],
-      zone: Option[nir.Val]
+      allocHint: nir.AllocationHint
   )(implicit srcPosition: nir.Position, scopeId: nir.ScopeId): Addr = {
     val addr = fresh().id
-    heap(addr) = VirtualInstance(kind, cls, values, zone)
+    heap(addr) = VirtualInstance(kind, cls, values, allocHint)
     addr
   }
-  def allocClass(cls: Class, zone: Option[nir.Val])(implicit
+  def allocClass(cls: Class, allocHint: nir.AllocationHint)(implicit
       srcPosition: nir.Position,
       scopeId: nir.ScopeId
   ): Addr = {
     val fields = cls.fields.map(fld => nir.Val.Zero(fld.ty).canonicalize)
-    alloc(ClassKind, cls, fields.toArray[nir.Val], zone)
+    alloc(ClassKind, cls, fields.toArray[nir.Val], allocHint)
   }
-  def allocArray(elemty: nir.Type, count: Int, zone: Option[nir.Val])(implicit
+  def allocArray(elemty: nir.Type, count: Int, allocHint: nir.AllocationHint)(
+      implicit
       analysis: ReachabilityAnalysis.Result,
       srcPosition: nir.Position,
       scopeId: nir.ScopeId
@@ -52,23 +53,24 @@ final class State(block: nir.Local)(preserveDebugInfo: Boolean) {
     val zero = nir.Val.Zero(elemty).canonicalize
     val values = Array.fill[nir.Val](count)(zero)
     val cls = analysis.infos(nir.Type.toArrayClass(elemty)).asInstanceOf[Class]
-    alloc(ArrayKind, cls, values, zone)
+    alloc(ArrayKind, cls, values, allocHint)
   }
-  def allocBox(boxname: nir.Global, value: nir.Val)(implicit
+  def allocBox(boxname: nir.Global, value: nir.Val, allocHint: nir.AllocationHint)(implicit
       analysis: ReachabilityAnalysis.Result,
       srcPosition: nir.Position,
       scopeId: nir.ScopeId
   ): Addr = {
     val boxcls = analysis.infos(boxname).asInstanceOf[Class]
-    alloc(BoxKind, boxcls, Array(value), zone = None)
+    alloc(BoxKind, boxcls, Array(value), allocHint)
   }
-  def allocString(value: String)(implicit
+  def allocString(value: String, allocHint: nir.AllocationHint)(implicit
       analysis: ReachabilityAnalysis.Result,
       srcPosition: nir.Position,
       scopeId: nir.ScopeId
   ): Addr = {
     val charsArray = value.toArray
-    val charsAddr = allocArray(nir.Type.Char, charsArray.length, zone = None)
+    val charsAddr =
+      allocArray(nir.Type.Char, charsArray.length, allocHint)
     val chars = derefVirtual(charsAddr)
     charsArray.zipWithIndex.foreach {
       case (value, idx) =>
@@ -80,7 +82,7 @@ final class State(block: nir.Local)(preserveDebugInfo: Boolean) {
     values(analysis.StringCountField.index) = nir.Val.Int(charsArray.length)
     values(analysis.StringCachedHashCodeField.index) =
       nir.Val.Int(Lower.stringHashCode(value))
-    alloc(StringKind, analysis.StringClass, values, zone = None)
+    alloc(StringKind, analysis.StringClass, values, nir.AllocationHint.GC)
   }
   def delay(
       op: nir.Op
@@ -215,9 +217,9 @@ final class State(block: nir.Local)(preserveDebugInfo: Boolean) {
       if (heap.contains(addr) && !reachable.contains(addr)) {
         reachable += addr
         heap(addr) match {
-          case VirtualInstance(_, _, vals, zone) =>
+          case VirtualInstance(_, _, vals, allocHint) =>
             vals.foreach(reachVal)
-            zone.foreach(reachVal)
+            allocHint.allocator.foreach(reachVal)
           case EscapedInstance(value) =>
             reachVal(value)
           case DelayedInstance(op) =>
@@ -250,7 +252,7 @@ final class State(block: nir.Local)(preserveDebugInfo: Boolean) {
       case nir.Op.Conv(_, _, v)       => reachVal(v)
       case nir.Op.Fence(_)            => ()
 
-      case nir.Op.Classalloc(_, zh)        => zh.foreach(reachVal)
+      case nir.Op.Classalloc(_, v2)        => v2.allocator.foreach(reachVal)
       case nir.Op.Fieldload(_, v, _)       => reachVal(v)
       case nir.Op.Fieldstore(_, v1, _, v2) => reachVal(v1); reachVal(v2)
       case nir.Op.Field(v, _)              => reachVal(v)
@@ -267,8 +269,10 @@ final class State(block: nir.Local)(preserveDebugInfo: Boolean) {
       case _: nir.Op.Var                   => ()
       case nir.Op.Varload(v)               => reachVal(v)
       case nir.Op.Varstore(v1, v2)         => reachVal(v1); reachVal(v2)
-      case nir.Op.Arrayalloc(_, v1, zh)    => reachVal(v1); zh.foreach(reachVal)
-      case nir.Op.Arrayload(_, v1, v2)     => reachVal(v1); reachVal(v2)
+      case nir.Op.Arrayalloc(_, v1, v2) =>
+        reachVal(v1);
+        v2.allocator.foreach(reachVal)
+      case nir.Op.Arrayload(_, v1, v2) => reachVal(v1); reachVal(v2)
       case nir.Op.Arraystore(_, v1, v2, v3) =>
         reachVal(v1); reachVal(v2); reachVal(v3)
       case nir.Op.Arraylength(v) => reachVal(v)
@@ -312,7 +316,7 @@ final class State(block: nir.Local)(preserveDebugInfo: Boolean) {
     }
 
     def reachAlloc(addr: Addr): nir.Val = heap(addr) match {
-      case VirtualInstance(ArrayKind, cls, values, zone) =>
+      case VirtualInstance(ArrayKind, cls, values, allocHint) =>
         val ArrayRef(elemty, _) = cls.ty: @unchecked
         val canConstantInit =
           (!elemty.isInstanceOf[nir.Type.RefKind]
@@ -325,11 +329,15 @@ final class State(block: nir.Local)(preserveDebugInfo: Boolean) {
             nir.Val.Int(values.length)
           }
         emitVirtual(addr)(
-          nir.Op.Arrayalloc(elemty, init, zone.map(escapedVal))
+          nir.Op.Arrayalloc(
+            elemty,
+            init,
+            allocHint.mapAllocator(escapedVal(_).asInstanceOf[nir.Val.Local])
+          )
         )
-      case VirtualInstance(BoxKind, cls, Array(value), zone) =>
+      case VirtualInstance(BoxKind, cls, Array(value), allocHint) =>
         reachVal(value)
-        zone.foreach(reachVal)
+        allocHint.allocator.foreach(reachVal)
         emitVirtual(addr)(
           nir.Op.Box(nir.Type.Ref(cls.name), escapedVal(value))
         )
@@ -345,9 +353,12 @@ final class State(block: nir.Local)(preserveDebugInfo: Boolean) {
           }
           .toArray[Char]
         nir.Val.String(new java.lang.String(chars))
-      case VirtualInstance(_, cls, values, zone) =>
+      case VirtualInstance(_, cls, values, allocHint) =>
         emitVirtual(addr)(
-          nir.Op.Classalloc(cls.name, zone.map(escapedVal))
+          nir.Op.Classalloc(
+            cls.name,
+            allocHint.mapAllocator(escapedVal(_).asInstanceOf[nir.Val.Local])
+          )
         )
       case DelayedInstance(op) =>
         reachOp(op)
@@ -361,7 +372,7 @@ final class State(block: nir.Local)(preserveDebugInfo: Boolean) {
     }
 
     def reachInit(local: nir.Val, addr: Addr): Unit = heap(addr) match {
-      case VirtualInstance(ArrayKind, cls, values, zone) =>
+      case VirtualInstance(ArrayKind, cls, values, allocHint) =>
         val ArrayRef(elemty, _) = cls.ty: @unchecked
         val canConstantInit =
           (!elemty.isInstanceOf[nir.Type.RefKind]
@@ -372,7 +383,7 @@ final class State(block: nir.Local)(preserveDebugInfo: Boolean) {
             case (value, idx) =>
               if (!value.isZero) {
                 reachVal(value)
-                zone.foreach(reachVal)
+                allocHint.allocator.foreach(reachVal)
                 emitVirtual(addr)(
                   nir.Op.Arraystore(
                     ty = elemty,
@@ -389,12 +400,12 @@ final class State(block: nir.Local)(preserveDebugInfo: Boolean) {
       case VirtualInstance(StringKind, _, values, _)
           if !hasEscaped(values(analysis.StringValueField.index)) =>
         ()
-      case VirtualInstance(_, cls, vals, zone) =>
+      case VirtualInstance(_, cls, vals, allocHint) =>
         cls.fields.zip(vals).foreach {
           case (fld, value) =>
             if (!value.isZero) {
               reachVal(value)
-              zone.foreach(reachVal)
+              allocHint.allocator.foreach(reachVal)
               emitVirtual(addr)(
                 nir.Op.Fieldstore(
                   ty = fld.ty,
@@ -433,7 +444,8 @@ final class State(block: nir.Local)(preserveDebugInfo: Boolean) {
       case nir.Op.Conv(_, _, v)       => reachVal(v)
       case nir.Op.Fence(_)            => ()
 
-      case nir.Op.Classalloc(_, zh)        => zh.foreach(reachVal)
+      case nir.Op.Classalloc(_, allocHint) =>
+        allocHint.allocator.foreach(reachVal)
       case nir.Op.Fieldload(_, v, _)       => reachVal(v)
       case nir.Op.Fieldstore(_, v1, _, v2) => reachVal(v1); reachVal(v2)
       case nir.Op.Field(v, _)              => reachVal(v)
@@ -450,8 +462,9 @@ final class State(block: nir.Local)(preserveDebugInfo: Boolean) {
       case _: nir.Op.Var                   => ()
       case nir.Op.Varload(v)               => reachVal(v)
       case nir.Op.Varstore(v1, v2)         => reachVal(v1); reachVal(v2)
-      case nir.Op.Arrayalloc(_, v1, zh)    => reachVal(v1); zh.foreach(reachVal)
-      case nir.Op.Arrayload(_, v1, v2)     => reachVal(v1); reachVal(v2)
+      case nir.Op.Arrayalloc(_, v1, v2) =>
+        reachVal(v1); v2.allocator.foreach(reachVal)
+      case nir.Op.Arrayload(_, v1, v2) => reachVal(v1); reachVal(v2)
       case nir.Op.Arraystore(_, v1, v2, v3) =>
         reachVal(v1); reachVal(v2); reachVal(v3)
       case nir.Op.Arraylength(v) => reachVal(v)
@@ -519,8 +532,12 @@ final class State(block: nir.Local)(preserveDebugInfo: Boolean) {
         nir.Op.Varload(escapedVal(v))
       case nir.Op.Varstore(v1, v2) =>
         nir.Op.Varstore(escapedVal(v1), escapedVal(v2))
-      case nir.Op.Arrayalloc(ty, v1, zh) =>
-        nir.Op.Arrayalloc(ty, escapedVal(v1), zh.map(escapedVal))
+      case nir.Op.Arrayalloc(ty, v1, allocHint) =>
+        nir.Op.Arrayalloc(
+          ty,
+          escapedVal(v1),
+          allocHint.mapAllocator(escapedVal(_).asInstanceOf[nir.Val.Local])
+        )
       case nir.Op.Arrayload(ty, v1, v2) =>
         nir.Op.Arrayload(ty, escapedVal(v1), escapedVal(v2))
       case nir.Op.Arraystore(ty, v1, v2, v3) =>

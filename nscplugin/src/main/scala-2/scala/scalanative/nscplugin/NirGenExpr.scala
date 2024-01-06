@@ -1928,7 +1928,7 @@ trait NirGenExpr[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
 
           // new StringBuidler(approxBuilderSize)
           val stringBuilder =
-            buf.classalloc(jlStringBuilderRef.name, unwind, None)
+            buf.classalloc(jlStringBuilderRef.name, unwind)
           buf.call(
             jlStringBuilderCtorSig,
             nir.Val.Global(jlStringBuilderCtor, nir.Type.Ptr),

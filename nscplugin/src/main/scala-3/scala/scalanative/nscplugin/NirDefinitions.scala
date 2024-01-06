@@ -9,12 +9,14 @@ import core.Types._
 import scala.annotation.{threadUnsafe => tu}
 import dotty.tools.dotc.util.Property.StickyKey
 import NirGenUtil.ContextCached
+import dotty.tools.dotc.core.Annotations.Annotation
 
 object NirDefinitions {
   private val cached = ContextCached(NirDefinitions())
   def get(using Context): NirDefinitions = cached.get
   object NonErasedType extends StickyKey[Type]
   object NonErasedTypes extends StickyKey[List[Type]]
+  object AllocationHintAnnot extends StickyKey[Annotation]
 }
 
 // scalafmt: { maxColumn = 120}
@@ -37,6 +39,13 @@ final class NirDefinitions()(using ctx: Context) {
   @tu lazy val ResolvedAtLinktimeClass = requiredClass("scala.scalanative.unsafe.resolvedAtLinktime")
   @tu lazy val ExportedClass = requiredClass("scala.scalanative.unsafe.exported")
   @tu lazy val ExportAccessorsClass = requiredClass("scala.scalanative.unsafe.exportAccessors")
+
+  @tu lazy val AllocationHintClass = requiredClass("scala.scalanative.annotation.allocationHint")
+  @tu lazy val AllocationHintModule = AllocationHintClass.companionModule
+  @tu lazy val AllocationHint_GC_Class = AllocationHintModule.requiredClass("gc")
+  @tu lazy val AllocationHint_Stack_Class = AllocationHintModule.requiredClass("stack")
+  @tu lazy val AllocationHint_Zone_Class = AllocationHintModule.requiredClass("zone")
+  @tu lazy val AllocationHintsAnnotations: Set[Symbol] = Set(AllocationHint_GC_Class, AllocationHint_Stack_Class, AllocationHint_Zone_Class)
 
   // Unsigned types
   @tu lazy val UByteClass = requiredClass("scala.scalanative.unsigned.UByte")

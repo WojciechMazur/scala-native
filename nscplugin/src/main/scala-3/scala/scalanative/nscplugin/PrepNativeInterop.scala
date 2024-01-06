@@ -14,6 +14,11 @@ import core.StdNames._
 import core.Constants.Constant
 import core.Flags._
 import NirGenUtil.ContextCached
+import dotty.tools.dotc.ast.tpd
+import dotty.tools.dotc.core.Annotations.Annotation
+import dotty.tools.dotc.core.tasty.TreeUnpickler.UnpickleMode.TypeTree
+import dotty.tools.dotc.util.Spans
+import scala.scalanative.nscplugin.NirDefinitions.AllocationHintAnnot
 
 /** This phase does:
  *    - Rewrite calls to scala.Enumeration.Value (include name string) (Ported
@@ -71,6 +76,29 @@ class PrepNativeInterop extends PluginPhase with NativeInteropUtil {
     }
   end extension
 
+  object TypeTreeAnnotation:
+    def unapply(tpe: Type): Option[List[Annotation]] = tpe match {
+      case AnnotatedType(underlying, annot) =>
+        Some(annot :: unapply(underlying).getOrElse(Nil))
+      case _ => None
+    }
+    def unapply(tree: Tree): Option[List[Annotation]] = unapply(tree.tpe)
+
+  override def transformTyped(tree: tpd.Typed)(using Context): tpd.Tree = {
+    tree match {
+      case Typed(
+            Apply(ctor @ Select(New(_), _), _),
+            TypeTreeAnnotation(annots)
+          ) =>
+        attachAllocationHints(ctor, annots)
+      case Typed(block: Block, TypeTreeAnnotation(annots)) =>
+        attachAllocationHints(block, annots)
+
+      case _ =>
+    }
+    tree
+  }
+
   override def transformDefDef(dd: DefDef)(using Context): Tree = {
     val sym = dd.symbol
     lazy val rhsSym = dd.rhs.symbol
@@ -116,10 +144,54 @@ class PrepNativeInterop extends PluginPhase with NativeInteropUtil {
     else dd
   }
 
+  // override def run(using Context): Unit = {
+  //   ctx.compilationUnit.tpdTree.foreachSubTree { t =>
+  //     if (t.toString().contains("ConcreteAnnotation")) {
+  //       println()
+  //       println(t.show)
+  //       println(t)
+  //     }
+  //     // if(t.symbol.annotations.exists(a => defnNir.AllocationHintsAnnotations.exists(_ == a.symbol))) println(t)
+  //   }
+  //   super.run
+  // }
+
+  object AnnotationOf:
+    def unapply(v: core.Annotations.Annotation)(using Context): Option[Symbol] =
+      Some(v.symbol)
+
+  private def attachAllocationHints(
+      tree: Tree,
+      annotations: Seq[Annotation]
+  )(using Context): Unit = {
+    val defnNir = this.defnNir
+
+    val found = annotations.collect {
+      case annot @ AnnotationOf(sym)
+          if sym.isSubClass(defnNir.AllocationHintClass) =>
+        tree.pushAttachment(AllocationHintAnnot, annot)
+    }
+
+    if found.size > 1
+    then report.error("Imbigious allocation hints", tree.srcPos)
+  }
+
   override def transformValDef(vd: ValDef)(using Context): Tree = {
     val enumsCtx = EnumerationsContext.get
     import enumsCtx._
     val sym = vd.symbol
+    val defnNir = this.defnNir
+
+    attachAllocationHints(
+      vd,
+      sym.annotations ::: {
+        vd match {
+          case ValDef(_, TypeTreeAnnotation(typeAnnots), _) => typeAnnots
+          case _                                            => Nil
+        }
+      }
+    )
+
     vd match {
       case ValDef(_, tpt, ScalaEnumValue.NoName(optIntParam)) =>
         val nrhs = scalaEnumValName(sym.owner.asClass, sym, optIntParam)

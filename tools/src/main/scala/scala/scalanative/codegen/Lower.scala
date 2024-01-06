@@ -1142,14 +1142,19 @@ object Lower {
         srcPosition: nir.Position,
         scopeId: nir.ScopeId
     ): Unit = {
-      val nir.Op.Classalloc(ClassRef(cls), v) = op: @unchecked
-      val zone = v.map(genVal(buf, _))
-
+      val nir.Op.Classalloc(ClassRef(cls), allocHint) = op: @unchecked
       val size = meta.layout(cls).size
       assert(size == size.toInt)
 
-      zone match {
-        case Some(zone) =>
+      allocHint match {
+        case nir.AllocationHint.Stack =>
+          genStackallocOp(buf, n, nir.Op.Stackalloc(cls.ty, one))
+          val obj = nir.Val.Local(n, cls.ty)
+          // val rtti = buf.elem(nir.Type.Ptr, obj, Seq(zero, one), unwind)
+          buf.store(nir.Rt.Class, obj, meta.rtti(cls).const, unwind)
+
+        case nir.AllocationHint.SafeZone(v) =>
+          val zone = genVal(buf, v)
           val safeZoneAllocImplMethod = nir.Val.Local(fresh(), nir.Type.Ptr)
           genMethodOp(
             buf,
@@ -1165,7 +1170,27 @@ object Lower {
             ),
             unwind
           )
-        case None =>
+
+        case nir.AllocationHint.UnsafeZone(v) =>
+          val zone = genVal(buf, v)
+          val safeZoneAllocImplMethod = nir.Val.Local(fresh(), nir.Type.Ptr)
+          genMethodOp(
+            buf,
+            safeZoneAllocImplMethod.id,
+            nir.Op.Method(zone, safeZoneAllocImpl.sig)
+          )
+          buf.let(
+            n,
+            nir.Op.Call(
+              safeZoneAllocImplSig,
+              safeZoneAllocImplMethod,
+              Seq(zone, rtti(cls).const, nir.Val.Size(size))
+            ),
+            unwind
+          )
+
+
+        case _ => // TODO allocHint
           val allocMethod =
             if (size < LARGE_OBJECT_MIN_SIZE) alloc else largeAlloc
           buf.let(
@@ -1498,7 +1523,7 @@ object Lower {
     ): Unit = {
       val nir.Op.Arrayalloc(ty, v1, v2) = op
       val init = genVal(buf, v1)
-      val zone = v2.map(genVal(buf, _))
+      val zone = Option.empty[nir.Val] // TODO v2.map(genVal(buf, _))
       init match {
         case len if len.ty == nir.Type.Int =>
           val (arrayAlloc, arrayAllocSig) = zone match {
@@ -1621,37 +1646,42 @@ object Lower {
         srcPosition: nir.Position,
         scopeId: nir.ScopeId
     ): Unit = {
-      val nir.Op.Stackalloc(ty, size) = op
+      val nir.Op.Stackalloc(ty, elements) = op
       val initValue = nir.Val.Zero(ty).canonicalize
       val pointee = buf.let(n, op, unwind)
-      size match {
+      elements match {
         case nir.Val.Size(1) if initValue.isCanonical =>
           buf.let(
             nir.Op.Store(ty, pointee, initValue, None),
             unwind
           )
-        case sizeV =>
-          val elemSize = MemoryLayout.sizeOf(ty)
-          val size = sizeV match {
+        case elements =>
+          val elemSize = ty match {
+            case ClassRef(cls) => meta.layout(cls).layout.size
+            case ty            => MemoryLayout.sizeOf(ty)
+          }
+          val size = elements match {
             case nir.Val.Size(v) => nir.Val.Size(v * elemSize)
-            case _ =>
-              val asSize = sizeV.ty match {
+            case nir.Val.Int(v)  => nir.Val.Size(v * elemSize)
+            case nir.Val.Long(v) => nir.Val.Size(v * elemSize)
+            case elements =>
+              val elementsCount = elements.ty match {
                 case nir.Type.FixedSizeI(width, _) =>
-                  if (width == platform.sizeOfPtrBits) sizeV
+                  if (width == platform.sizeOfPtrBits) elements
                   else if (width > platform.sizeOfPtrBits)
-                    buf.conv(nir.Conv.Trunc, nir.Type.Size, sizeV, unwind)
+                    buf.conv(nir.Conv.Trunc, nir.Type.Size, elements, unwind)
                   else
-                    buf.conv(nir.Conv.Zext, nir.Type.Size, sizeV, unwind)
+                    buf.conv(nir.Conv.Zext, nir.Type.Size, elements, unwind)
 
-                case _ => sizeV
+                case _ => elements
               }
-              if (elemSize == 1) asSize
+              if (elemSize == 1) elementsCount
               else
                 buf.let(
                   nir.Op.Bin(
                     nir.Bin.Imul,
                     nir.Type.Size,
-                    asSize,
+                    elementsCount,
                     nir.Val.Size(elemSize)
                   ),
                   unwind

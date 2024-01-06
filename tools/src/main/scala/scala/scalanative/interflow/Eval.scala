@@ -138,6 +138,18 @@ trait Eval { self: Interflow =>
     unreachable
   }
 
+  private def evalMaterializeAllocationHint(
+      hint: nir.AllocationHint
+  )(implicit
+      state: State,
+      srcPosition: nir.Position,
+      scopeId: nir.ScopeId
+  ): nir.AllocationHint = hint.mapAllocator(allocator =>
+    state
+      .materialize(eval(allocator))
+      .asInstanceOf[nir.Val.Local]
+  )
+
   def eval(
       op: nir.Op
   )(implicit
@@ -250,9 +262,9 @@ trait Eval { self: Interflow =>
           case value =>
             combine(conv, ty, value)
         }
-      case nir.Op.Classalloc(ClassRef(cls), zone) =>
-        val zonePtr = zone.map(instance => materialize(eval(instance)))
-        nir.Val.Virtual(state.allocClass(cls, zonePtr))
+      case nir.Op.Classalloc(ClassRef(cls), hint) =>
+        val maybeMaterializedZone = evalMaterializeAllocationHint(hint)
+        nir.Val.Virtual(state.allocClass(cls, maybeMaterializedZone))
       case nir.Op.Fieldload(ty, rawObj, name @ FieldRef(cls, fld)) =>
         eval(rawObj) match {
           case VirtualRef(_, _, values) => values(fld.index)
@@ -420,7 +432,7 @@ trait Eval { self: Interflow =>
         // which breaks the invariant that all virtual allocations
         // are in fact non-null. We handle them as a delayed op instead.
         if (!nir.Type.isPtrBox(boxty)) {
-          nir.Val.Virtual(state.allocBox(boxname, eval(value)))
+          nir.Val.Virtual(state.allocBox(boxname, eval(value), nir.AllocationHint.GC))
         } else {
           delay(nir.Op.Box(boxty, eval(value)))
         }
@@ -434,14 +446,14 @@ trait Eval { self: Interflow =>
           case value =>
             emit(nir.Op.Unbox(boxty, materialize(value)))
         }
-      case nir.Op.Arrayalloc(ty, init, zone) =>
+      case nir.Op.Arrayalloc(ty, init, allocHint) =>
         eval(init) match {
           case nir.Val.Int(count) if count <= 128 =>
             nir.Val.Virtual(
               state.allocArray(
                 ty,
                 count,
-                zone.map(instance => materialize(eval(instance)))
+                evalMaterializeAllocationHint(allocHint)
               )
             )
           case nir.Val.ArrayValue(_, values) if values.size <= 128 =>
@@ -449,7 +461,7 @@ trait Eval { self: Interflow =>
               state.allocArray(
                 ty,
                 values.size,
-                zone.map(instance => materialize(eval(instance)))
+                evalMaterializeAllocationHint(allocHint)
               )
             val instance = state.derefVirtual(addr)
             values.zipWithIndex.foreach {
@@ -462,7 +474,7 @@ trait Eval { self: Interflow =>
               nir.Op.Arrayalloc(
                 ty,
                 materialize(init),
-                zone.map(instance => materialize(eval(instance)))
+                evalMaterializeAllocationHint(allocHint)
               )
             )
         }
@@ -1010,7 +1022,7 @@ trait Eval { self: Interflow =>
       case nir.Val.Virtual(addr) if state.hasEscaped(addr) =>
         state.derefEscaped(addr).escapedValue
       case nir.Val.String(value) =>
-        nir.Val.Virtual(state.allocString(value))
+        nir.Val.Virtual(state.allocString(value, nir.AllocationHint.GC))
       case nir.Val.Global(name: nir.Global.Member, _) =>
         maybeOriginal(name).foreach {
           case defn if defn.attrs.isExtern =>

@@ -140,8 +140,8 @@ object Tags {
   final val CompOp = 1 + BinOp
   final val ConvOp = 1 + CompOp
   final val ClassallocOp = 1 + ConvOp
-  final val ClassallocZoneOp = 1 + ClassallocOp
-  final val FieldOp = 1 + ClassallocZoneOp
+  final val ClassallocHintedOp = 1 + ClassallocOp
+  final val FieldOp = 1 + ClassallocHintedOp
   final val FieldloadOp = 1 + FieldOp
   final val FieldstoreOp = 1 + FieldloadOp
   final val MethodOp = 1 + FieldstoreOp
@@ -158,7 +158,7 @@ object Tags {
   final val VarloadOp = 1 + VarOp
   final val VarstoreOp = 1 + VarloadOp
   final val ArrayallocOp = 1 + VarstoreOp
-  final val ArrayallocZoneOp = 1 + ArrayallocOp
+  final val ArrayallocZoneOp = 1 + ArrayallocOp // TODO
   final val ArrayloadOp = 1 + ArrayallocZoneOp
   final val ArraystoreOp = 1 + ArrayloadOp
   final val ArraylengthOp = 1 + ArraystoreOp
@@ -219,4 +219,10 @@ object Tags {
   final val ReleaseOrder = 1 + AcquireOrder
   final val AcqRelOrder = 1 + ReleaseOrder
   final val SeqCstOrder = 1 + AcqRelOrder
+
+  // Allocation hints
+  final val AllocationHintGC = 1
+  final val AllocationHintStack = 1 + AllocationHintGC
+  final val AllocationHintUnsafeZone = 1 + AllocationHintStack
+  final val AllocationHintSafeZone = 1 + AllocationHintUnsafeZone
 }

@@ -11,14 +11,10 @@ import scala.scalanative.unsigned._
 
 /** Zone allocator which manages memory allocations. */
 @implicitNotFound("Given method requires an implicit zone.")
-trait Zone {
+trait Zone extends memory.Allocator {
 
   /** Allocates memory of given size. */
-  def alloc(size: CSize): Ptr[Byte]
-
-  /** Allocates memory of given size. */
-  def alloc(size: Int): Ptr[Byte] =
-    alloc(unsignedOf(castIntToRawSizeUnsigned(size)))
+  def alloc(size: CSize): Ptr[Byte] = alloc(size.toInt)
 
     /** Allocates memory of given size. */
   def alloc(size: UInt): Ptr[Byte] =
@@ -29,13 +25,7 @@ trait Zone {
     alloc(size.toUSize)
 
   /** Frees allocations. This zone allocator is not reusable once closed. */
-  def close(): Unit
-
-  /** Return this zone allocator is open or not. */
-  def isOpen: Boolean = !isClosed
-
-  /** Return this zone allocator is closed or not. */
-  def isClosed: Boolean
+  override def close(): Unit
 
 }
 

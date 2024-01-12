@@ -1,66 +1,59 @@
 package scala.scalanative.memory
 
 import language.experimental.captureChecking
-import scalanative.unsigned._
 import scala.annotation.implicitNotFound
-import scala.scalanative.unsafe.CSize
-import scala.scalanative.unsigned.USize
-import scala.scalanative.runtime.{RawPtr, RawSize, SafeZoneAllocator, Intrinsics}
-import scala.scalanative.runtime.SafeZoneAllocator.allocate
+import scala.scalanative.unsafe.*
+import scala.scalanative.runtime.{RawPtr, Intrinsics, intrinsic}
+import scala.scalanative.memory.{Allocator => MemoryAllocator}
 
 @implicitNotFound("Given method requires an implicit zone.")
-trait SafeZone {
-
-  /** Return this zone is open or not. */
-  def isOpen: Boolean
-
-  /** Return this zone is closed or not. */
-  def isClosed: Boolean = !isOpen
-
-  /** Require this zone to be open. */
-  def checkOpen(): Unit = {
-    if (!isOpen)
-      throw new IllegalStateException(s"Zone ${this} is already closed.")
-  }
+abstract class SafeZone extends Allocator,ZeroInitializedAllocator,ArrayAllocator,ClassAllocator {
 
   /** Allocates an object in this zone. The expression of obj must be an instance creation expression. */
-  infix inline def alloc[T <: AnyRef](inline obj: T): T^{this} = allocate(this, obj)
-
-  /** Frees allocations. This zone is not reusable once closed. */
-  private[scalanative] def close(): Unit
+  infix inline def alloc[T <: AnyRef](inline obj: T): T^{this} = SafeZone.Allocator.allocate(this, obj)
 
   /** Return the handle of this zone. */
   private[scalanative] def handle: RawPtr
-
-  /** The low-level implementation of allocation. This function shouldn't be inlined because it's directly called in the lowering phase. */
-  @noinline
-  private[scalanative] def allocImpl(cls: RawPtr, size: RawSize): RawPtr = {
-    checkOpen()
-    SafeZoneAllocator.Impl.alloc(handle, cls, size)
-  }
 }
 
 object SafeZone {
   /** Run given function with a fresh zone and destroy it afterwards. */
   final def apply[sealed T](f: (SafeZone^) ?=> T): T = {
-    val sz: SafeZone^ = new MemorySafeZone(SafeZoneAllocator.Impl.open())
+    val sz: SafeZone^ = new Impl(Allocator.ffi.open())
     try f(using sz)
     finally sz.close()
   }
 
   /* Allocates an object in the implicit zone. The expression of obj must be an instance creation expression. */
-  inline def alloc[T <: AnyRef](inline obj: T)(using inline sz: SafeZone^): T^{sz} = allocate(sz, obj)
+  inline def alloc[T <: AnyRef](inline obj: T)(using inline sz: SafeZone^): T^{sz} = Allocator.allocate(sz, obj)
 
   /** Summon the implicit zone. */
   transparent inline def zone(using sz: SafeZone^): SafeZone^{sz} = sz
 
-  private class MemorySafeZone (private[scalanative] val handle: RawPtr) extends SafeZone {
+  private class Impl(private[scalanative] val handle: RawPtr) extends SafeZone {
     private var flagIsOpen = true
     override def isOpen: Boolean = flagIsOpen
     override def close(): Unit = {
-      checkOpen()
+      if(isClosed) throw new MemoryAllocator.ClosedAllocatorException("Trying to close already closed zone")
       flagIsOpen = false
-      SafeZoneAllocator.Impl.close(handle)
+      Allocator.ffi.close(handle)
+    }
+     def allocUnsafe(size: Int): Nullable[Ptr[Byte]] = Allocator.ffi.alloc(handle, size)
+     def allocUnsafe(elementSize: Int, elements: Int): Nullable[Ptr[Byte]] = Allocator.ffi.alloc(handle, elementSize * elements)
+  }
+
+  object Allocator {
+    def allocate[T](sz: SafeZone^, obj: T): T^{sz} = intrinsic
+
+    @extern object ffi {
+      @name("scalanative_zone_open")
+      def open(): RawPtr = extern
+
+      @name("scalanative_zone_alloc")
+      def alloc(rawzone: RawPtr, size: Int): Ptr[Byte] = extern
+
+      @name("scalanative_zone_close")
+      def close(rawzone: RawPtr): Unit = extern
     }
   }
 

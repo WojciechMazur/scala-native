@@ -30,7 +30,7 @@ package runtime
 import scalanative.unsafe._
 import scalanative.unsigned._
 import scalanative.annotation.alwaysinline
-import scala.scalanative.memory.SafeZone
+import scala.scalanative.memory.{Allocator, ArrayAllocator}
 import scalanative.runtime.Intrinsics._
 
 sealed abstract class Array[T]
@@ -253,20 +253,20 @@ object ${T}Array {
     castRawPtrToObject(arr).asInstanceOf[${T}Array]
   }
 
-  @inline def alloc(length: Int, zone: SafeZone): ${T}Array = {
+  @inline def alloc(length: Int, zone: Allocator with ArrayAllocator): ${T}Array = {
     if (length < 0) {
       throw new NegativeArraySizeException
     }
-    val arrcls  = classOf[${T}Array]
-    val arrsize = castIntToRawSizeUnsigned(MemoryLayout.Array.ValuesOffset + ${sizeT} * length)
-    val arr = zone.allocImpl(castObjectToRawPtr(arrcls), arrsize)
-    storeInt(elemRawPtr(arr, MemoryLayout.Array.LengthOffset), length)
   % if T == 'Blob':
-    storeInt(elemRawPtr(arr, MemoryLayout.Array.StrideOffset), -length)
-  % else:
-    storeInt(elemRawPtr(arr, MemoryLayout.Array.StrideOffset), ${sizeT})
-  % end
+    val arrsize = MemoryLayout.Array.ValuesOffset + ${sizeT} * length
+    val arr = toRawPtr(zone.allocUnsafe(arrsize))
+    storeObject(arr, classOf[BlobArray])
+    storeInt(elemRawPtr(arr, MemoryLayout.Array.LengthOffset), length)
+    storeInt(elemRawPtr(arr, MemoryLayout.Array.StrideOffset), -length) // initial limit
     castRawPtrToObject(arr).asInstanceOf[${T}Array]
+  % else:
+    zone.allocUnsafe(classOf[${T}Array], elementSize = ${sizeT}, elements = length)
+  % end
   }
 
   @inline def snapshot(length: Int, data: RawPtr): ${T}Array = {

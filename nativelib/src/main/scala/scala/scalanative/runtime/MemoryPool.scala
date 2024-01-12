@@ -110,8 +110,6 @@ final class MemoryPoolZone(private val pool: MemoryPool) extends Zone {
 
   override def isOpen = headPage != null
 
-  override def isClosed = !isOpen
-
   override def close(): Unit = {
     checkOpen()
 
@@ -131,8 +129,7 @@ final class MemoryPoolZone(private val pool: MemoryPool) extends Zone {
     }
   }
 
-  override def alloc(usize: CSize): Ptr[Byte] = {
-    val size = usize.toInt
+  override def allocUnsafe(size: Int): Ptr[Byte] = {
     val alignment =
       if (size >= 16) 16
       else if (size >= 8) 8
@@ -140,8 +137,11 @@ final class MemoryPoolZone(private val pool: MemoryPool) extends Zone {
       else if (size >= 2) 2
       else 1
 
-    alloc(usize, alignment.toUSize)
+    alloc(size.toUSize, alignment.toUSize)
   }
+
+  override def allocUnsafe(elementSize: Int, elements: Int): Ptr[Byte] =
+    allocUnsafe(elementSize * elements)
 
   def alloc(size: CSize, alignment: CSize): Ptr[Byte] = {
     checkOpen()

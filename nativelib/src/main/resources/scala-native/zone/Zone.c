@@ -38,7 +38,7 @@ MemoryPage *scalanative_zone_claim(Zone *zone, size_t size) {
                : LargeMemoryPool_claim(zone->largePool, Util_pad(size, 8));
 }
 
-void *scalanative_zone_alloc(void *_zone, void *info, size_t size) {
+void *scalanative_zone_alloc(void *_zone, size_t size) {
     Zone *zone = (Zone *)_zone;
     MemoryPage *page =
         (size <= MEMORYPOOL_PAGE_SIZE) ? zone->page : zone->largePage;
@@ -57,7 +57,6 @@ void *scalanative_zone_alloc(void *_zone, void *info, size_t size) {
     void *current = (void *)(page->start + resOffset);
     memset(current, 0, size);
     void **alloc = (void **)current;
-    *alloc = info;
     if (size <= MEMORYPOOL_PAGE_SIZE) {
         zone->page = page;
     } else {

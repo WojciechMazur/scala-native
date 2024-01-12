@@ -24,11 +24,10 @@ void *scalanative_zone_open();
  * @brief Allocate data in a zone.
  *
  * @param zone The handle of the zone to be allocated from.
- * @param info A pointer to data to be allocated.
  * @param size The size of the data.
  * @return void* The pointer to the allocated data.
  */
-void *scalanative_zone_alloc(void *zone, void *info, size_t size);
+void *scalanative_zone_alloc(void *zone, size_t size);
 
 /**
  * @brief Given a zone handle, reclaim all pages of this zone back to the memory

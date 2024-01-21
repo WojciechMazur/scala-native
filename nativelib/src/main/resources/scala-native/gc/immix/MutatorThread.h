@@ -11,7 +11,6 @@ typedef struct {
     word_t **stackBottom;
     atomic_intptr_t stackTop;
     atomic_bool isWaiting;
-    jmp_buf executionContext;
     // immutable fields
 #ifdef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
 #ifdef _WIN32

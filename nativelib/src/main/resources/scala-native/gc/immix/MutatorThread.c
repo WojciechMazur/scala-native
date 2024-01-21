@@ -1,3 +1,5 @@
+#include "shared/GCTypes.h"
+#include <stdint.h>
 #if defined(SCALANATIVE_GC_IMMIX)
 
 #include "MutatorThread.h"
@@ -56,13 +58,9 @@ void MutatorThread_delete(MutatorThread *self) {
 
 typedef word_t **stackptr_t;
 
-NOINLINE static stackptr_t MutatorThread_approximateStackTop() {
+NO_OPTIMIZE static stackptr_t MutatorThread_approximateStackTop() {
     volatile word_t sp;
-#if GNUC_PREREQ(4, 0)
-    sp = (word_t)__builtin_frame_address(0);
-#else
     sp = (word_t)&sp;
-#endif
     /* Also force stack to grow if necessary. Otherwise the later accesses might
      * cause the kernel to think we're doing something wrong. */
     return (stackptr_t)sp;
@@ -74,7 +72,14 @@ void MutatorThread_switchState(MutatorThread *self,
     intptr_t newStackTop = 0;
     if (newState == GC_MutatorThreadState_Unmanaged) {
         // Dump registers to allow for their marking later
-        setjmp(self->executionContext);
+        __builtin_unwind_init();
+        jmp_buf regs;
+        word_t *i = (word_t *)&regs[0];
+        int8_t *lim = (int8_t *)(&regs[0]) + sizeof(regs);
+        // setjmp doesn't always clear all of the buffer.               */
+        // That tends to preserve garbage. Clear it.                   */
+        memset((void *)&regs[0], 0, sizeof(regs));
+        (void)setjmp(regs);
         newStackTop = (intptr_t)MutatorThread_approximateStackTop();
     }
     atomic_store_explicit(&self->stackTop, newStackTop, memory_order_release);
@@ -90,8 +95,8 @@ void MutatorThreads_add(MutatorThread *node) {
         (MutatorThreadNode *)malloc(sizeof(MutatorThreadNode));
     newNode->value = node;
     MutatorThreads_lock();
-    newNode->next = mutatorThreads;
-    mutatorThreads = newNode;
+    newNode->next = atomic_load_explicit(&mutatorThreads, memory_order_acquire);
+    atomic_store_explicit(&mutatorThreads, newNode, memory_order_release);
     MutatorThreads_unlock();
 }
 
@@ -100,9 +105,11 @@ void MutatorThreads_remove(MutatorThread *node) {
         return;
 
     MutatorThreads_lock();
-    MutatorThreads current = mutatorThreads;
+    MutatorThreads current =
+        atomic_load_explicit(&mutatorThreads, memory_order_acquire);
     if (current->value == node) { // expected is at head
-        mutatorThreads = current->next;
+        atomic_store_explicit(&mutatorThreads, current->next,
+                              memory_order_release);
         free(current);
     } else {
         while (current->next && current->next->value != node) {
@@ -112,6 +119,7 @@ void MutatorThreads_remove(MutatorThread *node) {
         if (next) {
             current->next = next->next;
             free(next);
+            atomic_thread_fence(memory_order_release);
         }
     }
     MutatorThreads_unlock();

@@ -6,13 +6,11 @@
 #include "LargeAllocator.h"
 #include <stdatomic.h>
 #include <shared/ThreadUtil.h>
-#include <setjmp.h>
 
 typedef struct {
     _Atomic(GC_MutatorThreadState) state;
     atomic_intptr_t stackTop;
     atomic_bool isWaiting;
-    jmp_buf executionContext;
     // immutable fields
     word_t **stackBottom;
     Allocator allocator;

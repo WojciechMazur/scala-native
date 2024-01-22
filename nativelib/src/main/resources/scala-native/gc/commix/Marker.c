@@ -194,7 +194,7 @@ NO_SANITIZE int Marker_markRange(Heap *heap, Stats *stats,
         // Memory allocated by GC is alligned, ignore unaligned pointers e.g.
         // interim pointers, otherwise we risk undefined behaviour when assuming
         // memory layout of underlying object.
-        if (Heap_IsWordInHeap(heap, field) && Bytemap_isPtrAligned(field)) {
+        if (Heap_IsWordInHeap(heap, field) && ((word_t)field & 0x07) == 0) {
             ObjectMeta *fieldMeta = Bytemap_Get(heap->bytemap, field);
             if (ObjectMeta_IsAllocated(fieldMeta)) {
                 Marker_markObject(heap, stats, outHolder, outWeakRefHolder,

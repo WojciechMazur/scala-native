@@ -19,8 +19,7 @@ typedef struct {
 void Bytemap_Init(Bytemap *bytemap, word_t *firstAddress, size_t size);
 
 static inline bool Bytemap_isPtrAligned(word_t *address) {
-    word_t aligned = ((word_t)address & ALLOCATION_ALIGNMENT_INVERSE_MASK);
-    return (word_t *)aligned == address;
+    return ((word_t)address & 0x07) == 0;
 }
 
 static inline size_t Bytemap_index(Bytemap *bytemap, word_t *address) {

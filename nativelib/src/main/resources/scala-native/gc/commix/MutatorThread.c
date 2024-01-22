@@ -77,13 +77,6 @@ void MutatorThread_switchState(MutatorThread *self,
     if (newState == GC_MutatorThreadState_Unmanaged) {
         // Dump registers to allow for their marking later
         __builtin_unwind_init();
-        jmp_buf regs;
-        word_t *i = (word_t *)&regs[0];
-        int8_t *lim = (int8_t *)(&regs[0]) + sizeof(regs);
-        // setjmp doesn't always clear all of the buffer.               */
-        // That tends to preserve garbage. Clear it.                   */
-        memset((void *)&regs[0], 0, sizeof(regs));
-        (void)setjmp(regs);
         newStackTop = (intptr_t)MutatorThread_approximateStackTop();
     }
     atomic_store_explicit(&self->stackTop, newStackTop, memory_order_release);

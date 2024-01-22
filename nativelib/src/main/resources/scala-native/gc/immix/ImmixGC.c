@@ -21,39 +21,6 @@
 #endif
 #include "MutatorThread.h"
 #include <stdatomic.h>
-#include <signal.h>
-#include <errno.h>
-#include <unistd.h>
-#include "immix_commix/StackTrace.h"
-static sigset_t threadWakupSignals;
-static void SafepointTrapHandler(int signal, siginfo_t *siginfo, void *uap) {
-    fprintf(stderr,
-            "Unexpected signal %d when accessing memory at address %p\n",
-            signal, siginfo->si_addr);
-    StackTrace_PrintStackTrace();
-    // sleep(3600);
-    exit(signal);
-    // defaultAction.sa_handler(signal);
-}
-
-static void SetupYieldPointTrapHandler(int signal) {
-    // sigemptyset(&threadWakupSignals);
-    // sigaddset(&threasdWakupSignals, THREAD_WAKEUP_SIGNAL);
-    // sigprocmask(SIG_BLOCK, &threadWakupSignals, NULL);
-    // assert(sigismember(&threadWakupSignals, THREAD_WAKEUP_SIGNAL));
-
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(struct sigaction));
-    sigemptyset(&sa.sa_mask);
-    sa.sa_sigaction = &SafepointTrapHandler;
-    sa.sa_flags = SA_SIGINFO | SA_RESTART;
-    if (sigaction(signal, &sa, NULL) == -1) {
-        perror("Error: cannot setup safepoint synchronization handler");
-        exit(errno);
-    }else {
-        printf("Setup sig handler for signal %d\n", signal);
-    }
-}
 
 void scalanative_GC_collect();
 
@@ -67,11 +34,6 @@ NOINLINE void scalanative_GC_init() {
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
     Synchronizer_init();
     weakRefsHandlerThread = GCThread_WeakThreadsHandler_Start();
-#endif
-#ifndef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
-    SetupYieldPointTrapHandler(SIGSEGV);
-    SetupYieldPointTrapHandler(SIGBUS);
-    SetupYieldPointTrapHandler(SIGILL);
 #endif
     MutatorThreads_init();
     MutatorThread_init((word_t **)&dummy); // approximate stack bottom

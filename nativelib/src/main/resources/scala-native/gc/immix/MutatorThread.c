@@ -58,7 +58,11 @@ typedef word_t **stackptr_t;
 
 NOINLINE NO_OPTIMIZE static stackptr_t MutatorThread_approximateStackTop() {
     volatile word_t sp;
+#if GNUC_PREREQ(4, 0)
+    sp = (word_t)__builtin_frame_address(0);
+#else
     sp = (word_t)&sp;
+#endif
     /* Also force stack to grow if necessary. Otherwise the later accesses might
      * cause the kernel to think we're doing something wrong. */
     return (stackptr_t)sp;

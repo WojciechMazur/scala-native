@@ -49,6 +49,8 @@ runs:
         else 
           brew install llvm@${{ inputs.llvm-version }}
         fi
+        clang --version
+
 
     # Loads cache with dependencies created in test-tools job
     - name: Cache dependencies

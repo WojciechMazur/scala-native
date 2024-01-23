@@ -46,7 +46,7 @@ void Allocator_InitCursors(Allocator *allocator) {
         largeBlock = BlockAllocator_GetFreeBlock(allocator->blockAllocator);
         if (didInit && largeBlock != NULL)
             break;
-        Heap_Grow(&heap, 2);
+        Heap_Collect(&heap, &stack);
     }
     allocator->largeBlock = largeBlock;
     word_t *largeBlockStart = BlockMeta_GetBlockStart(
@@ -136,11 +136,8 @@ bool Allocator_getNextLine(Allocator *allocator) {
 
     allocator->cursor = line;
     FreeLineMeta *lineMeta = (FreeLineMeta *)line;
-    uint16_t size = lineMeta->size;
-    if (size == 0) {
-        return Allocator_newBlock(allocator);
-    }
     BlockMeta_SetFirstFreeLine(block, lineMeta->next);
+    uint16_t size = lineMeta->size;
     allocator->limit = line + (size * WORDS_IN_LINE);
     assert(allocator->limit <= Block_GetBlockEnd(blockStart));
 

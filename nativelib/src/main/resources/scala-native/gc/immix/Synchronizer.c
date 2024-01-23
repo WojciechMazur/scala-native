@@ -241,6 +241,7 @@ void Synchronizer_init() {
 void Synchronizer_yield() {
     MutatorThread *self = currentMutatorThread;
     MutatorThread_switchState(self, GC_MutatorThreadState_Unmanaged);
+    atomic_signal_fence(memory_order_seq_cst);
     atomic_thread_fence(memory_order_seq_cst);
 
     atomic_store_explicit(&self->isWaiting, true, memory_order_release);

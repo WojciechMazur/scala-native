@@ -137,6 +137,12 @@ NO_SANITIZE void Marker_markProgramStack(MutatorThread *thread, Heap *heap,
                                                    memory_order_acquire);
     } while (stackTop == NULL);
     Marker_markRange(heap, stack, stackTop, stackBottom);
+
+    // Mark last context of execution
+    assert(thread->executionContext != NULL);
+    word_t **regs = (word_t **)thread->executionContext;
+    size_t regsSize = sizeof(jmp_buf) / sizeof(word_t *);
+    Marker_markRange(heap, stack, regs, regs + regsSize);
 }
 
 void Marker_markModules(Heap *heap, Stack *stack) {

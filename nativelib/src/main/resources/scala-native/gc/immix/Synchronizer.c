@@ -24,7 +24,6 @@ static void Synchronizer_WaitForResumption(MutatorThread *selfThread);
 // problematic when debugging
 // 2: Conditional yieldpoints based on checking
 // internal flag, better for debuggin, but slower
-#ifdef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
 #include "shared/YieldPointTrap.h"
 #include "immix_commix/StackTrace.h"
 #include <errno.h>
@@ -44,11 +43,13 @@ void **scalanative_GC_yieldpoint_trap;
 static LONG WINAPI SafepointTrapHandler(EXCEPTION_POINTERS *ex) {
     switch (ex->ExceptionRecord->ExceptionCode) {
     case EXCEPTION_ACCESS_VIOLATION:
+#ifdef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
         ULONG_PTR addr = ex->ExceptionRecord->ExceptionInformation[1];
         if ((void *)addr == scalanative_GC_yieldpoint_trap) {
             Synchronizer_yield();
             return EXCEPTION_CONTINUE_EXECUTION;
         }
+#endif
         fprintf(stderr, "Caught exception code %p in GC exception handler\n",
                 (void *)(uintptr_t)ex->ExceptionRecord->ExceptionCode);
         fflush(stdout);
@@ -68,19 +69,24 @@ static LONG WINAPI SafepointTrapHandler(EXCEPTION_POINTERS *ex) {
 static struct sigaction defaultAction;
 static sigset_t threadWakupSignals;
 static void SafepointTrapHandler(int signal, siginfo_t *siginfo, void *uap) {
+#ifdef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
+
     if (siginfo->si_addr == scalanative_GC_yieldpoint_trap) {
         Synchronizer_yield();
     } else {
+#endif
         fprintf(stderr,
                 "Unexpected signal %d when accessing memory at address %p\n",
                 signal, siginfo->si_addr);
         StackTrace_PrintStackTrace();
+#ifdef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
         defaultAction.sa_handler(signal);
     }
+#endif
 }
 #endif
 
-static void SetupYieldPointTrapHandler() {
+static void SetupYieldPointTrapHandler(int signal) {
 #ifdef _WIN32
     // Call it as first exception handler
     AddVectoredExceptionHandler(1, &SafepointTrapHandler);
@@ -95,13 +101,14 @@ static void SetupYieldPointTrapHandler() {
     sigemptyset(&sa.sa_mask);
     sa.sa_sigaction = &SafepointTrapHandler;
     sa.sa_flags = SA_SIGINFO | SA_RESTART;
-    if (sigaction(SAFEPOINT_TRAP_SIGNAL, &sa, &defaultAction) == -1) {
+    if (sigaction(signal, &sa, NULL) == -1) {
         perror("Error: cannot setup safepoint synchronization handler");
         exit(errno);
     }
 #endif
 }
 
+#ifdef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
 static void Synchronizer_WaitForResumption(MutatorThread *selfThread) {
     assert(selfThread == currentMutatorThread);
 #ifdef _WIN32
@@ -215,7 +222,8 @@ void Synchronizer_init() {
 #ifdef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
     scalanative_GC_yieldpoint_trap = YieldPointTrap_init();
     YieldPointTrap_disarm(scalanative_GC_yieldpoint_trap);
-    SetupYieldPointTrapHandler();
+    SetupYieldPointTrapHandler(SIGBUS);
+    SetupYieldPointTrapHandler(SIGSEGV);
 #else
 #ifdef _WIN32
     threadSuspensionEvent = CreateEvent(NULL, true, false, NULL);

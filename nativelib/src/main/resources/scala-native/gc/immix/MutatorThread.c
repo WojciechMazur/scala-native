@@ -7,6 +7,7 @@
 #include <setjmp.h>
 #include "shared/ThreadUtil.h"
 #include <assert.h>
+#include "Marker.h"
 
 static mutex_t threadListsModificationLock;
 
@@ -70,8 +71,10 @@ void MutatorThread_switchState(MutatorThread *self,
     intptr_t newStackTop = 0;
     if (newState == GC_MutatorThreadState_Unmanaged) {
         // Dump registers to allow for their marking later
+        __builtin_unwind_init();
         (void)setjmp(self->executionContext);
         newStackTop = (intptr_t)MutatorThread_approximateStackTop();
+        Marker_MarkRange_Eager((word_t**)newStackTop, self->stackBottom);
     }
     atomic_store_explicit(&self->stackTop, newStackTop, memory_order_release);
     self->state = newState;

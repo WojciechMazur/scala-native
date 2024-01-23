@@ -6,5 +6,6 @@
 
 void Marker_MarkRoots(Heap *heap, Stack *stack);
 void Marker_Mark(Heap *heap, Stack *stack);
+void Marker_MarkRange_Eager(word_t **from, word_t **to);
 
 #endif // IMMIX_MARKER_H

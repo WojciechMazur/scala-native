@@ -1,5 +1,3 @@
-#include "shared/GCTypes.h"
-#include <stdint.h>
 #if defined(SCALANATIVE_GC_IMMIX)
 
 #include "MutatorThread.h"

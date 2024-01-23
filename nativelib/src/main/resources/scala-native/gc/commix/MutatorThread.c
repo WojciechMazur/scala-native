@@ -1,4 +1,3 @@
-#include <string.h>
 #if defined(SCALANATIVE_GC_COMMIX)
 #include "shared/ScalaNativeGC.h"
 #include "MutatorThread.h"

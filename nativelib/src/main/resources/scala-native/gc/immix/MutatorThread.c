@@ -1,3 +1,4 @@
+#include "shared/GCTypes.h"
 #if defined(SCALANATIVE_GC_IMMIX)
 
 #include "MutatorThread.h"
@@ -56,7 +57,7 @@ void MutatorThread_delete(MutatorThread *self) {
 
 typedef word_t **stackptr_t;
 
-NO_OPTIMIZE static stackptr_t MutatorThread_approximateStackTop() {
+NO_OPTIMIZE NOINLINE static stackptr_t MutatorThread_approximateStackTop() {
     volatile word_t sp;
     sp = (word_t)&sp;
     /* Also force stack to grow if necessary. Otherwise the later accesses might
@@ -64,6 +65,7 @@ NO_OPTIMIZE static stackptr_t MutatorThread_approximateStackTop() {
     return (stackptr_t)sp;
 }
 
+INLINE
 void MutatorThread_switchState(MutatorThread *self,
                                GC_MutatorThreadState newState) {
     assert(self != NULL);

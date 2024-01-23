@@ -16,7 +16,6 @@ jobs:
     runs-on: macos-12
     env:
       ENABLE_EXPERIMENTAL_COMPILER: true
-      SCALANATIVE_TEST_DEBUG_SIGNALS: 1
     strategy:
       fail-fast: false
       matrix:

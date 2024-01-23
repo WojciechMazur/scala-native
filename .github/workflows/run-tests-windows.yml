@@ -16,7 +16,6 @@ jobs:
     runs-on: windows-2022
     env:
       ENABLE_EXPERIMENTAL_COMPILER: true
-      SCALANATIVE_TEST_DEBUG_SIGNALS: 1
     strategy:
       fail-fast: false
       matrix:

@@ -28,6 +28,10 @@ jobs:
             gc: immix
           - scala: 2.12
             gc: immix
+          - scala: 2.13
+            gc: commix
+          - scala: 2.12
+            gc: commix
     steps:
       # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
       - name: Setup git config

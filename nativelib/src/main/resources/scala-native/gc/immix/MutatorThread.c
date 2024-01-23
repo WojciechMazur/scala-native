@@ -70,7 +70,6 @@ void MutatorThread_switchState(MutatorThread *self,
     intptr_t newStackTop = 0;
     if (newState == GC_MutatorThreadState_Unmanaged) {
         // Dump registers to allow for their marking later
-        __builtin_unwind_init();
         (void)setjmp(self->executionContext);
         newStackTop = (intptr_t)MutatorThread_approximateStackTop();
     }

@@ -22,7 +22,7 @@ extern int __modules_size;
 static inline void Marker_markLockWords(Heap *heap, Stack *stack,
                                         Object *object);
 static void Marker_markRange(Heap *heap, Stack *stack, word_t **from,
-                             word_t **to);
+                             word_t **to,const char* context);
 
 void Marker_markObject(Heap *heap, Stack *stack, Bytemap *bytemap,
                        Object *object, ObjectMeta *objectMeta) {
@@ -101,7 +101,7 @@ void Marker_Mark(Heap *heap, Stack *stack) {
             } else if (arrayId == __blob_array_id) {
                 int8_t *start = (int8_t *)(arrayHeader + 1);
                 int8_t *end = start + BlobArray_ScannableLimit(arrayHeader);
-                Marker_markRange(heap, stack, (word_t **)start, (word_t **)end);
+                Marker_markRange(heap, stack, (word_t **)start, (word_t **)end, "blobArray");
             }
             // non-object arrays do not contain pointers
         } else {
@@ -116,9 +116,10 @@ void Marker_Mark(Heap *heap, Stack *stack) {
 }
 
 NO_SANITIZE static void Marker_markRange(Heap *heap, Stack *stack,
-                                         word_t **from, word_t **to) {
+                                         word_t **from, word_t **to, const char* context) {
     assert(from != NULL);
     assert(to != NULL);
+    printf("Mark range: %p - %p, size=%lu, context=%s\n", from, to, to - from, context);
     for (word_t **current = from; current <= to; current += 1) {
         word_t *addr = *current;
         if (Heap_IsWordInHeap(heap, addr) && Bytemap_isPtrAligned(addr)) {
@@ -136,13 +137,13 @@ NO_SANITIZE void Marker_markProgramStack(MutatorThread *thread, Heap *heap,
         stackTop = (word_t **)atomic_load_explicit(&thread->stackTop,
                                                    memory_order_acquire);
     } while (stackTop == NULL);
-    Marker_markRange(heap, stack, stackTop, stackBottom);
+    Marker_markRange(heap, stack, stackTop, stackBottom, "stack");
 
-    // Mark last context of execution
+// Mark last context of execution
     assert(thread->executionContext != NULL);
     word_t **regs = (word_t **)thread->executionContext;
     size_t regsSize = sizeof(jmp_buf) / sizeof(word_t *);
-    Marker_markRange(heap, stack, regs, regs + regsSize);
+    Marker_markRange(heap, stack, regs, regs + regsSize, "regs");
 }
 
 void Marker_markModules(Heap *heap, Stack *stack) {
@@ -159,7 +160,7 @@ void Marker_markCustomRoots(Heap *heap, Stack *stack, GC_Roots *roots) {
     mutex_lock(&roots->modificationLock);
     for (GC_Root *it = roots->head; it != NULL; it = it->next) {
         Marker_markRange(heap, stack, (word_t **)it->range.address_low,
-                         (word_t **)it->range.address_high);
+                         (word_t **)it->range.address_high, "customRoots");
     }
     mutex_unlock(&roots->modificationLock);
 }

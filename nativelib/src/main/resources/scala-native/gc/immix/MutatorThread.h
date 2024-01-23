@@ -10,8 +10,8 @@ typedef struct {
     _Atomic(GC_MutatorThreadState) state;
     word_t **stackBottom;
     atomic_intptr_t stackTop;
-    jmp_buf executionContext;
     atomic_bool isWaiting;
+    jmp_buf executionContext;
     // immutable fields
 #ifdef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
 #ifdef _WIN32

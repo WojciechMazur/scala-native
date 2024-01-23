@@ -1,4 +1,3 @@
-#include <stdbool.h>
 #if defined(SCALANATIVE_GC_IMMIX)
 #include <stdint.h>
 #include <stdio.h>
@@ -20,13 +19,10 @@ extern int __modules_size;
 
 #define LAST_FIELD_OFFSET -1
 
-static atomic_bool lockInitialized = false;
-static mutex_t lock;
-
 static inline void Marker_markLockWords(Heap *heap, Stack *stack,
                                         Object *object);
 static void Marker_markRange(Heap *heap, Stack *stack, word_t **from,
-                             word_t **to, const char *context);
+                             word_t **to);
 
 void Marker_markObject(Heap *heap, Stack *stack, Bytemap *bytemap,
                        Object *object, ObjectMeta *objectMeta) {
@@ -105,8 +101,7 @@ void Marker_Mark(Heap *heap, Stack *stack) {
             } else if (arrayId == __blob_array_id) {
                 int8_t *start = (int8_t *)(arrayHeader + 1);
                 int8_t *end = start + BlobArray_ScannableLimit(arrayHeader);
-                Marker_markRange(heap, stack, (word_t **)start, (word_t **)end,
-                                 "blobArray");
+                Marker_markRange(heap, stack, (word_t **)start, (word_t **)end);
             }
             // non-object arrays do not contain pointers
         } else {
@@ -120,19 +115,8 @@ void Marker_Mark(Heap *heap, Stack *stack) {
     }
 }
 
-void Marker_MarkRange_Eager(word_t **from, word_t **to) {
-    if (!lockInitialized) {
-        mutex_init(&lock);
-        lockInitialized = true;
-    }
-    mutex_lock(&lock);
-    Marker_markRange(&heap, &stack, from, to, "eager-custom");
-    mutex_unlock(&lock);
-}
-
 NO_SANITIZE static void Marker_markRange(Heap *heap, Stack *stack,
-                                         word_t **from, word_t **to,
-                                         const char *context) {
+                                         word_t **from, word_t **to) {
     assert(from != NULL);
     assert(to != NULL);
     for (word_t **current = from; current <= to; current += 1) {
@@ -152,13 +136,13 @@ NO_SANITIZE void Marker_markProgramStack(MutatorThread *thread, Heap *heap,
         stackTop = (word_t **)atomic_load_explicit(&thread->stackTop,
                                                    memory_order_acquire);
     } while (stackTop == NULL);
-    Marker_markRange(heap, stack, stackTop, stackBottom, "stack");
+    Marker_markRange(heap, stack, stackTop, stackBottom);
 
     // Mark last context of execution
     assert(thread->executionContext != NULL);
     word_t **regs = (word_t **)thread->executionContext;
     size_t regsSize = sizeof(jmp_buf) / sizeof(word_t *);
-    Marker_markRange(heap, stack, regs, regs + regsSize, "regs");
+    Marker_markRange(heap, stack, regs, regs + regsSize);
 }
 
 void Marker_markModules(Heap *heap, Stack *stack) {
@@ -175,18 +159,13 @@ void Marker_markCustomRoots(Heap *heap, Stack *stack, GC_Roots *roots) {
     mutex_lock(&roots->modificationLock);
     for (GC_Root *it = roots->head; it != NULL; it = it->next) {
         Marker_markRange(heap, stack, (word_t **)it->range.address_low,
-                         (word_t **)it->range.address_high, "customRoots");
+                         (word_t **)it->range.address_high);
     }
     mutex_unlock(&roots->modificationLock);
 }
 
 void Marker_MarkRoots(Heap *heap, Stack *stack) {
     atomic_thread_fence(memory_order_seq_cst);
-    if (!lockInitialized) {
-        mutex_init(&lock);
-        lockInitialized = true;
-    }
-    mutex_lock(&lock);
 
     MutatorThreadNode *head = mutatorThreads;
     MutatorThreads_foreach(mutatorThreads, node) {
@@ -196,7 +175,6 @@ void Marker_MarkRoots(Heap *heap, Stack *stack) {
     Marker_markModules(heap, stack);
     Marker_markCustomRoots(heap, stack, customRoots);
     Marker_Mark(heap, stack);
-    mutex_unlock(&lock);
 }
 
 #endif

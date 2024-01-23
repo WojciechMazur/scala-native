@@ -9,7 +9,6 @@ inputs:
     default: "8"
   llvm-version:
     description: "LLVM toolchain version"
-    default: "17"
 runs:
   using: "composite"
   steps:
@@ -51,9 +50,6 @@ runs:
         wget https://apt.llvm.org/llvm.sh
         chmod +x llvm.sh
         (yes "" || true) | sudo ./llvm.sh ${{ inputs.llvm-version }}
-        sudo ln -s -f /usr/bin/clang-${{ inputs.llvm-version }} /usr/bin/clang
-        sudo ln -s -f /usr/bin/clang++-${{ inputs.llvm-version }} /usr/bin/clang++
-        clang --version
         
     # Loads cache with dependencies created in test-tools job
     - name: Cache dependencies

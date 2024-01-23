@@ -194,7 +194,7 @@ NO_SANITIZE int Marker_markRange(Heap *heap, Stats *stats,
         // Memory allocated by GC is alligned, ignore unaligned pointers e.g.
         // interim pointers, otherwise we risk undefined behaviour when assuming
         // memory layout of underlying object.
-        if (Heap_IsWordInHeap(heap, field) && ((word_t)field & 0x07) == 0) {
+        if (Heap_IsWordInHeap(heap, field)) {
             ObjectMeta *fieldMeta = Bytemap_Get(heap->bytemap, field);
             if (ObjectMeta_IsAllocated(fieldMeta)) {
                 Marker_markObject(heap, stats, outHolder, outWeakRefHolder,
@@ -463,6 +463,12 @@ NO_SANITIZE void Marker_markProgramStack(MutatorThread *thread, Heap *heap,
     size_t stackSize = stackBottom - stackTop;
     Marker_markRange(heap, stats, outHolder, outWeakRefHolder, stackTop,
                      stackSize);
+
+    // Mark last context of execution
+    assert(thread->executionContext != NULL);
+    word_t **regs = (word_t **)thread->executionContext;
+    size_t regsSize = sizeof(jmp_buf) / sizeof(word_t *);
+    Marker_markRange(heap, stats, outHolder, outWeakRefHolder, regs, regsSize);
 }
 
 void Marker_markModules(Heap *heap, Stats *stats, GreyPacket **outHolder,

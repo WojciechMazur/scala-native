@@ -9,7 +9,6 @@ inputs:
     default: "8"
   llvm-version:
     description: "Custom version of LLVM to use"
-    default: "17"
   gc: 
     description: "Garbage collector used, might require installing dependencies"
 runs:
@@ -49,8 +48,6 @@ runs:
         else 
           brew install llvm@${{ inputs.llvm-version }}
         fi
-        clang --version
-
 
     # Loads cache with dependencies created in test-tools job
     - name: Cache dependencies

@@ -96,9 +96,7 @@ jobs:
         env:
           SCALANATIVE_GC: ${{ matrix.gc }}
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
-        run: |
-          clang --version 
-          sbt "show sandbox2_13/nativeConfig; test-runtime ${{ matrix.scala }}"
+        run: sbt "test-runtime ${{ matrix.scala }}"
 
   test-runtime-ext:
     name: Test runtime extension

@@ -122,7 +122,7 @@ NO_SANITIZE static void Marker_markRange(Heap *heap, Stack *stack,
     printf("Mark range: %p - %p, size=%lu, context=%s\n", from, to, to - from, context);
     for (word_t **current = from; current <= to; current += 1) {
         word_t *addr = *current;
-        if (Heap_IsWordInHeap(heap, addr) && Bytemap_isPtrAligned(addr)) {
+        if (Heap_IsWordInHeap(heap, addr)) {
             Marker_markConservative(heap, stack, addr);
         }
     }
@@ -139,7 +139,7 @@ NO_SANITIZE void Marker_markProgramStack(MutatorThread *thread, Heap *heap,
     } while (stackTop == NULL);
     Marker_markRange(heap, stack, stackTop, stackBottom, "stack");
 
-// Mark last context of execution
+    // Mark last context of execution
     assert(thread->executionContext != NULL);
     word_t **regs = (word_t **)thread->executionContext;
     size_t regsSize = sizeof(jmp_buf) / sizeof(word_t *);

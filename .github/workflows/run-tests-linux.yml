@@ -99,6 +99,7 @@ jobs:
         env:
           SCALANATIVE_GC: ${{ matrix.gc }}
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
+          SCALANATIVE_TEST_DEBUG_SIGNALS: 1
         run: sbt "test-runtime ${{ matrix.scala }}"
 
   test-runtime-ext:

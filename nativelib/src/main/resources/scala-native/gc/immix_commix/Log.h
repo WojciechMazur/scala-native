@@ -1,7 +1,7 @@
 #ifndef IMMIX_LOG_H
 #define IMMIX_LOG_H
 
-#define GC_ASSERTIONS 1
+// #define GC_ASSERTIONS 1
 #ifdef GC_ASSERTIONS
 #undef NDEBUG
 #else

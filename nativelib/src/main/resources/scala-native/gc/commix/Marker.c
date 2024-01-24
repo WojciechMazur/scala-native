@@ -306,7 +306,7 @@ void Marker_markPacket(Heap *heap, Stats *stats, GreyPacket *in,
         if (Object_IsArray(object)) {
             if (object->rtti->rt.id == __object_array_id) {
                 objectsTraced += Marker_markObjectArray(
-                    heap, stats, object, outHolder, outWeakRefHolder, bytemap);
+                    heap, stats, object, outHolder, outWeakRefHolder);
             }
             // non-object arrays do not contain pointers
         } else {

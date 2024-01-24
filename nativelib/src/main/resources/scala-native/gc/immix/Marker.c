@@ -95,9 +95,7 @@ void Marker_Mark(Heap *heap, Stack *stack) {
             if (arrayId == __object_array_id) {
                 const size_t length = arrayHeader->length;
                 word_t **fields = (word_t **)(arrayHeader + 1);
-                for (int i = 0; i < length; i++) {
-                    Marker_markField(heap, stack, fields[i]);
-                }
+                Marker_markRange(heap, stack, &fields[0], &fields[length]);
             } else if (arrayId == __blob_array_id) {
                 int8_t *start = (int8_t *)(arrayHeader + 1);
                 int8_t *end = start + BlobArray_ScannableLimit(arrayHeader);

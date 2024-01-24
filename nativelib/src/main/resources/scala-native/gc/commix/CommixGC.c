@@ -101,7 +101,7 @@ NOINLINE void scalanative_GC_init() {
 #ifdef _WIN32
 #define SIGBUS 1
 #define SIGSEGV 2
-#define SI3GILL 3
+#define SIGILL 3
 #endif
     SetupYieldPointTrapHandler(SIGBUS);
     SetupYieldPointTrapHandler(SIGSEGV);

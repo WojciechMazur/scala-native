@@ -46,7 +46,7 @@ object Generate {
       genModuleAccessors()
       genModuleArray()
       genModuleArraySize()
-      genScanableArrayIds()
+      genObjectArrayId()
       genWeakRefUtils()
       genArrayIds()
 
@@ -490,19 +490,13 @@ object Generate {
       meta.ids(clazz)
     }
 
-    def genScanableArrayIds(): Unit = {
-      // Ids of array types that can contain pointers
-      for ((symbol, tpeName) <- Seq(
-            (objectArrayIdName, "Object"),
-            (blobArrayIdName, "Blob")
-          )) {
-        buf += nir.Defn.Var(
-          nir.Attrs.None,
-          symbol,
-          nir.Type.Int,
-          nir.Val.Int(tpe2arrayId(tpeName))
-        )
-      }
+    def genObjectArrayId(): Unit = {
+      buf += nir.Defn.Var(
+        nir.Attrs.None,
+        objectArrayIdName,
+        nir.Type.Int,
+        nir.Val.Int(tpe2arrayId("Object"))
+      )
     }
 
     def genWeakRefUtils(): Unit = {
@@ -552,8 +546,7 @@ object Generate {
         "Long",
         "Float",
         "Double",
-        "Object",
-        "Blob"
+        "Object"
       )
       val ids = tpes.map(tpe2arrayId).sorted
 
@@ -647,7 +640,6 @@ object Generate {
     val moduleArrayName = extern("__modules")
     val moduleArraySizeName = extern("__modules_size")
     val objectArrayIdName = extern("__object_array_id")
-    val blobArrayIdName = extern("__blob_array_id")
     val weakRefIdsMaxName = extern("__weak_ref_ids_max")
     val weakRefIdsMinName = extern("__weak_ref_ids_min")
     val weakRefFieldOffsetName = extern("__weak_ref_field_offset")

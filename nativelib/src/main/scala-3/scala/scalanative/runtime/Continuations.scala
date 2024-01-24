@@ -92,16 +92,18 @@ object Continuations:
    *  `ObjectArray` to simulate just that.
    */
   private[Continuations] class Continuation[-R, +T] extends (R => T):
-    private[Continuations] var inner: Impl.Continuation = _
-    private val allocas = mutable.ArrayBuffer[BlobArray]()
+    private[Continuations] var inner: Impl.Continuation = fromRawPtr(
+      castIntToRawPtr(0)
+    ) // null
+    private val allocas = mutable.ArrayBuffer[ObjectArray]()
 
     def apply(x: R): T =
       resume(inner, x).get
 
     private[Continuations] def alloc(size: CUnsignedLong): Ptr[Byte] =
-      val obj = BlobArray.alloc(size.toInt) // round up the blob size
+      val obj = ObjectArray.alloc(size.toInt) // round up the blob size
       allocas += obj
-      obj.atUnsafe(0)
+      obj.at(0).asInstanceOf[Ptr[Byte]]
   end Continuation
 
   // STATIC FUNCTIONS THAT CALL PASSED-IN FUNCTION OBJECTS

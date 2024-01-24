@@ -5,7 +5,7 @@ import scala.language.implicitConversions
 
 import scalanative.annotation._
 import scalanative.unsafe._
-import scalanative.runtime.{Array => RuntimeArray, _}
+import scalanative.runtime.{Array => _, _}
 import java.io.InputStream
 import java.lang.resource.EmbeddedResourceInputStream
 import java.lang.resource.EmbeddedResourceHelper
@@ -34,17 +34,15 @@ final class _Class[A] {
     obj.asInstanceOf[A]
 
   def getComponentType(): _Class[_] = {
-    if (is(classOf[ObjectArray])) classOf[java.lang.Object] // hot path
-    else if (is(classOf[ByteArray])) classOf[scala.Byte]
+    if (is(classOf[BooleanArray])) classOf[scala.Boolean]
     else if (is(classOf[CharArray])) classOf[scala.Char]
+    else if (is(classOf[ByteArray])) classOf[scala.Byte]
+    else if (is(classOf[ShortArray])) classOf[scala.Short]
     else if (is(classOf[IntArray])) classOf[scala.Int]
     else if (is(classOf[LongArray])) classOf[scala.Long]
     else if (is(classOf[FloatArray])) classOf[scala.Float]
     else if (is(classOf[DoubleArray])) classOf[scala.Double]
-    else if (is(classOf[BooleanArray])) classOf[scala.Boolean]
-    else if (is(classOf[ShortArray])) classOf[scala.Short]
-    else if (is(classOf[BlobArray])) classOf[scala.Byte]
-    else null // JVM compliance
+    else classOf[java.lang.Object]
   }
 
   def getName(): String = name
@@ -55,10 +53,8 @@ final class _Class[A] {
   // Based on fixed ordering in scala.scalanative.codegen.Metadata.initClassIdsAndRanges
   def isInterface(): scala.Boolean = id < 0
   def isPrimitive(): scala.Boolean = id >= 0 && id <= 8
-  // id == 9 is java.lang.Object
-  // id == 10 runtime.Array
-  // ids 10-20 runtime.Array implementations
-  def isArray(): scala.Boolean = id >= 10 && id <= 20
+  // id == 9 => java.lang.Object
+  def isArray(): scala.Boolean = id >= 10 && id <= 19
 
   def isAssignableFrom(that: Class[_]): scala.Boolean =
     is(that.asInstanceOf[_Class[_]], this)

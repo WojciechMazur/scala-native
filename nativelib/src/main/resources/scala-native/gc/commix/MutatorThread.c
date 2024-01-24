@@ -42,7 +42,7 @@ void MutatorThread_delete(MutatorThread *self) {
 
 typedef word_t **stackptr_t;
 
-NOINLINE NO_OPTIMIZE static stackptr_t MutatorThread_approximateStackTop() {
+NOINLINE static stackptr_t MutatorThread_approximateStackTop() {
     volatile word_t sp;
 #if GNUC_PREREQ(4, 0)
     sp = (word_t)__builtin_frame_address(0);
@@ -81,7 +81,10 @@ static void MutatorThreads_unlockWrite() {
     rwlock_unlockWrite(&threadListsModificationLock);
 }
 
-void MutatorThreads_init() { rwlock_init(&threadListsModificationLock); }
+void MutatorThreads_init() {
+    rwlock_init(&threadListsModificationLock);
+    atomic_init(&mutatorThreads, NULL);
+}
 
 void MutatorThreads_add(MutatorThread *node) {
     if (!node)

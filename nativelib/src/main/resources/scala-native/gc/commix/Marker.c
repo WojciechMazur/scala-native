@@ -152,18 +152,16 @@ static inline void Marker_markLockWords(Heap *heap, Stats *stats,
                                         Object *object) {
 #ifdef USES_LOCKWORD
     if (object != NULL) {
+        Field_t rttiLock = object->rtti->rt.lockWord;
+        if (Field_isInflatedLock(rttiLock)) {
+            Field_t field = Field_allignedLockRef(rttiLock);
+            Marker_markField(heap, stats, outHolder, outWeakRefHolder, field);
+        }
+
         Field_t objectLock = object->lockWord;
         if (Field_isInflatedLock(objectLock)) {
             Field_t field = Field_allignedLockRef(objectLock);
             Marker_markField(heap, stats, outHolder, outWeakRefHolder, field);
-        }
-        if (object->rtti != NULL) {
-            Field_t rttiLock = object->rtti->rt.lockWord;
-            if (Field_isInflatedLock(rttiLock)) {
-                Field_t field = Field_allignedLockRef(rttiLock);
-                Marker_markField(heap, stats, outHolder, outWeakRefHolder,
-                                 field);
-            }
         }
     }
 #endif
@@ -258,9 +256,9 @@ int Marker_splitObjectArray(Heap *heap, Stats *stats, GreyPacket **outHolder,
     return objectsTraced;
 }
 
-int Marker_markObjectArray(Heap *heap, Stats *stats, Object *object,
-                           GreyPacket **outHolder,
-                           GreyPacket **outWeakRefHolder, Bytemap *bytemap) {
+static int Marker_markObjectArray(Heap *heap, Stats *stats, Object *object,
+                                  GreyPacket **outHolder,
+                                  GreyPacket **outWeakRefHolder) {
     ArrayHeader *arrayHeader = (ArrayHeader *)object;
     size_t length = arrayHeader->length;
     word_t **fields = (word_t **)(arrayHeader + 1);
@@ -430,12 +428,7 @@ NO_SANITIZE void Marker_markProgramStack(MutatorThread *thread, Heap *heap,
                                          Stats *stats, GreyPacket **outHolder,
                                          GreyPacket **outWeakRefHolder) {
     word_t **stackBottom = thread->stackBottom;
-    word_t **stackTop = NULL;
-    do {
-        // Can spuriously fail, very rare, yet deadly
-        stackTop = (word_t **)atomic_load_explicit(&thread->stackTop,
-                                                   memory_order_acquire);
-    } while (stackTop == NULL);
+    word_t **stackTop = (word_t **)atomic_load(&thread->stackTop);
     // Extend scanning slightly over the approximated stack top
     // In the past we were frequently missing objects allocated just before GC
     // (mostly under LTO enabled)

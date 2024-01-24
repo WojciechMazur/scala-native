@@ -29,8 +29,7 @@ static void Synchronizer_SuspendThread(MutatorThread *thread) {
     WaitForSingleObject(threadSuspensionEvent, INFINITE);
 #else
     pthread_mutex_lock(&threadSuspension.lock);
-    while (
-        atomic_load_explicit(&Synchronizer_stopThreads, memory_order_acquire)) {
+    while (atomic_load(&Synchronizer_stopThreads)) {
         pthread_cond_wait(&threadSuspension.resume, &threadSuspension.lock);
     }
     pthread_mutex_unlock(&threadSuspension.lock);
@@ -83,7 +82,6 @@ void Synchronizer_init() {
 void Synchronizer_wait() {
     MutatorThread *self = currentMutatorThread;
     MutatorThread_switchState(self, GC_MutatorThreadState_Unmanaged);
-    atomic_signal_fence(memory_order_seq_cst);
     atomic_thread_fence(memory_order_seq_cst);
 
     Synchronizer_SuspendThread(self);

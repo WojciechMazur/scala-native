@@ -82,7 +82,7 @@ jobs:
     name: Test runtime extension
     if: "(github.event_name == 'schedule' || github.event_name == 'workflow_call')  && github.repository == 'scala-native/scala-native'"
     runs-on: ubuntu-22.04
-    needs: [tests-tools, test-runtime]
+    needs: [test-runtime]
     env:
       ENABLE_EXPERIMENTAL_COMPILER: true
     strategy:
@@ -139,7 +139,6 @@ jobs:
     name: Test runtime no-opt
     if: "(github.event_name == 'schedule' || github.event_name == 'workflow_call')  && github.repository == 'scala-native/scala-native'"
     runs-on: ubuntu-22.04
-    needs: tests-tools
     env:
       ENABLE_EXPERIMENTAL_COMPILER: true
     strategy:
@@ -168,7 +167,6 @@ jobs:
     name: Test scripted
     if: "github.event_name == 'pull_request' || ((github.event_name == 'schedule' || github.event_name == 'workflow_call') && github.repository == 'scala-native/scala-native')"
     runs-on: ubuntu-22.04
-    needs: tests-tools
     strategy:
       fail-fast: false
       matrix:

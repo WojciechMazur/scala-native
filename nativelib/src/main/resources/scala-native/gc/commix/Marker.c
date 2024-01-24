@@ -193,7 +193,7 @@ NO_SANITIZE int Marker_markRange(Heap *heap, Stats *stats,
         // Memory allocated by GC is alligned, ignore unaligned pointers e.g.
         // interim pointers, otherwise we risk undefined behaviour when assuming
         // memory layout of underlying object.
-        if (Heap_IsWordInHeap(heap, field)) {
+        if (Heap_IsWordInHeap(heap, field) && Bytemap_isPtrAligned(field)) {
             ObjectMeta *fieldMeta = Bytemap_Get(heap->bytemap, field);
             if (ObjectMeta_IsAllocated(fieldMeta)) {
                 Marker_markObject(heap, stats, outHolder, outWeakRefHolder,
@@ -256,9 +256,9 @@ int Marker_splitObjectArray(Heap *heap, Stats *stats, GreyPacket **outHolder,
     return objectsTraced;
 }
 
-static int Marker_markObjectArray(Heap *heap, Stats *stats, Object *object,
-                                  GreyPacket **outHolder,
-                                  GreyPacket **outWeakRefHolder) {
+int Marker_markObjectArray(Heap *heap, Stats *stats, Object *object,
+                           GreyPacket **outHolder,
+                           GreyPacket **outWeakRefHolder, Bytemap *bytemap) {
     ArrayHeader *arrayHeader = (ArrayHeader *)object;
     size_t length = arrayHeader->length;
     word_t **fields = (word_t **)(arrayHeader + 1);
@@ -306,7 +306,7 @@ void Marker_markPacket(Heap *heap, Stats *stats, GreyPacket *in,
         if (Object_IsArray(object)) {
             if (object->rtti->rt.id == __object_array_id) {
                 objectsTraced += Marker_markObjectArray(
-                    heap, stats, object, outHolder, outWeakRefHolder);
+                    heap, stats, object, outHolder, outWeakRefHolder, bytemap);
             }
             // non-object arrays do not contain pointers
         } else {

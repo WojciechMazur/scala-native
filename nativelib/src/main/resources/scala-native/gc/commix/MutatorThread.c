@@ -1,5 +1,5 @@
 #if defined(SCALANATIVE_GC_COMMIX)
-#include "shared/ScalaNativeGC.h"
+
 #include "MutatorThread.h"
 #include "State.h"
 #include <stdlib.h>
@@ -39,10 +39,6 @@ void MutatorThread_init(Field_t *stackbottom) {
     // Following init operations might trigger GC, needs to be executed after
     // acknownleding the new thread in MutatorThreads_add
     Allocator_InitCursors(&self->allocator);
-#ifdef SCALANATIVE_MULTITHREADING_ENABLED
-    // Stop if there is ongoing GC_collection
-    scalanative_GC_yield();
-#endif
 }
 
 void MutatorThread_delete(MutatorThread *self) {
@@ -96,7 +92,10 @@ static void MutatorThreads_unlockWrite() {
     rwlock_unlockWrite(&threadListsModificationLock);
 }
 
-void MutatorThreads_init() { rwlock_init(&threadListsModificationLock); }
+void MutatorThreads_init() {
+    rwlock_init(&threadListsModificationLock);
+    atomic_init(&mutatorThreads, NULL);
+}
 
 void MutatorThreads_add(MutatorThread *node) {
     if (!node)
@@ -105,8 +104,8 @@ void MutatorThreads_add(MutatorThread *node) {
         (MutatorThreadNode *)malloc(sizeof(MutatorThreadNode));
     newNode->value = node;
     MutatorThreads_lockWrite();
-    newNode->next = mutatorThreads;
-    mutatorThreads = newNode;
+    newNode->next = atomic_load_explicit(&mutatorThreads, memory_order_acquire);
+    atomic_store_explicit(&mutatorThreads, newNode, memory_order_release);
     MutatorThreads_unlockWrite();
 }
 
@@ -115,9 +114,11 @@ void MutatorThreads_remove(MutatorThread *node) {
         return;
 
     MutatorThreads_lockWrite();
-    MutatorThreads current = mutatorThreads;
+    MutatorThreads current =
+        atomic_load_explicit(&mutatorThreads, memory_order_acquire);
     if (current->value == node) { // expected is at head
-        mutatorThreads = current->next;
+        atomic_store_explicit(&mutatorThreads, current->next,
+                              memory_order_release);
         free(current);
     } else {
         while (current->next && current->next->value != node) {
@@ -127,6 +128,7 @@ void MutatorThreads_remove(MutatorThread *node) {
         if (next) {
             current->next = next->next;
             free(next);
+            atomic_thread_fence(memory_order_release);
         }
     }
     MutatorThreads_unlockWrite();

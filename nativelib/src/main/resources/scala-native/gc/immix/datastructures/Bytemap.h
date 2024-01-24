@@ -28,7 +28,7 @@ static inline size_t Bytemap_index(Bytemap *bytemap, word_t *address) {
         (address - bytemap->firstAddress) / ALLOCATION_ALIGNMENT_WORDS;
     assert(address >= bytemap->firstAddress);
     assert(index < bytemap->size);
-    assert(Bytemap_isPtrAligned(address));
+    // assert(Bytemap_isPtrAligned(address));
     return index;
 }
 

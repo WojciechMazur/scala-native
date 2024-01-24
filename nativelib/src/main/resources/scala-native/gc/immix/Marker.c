@@ -98,10 +98,6 @@ void Marker_Mark(Heap *heap, Stack *stack) {
                 for (int i = 0; i < length; i++) {
                     Marker_markField(heap, stack, fields[i]);
                 }
-            } else if (arrayId == __blob_array_id) {
-                int8_t *start = (int8_t *)(arrayHeader + 1);
-                int8_t *end = start + BlobArray_ScannableLimit(arrayHeader);
-                Marker_markRange(heap, stack, (word_t **)start, (word_t **)end);
             }
             // non-object arrays do not contain pointers
         } else {

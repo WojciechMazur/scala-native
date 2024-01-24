@@ -160,25 +160,25 @@ abstract class ByteBuffer private[nio] (
     _isBigEndian = bo == ByteOrder.BIG_ENDIAN
     this
   }
-  // Since JDK 9
-  final def alignedSlice(unitSize: Int): ByteBuffer = {
-    val pos = position()
-    val lim = limit()
-    val alignedPos = alignmentOffset(pos, unitSize) match {
-      case n if n > 0 => pos + (unitSize - n)
-      case _ => pos
-    }
-    val alignedLimit = (lim - alignmentOffset(lim, unitSize))
-    if(alignedPos > lim || alignedLimit < pos) slice(pos, 0)
-    else slice(alignedPos, alignedLimit - alignedPos)
-  }
-   // Since JDK 9
-  final def alignmentOffset(index: Int, unitSize: Int): Int = {
-    require(index >= 0, "Index less then zero: " + index)
-    require(unitSize >= 1 && (unitSize & (unitSize - 1)) == 0, "Unit size not a power of two: " + unitSize)
-    if(unitSize > 8 && !isDirect()) throw new UnsupportedOperationException("Unit size unsupported for non-direct dufferes: " + unitSize)
-    ((this.address.toLong + index) & (unitSize -1)).toInt
-  }
+  // // Since JDK 9
+  // final def alignedSlice(unitSize: Int): ByteBuffer = {
+  //   val pos = position()
+  //   val lim = limit()
+  //   val alignedPos = alignmentOffset(pos, unitSize) match {
+  //     case n if n > 0 => pos + (unitSize - n)
+  //     case _ => pos
+  //   }
+  //   val alignedLimit = (lim - alignmentOffset(lim, unitSize))
+  //   if(alignedPos > lim || alignedLimit < pos) slice(pos, 0)
+  //   else slice(alignedPos, alignedLimit - alignedPos)
+  // }
+  //  // Since JDK 9
+  // final def alignmentOffset(index: Int, unitSize: Int): Int = {
+  //   require(index >= 0, "Index less then zero: " + index)
+  //   require(unitSize >= 1 && (unitSize & (unitSize - 1)) == 0, "Unit size not a power of two: " + unitSize)
+  //   if(unitSize > 8 && !isDirect()) throw new UnsupportedOperationException("Unit size unsupported for non-direct dufferes: " + unitSize)
+  //   ((this.address.toLong + index) & (unitSize -1)).toInt
+  // }
 
   def getChar(): Char
   def putChar(value: Char): ByteBuffer

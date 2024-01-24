@@ -152,16 +152,22 @@ static inline void Marker_markLockWords(Heap *heap, Stats *stats,
                                         Object *object) {
 #ifdef USES_LOCKWORD
     if (object != NULL) {
-        Field_t rttiLock = object->rtti->rt.lockWord;
-        if (Field_isInflatedLock(rttiLock)) {
-            Field_t field = Field_allignedLockRef(rttiLock);
-            Marker_markField(heap, stats, outHolder, outWeakRefHolder, field);
+        if (object->rtti != NULL && object->rtti->rt.lockWord != NULL) {
+            Field_t rttiLock = object->rtti->rt.lockWord;
+            if (Field_isInflatedLock(rttiLock)) {
+                Field_t field = Field_allignedLockRef(rttiLock);
+                Marker_markField(heap, stats, outHolder, outWeakRefHolder,
+                                 field);
+            }
         }
 
         Field_t objectLock = object->lockWord;
-        if (Field_isInflatedLock(objectLock)) {
-            Field_t field = Field_allignedLockRef(objectLock);
-            Marker_markField(heap, stats, outHolder, outWeakRefHolder, field);
+        if (objectLock != NULL) {
+            if (Field_isInflatedLock(objectLock)) {
+                Field_t field = Field_allignedLockRef(objectLock);
+                Marker_markField(heap, stats, outHolder, outWeakRefHolder,
+                                 field);
+            }
         }
     }
 #endif

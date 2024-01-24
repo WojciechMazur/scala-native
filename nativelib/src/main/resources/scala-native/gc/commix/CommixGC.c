@@ -45,8 +45,11 @@ static LONG WINAPI SafepointTrapHandler(EXCEPTION_POINTERS *ex) {
     switch (ex->ExceptionRecord->ExceptionCode) {
     case EXCEPTION_ACCESS_VIOLATION:
         ULONG_PTR addr = ex->ExceptionRecord->ExceptionInformation[1];
-        fprintf(stderr, "Caught exception code %p in GC exception handler\n",
-                (void *)(uintptr_t)ex->ExceptionRecord->ExceptionCode);
+        fprintf(
+            stderr,
+            "Caught exception code %p in GC exception handler, address=%p\n",
+            (void *)(uintptr_t)ex->ExceptionRecord->ExceptionCode,
+            (void *)addr);
         fflush(stdout);
         StackTrace_PrintStackTrace();
     // pass-through

@@ -85,11 +85,14 @@ NOINLINE void scalanative_GC_init() {
     volatile word_t dummy;
     dummy = (word_t)&dummy;
 #ifndef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
-    SetupYieldPointTrapHandler(SIGSEGV);
-    SetupYieldPointTrapHandler(SIGILL);
 #ifndef _WIN32
+    #define SIGBUS 1
+    #define SIGSEGV 2
+    #define SIGILL 3
     SetupYieldPointTrapHandler(SIGBUS);
 #endif
+    SetupYieldPointTrapHandler(SIGSEGV);
+    SetupYieldPointTrapHandler(SIGILL);
 #endif
     Heap_Init(&heap, Settings_MinHeapSize(), Settings_MaxHeapSize());
     Stack_Init(&stack, INITIAL_STACK_SIZE);

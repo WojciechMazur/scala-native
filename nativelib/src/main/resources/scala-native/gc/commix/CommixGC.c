@@ -26,6 +26,61 @@
 #include "MutatorThread.h"
 #include <stdatomic.h>
 
+#ifndef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
+#include "immix_commix/StackTrace.h"
+#include <errno.h>
+#ifdef _WIN32
+#include <errhandlingapi.h>
+#else
+#include <signal.h>
+#include <pthread.h>
+#include <sys/mman.h>
+#include <sys/time.h>
+#include <unistd.h>
+#endif
+
+#ifdef _WIN32
+static LONG WINAPI SafepointTrapHandler(EXCEPTION_POINTERS *ex) {
+    switch (ex->ExceptionRecord->ExceptionCode) {
+    case EXCEPTION_ACCESS_VIOLATION:
+        ULONG_PTR addr = ex->ExceptionRecord->ExceptionInformation[1];
+        fprintf(stderr, "Caught exception code %p in GC exception handler\n",
+                (void *)(uintptr_t)ex->ExceptionRecord->ExceptionCode);
+        fflush(stdout);
+        StackTrace_PrintStackTrace();
+    // pass-through
+    default:
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+}
+#else
+static void SafepointTrapHandler(int signal, siginfo_t *siginfo, void *uap) {
+    fprintf(stderr,
+            "Unexpected signal %d when accessing memory at address %p\n",
+            signal, siginfo->si_addr);
+    StackTrace_PrintStackTrace();
+    exit(signal);
+}
+#endif
+
+static void SetupYieldPointTrapHandler(int signal) {
+#ifdef _WIN32
+    // Call it as first exception handler
+    AddVectoredExceptionHandler(1, &SafepointTrapHandler);
+#else
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(struct sigaction));
+    sigemptyset(&sa.sa_mask);
+    sa.sa_sigaction = &SafepointTrapHandler;
+    sa.sa_flags = SA_SIGINFO | SA_RESTART;
+    if (sigaction(signal, &sa, NULL) == -1) {
+        perror("Error: cannot setup safepoint synchronization handler");
+        exit(errno);
+    }
+#endif
+}
+#endif
+
 void scalanative_GC_collect();
 
 void scalanative_afterexit() {
@@ -42,6 +97,16 @@ void scalanative_afterexit() {
 
 NOINLINE void scalanative_GC_init() {
     volatile int dummy = 0;
+#ifndef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
+#ifndef _WIN32
+#define SIGBUS 1
+#define SIGSEGV 2
+#define SIGILL 3
+    SetupYieldPointTrapHandler(SIGBUS);
+#endif
+    SetupYieldPointTrapHandler(SIGSEGV);
+    SetupYieldPointTrapHandler(SIGILL);
+#endif
     Heap_Init(&heap, Settings_MinHeapSize(), Settings_MaxHeapSize());
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
     Synchronizer_init();

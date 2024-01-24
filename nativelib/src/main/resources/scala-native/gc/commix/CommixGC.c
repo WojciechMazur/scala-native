@@ -101,13 +101,12 @@ NOINLINE void scalanative_GC_init() {
     dummy = (word_t)&dummy;
 #ifndef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
 #ifdef _WIN32
-#define SIGBUS 1
-#define SIGSEGV 2
-#define SIGILL 3
-#endif
+    SetupYieldPointTrapHandler(-1);
+#else
     SetupYieldPointTrapHandler(SIGBUS);
     SetupYieldPointTrapHandler(SIGSEGV);
     SetupYieldPointTrapHandler(SIGILL);
+#endif
 #endif
     Heap_Init(&heap, Settings_MinHeapSize(), Settings_MaxHeapSize());
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED

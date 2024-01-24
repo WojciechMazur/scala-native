@@ -273,14 +273,12 @@ bool Synchronizer_acquire() {
         activeThreads = 0;
         MutatorThreads_foreach(mutatorThreads, node) {
             MutatorThread *it = node->value;
-            if ((void *)atomic_load_explicit(&it->stackTop,
-                                             memory_order_consume) == NULL) {
+            if ((void *)atomic_load(&it->stackTop) == NULL) {
                 activeThreads++;
             }
         }
-        if (activeThreads > 0) {
+        if (activeThreads > 0)
             thread_yield();
-        }
     } while (activeThreads > 0);
     return true;
 }

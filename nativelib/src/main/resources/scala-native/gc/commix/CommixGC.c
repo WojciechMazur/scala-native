@@ -96,7 +96,8 @@ void scalanative_afterexit() {
 }
 
 NOINLINE void scalanative_GC_init() {
-    volatile int dummy = 0;
+    volatile word_t dummy = 0;
+    dummy = (word_t)&dummy;
 #ifndef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
 #ifdef _WIN32
 #define SIGBUS 1
@@ -113,7 +114,7 @@ NOINLINE void scalanative_GC_init() {
     weakRefsHandlerThread = GCThread_WeakThreadsHandler_Start();
 #endif
     MutatorThreads_init();
-    MutatorThread_init((word_t **)&dummy); // approximate stack bottom
+    MutatorThread_init((word_t **)dummy); // approximate stack bottom
     customRoots = GC_Roots_Init();
 #ifdef ENABLE_GC_STATS
     atexit(scalanative_afterexit);

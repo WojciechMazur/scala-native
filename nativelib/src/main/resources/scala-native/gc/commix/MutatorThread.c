@@ -105,8 +105,8 @@ void MutatorThreads_add(MutatorThread *node) {
         (MutatorThreadNode *)malloc(sizeof(MutatorThreadNode));
     newNode->value = node;
     MutatorThreads_lockWrite();
-    newNode->next = mutatorThreads;
-    mutatorThreads = newNode;
+    newNode->next = atomic_load_explicit(&mutatorThreads, memory_order_acquire);
+    atomic_store_explicit(&mutatorThreads, newNode, memory_order_release);
     MutatorThreads_unlockWrite();
 }
 
@@ -115,9 +115,11 @@ void MutatorThreads_remove(MutatorThread *node) {
         return;
 
     MutatorThreads_lockWrite();
-    MutatorThreads current = mutatorThreads;
+    MutatorThreads current =
+        atomic_load_explicit(&mutatorThreads, memory_order_acquire);
     if (current->value == node) { // expected is at head
-        mutatorThreads = current->next;
+        atomic_store_explicit(&mutatorThreads, current->next,
+                              memory_order_release);
         free(current);
     } else {
         while (current->next && current->next->value != node) {
@@ -127,6 +129,7 @@ void MutatorThreads_remove(MutatorThread *node) {
         if (next) {
             current->next = next->next;
             free(next);
+            atomic_thread_fence(memory_order_release);
         }
     }
     MutatorThreads_unlockWrite();

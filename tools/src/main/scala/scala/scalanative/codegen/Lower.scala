@@ -594,10 +594,15 @@ object Lower {
           throw new LinkingException(s"Metadata for field '$name' not found")
       }
 
+      // No explicit memory order for load of final field,
+      // all final fields are loaded after a acquire fence
       val memoryOrder =
         if (field.attrs.isVolatile) nir.MemoryOrder.SeqCst
-        else if (field.attrs.isFinal) nir.MemoryOrder.Acquire
         else nir.MemoryOrder.Unordered
+
+      // Acquire memory fence before loading a final field
+      if (field.attrs.isFinal) buf.fence(nir.MemoryOrder.Acquire)
+
       val elem = genFieldElemOp(buf, genVal(buf, obj), name)
       genLoadOp(buf, n, nir.Op.Load(ty, elem, Some(memoryOrder)))
     }
@@ -743,6 +748,7 @@ object Lower {
       }
       private val multithreadingEnabled = meta.platform.isMultithreadingEnabled
       private val usesGCYieldPoints = multithreadingEnabled && supportedGC
+      private val useYieldPointTraps = platform.useGCYieldPointTraps
 
       def apply(defn: nir.Defn.Define): Boolean = {
         if (!usesGCYieldPoints) false
@@ -753,7 +759,12 @@ object Lower {
           lastResult = {
             // Exclude accessors and generated methods
             def mayContainLoops =
-              defn.insts.exists(_.isInstanceOf[nir.Inst.Jump])
+              defn.insts.exists {
+                case jmp: nir.Inst.Jump =>
+                  // might contain loops
+                  jmp.next.isInstanceOf[nir.Next.Label]
+                case _ => false
+              }
             !sig.isGenerated && (defn.insts.size > 4 || mayContainLoops)
           }
           lastResult
@@ -766,11 +777,12 @@ object Lower {
         scopeId: nir.ScopeId
     ): Unit = {
       if (shouldGenerateGCYieldPoints(currentDefn.get)) {
-        val handler = {
-          if (genUnwind && unwindHandler.isInitialized) unwind
-          else nir.Next.None
+        if (platform.useGCYieldPointTraps) {
+          val trap = buf.load(nir.Type.Ptr, GCYieldPointTrap, nir.Next.None)
+          buf.store(nir.Type.Int, trap, zero, nir.Next.None, memoryOrder = None)
+        } else {
+          buf.call(GCYieldSig, GCYield, Nil, nir.Next.None)
         }
-        buf.call(GCYieldSig, GCYield, Nil, handler)
       }
     }
 
@@ -2034,6 +2046,10 @@ object Lower {
   val GCYieldSig = nir.Type.Function(Nil, nir.Type.Unit)
   val GCYield = nir.Val.Global(GCYieldName, nir.Type.Ptr)
 
+  val GCYieldPointTrapName =
+    GC.member(nir.Sig.Extern("scalanative_GC_yieldpoint_trap"))
+  val GCYieldPointTrap = nir.Val.Global(GCYieldPointTrapName, nir.Type.Ptr)
+
   val GCSetMutatorThreadStateSig =
     nir.Type.Function(Seq(nir.Type.Int), nir.Type.Unit)
   val GCSetMutatorThreadState = nir.Val.Global(
@@ -2101,6 +2117,7 @@ object Lower {
     buf += RuntimeNothing.name
     if (platform.isMultithreadingEnabled) {
       buf += GCYield.name
+      if (platform.useGCYieldPointTraps) buf += GCYieldPointTrap.name
       buf += GCSetMutatorThreadState.name
     }
     buf.toSeq

@@ -262,9 +262,9 @@ int Marker_splitObjectArray(Heap *heap, Stats *stats, GreyPacket **outHolder,
     return objectsTraced;
 }
 
-int Marker_markObjectArray(Heap *heap, Stats *stats, Object *object,
-                           GreyPacket **outHolder,
-                           GreyPacket **outWeakRefHolder, Bytemap *bytemap) {
+static int Marker_markObjectArray(Heap *heap, Stats *stats, Object *object,
+                                  GreyPacket **outHolder,
+                                  GreyPacket **outWeakRefHolder) {
     ArrayHeader *arrayHeader = (ArrayHeader *)object;
     size_t length = arrayHeader->length;
     word_t **fields = (word_t **)(arrayHeader + 1);
@@ -277,6 +277,27 @@ int Marker_markObjectArray(Heap *heap, Stats *stats, Object *object,
         // to handle
         objectsTraced = Marker_splitObjectArray(
             heap, stats, outHolder, outWeakRefHolder, fields, length);
+    }
+    return objectsTraced;
+}
+
+static int Marker_markBlobArray(Heap *heap, Stats *stats, Object *object,
+                                GreyPacket **outHolder,
+                                GreyPacket **outWeakRefHolder) {
+    ArrayHeader *arrayHeader = (ArrayHeader *)object;
+    size_t bytesLength = BlobArray_ScannableLimit(arrayHeader);
+    size_t objectsLength = bytesLength / sizeof(word_t);
+    word_t **blobStart = (word_t **)(arrayHeader + 1);
+    int objectsTraced;
+    // From that point we can treat it similary as object array
+    if (objectsLength <= ARRAY_SPLIT_THRESHOLD) {
+        objectsTraced = Marker_markRange(
+            heap, stats, outHolder, outWeakRefHolder, blobStart, objectsLength);
+    } else {
+        // object array is two large, split it into pieces for multiple threads
+        // to handle
+        objectsTraced = Marker_splitObjectArray(
+            heap, stats, outHolder, outWeakRefHolder, blobStart, objectsLength);
     }
     return objectsTraced;
 }
@@ -310,9 +331,13 @@ void Marker_markPacket(Heap *heap, Stats *stats, GreyPacket *in,
     while (!GreyPacket_IsEmpty(in)) {
         Object *object = GreyPacket_Pop(in);
         if (Object_IsArray(object)) {
-            if (object->rtti->rt.id == __object_array_id) {
+            const int arrayId = object->rtti->rt.id;
+            if (arrayId == __object_array_id) {
                 objectsTraced += Marker_markObjectArray(
-                    heap, stats, object, outHolder, outWeakRefHolder, bytemap);
+                    heap, stats, object, outHolder, outWeakRefHolder);
+            } else if (arrayId == __blob_array_id) {
+                objectsTraced += Marker_markBlobArray(
+                    heap, stats, object, outHolder, outWeakRefHolder);
             }
             // non-object arrays do not contain pointers
         } else {
@@ -434,7 +459,12 @@ NO_SANITIZE void Marker_markProgramStack(MutatorThread *thread, Heap *heap,
                                          Stats *stats, GreyPacket **outHolder,
                                          GreyPacket **outWeakRefHolder) {
     word_t **stackBottom = thread->stackBottom;
-    word_t **stackTop = (word_t **)atomic_load(&thread->stackTop);
+    word_t **stackTop = NULL;
+    do {
+        // Can spuriously fail, very rare, yet deadly
+        stackTop = (word_t **)atomic_load_explicit(&thread->stackTop,
+                                                   memory_order_acquire);
+    } while (stackTop == NULL);
     // Extend scanning slightly over the approximated stack top
     // In the past we were frequently missing objects allocated just before GC
     // (mostly under LTO enabled)

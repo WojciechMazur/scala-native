@@ -17,13 +17,10 @@
 #include "GCThread.h"
 #include "WeakRefGreyList.h"
 #include "Sweeper.h"
-#include "Synchronizer.h"
+#include "immix_commix/Synchronizer.h"
 
 #include "shared/Parsing.h"
 
-#ifdef SCALANATIVE_MULTITHREADING_ENABLED
-#include "Synchronizer.h"
-#endif
 #include "MutatorThread.h"
 #include <stdatomic.h>
 
@@ -249,7 +246,7 @@ void scalanative_GC_set_mutator_thread_state(GC_MutatorThreadState state) {
 void scalanative_GC_yield() {
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
     if (atomic_load_explicit(&Synchronizer_stopThreads, memory_order_relaxed))
-        Synchronizer_wait();
+        Synchronizer_yield();
 #endif
 }
 

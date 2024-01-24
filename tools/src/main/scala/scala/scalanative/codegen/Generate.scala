@@ -474,7 +474,7 @@ object Generate {
 
     def genModuleArraySize(): Unit =
       buf +=
-        nir.Defn.Const(
+        nir.Defn.Var(
           nir.Attrs.None,
           moduleArraySizeName,
           nir.Type.Int,
@@ -496,7 +496,7 @@ object Generate {
             (objectArrayIdName, "Object"),
             (blobArrayIdName, "Blob")
           )) {
-        buf += nir.Defn.Const(
+        buf += nir.Defn.Var(
           nir.Attrs.None,
           symbol,
           nir.Type.Int,
@@ -508,7 +508,7 @@ object Generate {
     def genWeakRefUtils(): Unit = {
       def addToBuf(name: nir.Global.Member, value: Int) =
         buf +=
-          nir.Defn.Const(
+          nir.Defn.Var(
             nir.Attrs.None,
             name,
             nir.Type.Int,
@@ -566,8 +566,10 @@ object Generate {
         )
       }
 
-      buf += nir.Defn.Const(nir.Attrs.None, arrayIdsMinName, nir.Type.Int, nir.Val.Int(min))
-      buf += nir.Defn.Const(nir.Attrs.None, arrayIdsMaxName, nir.Type.Int, nir.Val.Int(max))
+      buf += nir.Defn.Var(nir.Attrs.None, arrayIdsMinName, nir.Type.Int, nir.Val.Int(min))
+
+      buf += nir.Defn.Var(nir.Attrs.None, arrayIdsMaxName, nir.Type.Int, nir.Val.Int(max))
+
     }
 
     def genTraitDispatchTables(): Unit = {

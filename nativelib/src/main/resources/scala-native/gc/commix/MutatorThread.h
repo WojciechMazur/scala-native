@@ -1,12 +1,15 @@
-#ifndef MUTATOR_THREAD_H
-#define MUTATOR_THREAD_H
-#include "shared/ScalaNativeGC.h"
+#include <shared/ScalaNativeGC.h>
 #include "shared/GCTypes.h"
 #include "Allocator.h"
 #include "LargeAllocator.h"
+#include "State.h"
+#include "SweepResult.h"
 #include <stdatomic.h>
 #include <shared/ThreadUtil.h>
 #include <setjmp.h>
+
+#ifndef MUTATOR_THREAD_H
+#define MUTATOR_THREAD_H
 
 typedef struct {
     _Atomic(GC_MutatorThreadState) state;
@@ -17,13 +20,6 @@ typedef struct {
     word_t **stackBottom;
     Allocator allocator;
     LargeAllocator largeAllocator;
-#ifdef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
-#ifdef _WIN32
-    HANDLE wakeupEvent;
-#else
-    thread_t thread;
-#endif
-#endif // SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
 } MutatorThread;
 
 typedef struct MutatorThreadNode {

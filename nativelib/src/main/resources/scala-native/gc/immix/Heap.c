@@ -15,7 +15,7 @@
 #include "shared/MemoryMap.h"
 #include <time.h>
 #include "WeakRefStack.h"
-#include "immix_commix/Synchronizer.h"
+#include "Synchronizer.h"
 
 void Heap_exitWithOutOfMemory(const char *details) {
     fprintf(stderr, "Out of heap space %s\n", details);

@@ -85,7 +85,7 @@ NOINLINE void scalanative_GC_init() {
     volatile word_t dummy;
     dummy = (word_t)&dummy;
 #ifndef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
-#ifndef _WIN32
+#ifdef _WIN32
     #define SIGBUS 1
     #define SIGSEGV 2
     #define SIGILL 3

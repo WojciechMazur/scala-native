@@ -98,10 +98,10 @@ void scalanative_afterexit() {
 NOINLINE void scalanative_GC_init() {
     volatile int dummy = 0;
 #ifndef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
-#ifndef _WIN32
+#ifdef _WIN32
 #define SIGBUS 1
 #define SIGSEGV 2
-#define SIGILL 3
+#define SI3GILL 3
     SetupYieldPointTrapHandler(SIGBUS);
 #endif
     SetupYieldPointTrapHandler(SIGSEGV);

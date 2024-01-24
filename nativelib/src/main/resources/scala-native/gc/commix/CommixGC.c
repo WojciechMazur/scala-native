@@ -246,6 +246,7 @@ void scalanative_GC_yield() {
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
     if (atomic_load_explicit(&Synchronizer_stopThreads, memory_order_relaxed))
         Synchronizer_wait();
+#endif
 }
 
 #endif // defined(SCALANATIVE_GC_COMMIX)

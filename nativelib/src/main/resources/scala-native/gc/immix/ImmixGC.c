@@ -75,7 +75,7 @@ static void SetupYieldPointTrapHandler(int signal) {
     }
 #endif
 }
-#endif
+#endif // ndef traps
 
 void scalanative_GC_collect();
 
@@ -86,14 +86,14 @@ NOINLINE void scalanative_GC_init() {
     dummy = (word_t)&dummy;
 #ifndef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
 #ifdef _WIN32
-    #define SIGBUS 1
-    #define SIGSEGV 2
-    #define SIGILL 3
+#define SIGBUS 1
+#define SIGSEGV 2
+#define SIGILL 3
 #endif
     SetupYieldPointTrapHandler(SIGBUS);
     SetupYieldPointTrapHandler(SIGSEGV);
     SetupYieldPointTrapHandler(SIGILL);
-#endif
+#endif // ndef traps
     Heap_Init(&heap, Settings_MinHeapSize(), Settings_MaxHeapSize());
     Stack_Init(&stack, INITIAL_STACK_SIZE);
     Stack_Init(&weakRefStack, INITIAL_STACK_SIZE);
@@ -215,6 +215,7 @@ void scalanative_GC_yield() {
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
     if (atomic_load_explicit(&Synchronizer_stopThreads, memory_order_relaxed))
         Synchronizer_wait();
+#endif
 }
 
 void scalanative_GC_add_roots(void *addr_low, void *addr_high) {

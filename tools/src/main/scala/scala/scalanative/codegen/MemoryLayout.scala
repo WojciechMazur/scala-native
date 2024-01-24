@@ -26,7 +26,10 @@ final case class MemoryLayout(
     val ptrOffsets =
       tys.collect {
         // offset in words without object header
-        case MemoryLayout.PositionedType(_: nir.Type.RefKind, offset) =>
+        case MemoryLayout.PositionedType(
+              _: nir.Type.RefKind | nir.Type.Ptr,
+              offset
+            ) =>
           nir.Val.Long(
             (offset - sizeOfHeader) / MemoryLayout.BYTES_IN_LONG
           )

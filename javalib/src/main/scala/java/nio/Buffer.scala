@@ -134,7 +134,7 @@ abstract class Buffer private[nio] (val _capacity: Int) {
     else
       _array
         .asInstanceOf[scalanative.runtime.Array[_]]
-        .at(_offset)
+        .atUnsafe(_offset)
         .asInstanceOf[unsafe.Ptr[Byte]]
 
   // HeapByteBuffer specific

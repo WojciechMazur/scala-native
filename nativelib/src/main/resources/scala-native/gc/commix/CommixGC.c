@@ -21,9 +21,68 @@
 #include "shared/Parsing.h"
 
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
+#include "immix_commix/Synchronizer.h"
 #endif
 #include "MutatorThread.h"
 #include <stdatomic.h>
+
+#include "immix_commix/StackTrace.h"
+#include <errno.h>
+#ifdef _WIN32
+#include <errhandlingapi.h>
+#else
+#include <signal.h>
+#include <pthread.h>
+#include <sys/mman.h>
+#include <sys/time.h>
+#include <unistd.h>
+#endif
+
+#ifdef _WIN32
+static LONG WINAPI SafepointTrapHandler(EXCEPTION_POINTERS *ex) {
+    switch (ex->ExceptionRecord->ExceptionCode) {
+    case EXCEPTION_ACCESS_VIOLATION:
+        ULONG_PTR addr = ex->ExceptionRecord->ExceptionInformation[1];
+        fprintf(
+            stderr,
+            "Caught exception code %p in GC exception handler, address=%p\n",
+            (void *)(uintptr_t)ex->ExceptionRecord->ExceptionCode,
+            (void *)addr);
+        fflush(stdout);
+        StackTrace_PrintStackTrace();
+    // pass-through
+    default:
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+}
+#else
+static void SafepointTrapHandler(int signal, siginfo_t *siginfo, void *uap) {
+    fprintf(stderr,
+            "Unexpected signal %d when accessing memory at address %p, "
+            "errno=%d, code=%d\n",
+            signal, siginfo->si_addr, siginfo->si_errno, siginfo->si_code);
+    StackTrace_PrintStackTrace();
+    exit(signal);
+}
+#endif
+
+static void SetupYieldPointTrapHandler(int signal) {
+#ifdef _WIN32
+    // Call it as first exception handler
+    AddVectoredExceptionHandler(1, &SafepointTrapHandler);
+#else
+    struct sigaction sa, osa;
+    memset(&sa, 0, sizeof(struct sigaction));
+    sigemptyset(&sa.sa_mask);
+    sa.sa_sigaction = &SafepointTrapHandler;
+    sa.sa_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK;
+    if (sigaction(signal, &sa, &osa) == -1) {
+        perror("Error: cannot setup safepoint synchronization handler");
+        exit(errno);
+    }
+    printf("setup handler for %d in %d\n", signal, getpid());
+#endif
+}
 
 void scalanative_GC_collect();
 
@@ -42,6 +101,13 @@ void scalanative_afterexit() {
 NOINLINE void scalanative_GC_init() {
     volatile word_t dummy = 0;
     dummy = (word_t)&dummy;
+#ifdef _WIN32
+    SetupYieldPointTrapHandler(-1);
+#else
+    SetupYieldPointTrapHandler(SIGBUS);
+    SetupYieldPointTrapHandler(SIGSEGV);
+    SetupYieldPointTrapHandler(SIGILL);
+#endif
     Heap_Init(&heap, Settings_MinHeapSize(), Settings_MaxHeapSize());
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
     Synchronizer_init();

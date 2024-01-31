@@ -16,15 +16,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, macos-12]
-        scala: [3]
-        java: [11, 17, 21]
-        include:
-          - java: 21
-            scala: 2.13
-            os: ubuntu-22.04
-          - java: 17
-            scala: 2.12
-            os: macos-12
+        scala: [3, 2.13]
+        java: [17, 21]
+        gc: [immix, commix]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/macos-setup-env
@@ -43,6 +37,7 @@ jobs:
           _JAVA_OPTIONS='${{ matrix.java-options }}'
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO=1
           SCALANATIVE_MODE=release-fast
+          SCALANATIVE_GC=${{matrix.gc}}
           sbt 
           "-J-Xmx3G" 
           "test-runtime ${{matrix.scala}}"
@@ -53,8 +48,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scala: [3]
-        java: [11, 17, 21]
+        scala: [2.13, 3]
+        java: [17, 21]
+        gc: [immix, commix]
     steps:
       # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
       - name: Setup git config
@@ -72,6 +68,7 @@ jobs:
           set SCALANATIVE_INCLUDE_DIRS=${{steps.setup.outputs.vcpkg-dir}}\include&
           set SCALANATIVE_LIB_DIRS=${{steps.setup.outputs.vcpkg-dir}}\lib&
           set SCALANATIVE_MODE=release-fast&
+          set SCALANATIVE_GC=${{matrix.gc}}&
           set SCALANATIVE &
           set _JAVA_OPTIONS=${{ matrix.java-options }} &
           set SCALANATIVE_TEST_PREFETCH_DEBUG_INFO=1 &

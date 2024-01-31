@@ -39,6 +39,10 @@ runs:
       if: ${{ startsWith(inputs.gc, 'boehm') }}
       run: brew install bdw-gc
 
+    - name: Install sbt
+      shell: bash
+      run: brew install sbt
+
     - name: Install explicit LLVM toolchain
       shell: bash
       if: ${{ inputs.llvm-version != '' }}

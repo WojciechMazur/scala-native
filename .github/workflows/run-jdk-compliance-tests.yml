@@ -37,6 +37,7 @@ jobs:
           _JAVA_OPTIONS='${{ matrix.java-options }}'
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO=1
           SCALANATIVE_MODE=release-fast
+          SCALANATIVE_LTO=thin
           SCALANATIVE_GC=${{matrix.gc}}
           sbt 
           "-J-Xmx3G" 
@@ -69,6 +70,7 @@ jobs:
           set SCALANATIVE_LIB_DIRS=${{steps.setup.outputs.vcpkg-dir}}\lib&
           set SCALANATIVE_MODE=release-fast&
           set SCALANATIVE_GC=${{matrix.gc}}&
+          set SCALANATIVE_LTO=thin&
           set SCALANATIVE &
           set _JAVA_OPTIONS=${{ matrix.java-options }} &
           set SCALANATIVE_TEST_PREFETCH_DEBUG_INFO=1 &

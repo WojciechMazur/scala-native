@@ -4,6 +4,7 @@ package linker
 import java.nio.file.{Path, Paths}
 import scala.annotation.tailrec
 import scala.collection.mutable
+import scala.scalanative.linker.ClassLoader.FromDisk
 
 private[linker] class Reach(
     protected val config: build.Config,
@@ -45,6 +46,23 @@ private[linker] class Reach(
         defns.foreach(defn => buf.update(defn.name, defn))
     }
     injects.foreach(reachDefn)
+  }
+
+  loader match {
+    case loader: FromDisk
+        if config.compilerConfig.buildTarget
+          .isInstanceOf[build.BuildTarget.Library] =>
+      // println("reach all public entries")
+      // var i = 0
+      loader.loadAll().foreach {
+        case nir.Defn.Define(_, name @ nir.Global.Member(_, sig), _, _, _)
+            if sig.unmangled.sigScope.isPublic =>
+          // i += 1
+          // println(s"reach $i: ${name}")
+          reachEntry(name)(nir.SourcePosition.NoPosition)
+        case _ => ()
+      }
+    case _ => ()
   }
 
   entries.foreach(reachEntry(_)(nir.SourcePosition.NoPosition))

@@ -41,6 +41,8 @@ object ClassLoader {
         case path if path.contains(global) =>
           path.load(global)
       }.flatten
+
+    def loadAll(): Iterator[nir.Defn] = classpath.iterator.flatMap(_.loadAll())
   }
 
   final class FromMemory(defns: Seq[nir.Defn]) extends ClassLoader {

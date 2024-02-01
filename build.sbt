@@ -36,6 +36,7 @@ lazy val testsJVM                 = Build.testsJVM
 lazy val testsExt                 = Build.testsExt
 lazy val testsExtJVM              = Build.testsExtJVM
 lazy val sandbox                  = Build.sandbox
+lazy val nativeRuntimeBootstrapped = Build.nativeRuntimeBootstrapped
 lazy val scalaPartest             = Build.scalaPartest
 lazy val scalaPartestTests        = Build.scalaPartestTests
 lazy val scalaPartestJunitTests   = Build.scalaPartestJunitTests

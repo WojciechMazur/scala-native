@@ -21,6 +21,8 @@ sealed trait ClassPath {
   /** Load given global and info about its dependencies. */
   private[scalanative] def load(name: nir.Global.Top): Option[Seq[nir.Defn]]
 
+  def loadAll(): Iterator[nir.Defn]
+
   private[scalanative] def classesWithEntryPoints: Iterable[nir.Global.Top]
 
   private[scalanative] def definedServicesProviders
@@ -80,6 +82,8 @@ object ClassPath {
           }
         }
       )
+    def loadAll(): Iterator[nir.Defn] =
+      nirFiles.keysIterator.flatMap(load(_)).flatten
 
     lazy val classesWithEntryPoints: Iterable[nir.Global.Top] = {
       nirFiles.filter {

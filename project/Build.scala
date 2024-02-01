@@ -679,6 +679,16 @@ object Build {
       .settings(noJavaReleaseSettings)
       .dependsOn(scalalib, javalib, testInterface % "test")
 
+  lazy val nativeRuntimeBootstrapped = MultiScalaProject(
+    "nativeRuntimeBootstrapped",
+    file("native-runtime-bootstrapped")
+  )
+    .enablePlugins(MyScalaNativePlugin)
+    .withNativeCompilerPlugin
+    .withJUnitPlugin
+    .dependsOn(scalalib, javalib)
+    .settings(nativeConfig ~= { _.withBuildTarget(BuildTarget.libraryDynamic) })
+
 // Testing infrastructure ------------------------------------------------
   lazy val testingCompilerInterface =
     project

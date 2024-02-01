@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, macos-14]
+        os: [ubuntu-22.04, macos-12]
         scala: [3, 2.13]
         java: [17, 21]
         gc: [immix, commix]

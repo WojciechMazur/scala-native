@@ -48,6 +48,33 @@ private[linker] class Reach(
     injects.foreach(reachDefn)
   }
 
+  val excludedTypes = collection.immutable
+    .HashSet(
+      "scala.runtime.LambdaDeserialize",
+      "scala.runtime.LambdaDeserialize$$Lambda$1",
+      "scala.runtime.LambdaDeserializer",
+      "scala.runtime.LambdaDeserializer$$$Lambda$1",
+      "scala.runtime.ModuleSerializationProxy",
+      "scala.runtime.ModuleSerializationProxy$$anon$1",
+      "scala.runtime.ModuleSerializationProxy$$anon$1$$Lambda$1",
+      "scala.runtime.StructuralCallSite",
+      "scala.runtime.MegaMethodCache",
+      "scala.runtime.PolyMethodCache",
+      "scala.runtime.coverage.Invoker",
+    )
+    .flatMap(clsName => clsName :: clsName + "$" :: Nil)
+    .map(nir.Global.Top(_))
+  // val excludedMethods = collection.immutable.HashSet()
+  val excludedMethods = Seq(
+    "scala.runtime.LazyVals" -> Seq("getOffsetStatic", "getStaticFieldOffset"),
+    "scala.runtime.LazyVals$" -> Seq("getOffsetStatic", "getStaticFieldOffset"),
+    "scala.runtime.ScalaRunTime$" -> Seq("ensureAccessible"),
+    "scala.compat.Platform" -> Seq("getClassForName"),
+    "scala.reflect.package$" -> Seq("ensureAccessible"),
+    "scala.collection.mutable.HashTable" -> Seq("serializeTo")
+  ).map {
+    case (owner, methodName) => nir.Global.Top(owner) -> methodName
+  }.toMap
   loader match {
     case loader: FromDisk
         if config.compilerConfig.buildTarget
@@ -59,7 +86,15 @@ private[linker] class Reach(
             if sig.unmangled.sigScope.isPublic =>
           // i += 1
           // println(s"reach $i: ${name}")
-          reachEntry(name)(nir.SourcePosition.NoPosition)
+          if (excludedTypes.contains(name.top))
+            () // println(s"Excluded: ${name}")
+          else if (excludedMethods.get(name.top).fold(false) { excluded =>
+                sig.unmangled match {
+                  case nir.Sig.Method(id, _, _) => excluded.contains(id)
+                  case _                        => false
+                }
+              }) println(s"Excluded: $name")
+          else reachEntry(name)(nir.SourcePosition.NoPosition)
         case _ => ()
       }
     case _ => ()

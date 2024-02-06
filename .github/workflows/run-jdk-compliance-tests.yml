@@ -37,7 +37,7 @@ jobs:
           _JAVA_OPTIONS='${{ matrix.java-options }}'
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO=1
           SCALANATIVE_MODE=release-fast
-          SCALANATIVE_LTO=${{ startsWith(matrix.os, 'macos') && "full" || "thin" }}
+          SCALANATIVE_LTO=${{ startsWith(matrix.os, 'macos') && 'full' || 'thin' }}
           SCALANATIVE_GC=${{matrix.gc}}
           SCALANATIVE_MODE=release-full
           sbt 

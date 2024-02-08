@@ -24,15 +24,19 @@ void scalanative_afterexit() { Stats_OnExit(heap.stats); }
 
 NOINLINE void scalanative_GC_init() {
     printf("Init GC\n");
+    fflush(stdout);
     volatile word_t dummy = 0;
     dummy = (word_t)&dummy;
     Heap_Init(&heap, Settings_MinHeapSize(), Settings_MaxHeapSize());
     printf("Init GC - heap done\n");
+    fflush(stdout);
     Stack_Init(&stack, INITIAL_STACK_SIZE);
     Stack_Init(&weakRefStack, INITIAL_STACK_SIZE);
     printf("Init GC - stacks done\n");
+    fflush(stdout);
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
     Synchronizer_init();
+    fflush(stdout);
     printf("Init GC - synchronizer done\n");
     weakRefsHandlerThread = GCThread_WeakThreadsHandler_Start();
     printf("Init GC - weak refs handler thread done\n");
@@ -42,7 +46,7 @@ NOINLINE void scalanative_GC_init() {
     customRoots = GC_Roots_Init();
     atexit(scalanative_afterexit);
     printf("Init GC - done\n");
-
+    fflush(stdout);
 }
 
 INLINE void *scalanative_GC_alloc(void *info, size_t size) {

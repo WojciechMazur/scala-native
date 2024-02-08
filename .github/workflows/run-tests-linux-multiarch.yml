@@ -165,7 +165,7 @@ jobs:
       - name: Archive code executable
         uses: actions/upload-artifact@v4
         with:
-          name: sandbox-3-${{matrix.build-mode}}-${{matrix.gc}}
+          name: sandbox-3-${{matrix.arch}}-${{matrix.build-mode}}-${{matrix.gc}}
           path: sandbox/.3/target/scala-3.3.1/sandbox
       - name: Run tests
         env:

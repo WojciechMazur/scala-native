@@ -2,4 +2,4 @@ BUILD_PLATFORM=linux/amd64
 BUILD_DEPS=true
 BASE_IMAGE=dockcross/linux-armv7a
 LLVM_VERSION=14
-TARGET_EMULATOR=qemu-system-arm
+TARGET_EMULATOR=qemu-arm

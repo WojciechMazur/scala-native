@@ -155,6 +155,44 @@ object MyScalaNativePlugin extends AutoPlugin {
             .getOrElse(nc.multithreadingSupport)
         )
     },
+    Compile / run := {
+      val env = (run / envVars).value.toSeq
+      val logger = streams.value.log
+      val binary = (Compile/nativeLink).value.getAbsolutePath
+      val args = spaceDelimited("<arg>").parsed
+
+      logger.running(binary +: args)
+
+      // Optional emualator config used internally for testing non amd64 architectures
+      val emulatorOpts: List[String] = {
+        val optEmulator =
+          sys.props
+            .get("scala.scalanative.testinterface.processrunner.emulator")
+            .filter(_.nonEmpty)
+        val optEmulatorOptions = sys.props
+          .get("scala.scalanative.testinterface.processrunner.emulator-args")
+          .map(_.split(" ").toList)
+          .getOrElse(Nil)
+        optEmulator.toList ++ optEmulatorOptions
+      }
+      if (emulatorOpts.nonEmpty) {
+        logger.info(s"Using test process emulator: ${emulatorOpts.mkString(" ")}")
+      }
+
+      val exitCode = {
+        val proc = new ProcessBuilder()
+          .command((emulatorOpts ++ Seq(binary) ++ args): _*)
+          .inheritIO()
+        env.foreach((proc.environment().put(_, _)).tupled)
+        proc.start().waitFor()
+      }
+
+      val message =
+        if (exitCode == 0) None
+        else Some("Nonzero exit code: " + exitCode)
+
+      message.foreach(sys.error)
+    },
     inConfig(Compile) {
       nativeLinkProfiling := nativeLinkProfilingImpl
         .tag(NativeTags.Link)

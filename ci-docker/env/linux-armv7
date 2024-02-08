@@ -1,5 +1,5 @@
-BUILD_PLATFORM=linux/amd64
+BUILD_PLATFORM=linux/arm64v8
 BUILD_DEPS=true
-BASE_IMAGE=dockcross/linux-armv7-lts	
+BASE_IMAGE=arm32v7/ubuntu
 LLVM_VERSION=15
-TARGET_EMULATOR=qemu-arm
+TARGET_EMULATOR=

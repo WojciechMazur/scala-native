@@ -86,7 +86,7 @@ jobs:
         scala: [3]
         build-mode: [debug, release-fast]
         lto: [none]
-        gc: [immix, commix]
+        gc: [none, immix, commix]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/linux-setup-env

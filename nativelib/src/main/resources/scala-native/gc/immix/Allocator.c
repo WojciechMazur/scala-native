@@ -207,8 +207,6 @@ NOINLINE word_t *Allocator_allocSlow(Allocator *allocator, Heap *heap,
             assert(Heap_IsWordInHeap(heap, object));
             assert(object != NULL);
             memset(object, 0, size);
-            printf("Got addr %p\n", object);
-            fflush(stdout);
             ObjectMeta *objectMeta = Bytemap_Get(allocator->bytemap, object);
             ObjectMeta_SetAllocated(objectMeta);
             return object;
@@ -247,8 +245,6 @@ INLINE word_t *Allocator_Alloc(Heap *heap, uint32_t size) {
     memset(start, 0, size);
 
     word_t *object = start;
-    printf("Got addr %p\n", object);
-    fflush(stdout);
     ObjectMeta *objectMeta = Bytemap_Get(heap->bytemap, object);
     ObjectMeta_SetAllocated(objectMeta);
 

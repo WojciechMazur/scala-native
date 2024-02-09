@@ -53,6 +53,7 @@ ENV LC_ALL "C.UTF-8"
 ENV LANG "C.UTF-8"
 ENV PATH=/usr/lib/llvm-$LLVM_VERSION/bin:~/.sdkman/candidates/java/current/bin:~/.sdkman/candidates/sbt/current/bin:${PATH}
 ENV ENABLE_EXPERIMENTAL_COMPILER=true
+ENV GC_MAXIMUM_HEAP_SIZE=1G
 
 CMD sbt \
   "-Dscala.scalanative.testinterface.processrunner.emulator=$TARGET_EMULATOR" \

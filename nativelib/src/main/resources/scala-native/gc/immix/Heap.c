@@ -16,6 +16,7 @@
 #include <time.h>
 #include "WeakRefStack.h"
 #include "immix_commix/Synchronizer.h"
+#include "errno.h"
 
 void Heap_exitWithOutOfMemory(const char *details) {
     fprintf(stderr, "Out of heap space %s\n", details);
@@ -42,13 +43,15 @@ size_t Heap_getMemoryLimit() {
  */
 word_t *Heap_mapAndAlign(size_t memoryLimit, size_t alignmentSize) {
     assert(alignmentSize % WORD_SIZE == 0);
-    word_t *heapStart = memoryMap(memoryLimit);
-    if(heapStart == (word_t*)-1){
-        perror("Failed to alloc heap");
-        exit(1);
-    }
     size_t alignmentMask = ~(alignmentSize - 1);
-    printf("heap_mapAndAlign memoryLimit=%lu, align=%lu: start=%p, mask=%p\n", memoryLimit, alignmentSize, heapStart, (void*)alignmentMask);
+    word_t *heapStart = memoryMap(memoryLimit);
+    if (heapStart == (word_t *)-1) {
+        perror("Failed to alloc heap");
+        printf("errno errno=%d\n", errno);
+        // exit(EXIT_FAILURE);
+    }
+    printf("heap_mapAndAlign memoryLimit=%lu, align=%lu: start=%p, mask=%p\n",
+           memoryLimit, alignmentSize, heapStart, (void *)alignmentMask);
     // Heap start not aligned on
     if (((word_t)heapStart & alignmentMask) != (word_t)heapStart) {
         word_t *previousBlock = (word_t *)((word_t)heapStart & alignmentMask);
@@ -93,6 +96,8 @@ void Heap_Init(Heap *heap, size_t minHeapSize, size_t maxHeapSize) {
     if (maxHeapSize == UNLIMITED_HEAP_SIZE) {
         maxHeapSize = memoryLimit;
     }
+
+    printf("maxHeapSize=%lu\n", maxHeapSize);
 
     uint32_t maxNumberOfBlocks = maxHeapSize / SPACE_USED_PER_BLOCK;
     uint32_t initialBlockCount = minHeapSize / SPACE_USED_PER_BLOCK;

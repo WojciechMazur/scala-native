@@ -56,6 +56,6 @@ ENV ENABLE_EXPERIMENTAL_COMPILER=true
 
 CMD sbt \
   "-Dscala.scalanative.testinterface.processrunner.emulator=$TARGET_EMULATOR" \
-  "-J-Xmx5G" \
+  "-J-Xmx7G" \
   "set sbtScalaNative/scriptedBufferLog := false" \
   "$TEST_COMMAND"

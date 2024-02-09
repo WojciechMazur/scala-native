@@ -28,7 +28,7 @@ static inline size_t Bytemap_index(Bytemap *bytemap, word_t *address) {
     size_t index =
         (address - bytemap->firstAddress) / ALLOCATION_ALIGNMENT_WORDS;
     if(address < bytemap->firstAddress) printf("Bytemap_index: bytemap underflow addr=%p, start=%p\n", address, bytemap->firstAddress);
-    if(index >= bytemap->size) printf("Bytemap_index: bytemap overflow addr=%p, idx=%lu, size=%lu\n", address, index, bytemap->size);
+    if(index >= bytemap->size) printf("Bytemap_index: bytemap overflow addr=%p, idx=%zu, size=%zu\n", address, index, bytemap->size);
     if(!Bytemap_isPtrAligned(address)) printf("Bytemap_index: unalligned %p\n", address);
     fflush(stdout);
     assert(address >= bytemap->firstAddress);

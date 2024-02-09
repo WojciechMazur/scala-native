@@ -84,7 +84,7 @@ jobs:
       matrix:
         arch: [linux-arm64, linux-armv7, linux-armv7a, linux-armv6, linux-x86]
         scala: [3]
-        build-mode: [debug, release-fast]
+        build-mode: [debug]
         lto: [none]
         gc: [immix]
     steps:

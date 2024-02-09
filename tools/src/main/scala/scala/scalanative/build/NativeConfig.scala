@@ -111,7 +111,7 @@ sealed trait NativeConfig {
 
   private[scalanative] lazy val configuredOrDetectedTriple = {
     val v = TargetTriple.parse(targetTriple.getOrElse(Discover.targetTriple(this)))
-    println(v -> TargetTriple.isArch32Bit(v))
+    println(v -> TargetTriple.isArch32Bit(v.arch))
     v
   }
     

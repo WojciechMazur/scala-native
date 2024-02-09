@@ -56,21 +56,23 @@ object TestMain {
       System.err.println(usage)
       throw new IllegalArgumentException("One argument expected")
     }
+    println(s"TestMain, args=${args.mkString(", ")}")
 
     locally {
       val shouldSetupSignalHandlers = sys.env
         .get("SCALANATIVE_TEST_DEBUG_SIGNALS")
         .exists(v => v.isEmpty() || v == "1")
+      println(s"should setup signal handlers: ${shouldSetupSignalHandlers}")
       if (shouldSetupSignalHandlers)
         SignalConfig.setDefaultHandlers()
     }
-
     if (LinktimeInfo.isFreeBSD) setFreeBSDWorkaround()
     val serverPort = args(0).toInt
+    println(s"Try connect to serverPort=$serverPort")
     val clientSocket = new Socket("127.0.0.1", serverPort)
     val nativeRPC = new NativeRPC(clientSocket)(ExecutionContext.global)
     val bridge = new TestAdapterBridge(nativeRPC)
-
+    println("bridge setup")
     // Loading debug metadata can take up to few seconds which might mess up timeout specific tests
     // Prefetch the debug metadata before the actual tests do start
     // Execute after creating connection with the TestRunnner server
@@ -79,12 +81,14 @@ object TestMain {
         sys.env
           .get("SCALANATIVE_TEST_PREFETCH_DEBUG_INFO")
           .exists(v => v.isEmpty() || v == "1")
+      println(s"Should prefetch: ${shouldPrefetch}")
       if (shouldPrefetch)
         new RuntimeException().fillInStackTrace().ensuring(_ != null)
     }
 
+    println("Start bridge")
     bridge.start()
-
+    println("Start RPC loop")
     val exitCode = nativeRPC.loop()
     sys.exit(exitCode)
   }

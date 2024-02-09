@@ -109,9 +109,12 @@ sealed trait NativeConfig {
   /** List of service providers which shall be allowed in the final binary */
   def serviceProviders: Map[ServiceName, Iterable[ServiceProviderName]]
 
-  private[scalanative] lazy val configuredOrDetectedTriple =
-    TargetTriple.parse(targetTriple.getOrElse(Discover.targetTriple(this)))
-
+  private[scalanative] lazy val configuredOrDetectedTriple = {
+    val v = TargetTriple.parse(targetTriple.getOrElse(Discover.targetTriple(this)))
+    println(v -> TargetTriple.isArch32Bit(v))
+    v
+  }
+    
   /** Are we targeting a 32-bit platform?
    *
    *  @return

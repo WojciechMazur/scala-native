@@ -71,10 +71,12 @@ static inline void ObjectMeta_SweepLineAt(ObjectMeta *start) {
     //            data[i] = om_free;
     //        }
     //    }
-    assert(WORDS_IN_LINE / ALLOCATION_ALIGNMENT_WORDS / WORD_SIZE == 2);
+#define I64_WORDS WORDS_IN_LINE / ALLOCATION_ALIGNMENT_WORDS / WORD_SIZE
+    assert(I64_WORDS > 0 && I64_WORDS <= 2);
     uint64_t *first = (uint64_t *)start;
-    first[0] = (first[0] & SWEEP_MASK) >> 1;
-    first[1] = (first[1] & SWEEP_MASK) >> 1;
+    for (int i = 0; i < I64_WORDS; i++) {
+        first[i] = (first[0] & SWEEP_MASK) >> 1;
+    }
 }
 
 static inline void ObjectMeta_Sweep(ObjectMeta *cursor) {

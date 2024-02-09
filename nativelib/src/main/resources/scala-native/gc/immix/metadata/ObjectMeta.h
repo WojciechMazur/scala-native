@@ -1,8 +1,10 @@
 #ifndef IMMIX_OBJECTMETA_H
 #define IMMIX_OBJECTMETA_H
 
-#include <stddef.h>
+#include <assert.h>
 #include <stdbool.h>
+#include <string.h>
+#include "immix_commix/CommonConstants.h"
 #include "shared/GCTypes.h"
 
 typedef enum {
@@ -69,7 +71,7 @@ static inline void ObjectMeta_SweepLineAt(ObjectMeta *start) {
     //            data[i] = om_free;
     //        }
     //    }
-    assert(WORDS_IN_LINE / ALLOCATION_ALIGNMENT_WORDS / 8 == 2);
+    assert(WORDS_IN_LINE / ALLOCATION_ALIGNMENT_WORDS / WORD_SIZE == 2);
     uint64_t *first = (uint64_t *)start;
     first[0] = (first[0] & SWEEP_MASK) >> 1;
     first[1] = (first[1] & SWEEP_MASK) >> 1;

@@ -1,6 +1,8 @@
 #ifndef IMMIX_COMMON_CONSTANTS_H
 #define IMMIX_COMMON_CONSTANTS_H
 
+#include <stddef.h>
+
 #define WORD_SIZE sizeof(size_t)
 
 #define ALLOCATION_ALIGNMENT_WORDS 2

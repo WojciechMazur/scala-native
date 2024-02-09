@@ -44,6 +44,7 @@ word_t *Heap_mapAndAlign(size_t memoryLimit, size_t alignmentSize) {
     assert(alignmentSize % WORD_SIZE == 0);
     word_t *heapStart = memoryMap(memoryLimit);
     size_t alignmentMask = ~(alignmentSize - 1);
+    printf("heap_mapAndAlign memoryLimit=%lu, align=%lu: start=%p, mask=%p\n", memoryLimit, alignmentSize, heapStart, (void*)alignmentMask);
     // Heap start not aligned on
     if (((word_t)heapStart & alignmentMask) != (word_t)heapStart) {
         word_t *previousBlock = (word_t *)((word_t)heapStart & alignmentMask);
@@ -118,13 +119,16 @@ void Heap_Init(Heap *heap, size_t minHeapSize, size_t maxHeapSize) {
     Bytemap *bytemap =
         (Bytemap *)Heap_mapAndAlign(bytemapSpaceSize, ALLOCATION_ALIGNMENT);
     heap->bytemap = bytemap;
+    printf("bytemap: size=%lu, addr=%p\n", bytemapSpaceSize, bytemap);
 
     // Init heap for small objects
     word_t *heapStart = Heap_mapAndAlign(maxHeapSize, BLOCK_TOTAL_SIZE);
     heap->heapSize = minHeapSize;
     heap->heapStart = heapStart;
     heap->heapEnd = heapStart + minHeapSize / WORD_SIZE;
-
+    printf("heap: start=%p, end=%p, size=%lu\n", heapStart, heap->heapEnd,
+           heap->heapSize);
+    fflush(stdout);
 #ifdef _WIN32
     // Commit memory chunks reserved using mapMemory
     bool commitStatus =

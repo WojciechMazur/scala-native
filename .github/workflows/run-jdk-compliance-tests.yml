@@ -12,13 +12,16 @@ jobs:
   tests-unix-jdk-compliance:
     name: Test Unix JDK compliance
     runs-on: ${{matrix.os}}
+    env:
+      ENABLE_EXPERIMENTAL_COMPILER: true
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, macos-12]
-        scala: [3, 2.13]
-        java: [17, 21]
+        os: [ubuntu-22.04]
+        scala: [3, 2.13, 3-next]
+        java: [21]
         gc: [immix, commix]
+        lto: [thin]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/macos-setup-env
@@ -38,6 +41,7 @@ jobs:
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO=1
           SCALANATIVE_GC=${{matrix.gc}}
           SCALANATIVE_MODE=release-full
+          SCALANATIVE_LTO=${{matrix.lto}}
           sbt 
           "-J-Xmx3G" 
           "test-runtime ${{matrix.scala}}"
@@ -45,12 +49,15 @@ jobs:
   tests-windows-jdk-compliance:
     name: Test Windows JDK compliance
     runs-on: windows-2022
+    env:
+      ENABLE_EXPERIMENTAL_COMPILER: true
     strategy:
       fail-fast: false
       matrix:
-        scala: [2.13, 3]
-        java: [17, 21]
+        scala: [2.13, 3, 3-next]
+        java: [21]
         gc: [immix, commix]
+        lto: [thin]
     steps:
       # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
       - name: Setup git config
@@ -69,6 +76,7 @@ jobs:
           set SCALANATIVE_LIB_DIRS=${{steps.setup.outputs.vcpkg-dir}}\lib&
           set SCALANATIVE_MODE=release-full&
           set SCALANATIVE_GC=${{matrix.gc}}&
+          set SCALANATIVE_LTO=${{matrix.lto}}
           set SCALANATIVE &
           set _JAVA_OPTIONS=${{ matrix.java-options }} &
           set SCALANATIVE_TEST_PREFETCH_DEBUG_INFO=1 &

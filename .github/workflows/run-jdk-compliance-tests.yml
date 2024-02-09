@@ -40,7 +40,7 @@ jobs:
           _JAVA_OPTIONS='${{ matrix.java-options }}'
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO=1
           SCALANATIVE_GC=${{matrix.gc}}
-          SCALANATIVE_MODE=release-full
+          SCALANATIVE_MODE=release-fast
           SCALANATIVE_LTO=${{matrix.lto}}
           sbt 
           "-J-Xmx7G" 
@@ -74,7 +74,7 @@ jobs:
         run: >
           set SCALANATIVE_INCLUDE_DIRS=${{steps.setup.outputs.vcpkg-dir}}\include&
           set SCALANATIVE_LIB_DIRS=${{steps.setup.outputs.vcpkg-dir}}\lib&
-          set SCALANATIVE_MODE=release-full&
+          set SCALANATIVE_MODE=release-fast&
           set SCALANATIVE_GC=${{matrix.gc}}&
           set SCALANATIVE_LTO=${{matrix.lto}}&
           set SCALANATIVE &

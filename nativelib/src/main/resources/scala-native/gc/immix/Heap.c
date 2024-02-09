@@ -43,6 +43,10 @@ size_t Heap_getMemoryLimit() {
 word_t *Heap_mapAndAlign(size_t memoryLimit, size_t alignmentSize) {
     assert(alignmentSize % WORD_SIZE == 0);
     word_t *heapStart = memoryMap(memoryLimit);
+    if(heapStart == (word_t*)-1){
+        perror("Failed to alloc heap");
+        exit(1);
+    }
     size_t alignmentMask = ~(alignmentSize - 1);
     printf("heap_mapAndAlign memoryLimit=%lu, align=%lu: start=%p, mask=%p\n", memoryLimit, alignmentSize, heapStart, (void*)alignmentMask);
     // Heap start not aligned on

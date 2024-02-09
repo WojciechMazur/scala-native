@@ -195,14 +195,15 @@ final class BinaryDeserializer(buffer: ByteBuffer, nirSource: NIRSource) {
     case T.DidOptAttr  => Attr.DidOpt
     case T.BailOptAttr => Attr.BailOpt(getString())
 
-    case T.DynAttr      => Attr.Dyn
-    case T.StubAttr     => Attr.Stub
-    case T.ExternAttr   => Attr.Extern(getBool())
-    case T.LinkAttr     => Attr.Link(getString())
-    case T.DefineAttr   => Attr.Define(getString())
-    case T.AbstractAttr => Attr.Abstract
-    case T.VolatileAttr => Attr.Volatile
-    case T.FinalAttr    => Attr.Final
+    case T.DynAttr         => Attr.Dyn
+    case T.StubAttr        => Attr.Stub
+    case T.ExternAttr      => Attr.Extern(getBool())
+    case T.LinkAttr        => Attr.Link(getString())
+    case T.DefineAttr      => Attr.Define(getString())
+    case T.AbstractAttr    => Attr.Abstract
+    case T.VolatileAttr    => Attr.Volatile
+    case T.FinalAttr       => Attr.Final
+    case T.SafePublishAttr => Attr.SafePublish
 
     case T.LinktimeResolvedAttr => Attr.LinktimeResolved
     case T.UsesIntrinsicAttr    => Attr.UsesIntrinsic
@@ -236,7 +237,7 @@ final class BinaryDeserializer(buffer: ByteBuffer, nirSource: NIRSource) {
   }
   private def getInst(): Inst = {
     val tag = getTag()
-    implicit val pos: nir.Position = getPosition()
+    implicit val pos: nir.SourcePosition = getPosition()
     implicit def scope: nir.ScopeId = getScopeId()
     (tag: @switch) match {
       case T.LabelInst       => Inst.Label(getLocal(), getParams())
@@ -308,7 +309,7 @@ final class BinaryDeserializer(buffer: ByteBuffer, nirSource: NIRSource) {
     val tag = getTag()
     val name = getGlobal()
     val attrs = getAttrs()
-    implicit val position: nir.Position = getPosition()
+    implicit val position: nir.SourcePosition = getPosition()
     (tag: @switch) match {
       case T.VarDefn   => Defn.Var(attrs, name.narrow[nir.Global.Member], getType(), getVal())
       case T.ConstDefn => Defn.Const(attrs, name.narrow[nir.Global.Member], getType(), getVal())
@@ -486,14 +487,14 @@ final class BinaryDeserializer(buffer: ByteBuffer, nirSource: NIRSource) {
       case n => util.unsupported(s"Unknown linktime condition tag: ${n}")
     }
 
-  def getPosition(): nir.Position = in(prelude.sections.positions) {
+  def getPosition(): nir.SourcePosition = in(prelude.sections.positions) {
     val file = getString() match {
       case ""   => nir.SourceFile.Virtual
       case path => nir.SourceFile.Relative(path)
     }
     val line = getLebUnsignedInt()
     val column = getLebUnsignedInt()
-    nir.Position(source = file, line = line, column = column, nirSource = nirSource)
+    nir.SourcePosition(source = file, line = line, column = column, nirSource = nirSource)
   }
 
   def getLocalNames(): LocalNames = {

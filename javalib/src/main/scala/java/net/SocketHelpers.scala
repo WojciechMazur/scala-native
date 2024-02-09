@@ -4,14 +4,17 @@ import scala.scalanative.unsigned._
 import scala.scalanative.unsafe._
 
 import java.io.IOException
+import java.io.FileDescriptor
 
 import scala.scalanative.posix.arpa.inet
 import scala.scalanative.posix.{netdb, netdbOps}, netdb._, netdbOps._
 import scala.scalanative.posix.netinet.{in, inOps}, in._, inOps._
+import scala.scalanative.posix.sys.socket
 import scala.scalanative.posix.sys.socket._
 import scala.scalanative.posix.sys.socketOps._
 import scala.scalanative.posix.string.memcpy
 
+import scala.scalanative.meta.LinktimeInfo
 import scala.scalanative.meta.LinktimeInfo.isWindows
 
 import scala.scalanative.windows.WinSocketApiOps
@@ -320,20 +323,22 @@ object SocketHelpers {
     new InetSocketAddress(addr, port)
   }
 
-  // Create copies of loopback & wildcard, so that originals never get changed
+  /* InetAddress() & Inet6Address() make defensive copies of the Array[Byte].
+   * As a result, these originals can never get changed.
+   */
 
   // ScalaJVM shows loopbacks with null host, wildcards with numeric host.
-  private[net] def loopbackIPv4(): InetAddress =
+  private[net] lazy val loopbackIPv4: InetAddress =
     InetAddress.getByAddress(Array[Byte](127, 0, 0, 1))
 
-  private[net] def loopbackIPv6(): InetAddress = InetAddress.getByAddress(
+  private[net] lazy val loopbackIPv6: InetAddress = InetAddress.getByAddress(
     Array[Byte](0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)
   )
 
-  private def wildcardIPv4(): InetAddress =
+  private lazy val wildcardIPv4: InetAddress =
     InetAddress.getByAddress("0.0.0.0", Array[Byte](0, 0, 0, 0))
 
-  private def wildcardIPv6(): InetAddress = InetAddress.getByAddress(
+  private lazy val wildcardIPv6: InetAddress = InetAddress.getByAddress(
     "0:0:0:0:0:0:0:0",
     Array[Byte](0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
   )
@@ -357,8 +362,8 @@ object SocketHelpers {
   }
 
   private[net] def getLoopbackAddress(): InetAddress = {
-    if (useLoopbackIPv6) loopbackIPv6()
-    else loopbackIPv4()
+    if (useLoopbackIPv6) loopbackIPv6
+    else loopbackIPv4
   }
 
   private lazy val useWildcardIPv6: Boolean = {
@@ -370,8 +375,41 @@ object SocketHelpers {
   }
 
   private[net] def getWildcardAddress(): InetAddress = {
-    if (useWildcardIPv6) wildcardIPv6()
-    else wildcardIPv4()
+    if (useWildcardIPv6) wildcardIPv6
+    else wildcardIPv4
+  }
+
+  /* Return the wildcard address corresponding directly to the IP stack in use.
+   * This address has not been selected by getPreferIPv6Addresses().
+   *
+   * This section will need to be revisited as more robust FreeBSD support
+   * is added.  The assumption here is that FreeBSD always returns the
+   * IPv4 wildcard. That assumption/guess needs to be verified.
+   * FreeBSD & NetBSD are reported to separate IPv4 & IPv6 stacks.
+   */
+
+  private[net] def getWildcardAddressForBind(): InetAddress = {
+    if (LinktimeInfo.isFreeBSD) wildcardIPv4
+    else if (useIPv4Stack) wildcardIPv4
+    else wildcardIPv6
+  }
+
+  private[net] def fetchFdLocalAddress(osFd: Int): InetAddress = {
+    // allocate largest possible buffer, then pass generic overlay 'sin' to C.
+    val storage = stackalloc[socket.sockaddr_storage]()
+    val sin = storage.asInstanceOf[Ptr[socket.sockaddr]]
+    val addressLen = stackalloc[socket.socklen_t]()
+    !addressLen = sizeof[in.sockaddr_in6].toUInt
+
+    if (socket.getsockname(
+          osFd,
+          sin,
+          addressLen
+        ) == -1) {
+      throw new SocketException("getsockname failed")
+    }
+
+    SocketHelpers.sockaddrToInetAddress(sin, "")
   }
 
 }

@@ -31,8 +31,9 @@ final class Inet6Address private (
    */
 
   override def equals(that: Any): Boolean = that match {
-    case that: Inet6Address => this.hashCode() == that.hashCode()
-    case _                  => false
+    case that: Inet6Address =>
+      (that != null) && (this.hashCode() == that.hashCode())
+    case _ => false
   }
 
   def getScopedInterface(): NetworkInterface = nif
@@ -44,8 +45,10 @@ final class Inet6Address private (
 
   override def hashCode(): Int = {
     var res = 1
+    // Arrays.hashCode() returns 0 if ipAddress is null.
     res = 31 * res + ju.Arrays.hashCode(ipAddress)
-    res = 31 * res + host.hashCode()
+    if (host != null)
+      res = 31 * res + host.hashCode()
     res = 31 * res + useScopeId.hashCode()
     res = 31 * res + scopeId.hashCode()
     if (nif != null)
@@ -56,13 +59,21 @@ final class Inet6Address private (
   override def isLinkLocalAddress(): Boolean =
     (ipAddress(0) == -2) && ((ipAddress(1) & 255) >>> 6) == 2
 
-  override def isAnyLocalAddress(): Boolean = ipAddress.forall(_ == 0)
+  // avoid cost of functional style forall().
+  private def sumByteRange(bytes: Array[Byte], start: Int, end: Int): Int = {
+    // "end" is Java style exclusive, i.e. one past active range.
+    var count = 0
+    for (j <- start until end)
+      count += bytes(j)
+    count
+  }
+
+  override def isAnyLocalAddress(): Boolean =
+    sumByteRange(ipAddress, 0, 16) == 0
 
   override def isLoopbackAddress(): Boolean = {
-    if (ipAddress(15) != 1)
-      return false
-
-    ipAddress.dropRight(1).forall(_ == 0)
+    if ((ipAddress(0) != 0) || (ipAddress(15) != 1)) false
+    else sumByteRange(ipAddress, 2, 15) == 0
   }
 
   override def isMCGlobal(): Boolean =
@@ -85,16 +96,18 @@ final class Inet6Address private (
   override def isSiteLocalAddress(): Boolean =
     (ipAddress(0) == -2) && ((ipAddress(1) & 255) >>> 6) == 3
 
-  def isIPv4CompatibleAddress(): Boolean = ipAddress.take(12).forall(_ == 0)
+  def isIPv4CompatibleAddress(): Boolean =
+    sumByteRange(ipAddress, 0, 12) == 0
 
   private def formatScopeId(): String = {
     if (nif != null)
       nif.getDisplayName()
-    else if (useScopeId) {
+    else if (!useScopeId) ""
+    else {
       val netIf = NetworkInterface.getByIndex(scopeId)
       if (netIf == null) String.valueOf(scopeId)
       else netIf.getDisplayName()
-    } else ""
+    }
   }
 
 }
@@ -113,10 +126,11 @@ object Inet6Address {
      * Explicitly specified 0 scopeIds are considered supplied.
      * Elsewhere implicit 0 scopeIds, say from a sin6_scope_id, are not.
      */
+    val clonedAddr = addr.clone
     if (scopeId < 0)
-      Inet6Address(addr, host)
+      Inet6Address(clonedAddr, host)
     else
-      new Inet6Address(addr, host, true, scopeId, null)
+      new Inet6Address(clonedAddr, host, true, scopeId, null)
   }
 
   def getByAddress(
@@ -132,9 +146,15 @@ object Inet6Address {
      * scopeId of 0.
      */
 
-    new Inet6Address(addr, host, false, 0, nif)
+    new Inet6Address(addr.clone, host, false, 0, nif)
   }
 
+  /* All callers are under the control of java.net., so one can use the
+   * well performing but fragile convention that caller has provided addr
+   * bytes which not be mutated later. This means there need to pay the
+   * price of cloning bytes which have already been cloned (or
+   * carefully guarded).
+   */
   private[net] def apply(
       addr: Array[Byte],
       host: String

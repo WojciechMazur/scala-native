@@ -434,11 +434,45 @@ private[stream] class DoubleStreamImpl(
     new DoubleStreamImpl(spl, _parallel, pipeline)
   }
 
-  def mapToInt(mapper: DoubleToIntFunction): IntStream =
-    throw new UnsupportedOperationException("Not Yet Implemented")
+  def mapToInt(mapper: DoubleToIntFunction): IntStream = {
+    commenceOperation()
 
-  def mapToLong(mapper: DoubleToLongFunction): LongStream =
-    throw new UnsupportedOperationException("Not Yet Implemented")
+    val spl = new Spliterators.AbstractIntSpliterator(
+      _spliter.estimateSize(),
+      _spliter.characteristics()
+    ) {
+      def tryAdvance(action: IntConsumer): Boolean =
+        _spliter.tryAdvance((e: scala.Double) =>
+          action.accept(mapper.applyAsInt(e))
+        )
+    }
+
+    new IntStreamImpl(
+      spl,
+      _parallel,
+      pipeline.asInstanceOf[ArrayDeque[IntStreamImpl]]
+    )
+  }
+
+  def mapToLong(mapper: DoubleToLongFunction): LongStream = {
+    commenceOperation()
+
+    val spl = new Spliterators.AbstractLongSpliterator(
+      _spliter.estimateSize(),
+      _spliter.characteristics()
+    ) {
+      def tryAdvance(action: LongConsumer): Boolean =
+        _spliter.tryAdvance((e: scala.Double) =>
+          action.accept(mapper.applyAsLong(e))
+        )
+    }
+
+    new LongStreamImpl(
+      spl,
+      _parallel,
+      pipeline.asInstanceOf[ArrayDeque[LongStreamImpl]]
+    )
+  }
 
   def mapToObj[U](mapper: DoubleFunction[_ <: U]): Stream[U] = {
 

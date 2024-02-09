@@ -28,7 +28,6 @@ private[codegen] abstract class AbstractCodeGen(
   import meta.config
   import platform._
 
-  val os: OsCompat
   val pointerType = if (useOpaquePointers) "ptr" else "i8*"
 
   private var currentBlockName: nir.Local = _
@@ -38,6 +37,12 @@ private[codegen] abstract class AbstractCodeGen(
   private val deps = mutable.Set.empty[nir.Global.Member]
   private val generated = mutable.Set.empty[String]
   private val externSigMembers = mutable.Map.empty[nir.Sig, nir.Global.Member]
+
+  final val os: OsCompat = {
+    import scala.scalanative.codegen.llvm.compat.os._
+    if (meta.platform.targetsWindows) new WindowsCompat(this)
+    else new UnixCompat(this)
+  }
 
   def gen(id: String, dir: VirtualDirectory): Path = {
     val body = Paths.get(s"$id-body.ll")
@@ -970,7 +975,7 @@ private[codegen] abstract class AbstractCodeGen(
       genBind: () => Unit,
       call: nir.Op.Call,
       unwind: nir.Next,
-      srcPos: nir.Position,
+      srcPos: nir.SourcePosition,
       scopeId: nir.ScopeId
   )(implicit
       fresh: nir.Fresh,
@@ -987,10 +992,11 @@ private[codegen] abstract class AbstractCodeGen(
     lazy val dbgPosition = toDILocation(srcPos, scopeId)
     def genDbgPosition() = dbg(",", dbgPosition)
 
-    call match {
+    val nir.Op.Call(ty, pointee, args) = call
+    pointee match {
       // Lower emits a alloc function with exact result type of the class instead of a raw pointer
       // It's probablatic to emit when not using opaque pointers. Retry with simplified signature
-      case nir.Op.Call(ty, Lower.alloc | Lower.largeAlloc, _)
+      case Lower.alloc | Lower.largeAlloc
           if !useOpaquePointers && ty != Lower.allocSig =>
         genCall(
           genBind,
@@ -999,7 +1005,23 @@ private[codegen] abstract class AbstractCodeGen(
           srcPos,
           scopeId
         )
-      case nir.Op.Call(ty, nir.Val.Global(pointee: nir.Global.Member, _), args)
+
+      case Lower.GCYield if useGCYieldPointTraps =>
+        // We can't express volatile load in NIR, inline only expected usage
+        val trap = fresh()
+        val nir.Sig.Extern(safepointTrapField) =
+          Lower.GCYieldPointTrapName.sig.unmangled: @unchecked
+        touch(Lower.GCYieldPointTrapName)
+        str {
+          if (useOpaquePointers) s"""
+          |  %_${trap.id} = load ptr, ptr @${safepointTrapField}
+          |  %_${fresh().id} = load volatile ptr, ptr %_${trap.id}""".stripMargin
+          else s"""
+          |  %_${trap.id} = load i8**, i8*** bitcast(i8** @$safepointTrapField to i8***)
+          |  %_${fresh().id} = load volatile i8*, i8** %_${trap.id}""".stripMargin
+        }
+
+      case nir.Val.Global(pointee: nir.Global.Member, _)
           if lookup(pointee) == ty =>
         val nir.Type.Function(argtys, _) = ty
         touch(pointee)
@@ -1027,7 +1049,7 @@ private[codegen] abstract class AbstractCodeGen(
           indent()
         }
 
-      case nir.Op.Call(ty, ptr, args) =>
+      case ptr =>
         val nir.Type.Function(_, resty) = ty
 
         val pointee = fresh()

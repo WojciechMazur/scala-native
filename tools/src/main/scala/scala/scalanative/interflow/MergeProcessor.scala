@@ -28,8 +28,22 @@ final class MergeProcessor(
   val blocks = mutable.Map.empty[nir.Local, MergeBlock]
   val todo = mutable.SortedSet.empty[nir.Local](Ordering.by(offsets))
 
-  def currentSize(): Int =
-    blocks.values.map { b => if (b.end == null) 0 else b.end.emit.size }.sum
+  object currentSize extends Function0[Int] { // context-cached function
+    var lastBlocksHash: Int = _
+    var lastSize: Int = _
+    def apply(): Int = {
+      val hash = blocks.##
+      if (blocks.## == lastBlocksHash) lastSize
+      else {
+        val size = blocks.values.iterator.map { b =>
+          if (b.end == null) 0 else b.end.emit.size
+        }.sum
+        lastSize = size
+        lastBlocksHash = blocks.##
+        size
+      }
+    }
+  }
 
   def findMergeBlock(id: nir.Local): MergeBlock = {
     def newMergeBlock = {
@@ -255,7 +269,7 @@ final class MergeProcessor(
         // Wrap up anre rturn a new merge state
 
         val mergeState = new State(merge)(eval.preserveDebugInfo)
-        mergeState.emit = new nir.Buffer()(mergeFresh)
+        mergeState.emit = new nir.InstructionBuilder()(mergeFresh)
         mergeState.fresh = mergeFresh
         mergeState.locals = mergeLocals
         if (eval.preserveDebugInfo) {
@@ -268,13 +282,6 @@ final class MergeProcessor(
         mergeState.heap = mergeHeap
         mergeState.delayed = mergeDelayed
         mergeState.emitted = mergeEmitted
-        mergeState.inlineDepth = incoming match {
-          case Seq(head @ (_, (_, state)), tail @ _*) => state.inlineDepth
-          case _ =>
-            throw new IllegalStateException(
-              "Merging empty list of incoming blocks"
-            )
-        }
         (mergePhis.toSeq, mergeState)
     }
   }
@@ -476,7 +483,7 @@ final class MergeProcessor(
       // are going tojump to. Synthetics names must be fresh relative
       // to the source instructions, not relative to generated ones.
       val syntheticFresh = nir.Fresh(insts.toSeq)
-      implicit val synthticPos: nir.Position = orderedBlocks.last.cfPos
+      implicit val synthticPos: nir.SourcePosition = orderedBlocks.last.cfPos
       val syntheticParam =
         nir.Val.Local(syntheticFresh(), Sub.lub(tys, Some(retTy)))
       val syntheticLabel =
@@ -554,8 +561,6 @@ object MergeProcessor {
     val entryMergeBlock = builder.findMergeBlock(entryName)
     val entryState = new State(entryMergeBlock.id)(eval.preserveDebugInfo)
     entryState.inherit(state, args)
-    entryState.inlineDepth = state.inlineDepth
-    if (doInline) entryState.inlineDepth += 1
 
     entryMergeBlock.incoming(nir.Local(-1)) = (args, entryState)
     builder.todo += entryName

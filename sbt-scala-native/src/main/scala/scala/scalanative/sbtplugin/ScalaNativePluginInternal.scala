@@ -23,6 +23,8 @@ import scala.concurrent.duration.Duration
 import scala.scalanative.build.Platform
 import sjsonnew.BasicJsonProtocol._
 import java.nio.file.{Files, Path}
+import java.lang.Runtime
+import java.util.concurrent.Executors
 import sbt.librarymanagement.{
   DependencyResolution,
   UpdateConfiguration,
@@ -144,10 +146,11 @@ object ScalaNativePluginInternal {
   private def await[T](
       log: sbt.Logger
   )(body: ExecutionContext => Future[T]): T = {
-    val ec =
-      ExecutionContext.fromExecutor(ExecutionContext.global, t => log.trace(t))
-
-    Await.result(body(ec), Duration.Inf)
+    val executor =
+      Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors())
+    val ec = ExecutionContext.fromExecutor(executor, log.trace(_))
+    try Await.result(body(ec), Duration.Inf)
+    finally executor.shutdown()
   }
 
   private def nativeLinkImpl(
@@ -408,34 +411,37 @@ object ScalaNativePluginInternal {
   ): Seq[Path] = {
     if (!userConfig.sourceLevelDebuggingConfig.enabled) Nil
     else
-      externalClassPath.par.flatMap { classpath =>
-        try {
-          classpath.metadata
-            .get(moduleID.key)
-            .toSeq
-            .map(_.classifier("sources").withConfigurations(None))
-            .map(dependencyResolution.wrapDependencyInModule)
-            .map(
-              dependencyResolution.update(
-                _,
-                UpdateConfiguration(),
-                UnresolvedWarningConfiguration(),
-                util.Logger.Null
+      externalClassPath.par
+        .flatMap { classpath =>
+          try {
+            classpath.metadata
+              .get(moduleID.key)
+              .toSeq
+              .map(_.classifier("sources").withConfigurations(None))
+              .map(dependencyResolution.wrapDependencyInModule)
+              .map(
+                dependencyResolution.update(
+                  _,
+                  UpdateConfiguration(),
+                  UnresolvedWarningConfiguration(),
+                  util.Logger.Null
+                )
               )
-            )
-            .flatMap(_.right.toOption)
-            .flatMap(_.allFiles)
-            .filter(_.name.endsWith("-sources.jar"))
-            .map(_.toPath())
-        } catch {
-          case ex: Throwable =>
-            log.warn(
-              s"Failed to resolved sources of classpath entry '$classpath', source level debuging might work incorrectly"
-            )
-            log.trace(ex)
-            Nil
+              .flatMap(_.right.toOption)
+              .flatMap(_.allFiles)
+              .filter(_.name.endsWith("-sources.jar"))
+              .map(_.toPath())
+          } catch {
+            case ex: Throwable =>
+              log.warn(
+                s"Failed to resolved sources of classpath entry '$classpath', source level debuging might work incorrectly"
+              )
+              log.trace(ex)
+              Nil
+          }
         }
-      }.seq
+        .seq
+        .sorted
   }
 
 }

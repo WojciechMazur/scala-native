@@ -32,13 +32,6 @@ import org.junit.Ignore
 
 import org.scalanative.testsuite.utils.AssertThrows.assertThrows
 
-/* Design Note:
- *   Two tests requiring classes which have not been implemented yet
- *   are commented out:
- *     - doubleStreamMapToInt, required IntStream
- *     - doubleStreamMapToLong, requires LongStream
- */
-
 class DoubleStreamTest {
 
   final val epsilon = 0.00001 // tolerance for Floating point comparisons.
@@ -1066,7 +1059,6 @@ class DoubleStreamTest {
     assertEquals("unexpected count", nElements, count)
   }
 
-  /* // Not Yet Implemented, needs IntStream first
   @Test def doubleStreamMapToInt(): Unit = {
     val nElements = 4
     var count = 0
@@ -1076,12 +1068,10 @@ class DoubleStreamTest {
     val s1 = s0.mapToInt((e) => e.toInt)
 
     // Right resultant types
-    s1.forEach(e =>
+    s1.forEach(e => {
       count += 1
-        assertEquals (s"unexpected type",
-        classOf[Int],
-        e.getClass())
-    )
+      assertEquals(s"unexpected type", classOf[Int], e.getClass())
+    })
 
     // Right count
     assertEquals("unexpected count", nElements, count)
@@ -1094,26 +1084,22 @@ class DoubleStreamTest {
     val it = s3.iterator()
 
     for (j <- 1 to nElements)
-      assertEquals("unexpected element", j, it.nextDouble())
+      assertEquals("unexpected element", j, it.nextInt())
   }
-   */ // Not Yet Implemented
 
-  /* // Not Yet Implemented, needs LongStream first
   @Test def doubleStreamMapToLong: Unit = {
     val nElements = 4
     var count = 0
 
     val s0 = DoubleStream.of(1.1, 2.2, 3.3, 4.4)
 
-    /val s1 = s0.mapToLong((e) => e.toLong)
+    val s1 = s0.mapToLong((e) => e.toLong)
 
     // Right resultant types
-    s1.forEach(e =>
+    s1.forEach(e => {
       count += 1
-        assertEquals (s"unexpected type",
-        classOf[Long],
-        e.getClass())
-    )
+      assertEquals(s"unexpected type", classOf[Long], e.getClass())
+    })
 
     // Right count
     assertEquals("unexpected count", nElements, count)
@@ -1126,9 +1112,8 @@ class DoubleStreamTest {
     val it = s3.iterator()
 
     for (j <- 1 to nElements)
-      assertEquals("unexpected element", j.toLong, it.nextDouble())
+      assertEquals("unexpected element", j.toLong, it.nextLong())
   }
-   */ // Not Yet Implemented
 
   @Test def doubleStreamMapToObj(): Unit = {
     val nElements = 4
@@ -1308,12 +1293,12 @@ class DoubleStreamTest {
   @Test def doubleStreamPeek(): Unit = {
     val expectedCount = 3
 
-    val s = Stream.of("Animal", "Vegetable", "Mineral")
+    val s = DoubleStream.of(7.7, 5.5, 3.3)
 
     // The ".count()" is a terminal operation to force the pipeline to
     // evalute. The real interest is if the peek() side-effect happened
     // correctly.  Currently that can only be evaluated manually/visually.
-    val n = s.peek((e) => printf(s"peek: |${e}||\n")).count()
+    val n = s.peek((e: Double) => printf(s"peek: |${e}|\n")).count()
 
     assertEquals(s"unexpected count", expectedCount, n)
   }
@@ -1321,31 +1306,31 @@ class DoubleStreamTest {
   @Ignore // see @Ignore comment above "streamShouldPeek()" above.
   @Test def doubleStreamPeek_CompositeStream(): Unit = {
     // Test that peek() works with all substreams of a composite stream.
-    val expectedCount = 10
+    val expectedCount = 8
 
     // See ".count()" comment in streamShouldPeek above.
 
     // One should see the original data before and then after transformation
     // done by flatmap to each original element. Something like:
-    //   before: <1>
-    //     after: <1>
-    //   before: <2>
-    //     after: <1>
-    //     after: <2>
-    //   before: <3>
-    //     after: <1>
-    //     after: <2>
-    //     after: <3>
-    //   before: <4>
-    //     after: <1>
-    //     after: <2>
-    //     after: <3>
-    //     after: <4>
+    //   before: <1.1>
+    //     after: <1.1>
+    //     after: <1.1>
+    //   before: <2.2>
+    //     after: <2.2>
+    //     after: <2.2>
+    //   before: <3.3>
+    //     after: <3.3>
+    //     after: <3.3>
+    //   before: <4.4>
+    //     after: <4.4>
+    //     after: <4.4>
 
-    val n = Stream
-      .of(1, 2, 3, 4)
-      .peek((e) => printf(s"composite peek - before: <${e}>|\n")) // simple str
-      .flatMap((e) => Stream.of((1 to e): _*))
+    val n = DoubleStream
+      .of(1.1, 2.2, 3.3, 4.4)
+      .peek((e: Double) =>
+        printf(s"composite peek - before: <${e}>|\n")
+      ) // simple str
+      .flatMap((e: Double) => DoubleStream.of(e, e))
       .peek((e) => printf(s"composite peek - after: <${e}>|\n")) // composite
       .count()
 

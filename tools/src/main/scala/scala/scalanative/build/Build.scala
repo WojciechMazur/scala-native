@@ -4,8 +4,10 @@ package build
 import java.nio.file.{Files, Path, Paths}
 import scala.scalanative.util.Scope
 import scala.scalanative.linker.ReachabilityAnalysis
+import scala.scalanative.codegen.llvm.CodeGen.IRGenerators
 import scala.util.Try
 import java.nio.file.FileVisitOption
+import java.nio.file.StandardOpenOption
 import java.util.Optional
 import java.nio.file.attribute.FileTime
 import scala.concurrent._
@@ -117,38 +119,35 @@ object Build {
           else Future.successful(linkerResult)
         }
         .flatMap(optimize(config, _))
-        .flatMap(linkerResult =>
-          codegen(config, linkerResult)
-            .flatMap(ir => compile(config, linkerResult, ir))
+        .flatMap { linkerResult =>
+          ScalaNative
+            .codegen(config, linkerResult)
+            .flatMap { irGenerators =>
+              compile(config, linkerResult, irGenerators)
+            }
             .map(objects => link(config, linkerResult, objects))
             .map(artifact => postProcess(config, artifact))
-        )
+        }
+        .andThen { case Success(_) => dumpUserConfigHash(config) }
     }
-  }
-
-  /** Emits LLVM IR for the definitions in `analysis` to
-   *  `config.buildDirectory`.
-   */
-  private def codegen(
-      config: Config,
-      analysis: ReachabilityAnalysis.Result
-  )(implicit ec: ExecutionContext): Future[Seq[Path]] = {
-    val tasks = immutable.Seq(
-      ScalaNative.codegen(config, analysis),
-      genBuildInfo(config)
-    )
-    Future.reduceLeft(tasks)(_ ++ _)
   }
 
   /** Compiles `generatedIR`, which is a sequence of LLVM IR files. */
   private def compile(
       config: Config,
       analysis: ReachabilityAnalysis.Result,
-      generatedIR: Seq[Path]
+      irGenerators: Seq[Future[Path]]
   )(implicit ec: ExecutionContext): Future[Seq[Path]] =
     config.logger.timeAsync("Compiling to native code") {
       // compile generated LLVM IR
-      val compileGeneratedIR = LLVM.compile(config, generatedIR)
+      val compileGeneratedIR = Future
+        .sequence {
+          irGenerators.map(irGenerator =>
+            irGenerator.flatMap(generatedIR =>
+              LLVM.compile(config, generatedIR)
+            )
+          )
+        }
 
       /* Used to pass alternative paths of compiled native (lib) sources,
        * eg: reused native sources used in partests.
@@ -299,5 +298,27 @@ object Build {
         .map[FileTime](getLastModified(_))
         .max(_.compareTo(_))
     else Optional.empty()
+
+  private[scalanative] final val userConfigHashFile = "userConfigHash"
+
+  private[scalanative] def userConfigHasChanged(config: Config): Boolean = {
+    val hashFile = config.workDir.resolve(userConfigHashFile)
+    !Files.exists(hashFile) || {
+      val source = scala.io.Source.fromFile(hashFile.toFile())
+      try source.mkString.trim() != config.compilerConfig.##.toString()
+      finally source.close()
+    }
+  }
+
+  private[scalanative] def dumpUserConfigHash(config: Config): Unit = {
+    val hashFile = config.workDir.resolve(userConfigHashFile)
+    Files.createDirectories(hashFile.getParent())
+    Files.write(
+      hashFile,
+      config.compilerConfig.##.toString().getBytes(),
+      StandardOpenOption.CREATE,
+      StandardOpenOption.WRITE
+    )
+  }
 
 }

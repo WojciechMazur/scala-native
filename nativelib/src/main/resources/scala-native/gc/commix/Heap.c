@@ -20,7 +20,7 @@
 #include <time.h>
 #include <inttypes.h>
 #include "WeakRefGreyList.h"
-#include "Synchronizer.h"
+#include "immix_commix/Synchronizer.h"
 
 void Heap_exitWithOutOfMemory(const char *details) {
     fprintf(stderr, "Out of heap space %s\n", details);
@@ -232,6 +232,7 @@ void Heap_Collect(Heap *heap) {
         MutatorThreads_unlockRead();
         thread_yield();
         MutatorThreads_lockRead();
+        atomic_thread_fence(memory_order_acquire);
     }
 #else
     MutatorThread_switchState(currentMutatorThread,
@@ -327,7 +328,7 @@ void Heap_Grow(Heap *heap, uint32_t incrementInBlocks) {
     size_t incrementInBytes = incrementInBlocks * SPACE_USED_PER_BLOCK;
 
 #ifdef DEBUG_PRINT
-    printf("Growing small heap by %zu bytes, to %zu bytes\n", incrementInBytes,
+    printf("Growing heap by %zu bytes, to %zu bytes\n", incrementInBytes,
            heap->heapSize + incrementInBytes);
     fflush(stdout);
 #endif

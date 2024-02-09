@@ -160,6 +160,7 @@ void Phase_StartSweep(Heap *heap) {
     int gcThreadCount = heap->gcThreads.count;
     int numberOfBatches = blockCount / SWEEP_BATCH_SIZE;
     int threadsToStart = numberOfBatches / MIN_SWEEP_BATCHES_PER_THREAD;
+    threadsToStart -= GCThread_ActiveCount(heap);
     if (threadsToStart <= 0) {
         threadsToStart = 1;
     }
@@ -181,6 +182,7 @@ void Phase_SweepDone(Heap *heap, Stats *stats) {
                           heap->stats->collection_start_ns, end_ns);
 
         heap->sweep.postSweepDone = true;
+        atomic_thread_fence(memory_order_release);
     }
 }
 

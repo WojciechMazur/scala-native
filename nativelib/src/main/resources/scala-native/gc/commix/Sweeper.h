@@ -3,8 +3,7 @@
 
 #include "Heap.h"
 #include "Stats.h"
-#include "datastructures/BlockRange.h"
-#include "SweepResult.h"
+#include "Phase.h"
 #include "MutatorThread.h"
 
 void Sweeper_Sweep(Stats *stats, atomic_uint_fast32_t *cursorDone,

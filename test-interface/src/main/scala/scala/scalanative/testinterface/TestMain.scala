@@ -52,10 +52,13 @@ object TestMain {
 
   /** Main method of the test runner. */
   def main(args: Array[String]): Unit = {
+    println("TestMain start")
+    println(args.length)
     if (args.length != 1) {
       System.err.println(usage)
       throw new IllegalArgumentException("One argument expected")
     }
+    println(args.head)
     println(s"TestMain, args=${args.mkString(", ")}")
 
     locally {

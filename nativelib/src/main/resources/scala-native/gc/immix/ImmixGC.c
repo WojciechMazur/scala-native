@@ -49,11 +49,15 @@ static LONG WINAPI SafepointTrapHandler(EXCEPTION_POINTERS *ex) {
 }
 #else
 static void SafepointTrapHandler(int signal, siginfo_t *siginfo, void *uap) {
+    printf("In trap handler\n");
+    fflush(stdout);
     fprintf(stderr,
             "Unexpected signal %d when accessing memory at address %p, "
             "errno=%d, code=%d\n",
             signal, siginfo->si_addr, siginfo->si_errno, siginfo->si_code);
+    fflush(stderr);
     StackTrace_PrintStackTrace();
+    fflush(stdout);
     exit(signal);
 }
 #endif
@@ -67,7 +71,7 @@ static void SetupYieldPointTrapHandler(int signal) {
     memset(&sa, 0, sizeof(struct sigaction));
     sigemptyset(&sa.sa_mask);
     sa.sa_sigaction = &SafepointTrapHandler;
-    sa.sa_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK;
+    sa.sa_flags = SA_SIGINFO | SA_RESTART;
     if (sigaction(signal, &sa, &osa) == -1) {
         perror("Error: cannot setup safepoint synchronization handler");
         exit(errno);

@@ -143,30 +143,6 @@ jobs:
           echo "" >> ${ignoredTestsFile}
           echo -e "scala/util/SortingTest.scala\n" >> ${ignoredTestsFile}
 
-      - name: Build sandbox
-        env:
-          SCALANATIVE_MODE: "${{matrix.build-mode}}"
-          SCALANATIVE_GC: "${{matrix.gc}}"
-          SCALANATIVE_LTO: "${{matrix.lto}}"
-          # Temporaly excluded due to failures in linux-x86,
-          # missing __mulodi4 symbol used in j.l.Math.addExact(Long,Long)
-          # testsExt${{env.project-version}}/test;
-          TEST_COMMAND: >
-            set sandbox.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
-            show sandbox${{env.project-version}}/nativeConfig;
-            show sandbox${{env.project-version}}/nativeLink;
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 180
-          max_attempts: 1
-          retry_on: error
-          command: ./ci-docker/run-test-gha.sh "${{ needs.build-image.outputs.image-name }}:${{ matrix.arch }}"
-      
-      - name: Archive code executable
-        uses: actions/upload-artifact@v4
-        with:
-          name: sandbox-3-${{matrix.arch}}-${{matrix.build-mode}}-${{matrix.gc}}
-          path: sandbox/.3/target/scala-3.3.1/sandbox
       - name: Run tests
         env:
           SCALANATIVE_MODE: "${{matrix.build-mode}}"
@@ -177,6 +153,7 @@ jobs:
           # testsExt${{env.project-version}}/test;
           TEST_COMMAND: >
             set sandbox.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
+            set testInterface.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set tests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set junitTestOutputsNative.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set scalaPartestJunitTests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
@@ -184,6 +161,7 @@ jobs:
             show sandbox${{env.project-version}}/nativeConfig;
 
             sandbox${{env.project-version}}/run;
+            testInterface${{env.project-version}}/test;
             testsJVM${{env.project-version}}/test;
             tests${{env.project-version}}/test;
             junitTestOutputsNative${{env.project-version}}/test;

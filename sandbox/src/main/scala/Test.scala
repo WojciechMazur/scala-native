@@ -1,3 +1,5 @@
+import scala.scalanative.libc.stdatomic._
+import scala.scalanative.unsafe._
 object Test {
   def testRefArrayAlloc(size: Int): Unit = {
     case class Elem(inner: Elem)
@@ -20,7 +22,22 @@ object Test {
     println("Hello, World!")
     Array(0, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384)
       .foreach(testRefArrayAlloc)
-    println("done, test exceptions")
+    println("array alloc done")
+
+    val x = stackalloc[CLongLong]()
+    println(x)
+    !x = 42
+    println(x)
+    println(!x)
+
+    println("stackalloc done")
+
+    val xAtomic = new AtomicLongLong(x)
+    println(xAtomic)
+    val res = xAtomic.compareExchangeStrong(42, 24)
+    println(res)
+    println("atomic done")
+
     val ex = new RuntimeException("foo")
     println(s"ex=$ex")
     try throw ex

@@ -20,6 +20,11 @@ object Test {
     println("Hello, World!")
     Array(0, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384)
       .foreach(testRefArrayAlloc)
-    println("done")
+    println("done, test exceptions")
+    val ex = new RuntimeException("foo")
+    println(s"ex=$ex")
+    try throw ex
+    catch {case ex: Throwable => println(ex)}
+    println("all done")
   }
 }

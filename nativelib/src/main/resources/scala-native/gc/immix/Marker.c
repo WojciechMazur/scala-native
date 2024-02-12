@@ -145,9 +145,15 @@ NO_SANITIZE void Marker_markProgramStack(MutatorThread *thread, Heap *heap,
         stackTop = (word_t **)atomic_load_explicit(&thread->stackTop,
                                                    memory_order_acquire);
     } while (stackTop == NULL);
+    printf("Mark stack of %p, from=%p, to=%p, size=%zu\n", thread, stackTop,
+           stackBottom, stackBottom - stackTop);
     Marker_markRange(heap, stack, stackTop, stackBottom);
 
     // Mark registers buffer
+    printf("Mark regs of %p, from=%p, to=%p, size=%zu\n", thread,
+           (word_t **)&thread->registersBuffer,
+           (word_t **)(&thread->registersBuffer + 1),
+           sizeof(thread->registersBuffer));
     Marker_markRange(heap, stack, (word_t **)&thread->registersBuffer,
                      (word_t **)(&thread->registersBuffer + 1));
 }

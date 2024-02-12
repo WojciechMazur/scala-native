@@ -84,6 +84,15 @@ void scalanative_GC_collect();
 
 void scalanative_afterexit() { Stats_OnExit(heap.stats); }
 
+void checkStackDirection(word_t* a) {
+    word_t b;
+    if (&b > a) {
+        printf("Stack grows downward.\n");
+    } else {
+        printf("Stack grows upward.\n");
+    }
+}
+
 NOINLINE void scalanative_GC_init() {
     printf("Init GC\n");
     fflush(stdout);
@@ -118,6 +127,8 @@ NOINLINE void scalanative_GC_init() {
     customRoots = GC_Roots_Init();
     atexit(scalanative_afterexit);
     printf("Init GC - done\n");
+
+    checkStackDirection((word_t*)&dummy);
     fflush(stdout);
 }
 

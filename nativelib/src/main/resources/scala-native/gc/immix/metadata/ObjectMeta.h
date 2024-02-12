@@ -49,11 +49,17 @@ static inline void ObjectMeta_SetMarked(ObjectMeta *metadata) {
 }
 
 static inline void ObjectMeta_ClearLineAt(ObjectMeta *cursor) {
-    memset(cursor, 0, WORDS_IN_LINE / ALLOCATION_ALIGNMENT_WORDS);
+    for (size_t i = 0; i < WORDS_IN_LINE / ALLOCATION_ALIGNMENT_WORDS; i++) {
+        ObjectMeta_SetFree(&cursor[i]);
+    }
+    // memset(cursor, 0, WORDS_IN_LINE / ALLOCATION_ALIGNMENT_WORDS);
 }
 
 static inline void ObjectMeta_ClearBlockAt(ObjectMeta *cursor) {
-    memset(cursor, 0, WORDS_IN_BLOCK / ALLOCATION_ALIGNMENT_WORDS);
+    for (size_t i = 0; i < WORDS_IN_BLOCK / ALLOCATION_ALIGNMENT_WORDS; i++) {
+        ObjectMeta_SetFree(&cursor[i]);
+    }
+    // memset(cursor, 0, WORDS_IN_BLOCK / ALLOCATION_ALIGNMENT_WORDS);
 }
 
 

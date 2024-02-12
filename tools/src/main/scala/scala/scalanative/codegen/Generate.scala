@@ -242,17 +242,31 @@ object Generate {
     private def genClassInitializersCalls(
         unwind: () => nir.Next
     )(implicit fresh: nir.Fresh): Seq[nir.Inst] = {
+      var idx = 0
+      val total = defns.count {
+        case defn @ nir.Defn.Define(_, name: nir.Global.Member, _, _, _) => name.sig.isClinit 
+        case _ => false
+      }
       defns.collect {
         case defn @ nir.Defn.Define(_, name: nir.Global.Member, _, _, _) if name.sig.isClinit =>
+          idx += 1
           nir.Inst.Let(
             nir.Op.Call(
-              nir.Type.Function(Seq.empty, nir.Type.Unit),
-              nir.Val.Global(name, nir.Type.Ref(name.owner)),
-              Seq.empty
+              nir.Type.Function(Seq(nir.Type.Ptr, nir.Type.Vararg), nir.Type.Unit),
+              nir.Val.Global(printfSymbol, nir.Type.Ptr),
+              Seq(nir.Val.Const(nir.Val.ByteString(s"init[$idx/$total]: ${name.show}\n".getBytes())))
             ),
             unwind()
-          )(implicitly, defn.pos, implicitly)
-      }
+          )(implicitly, defn.pos, implicitly) ::
+            nir.Inst.Let(
+              nir.Op.Call(
+                nir.Type.Function(Seq.empty, nir.Type.Unit),
+                nir.Val.Global(name, nir.Type.Ref(name.owner)),
+                Seq.empty
+              ),
+              unwind()
+            )(implicitly, defn.pos, implicitly) :: Nil
+      }.flatten
     }
 
     private def genGcInit(unwindProvider: () => nir.Next)(implicit fresh: nir.Fresh) = {
@@ -678,6 +692,8 @@ object Generate {
     val arrayIdsMinName = extern("__array_ids_min")
     val arrayIdsMaxName = extern("__array_ids_max")
 
+    val printfSymbol = nir.Global.Top("scala.scalanative.libc.stdio").member(nir.Sig.Extern("printf"))
+
     private def extern(id: String): nir.Global.Member =
       nir.Global.Member(nir.Global.Top("__"), nir.Sig.Extern(id))
   }
@@ -691,6 +707,7 @@ object Generate {
     JavaThread,
     JavaThreadCurrentThread,
     JavaThreadGetUEH,
-    JavaThreadUEH
+    JavaThreadUEH,
+    printfSymbol
   )
 }

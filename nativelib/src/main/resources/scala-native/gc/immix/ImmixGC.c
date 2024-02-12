@@ -1,4 +1,5 @@
 #include "immix_commix/headers/ObjectHeader.h"
+#include <stdint.h>
 #if defined(SCALANATIVE_GC_IMMIX)
 
 #include <stdio.h>
@@ -146,7 +147,7 @@ INLINE void *scalanative_GC_alloc(void *info, size_t size) {
     }
     *alloc = info;
     wchar_t *clsName = Object_nameWString((Object*)alloc);
-    printf("Allocated[choose]: %ls at %p, size=%zu\n", clsName, alloc, size);
+    printf("Allocated[choose]: size=%zu, at %p, until=%p, cls=%ls\n", size, alloc, ((uint8_t*)(alloc) + size), clsName);
     fflush(stdout);
     free(clsName);
     return (void *)alloc;
@@ -158,7 +159,7 @@ INLINE void *scalanative_GC_alloc_small(void *info, size_t size) {
     void **alloc = (void **)Allocator_Alloc(&heap, size);
     *alloc = info;
     wchar_t *clsName = Object_nameWString((Object*)alloc);
-    printf("Allocated[small] : %ls at %p, size=%zu\n", clsName, alloc, size);
+    printf("Allocated[small] : size=%zu, at %p, until=%p, cls=%ls\n", size, alloc, ((uint8_t*)(alloc) + size), clsName);
     fflush(stdout);   
     free(clsName);
     return (void *)alloc;
@@ -170,7 +171,7 @@ INLINE void *scalanative_GC_alloc_large(void *info, size_t size) {
     void **alloc = (void **)LargeAllocator_Alloc(&heap, size);
     *alloc = info;
     wchar_t *clsName = Object_nameWString((Object*)alloc);
-    printf("Allocated[large] : %ls at %p, size=%zu\n", clsName, alloc, size);
+    printf("Allocated[large] : size=%zu, at %p, until=%p, cls=%ls\n", size, alloc, ((uint8_t*)(alloc) + size), clsName);
     fflush(stdout);
     free(clsName);
 

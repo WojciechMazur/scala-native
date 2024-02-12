@@ -13,7 +13,7 @@ import scala.concurrent.ExecutionContext
 
 object TestMain {
 
-  private val usage: String = {
+  private def usage: String = {
     """Usage: test-main <server_port>
       |
       |arguments:

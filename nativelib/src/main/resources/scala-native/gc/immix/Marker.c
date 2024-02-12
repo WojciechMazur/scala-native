@@ -48,6 +48,10 @@ static inline void Marker_markField(Heap *heap, Stack *stack, Field_t field) {
         ObjectMeta *fieldMeta = Bytemap_Get(heap->bytemap, field);
         if (ObjectMeta_IsAllocated(fieldMeta)) {
             Object *object = (Object *)field;
+            wchar_t *objectName = Object_nameWString((Object *)object);
+            printf("MarkField of %ls - field %p, obj %p\n", objectName,
+                   field, object);
+            free(objectName);
             Marker_markObject(heap, stack, heap->bytemap, object, fieldMeta);
         } else {
             // word_t *pointee = *(word_t **)field;
@@ -102,7 +106,8 @@ void Marker_markConservative(Heap *heap, Stack *stack, word_t *address) {
             // if (Heap_IsWordInHeap(heap, pointee) &&
             //     Bytemap_addressInBytemap(heap->bytemap, pointee)) {
             //     wchar_t *objectName = Object_nameWString((Object *)pointee);
-            //     printf("Try markConservative %ls - unboxed pointer %p to %p\n", objectName,
+            //     printf("Try markConservative %ls - unboxed pointer %p to
+            //     %p\n", objectName,
             //            address, pointee);
             //     free(objectName);
             //     Marker_markConservative(heap, stack, pointee);
@@ -169,7 +174,8 @@ NO_SANITIZE static void Marker_markRange(Heap *heap, Stack *stack,
             // bool isUnmarked = unmarkedObject == object;
             // if (object != NULL) {
             //     wchar_t *objectName = Object_nameWString(object);
-            //     printf("%p: [%d] Mark %ls: addr=%p, obj=%p, off=%ld, val=%p\n",
+            //     printf("%p: [%d] Mark %ls: addr=%p, obj=%p, off=%ld,
+            //     val=%p\n",
             //            current, idx, objectName, addr, object,
             //            (addr - (word_t *)object), *(word_t **)addr);
             //     free(objectName);
@@ -183,12 +189,16 @@ NO_SANITIZE static void Marker_markRange(Heap *heap, Stack *stack,
             //     // if (Bytemap_addressInBytemap(heap->bytemap, inner)) {
             //     //     object = Object_GetObject(heap, inner);
             //     // } else {
-            //     //     bool afterStart = inner >= heap->bytemap->firstAddress;
-            //     //     size_t index = Bytemap_indexUnsafe(heap->bytemap, inner);
-            //     //     printf("Not in bytemap bounds: inner=%p, afterStart=%d, "
+            //     //     bool afterStart = inner >=
+            //     heap->bytemap->firstAddress;
+            //     //     size_t index = Bytemap_indexUnsafe(heap->bytemap,
+            //     inner);
+            //     //     printf("Not in bytemap bounds: inner=%p,
+            //     afterStart=%d, "
             //     //            "start=%p, idx=%lu, limit=%lu, end=%p\n",
             //     //            inner, afterStart, heap->bytemap->firstAddress,
-            //     //            index, heap->bytemap->size, heap->bytemap->end);
+            //     //            index, heap->bytemap->size,
+            //     heap->bytemap->end);
             //     // }
             //     // printf("Inner object: %p\n", object);
 

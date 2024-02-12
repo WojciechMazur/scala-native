@@ -20,9 +20,9 @@ object Test {
 
   def main(args: Array[String]): Unit = {
     println("Hello, World!")
-    Array(0, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384)
-      .foreach(testRefArrayAlloc)
-    println("array alloc done")
+    // Array(0, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384)
+    //   .foreach(testRefArrayAlloc)
+    // println("array alloc done")
 
     val x = stackalloc[CLongLong]()
     println(x)

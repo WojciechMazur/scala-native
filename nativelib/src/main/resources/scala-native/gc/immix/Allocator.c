@@ -234,7 +234,10 @@ INLINE word_t *Allocator_Alloc(Heap *heap, uint32_t size) {
     Allocator *allocator = &currentMutatorThread->allocator;
     word_t *start = allocator->cursor;
     word_t *end = (word_t *)((uint8_t *)start + size);
-
+    Object** current = (Object**)start;
+    if(*current != NULL){
+        printf("Override allocation at %p\n", current);
+    }
     // Checks if the end of the block overlaps with the limit
     if (end > allocator->limit) {
         return Allocator_allocSlow(allocator, heap, size);

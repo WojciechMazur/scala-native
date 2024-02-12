@@ -30,6 +30,7 @@ object Test {
     val v1 = Foo("1")
     println(v1)
     println(x.computeIfAbsent(1.toUSize, _ => v1))
+    println("first done")
     println(x.computeIfAbsent(1.toUInt, key => {
       val v = Foo(key.toString)
       println(v)

@@ -12,6 +12,7 @@ private[scalanative] case class PlatformInfo(
 ) {
   val sizeOfPtr = if (is32Bit) 4 else 8
   val sizeOfPtrBits = sizeOfPtr * 8
+  println(s"SizeOf[Ptr]=$sizeOfPtr")
 }
 object PlatformInfo {
   def apply(config: Config): PlatformInfo = PlatformInfo(

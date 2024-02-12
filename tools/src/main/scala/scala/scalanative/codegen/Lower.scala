@@ -587,6 +587,7 @@ object Lower {
       val layout = meta.layout(cls)
       val ty = layout.struct
       val index = layout.index(fld)
+      assert(index > 0, s"No ${fld.name} in layout")
 
       genGuardNotNull(buf, v)
       elem(ty, v, Seq(zero, nir.Val.Int(index)), unwind)

@@ -188,7 +188,7 @@ jobs:
             set tests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set junitTestOutputsNative.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set scalaPartestJunitTests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
-
+            set every parallelExecution := false;
             show sandbox${{env.project-version}}/nativeConfig;
 
             sandbox${{env.project-version}}/run;

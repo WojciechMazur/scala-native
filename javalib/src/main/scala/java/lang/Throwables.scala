@@ -151,9 +151,9 @@ class Throwable protected (
   def fillInStackTrace(): Throwable = {
     // currentStackTrace should be handling exclusion in its own
     // critical section, but does not. So do
-    // if (writableStackTrace) this.synchronized {
-    //   this.stackTrace = StackTrace.currentStackTrace()
-    // }
+    if (writableStackTrace) this.synchronized {
+      this.stackTrace = StackTrace.currentStackTrace()
+    }
     this
   }
 

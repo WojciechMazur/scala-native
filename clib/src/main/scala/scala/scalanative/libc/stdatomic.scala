@@ -1409,7 +1409,7 @@ import scala.language.implicitConversions
     def compareExchangeStrong(expectedValue: CLongLong, desired: CLongLong): Boolean = {
       val expectedPtr = stackalloc[CLongLong]()
       !expectedPtr = expectedValue
-      println(s"scala cmpxch ptr=$underlying, expected=$expectedPtr, desired=$desired")
+      println(s"scala cmpxch ptr=$underlying, expected=$expectedPtr, desired=$desired, self=$this")
       atomic_compare_exchange_strong(underlying, expectedPtr, desired)
     }
     def compareExchangeStrong(expectedValue: CLongLong, desired: CLongLong, memoryOrderOnSuccess: memory_order, memoryOrderOnFailure: memory_order): Boolean = {

@@ -1371,6 +1371,7 @@ import scala.language.implicitConversions
     def atomic: AtomicLongLong = new AtomicLongLong(ptr)
   }
   final class AtomicLongLong(private val underlying: Ptr[stdatomic.atomic_llong]) extends AnyVal {
+    override def toString(): String = s"AtomicLongLong($underlying, value=${!underlying})"
     def init(value: CLongLong): Unit = atomic_init(underlying, value)
 
     def load(): CLongLong = atomic_load(underlying)

@@ -88,10 +88,10 @@ void Marker_markConservative(Heap *heap, Stack *stack, word_t *address) {
     if (address != NULL && Bytemap_isPtrAligned(address)) {
         Object *object = Object_GetUnmarkedObject(heap, address);
         if (object != NULL) {
-            wchar_t *objectName = Object_nameWString(object);
-            printf("MarkConservative %ls - addr=%p, obj=%p\n", objectName,
-                   address, object);
-            free(objectName);
+            // wchar_t *objectName = Object_nameWString(object);
+            // printf("MarkConservative %ls - addr=%p, obj=%p\n", objectName,
+            //        address, object);
+            // free(objectName);
             Bytemap *bytemap = heap->bytemap;
             ObjectMeta *objectMeta = Bytemap_Get(bytemap, (word_t *)object);
             if (ObjectMeta_IsAllocated(objectMeta)) {
@@ -164,47 +164,46 @@ NO_SANITIZE static void Marker_markRange(Heap *heap, Stack *stack,
     for (word_t **current = from; current <= to; current += 1, idx += 1) {
         word_t *addr = *current;
         if (Heap_IsWordInHeap(heap, addr)) {
-            Object *object = Object_GetObject(heap, addr);
-            Object *unmarkedObject = Object_GetUnmarkedObject(heap, addr);
-            bool isUnmarked = unmarkedObject == object;
-            if (object != NULL) {
-                wchar_t *objectName = Object_nameWString(object);
-                printf("%p: [%d] Mark %ls: addr=%p, obj=%p, off=%ld, val=%p\n",
-                       current, idx, objectName, addr, object,
-                       (addr - (word_t *)object), *(word_t **)addr);
-                free(objectName);
-            } else {
-                word_t *inner = *(word_t **)addr;
-                printf("%p: [%d] Not an object %p, val=%p, valInHeap=%d\n",
-                       current, idx, addr, inner,
-                       Heap_IsWordInHeap(heap, inner));
-                fflush(stdout);
-                // Object *object = NULL;
-                // if (Bytemap_addressInBytemap(heap->bytemap, inner)) {
-                //     object = Object_GetObject(heap, inner);
-                // } else {
-                //     bool afterStart = inner >= heap->bytemap->firstAddress;
-                //     size_t index = Bytemap_indexUnsafe(heap->bytemap, inner);
-                //     printf("Not in bytemap bounds: inner=%p, afterStart=%d, "
-                //            "start=%p, idx=%lu, limit=%lu, end=%p\n",
-                //            inner, afterStart, heap->bytemap->firstAddress,
-                //            index, heap->bytemap->size, heap->bytemap->end);
-                // }
-                // printf("Inner object: %p\n", object);
+            // Object *object = Object_GetObject(heap, addr);
+            // Object *unmarkedObject = Object_GetUnmarkedObject(heap, addr);
+            // bool isUnmarked = unmarkedObject == object;
+            // if (object != NULL) {
+            //     wchar_t *objectName = Object_nameWString(object);
+            //     printf("%p: [%d] Mark %ls: addr=%p, obj=%p, off=%ld, val=%p\n",
+            //            current, idx, objectName, addr, object,
+            //            (addr - (word_t *)object), *(word_t **)addr);
+            //     free(objectName);
+            // } else {
+            //     word_t *inner = *(word_t **)addr;
+            //     printf("%p: [%d] Not an object %p, val=%p, valInHeap=%d\n",
+            //            current, idx, addr, inner,
+            //            Heap_IsWordInHeap(heap, inner));
+            //     fflush(stdout);
+            //     // Object *object = NULL;
+            //     // if (Bytemap_addressInBytemap(heap->bytemap, inner)) {
+            //     //     object = Object_GetObject(heap, inner);
+            //     // } else {
+            //     //     bool afterStart = inner >= heap->bytemap->firstAddress;
+            //     //     size_t index = Bytemap_indexUnsafe(heap->bytemap, inner);
+            //     //     printf("Not in bytemap bounds: inner=%p, afterStart=%d, "
+            //     //            "start=%p, idx=%lu, limit=%lu, end=%p\n",
+            //     //            inner, afterStart, heap->bytemap->firstAddress,
+            //     //            index, heap->bytemap->size, heap->bytemap->end);
+            //     // }
+            //     // printf("Inner object: %p\n", object);
 
-                // if (object != NULL && Heap_IsWordInHeap(heap, inner)) {
-                //     CharArray *strChars = object->rtti->rt.name->value;
-                //     int nameLength = strChars->header.length;
-                //     wchar_t buf[nameLength + 1] = {};
-                //     for (int i = 0; i < nameLength; i++) {
-                //         buf[i] = (wchar_t)strChars->values[i];
-                //     }
-                //     buf[nameLength] = 0;
-                //     printf("Unboxed pointer to: %ls\n", buf);
-                //     Marker_markConservative(heap, stack, inner);
-                // }
-            }
-
+            //     // if (object != NULL && Heap_IsWordInHeap(heap, inner)) {
+            //     //     CharArray *strChars = object->rtti->rt.name->value;
+            //     //     int nameLength = strChars->header.length;
+            //     //     wchar_t buf[nameLength + 1] = {};
+            //     //     for (int i = 0; i < nameLength; i++) {
+            //     //         buf[i] = (wchar_t)strChars->values[i];
+            //     //     }
+            //     //     buf[nameLength] = 0;
+            //     //     printf("Unboxed pointer to: %ls\n", buf);
+            //     //     Marker_markConservative(heap, stack, inner);
+            //     // }
+            // }
             Marker_markConservative(heap, stack, addr);
         }
     }

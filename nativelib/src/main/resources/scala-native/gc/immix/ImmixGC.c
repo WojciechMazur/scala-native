@@ -146,10 +146,6 @@ INLINE void *scalanative_GC_alloc(void *info, size_t size) {
         alloc = (void **)Allocator_Alloc(&heap, size);
     }
     *alloc = info;
-    wchar_t *clsName = Object_nameWString((Object*)alloc);
-    printf("Allocated[choose]: size=%zu, at %p, until=%p, cls=%ls\n", size, alloc, ((uint8_t*)(alloc) + size), clsName);
-    fflush(stdout);
-    free(clsName);
     return (void *)alloc;
 }
 
@@ -158,10 +154,6 @@ INLINE void *scalanative_GC_alloc_small(void *info, size_t size) {
 
     void **alloc = (void **)Allocator_Alloc(&heap, size);
     *alloc = info;
-    wchar_t *clsName = Object_nameWString((Object*)alloc);
-    printf("Allocated[small] : size=%zu, at %p, until=%p, cls=%ls\n", size, alloc, ((uint8_t*)(alloc) + size), clsName);
-    fflush(stdout);   
-    free(clsName);
     return (void *)alloc;
 }
 
@@ -170,11 +162,6 @@ INLINE void *scalanative_GC_alloc_large(void *info, size_t size) {
 
     void **alloc = (void **)LargeAllocator_Alloc(&heap, size);
     *alloc = info;
-    wchar_t *clsName = Object_nameWString((Object*)alloc);
-    printf("Allocated[large] : size=%zu, at %p, until=%p, cls=%ls\n", size, alloc, ((uint8_t*)(alloc) + size), clsName);
-    fflush(stdout);
-    free(clsName);
-
     return (void *)alloc;
 }
 

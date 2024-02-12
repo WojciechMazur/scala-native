@@ -3731,7 +3731,7 @@ class ConcurrentHashMap[K <: AnyRef, V <: AnyRef]()
     with ConcurrentMap[K, V]
     with Serializable {
   import ConcurrentHashMap._
-    
+
   /* ---------------- Fields -------------- */
   @volatile
   @transient private[concurrent] var table: Array[Node[K, V]] = _
@@ -4790,7 +4790,6 @@ class ConcurrentHashMap[K <: AnyRef, V <: AnyRef]()
     var cs: Array[CounterCell] = null
     var b = 0L
     var s = 0L
-    println(s"1: cs=$cs, addCount(x=$x,check=$check) - ${scalanative.runtime.fromRawPtr(scalanative.runtime.Intrinsics.castObjectToRawPtr(this))} - ${this.BASECOUNT}")
     if ({ cs = counterCells; cs } != null || !this.BASECOUNT
       .compareExchangeStrong({ b = baseCount; b }, { s = b + x; s })) {
       var c: CounterCell = null
@@ -4798,11 +4797,6 @@ class ConcurrentHashMap[K <: AnyRef, V <: AnyRef]()
       var m = 0
       var uncontended = true
       if (cs == null || { m = cs.length - 1; m < 0 } || { c = cs(ThreadLocalRandom.getProbe() & m); c == null } || {
-            println(s"2: ${scalanative.runtime.fromRawPtr(scalanative.runtime.Intrinsics.castObjectToRawPtr(c))} - ${c.CELLVALUE}")
-            println(s"2b: $c")
-            println(s"csObj=${cs}")
-            println(s"counterCells=${counterCells}")
-            // println(s"cs=${cs.mkString("[",", ", "]")}")
             uncontended = c.CELLVALUE.compareExchangeStrong(
               { v = c.value; v },
               v + x
@@ -4827,14 +4821,8 @@ class ConcurrentHashMap[K <: AnyRef, V <: AnyRef]()
         if (sc < 0) {
           if (sc == rs + MAX_RESIZERS || sc == rs + 1 || { nt = nextTable; nt } == null || transferIndex <= 0)
             break = true
-          else if ({
-            println(s"3: ${scalanative.runtime.fromRawPtr(scalanative.runtime.Intrinsics.castObjectToRawPtr(this))} - ${this.SIZECTL}")
-            this.SIZECTL.compareExchangeStrong(sc, sc + 1)
-           }) transfer(tab, nt)
-        } else if ({
-          println(s"4: ${scalanative.runtime.fromRawPtr(scalanative.runtime.Intrinsics.castObjectToRawPtr(this))} - ${this.SIZECTL}")
-          this.SIZECTL.compareExchangeStrong(sc, rs + 2)
-        }) transfer(tab, null)
+          else if (this.SIZECTL.compareExchangeStrong(sc, sc + 1)) transfer(tab, nt)
+        } else if (this.SIZECTL.compareExchangeStrong(sc, rs + 2)) transfer(tab, null)
         if (!break) s = sumCount
       }
     }

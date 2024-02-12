@@ -168,16 +168,11 @@ NO_SANITIZE static void Marker_markRange(Heap *heap, Stack *stack,
             Object *unmarkedObject = Object_GetUnmarkedObject(heap, addr);
             bool isUnmarked = unmarkedObject == object;
             if (object != NULL) {
-                CharArray *strChars = object->rtti->rt.name->value;
-                int nameLength = strChars->header.length;
-                wchar_t buf[nameLength + 1] = {};
-                for (int i = 0; i < nameLength; i++) {
-                    buf[i] = (wchar_t)strChars->values[i];
-                }
-                buf[nameLength] = 0;
+                wchar_t *objectName = Object_nameWString(object);
                 printf("%p: [%d] Mark %ls: addr=%p, obj=%p, off=%ld, val=%p\n",
-                       current, idx, buf, addr, object,
+                       current, idx, objectName, addr, object,
                        (addr - (word_t *)object), *(word_t **)addr);
+                free(objectName);
             } else {
                 word_t *inner = *(word_t **)addr;
                 printf("%p: [%d] Not an object %p, val=%p, valInHeap=%d\n",

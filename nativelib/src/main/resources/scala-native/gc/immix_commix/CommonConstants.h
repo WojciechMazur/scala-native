@@ -1,9 +1,18 @@
 #ifndef IMMIX_COMMON_CONSTANTS_H
 #define IMMIX_COMMON_CONSTANTS_H
 
-#include <stddef.h>
+#include <stdint.h>
 
-#define WORD_SIZE sizeof(size_t)
+
+#if UINTPTR_MAX == 0xFFFFFFFF
+  #define PTR32
+  #define WORD_SIZE 4
+#elif UINTPTR_MAX == 0xFFFFFFFFFFFFFFFFu
+  #define PTR64
+  #define WORD_SIZE 8
+#else
+  #error Unsupported pointer size
+#endif
 
 #define ALLOCATION_ALIGNMENT 16
 #define ALLOCATION_ALIGNMENT_WORDS (ALLOCATION_ALIGNMENT / WORD_SIZE)

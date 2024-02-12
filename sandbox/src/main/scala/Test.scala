@@ -1,5 +1,6 @@
 import scala.scalanative.libc.stdatomic._
 import scala.scalanative.unsafe._
+import scala.scalanative.unsigned._
 object Test {
   def testRefArrayAlloc(size: Int): Unit = {
     case class Elem(inner: Elem)
@@ -23,20 +24,19 @@ object Test {
     // Array(0, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384)
     //   .foreach(testRefArrayAlloc)
     // println("array alloc done")
-
-    val x = stackalloc[CLongLong]()
+    case class Foo(v: String)
+    val x = new java.util.concurrent.ConcurrentHashMap[CUnsignedLong, Foo]
     println(x)
-    !x = 42
-    println(x)
-    println(!x)
+    val v1 = Foo("1")
+    println(v1)
+    println(x.computeIfAbsent(1.toUSize, _ => v1))
+    println(x.computeIfAbsent(1.toUInt, key => {
+      val v = Foo(key.toString)
+      println(v)
+      v
+    }))
 
-    println("stackalloc done")
-
-    val xAtomic = new AtomicLongLong(x)
-    println(xAtomic)
-    val res = xAtomic.compareExchangeStrong(42, 24)
-    println(res)
-    println("atomic done")
+    println("map done")
 
     val ex = new RuntimeException("foo")
     println(s"ex=$ex")

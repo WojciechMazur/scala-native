@@ -45,6 +45,26 @@ Object *Object_getInnerPointer(Heap *heap, BlockMeta *blockMeta, word_t *word,
     }
 }
 
+Object *Object_GetObject(Heap *heap, word_t *word) {
+    BlockMeta *blockMeta =
+        Block_GetBlockMeta(heap->blockMetaStart, heap->heapStart, word);
+
+    if (BlockMeta_ContainsLargeObjects(blockMeta)) {
+        word = (word_t *)((word_t)word & LARGE_BLOCK_MASK);
+    } else {
+        word = (word_t *)((word_t)word & ALLOCATION_ALIGNMENT_INVERSE_MASK);
+    }
+
+    ObjectMeta *wordMeta = Bytemap_Get(heap->bytemap, word);
+    if (ObjectMeta_IsPlaceholder(wordMeta)) {
+        return NULL;
+    } else if (ObjectMeta_IsAllocated(wordMeta)) {
+        return (Object *)word;
+    } else {
+        return Object_getInnerPointer(heap, blockMeta, word, wordMeta);
+    }
+}
+
 Object *Object_GetUnmarkedObject(Heap *heap, word_t *word) {
     BlockMeta *blockMeta =
         Block_GetBlockMeta(heap->blockMetaStart, heap->heapStart, word);

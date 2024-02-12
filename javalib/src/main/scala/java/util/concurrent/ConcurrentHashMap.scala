@@ -4799,7 +4799,7 @@ class ConcurrentHashMap[K <: AnyRef, V <: AnyRef]()
       var uncontended = true
       if (cs == null || { m = cs.length - 1; m < 0 } || { c = cs(ThreadLocalRandom.getProbe() & m); c == null } || {
             println(s"2: ${scalanative.runtime.fromRawPtr(scalanative.runtime.Intrinsics.castObjectToRawPtr(c))} - ${c.CELLVALUE}")
-            println(s"2b: $c")
+            println(s"2b: $c - cs=${cs.mkString("[",", ", "]")}")
             uncontended = c.CELLVALUE.compareExchangeStrong(
               { v = c.value; v },
               v + x

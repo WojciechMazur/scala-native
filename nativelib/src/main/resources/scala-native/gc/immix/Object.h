@@ -8,6 +8,8 @@
 
 word_t *Object_LastWord(Object *object);
 Object *Object_GetUnmarkedObject(Heap *heap, word_t *address);
+Object *Object_GetObject(Heap *heap, word_t *address);
+
 void Object_Mark(Heap *heap, Object *object, ObjectMeta *objectMeta);
 
 #endif // IMMIX_OBJECT_H

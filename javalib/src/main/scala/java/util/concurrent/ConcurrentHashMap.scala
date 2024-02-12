@@ -4791,10 +4791,6 @@ class ConcurrentHashMap[K <: AnyRef, V <: AnyRef]()
     var b = 0L
     var s = 0L
     println(s"addCount(x=$x,check=$check)")
-    println(s"baseCount=$baseCount")
-    println(s"BASECOUNT=$BASECOUNT")
-    println(BASECOUNT.load())
-
     if ({ cs = counterCells; cs } != null || !this.BASECOUNT
       .compareExchangeStrong({ b = baseCount; b }, { s = b + x; s })) {
       var c: CounterCell = null

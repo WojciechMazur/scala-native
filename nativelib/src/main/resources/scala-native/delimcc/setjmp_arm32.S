@@ -30,16 +30,16 @@ jump_buf layout:
 .balign 4
 /* called with r0: &jmp_buf */
 _lh_setjmp:                 
-    stmia r0!, {lr, fp, r7-r12}   /* Save registers lr, fp, r7-r12 to jmp_buf */
+    stmia r0!, {lr, fp, r7, r8, r9, r10, r11, r12}  /* Save registers lr, fp, r7-r12 to jmp_buf */
     mov   r1, sp                   /* sp to r1 */
-    str   r1, [r0, #56]             /* Save sp to jmp_buf */
+    str   r1, [r0, #56]            /* Save sp to jmp_buf */
     mov   r1, #0                   /* always return zero */
     bx    lr                       /* jump to lr */
 
 .balign 4
 /* called with r0: &jmp_buf, r1: value to return */
 _lh_longjmp:
-    ldmia r0!, {lr, fp, r7-r12}   /* Load registers lr, fp, r7-r12 from jmp_buf */
+    ldmia r0!, {lr, fp, r7, r8, r9, r10, r11, r12}   /* Load registers lr, fp, r7-r12 from jmp_buf */
     ldr   sp, [r0, #56]            /* Load sp from jmp_buf */
     mov   r2, #0                   /* Clear register r2 (not used in this implementation) */
     bx    lr                       /* jump to lr */

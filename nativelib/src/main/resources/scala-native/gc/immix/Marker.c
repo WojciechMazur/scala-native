@@ -96,7 +96,6 @@ void Marker_Mark(Heap *heap, Stack *stack) {
                 const size_t length = arrayHeader->length;
                 word_t **fields = (word_t **)(arrayHeader + 1);
                 for (int i = 0; i < length; i++) {
-                assert(fields[i] == NULL || Object_GetObject(heap, fields[i]));
                     Marker_markField(heap, stack, fields[i]);
                 }
             } else if (objectId == __blob_array_id) {
@@ -110,7 +109,6 @@ void Marker_Mark(Heap *heap, Stack *stack) {
             for (int i = 0; refFieldOffsets[i] != LAST_FIELD_OFFSET; i++) {
                 size_t fieldOffset = (size_t)refFieldOffsets[i];
                 Field_t *fieldRef = (Field_t *)((int8_t *)object + fieldOffset);
-                assert(*fieldRef == NULL || Object_GetObject(heap, *fieldRef));
                 if (Object_IsReferantOfWeakReference(object, fieldOffset))
                     continue;
                 Marker_markField(heap, stack, *fieldRef);

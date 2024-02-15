@@ -1,5 +1,8 @@
 package java.lang.process
 
+// Required only for cross-compilation with Scala 2
+import scala.language.existentials
+
 import java.io.{FileDescriptor, InputStream, OutputStream}
 import java.lang.ProcessBuilder._
 
@@ -125,7 +128,7 @@ object WindowsProcess {
   private final val readEnd = 0
   private final val writeEnd = 1
 
-  def apply(builder: ProcessBuilder): Process = Zone { implicit z =>
+  def apply(builder: ProcessBuilder): Process = Zone.acquire { implicit z =>
     val (inRead, inWrite) =
       createPipeOrThrow(
         builder.redirectInput(),
@@ -253,7 +256,7 @@ object WindowsProcess {
         disposition: DWord,
         flagsAndAttributes: DWord = FILE_ATTRIBUTE_NORMAL,
         sharing: DWord = FILE_SHARE_ALL
-    ) = Zone { implicit z =>
+    ) = Zone.acquire { implicit z =>
       val handle = FileApi.CreateFileW(
         filename = toCWideStringUTF16LE(redirect.file().getAbsolutePath()),
         desiredAccess = access,

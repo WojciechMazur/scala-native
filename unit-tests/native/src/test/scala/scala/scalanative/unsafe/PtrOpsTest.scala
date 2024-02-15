@@ -13,7 +13,7 @@ import scalanative.unsafe.Ptr.ptrToCArray
 class PtrOpsTest {
 
   @Test def substraction(): Unit = {
-    Zone { implicit z =>
+    Zone.acquire { implicit z =>
       val carr: Ptr[CChar] = toCString("abcdefg")
       val cptr: Ptr[CChar] = string.strchr(carr, 'd')
       assertTrue(cptr - carr == 3)
@@ -35,7 +35,7 @@ class PtrOpsTest {
   val fn0: CFuncPtr0[CInt] = () => 1
 
   @Test def castsPtrByteToCFuncPtr(): Unit = {
-    val fnPtr: Ptr[Byte] = CFuncPtr.toPtr(fn0)
+    val fnPtr: Ptr[_] = CFuncPtr.toPtr(fn0)
     val fnFromPtr = CFuncPtr.fromPtr[CFuncPtr0[CInt]](fnPtr)
     val expectedResult = 1
 
@@ -47,7 +47,7 @@ class PtrOpsTest {
 
   @Test def castedCFuncPtrHandlesArguments(): Unit = {
     type Add1Fn = CFuncPtr1[Int, Int]
-    val ptr: Ptr[Byte] = CFuncPtr.toPtr(fn1)
+    val ptr: Ptr[_] = CFuncPtr.toPtr(fn1)
     val fnFromPtr = CFuncPtr.fromPtr[CFuncPtr1[Int, Int]](ptr)
     val aliasedFn = CFuncPtr.fromPtr[Add1Fn](ptr)
 
@@ -77,7 +77,7 @@ class PtrOpsTest {
     val fnFromPtr = CFuncPtr.fromPtr[CFuncPtr2[CString, StructA, StructA]](ptr)
     val aliasedFn = CFuncPtr.fromPtr[AssignCString](ptr)
 
-    def test(fn: CFuncPtr2[CString, StructA, StructA]): Unit = Zone {
+    def test(fn: CFuncPtr2[CString, StructA, StructA]): Unit = Zone.acquire {
       implicit z =>
         val str = alloc[StructA]()
         val charset = java.nio.charset.StandardCharsets.UTF_8
@@ -105,8 +105,8 @@ class PtrOpsTest {
       arr
     }
   @Test def castedCFuncPtrHandlesArrays(): Unit = {
-    def test(fn: CFuncPtr3[CInt, CUnsignedLongLong, LLArr, LLArr]) = Zone {
-      implicit z =>
+    def test(fn: CFuncPtr3[CInt, CUnsignedLongLong, LLArr, LLArr]) =
+      Zone.acquire { implicit z =>
         val arr = alloc[LLArr]()
 
         val value = ULong.MaxValue
@@ -116,7 +116,7 @@ class PtrOpsTest {
         val result = !resultArray.at(idx)
         // Some strange thing occurred here: assertEquals resulted in assertionFailed
         assert(result == value)
-    }
+      }
 
     type FnAlias = CFuncPtr3[CInt, CUnsignedLongLong, LLArr, LLArr]
     val fn = fn3

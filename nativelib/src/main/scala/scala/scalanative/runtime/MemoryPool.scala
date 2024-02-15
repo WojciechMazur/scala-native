@@ -70,9 +70,15 @@ object MemoryPool {
 
   lazy val defaultMemoryPool: MemoryPool = {
     // Release allocated chunks satisfy AdressSanitizer
-    if (asanEnabled) libc.atexit { () =>
-      defaultMemoryPool.freeChunks()
-    }
+    if (asanEnabled)
+      try
+        Runtime.getRuntime().addShutdownHook {
+          val t = new Thread(() => defaultMemoryPool.freeChunks())
+          t.setPriority(Thread.MIN_PRIORITY)
+          t.setName("shutdown-hook:memory-pool-cleanup")
+          t
+        }
+      catch { case ex: IllegalStateException => () } // shutdown already started
     new MemoryPool()
   }
 
@@ -93,7 +99,7 @@ object MemoryPool {
 final class MemoryPoolZone(private val pool: MemoryPool) extends Zone {
   private var tailPage = pool.claim()
   private var headPage = tailPage
-  private var largeAllocations: scala.Array[Ptr[_]] = null
+  private var largeAllocations: scala.Array[CVoidPtr] = null
   private var largeOffset = 0
 
   private def checkOpen(): Unit =
@@ -173,11 +179,11 @@ final class MemoryPoolZone(private val pool: MemoryPool) extends Zone {
 
   private def allocLarge(size: CSize): Ptr[Byte] = {
     if (largeAllocations == null) {
-      largeAllocations = new scala.Array[Ptr[_]](16)
+      largeAllocations = new scala.Array[CVoidPtr](16)
     }
     if (largeOffset == largeAllocations.length) {
       val newLargeAllocations =
-        new scala.Array[Ptr[_]](largeAllocations.length * 2)
+        new scala.Array[CVoidPtr](largeAllocations.length * 2)
       Array.copy(
         largeAllocations,
         0,

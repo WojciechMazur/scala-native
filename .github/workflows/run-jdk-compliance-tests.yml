@@ -42,10 +42,10 @@ jobs:
 
       - name: Test runtime
         run: >
-          if [[ "${{ matrix.os }}" == "macos-14" || "${{ matrix.os }}" == "macos-12" ]]; then 
+          if [[ "${{ matrix.os }}" == "macos-14" || "${{ matrix.os }}" == "macos-12" ]]; then
             export LLVM_BIN=$(brew --prefix llvm@15)/bin
-          fi
-          echo "LLVM_BIN=${LLVM_BIN}"
+          fi;
+          echo "LLVM_BIN=${LLVM_BIN}";
 
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO=1
           SCALANATIVE_GC=${{matrix.gc}}

@@ -150,6 +150,8 @@ object MyScalaNativePlugin extends AutoPlugin {
         .withCheckFatalWarnings(true)
         .withDump(true)
         .withSourceLevelDebuggingConfig(_.enableAll)
+        // .withMode(scalanative.build.Mode.releaseFast)
+        .withLinkingOptions(_ :+ "-fuse-ld=lld")
         .withMultithreadingSupport(
           multithreadingEnabledBySbtSysProps()
             .getOrElse(nc.multithreadingSupport)

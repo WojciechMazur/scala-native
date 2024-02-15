@@ -158,8 +158,8 @@ NO_SANITIZE void Marker_markProgramStack(MutatorThread *thread, Heap *heap,
     Marker_markRange(heap, stack, stackTop, stackBottom);
 
     // Mark registers buffer
-    // Marker_markRange(heap, stack, (word_t **)&thread->registersBuffer,
-    //                  (word_t **)(&thread->registersBuffer + 1));
+    Marker_markRange(heap, stack, (word_t **)&thread->registersBuffer,
+                     (word_t **)(&thread->registersBuffer + 1));
 }
 
 void Marker_markModules(Heap *heap, Stack *stack) {

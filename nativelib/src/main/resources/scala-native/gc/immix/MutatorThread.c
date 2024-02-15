@@ -54,7 +54,7 @@ void MutatorThread_delete(MutatorThread *self) {
 
 typedef word_t **stackptr_t;
 
-NOINLINE static stackptr_t MutatorThread_approximateStackTop() {
+INLINE static stackptr_t MutatorThread_approximateStackTop() {
     volatile word_t sp = 0;
     sp = (word_t)&sp;
     /* Also force stack to grow if necessary. Otherwise the later accesses might
@@ -68,7 +68,7 @@ INLINE void MutatorThread_switchState(MutatorThread *self,
     assert(self != NULL);
     switch (newState) {
     case GC_MutatorThreadState_Unmanaged:
-        // RegistersCapture(self->registersBuffer);
+        RegistersCapture(self->registersBuffer);
         atomic_store_explicit(&self->stackTop,
                               (intptr_t)MutatorThread_approximateStackTop(),
                               memory_order_release);

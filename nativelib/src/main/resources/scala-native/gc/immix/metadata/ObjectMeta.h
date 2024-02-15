@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "immix_commix/CommonConstants.h"
+#include <string.h>
+#include <assert.h>
 #include "shared/GCTypes.h"
 
 typedef enum {
@@ -48,29 +50,43 @@ static inline void ObjectMeta_SetMarked(ObjectMeta *metadata) {
 }
 
 static inline void ObjectMeta_ClearLineAt(ObjectMeta *cursor) {
-    for (size_t i = 0; i < WORDS_IN_LINE / ALLOCATION_ALIGNMENT_WORDS; i++) {
-        ObjectMeta_SetFree(&cursor[i]);
-    }
-    // memset(cursor, 0, WORDS_IN_LINE / ALLOCATION_ALIGNMENT_WORDS);
+    memset(cursor, 0, WORDS_IN_LINE / ALLOCATION_ALIGNMENT_WORDS);
 }
 
 static inline void ObjectMeta_ClearBlockAt(ObjectMeta *cursor) {
-    for (size_t i = 0; i < WORDS_IN_BLOCK / ALLOCATION_ALIGNMENT_WORDS; i++) {
-        ObjectMeta_SetFree(&cursor[i]);
-    }
+    memset(cursor, 0, WORDS_IN_BLOCK / ALLOCATION_ALIGNMENT_WORDS);
+}
+
+#define SWEEP_MASK 0x0404040404040404UL
+static inline void ObjectMeta_SweepLineAt(ObjectMeta *start) {
+    //    implements this, just with hardcoded constants:
+    //
+    //    size_t startIndex = Bytemap_index(bytemap, start);
+    //    size_t endIndex = startIndex + WORDS_IN_LINE /
+    //    ALLOCATION_ALIGNMENT_WORDS; ObjectMeta *data = bytemap->data;
+    //
+    //    for (size_t i = startIndex; i < endIndex; i++) {
+    //        if (data[i] == om_marked) {
+    //            data[i] = om_allocated;
+    //        } else {
+    //            data[i] = om_free;
+    //        }
+    //    }
+    assert(WORDS_IN_LINE / ALLOCATION_ALIGNMENT_WORDS / 8 == 2);
+    uint64_t *first = (uint64_t *)start;
+    first[0] = (first[0] & SWEEP_MASK) >> 1;
+    first[1] = (first[1] & SWEEP_MASK) >> 1;
 }
 
 static inline void ObjectMeta_Sweep(ObjectMeta *cursor) {
-    if (ObjectMeta_IsMarked(cursor))
-        ObjectMeta_SetAllocated(cursor);
-    else
-        ObjectMeta_SetFree(cursor);
-}
-
-static inline void ObjectMeta_SweepLineAt(ObjectMeta *data) {
-    for (size_t i = 0; i < WORDS_IN_LINE / ALLOCATION_ALIGNMENT_WORDS; i++) {
-        ObjectMeta_Sweep(&data[i]);
-    }
+    //    implements this, just with hardcoded constants:
+    //
+    //    if (ObjectMeta_IsMarked(cursor)) {
+    //        ObjectMeta_SetAllocated(cursor);
+    //    } else {
+    //        ObjectMeta_SetFree(cursor)
+    //    }
+    *cursor = (*cursor & 0x04) >> 1;
 }
 
 #endif // IMMIX_OBJECTMETA_H

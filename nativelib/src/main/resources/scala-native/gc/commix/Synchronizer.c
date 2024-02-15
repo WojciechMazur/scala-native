@@ -201,7 +201,7 @@ static void Synchronizer_WaitForResumption(MutatorThread *selfThread) {
 #else
     pthread_mutex_lock(&threadSuspension.lock);
     while (
-        atomic_load_explicit(&Synchronizer_stopThreads, memory_order_acquire)) {
+        atomic_load_explicit(&Synchronizer_stopThreads, memory_order_consume)) {
         pthread_cond_wait(&threadSuspension.resume, &threadSuspension.lock);
     }
     pthread_mutex_unlock(&threadSuspension.lock);
@@ -288,7 +288,7 @@ bool Synchronizer_acquire() {
     }
 
     // Don't allow for registration of any new threads;
-    MutatorThreads_lock();
+    MutatorThreads_lockRead();
     Synchronizer_SuspendThreads();
     MutatorThread *self = currentMutatorThread;
     MutatorThread_switchState(self, GC_MutatorThreadState_Unmanaged);
@@ -304,9 +304,8 @@ bool Synchronizer_acquire() {
                 activeThreads++;
             }
         }
-        if (activeThreads > 0) {
+        if (activeThreads > 0)
             thread_yield();
-        }
     } while (activeThreads > 0);
     return true;
 }

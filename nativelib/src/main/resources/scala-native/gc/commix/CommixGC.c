@@ -101,13 +101,13 @@ void scalanative_afterexit() {
 NOINLINE void scalanative_GC_init() {
     volatile word_t dummy = 0;
     dummy = (word_t)&dummy;
-// #ifdef _WIN32
-//     SetupYieldPointTrapHandler(-1);
-// #else
-//     SetupYieldPointTrapHandler(SIGBUS);
-//     SetupYieldPointTrapHandler(SIGSEGV);
-//     SetupYieldPointTrapHandler(SIGILL);
-// #endif
+    // #ifdef _WIN32
+    //     SetupYieldPointTrapHandler(-1);
+    // #else
+    //     SetupYieldPointTrapHandler(SIGBUS);
+    //     SetupYieldPointTrapHandler(SIGSEGV);
+    //     SetupYieldPointTrapHandler(SIGILL);
+    // #endif
     Heap_Init(&heap, Settings_MinHeapSize(), Settings_MaxHeapSize());
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
     Synchronizer_init();

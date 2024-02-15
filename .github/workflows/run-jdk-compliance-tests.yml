@@ -17,11 +17,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04]
+        os: [ubuntu-22.04, macos-12, macos-14]
         scala: [3, 2.13, 3-next]
         java: [21]
         gc: [immix, commix]
-        lto: [thin]
+        lto: [thin, full]
+        exclude:
+          - lto: thin
+            os: macos-12
+          - lto: thin
+            os: macos-12
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/macos-setup-env

@@ -73,4 +73,14 @@ static inline void ObjectMeta_SweepLineAt(ObjectMeta *data) {
     }
 }
 
+#ifdef GC_ASSERTIONS
+static inline void ObjectMeta_AssertIsValidAllocation(ObjectMeta *start,
+                                                      size_t size) {
+    ObjectMeta *limit = start + (size / ALLOCATION_ALIGNMENT);
+    for (ObjectMeta *current = start; current < limit; current++) {
+        assert(ObjectMeta_IsFree(current) || ObjectMeta_IsPlaceholder(current));
+    }
+}
+#endif
+
 #endif // IMMIX_OBJECTMETA_H

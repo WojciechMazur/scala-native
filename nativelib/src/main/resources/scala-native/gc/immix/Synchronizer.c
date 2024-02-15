@@ -53,8 +53,10 @@ static LONG WINAPI SafepointTrapHandler(EXCEPTION_POINTERS *ex) {
             fprintf(stderr,
                     "Caught exception code %p in GC exception handler\n",
                     (void *)(uintptr_t)ex->ExceptionRecord->ExceptionCode);
-            fflush(stdout);
+            fflush(stderr);
             StackTrace_PrintStackTrace();
+            fprintf(stderr, "--- end of stacktrace\n");
+            fflush(stderr);
         // pass-through
         default:
             return EXCEPTION_CONTINUE_SEARCH;
@@ -101,6 +103,8 @@ static void SafepointTrapHandler(int signal, siginfo_t *siginfo, void *uap) {
                 "code=%d\n",
                 signal, siginfo->si_addr, siginfo->si_code);
         StackTrace_PrintStackTrace();
+        fprintf(stderr, "--- end of stacktrace\n");
+        fflush(stderr);
         SigDieHandler(signal, siginfo, uap);
     }
 }

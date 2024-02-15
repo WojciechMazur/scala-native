@@ -1,3 +1,4 @@
+#include <pthread.h>
 #if defined(SCALANATIVE_GC_IMMIX)
 #include <stdint.h>
 #include <stdio.h>
@@ -128,6 +129,11 @@ NO_SANITIZE static void Marker_markRange(Heap *heap, Stack *stack,
                                          word_t **from, word_t **to) {
     assert(from != NULL);
     assert(to != NULL);
+    if (from > to) {
+        word_t **tmp = from;
+        from = to;
+        to = tmp;
+    }
     // Align start address
     const intptr_t alignmentMask = ~(sizeof(word_t) - 1);
     word_t **alignedFrom = (word_t **)((intptr_t)from & alignmentMask);
@@ -153,8 +159,8 @@ NO_SANITIZE void Marker_markProgramStack(MutatorThread *thread, Heap *heap,
     Marker_markRange(heap, stack, stackTop, stackBottom);
 
     // Mark registers buffer
-    Marker_markRange(heap, stack, (word_t **)&thread->registersBuffer,
-                     (word_t **)(&thread->registersBuffer + 1));
+    // Marker_markRange(heap, stack, (word_t **)&thread->registersBuffer,
+    //                  (word_t **)(&thread->registersBuffer + 1));
 }
 
 void Marker_markModules(Heap *heap, Stack *stack) {

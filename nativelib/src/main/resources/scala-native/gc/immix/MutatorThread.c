@@ -68,7 +68,7 @@ INLINE void MutatorThread_switchState(MutatorThread *self,
     assert(self != NULL);
     switch (newState) {
     case GC_MutatorThreadState_Unmanaged:
-        RegistersCapture(self->registersBuffer);
+        // RegistersCapture(self->registersBuffer);
         atomic_store_explicit(&self->stackTop,
                               (intptr_t)MutatorThread_approximateStackTop(),
                               memory_order_release);

@@ -78,7 +78,6 @@ jobs:
           set SCALANATIVE_GC=${{matrix.gc}}&
           set SCALANATIVE_LTO=${{matrix.lto}}&
           set SCALANATIVE &
-          set _JAVA_OPTIONS=${{ matrix.java-options }} &
           set SCALANATIVE_TEST_PREFETCH_DEBUG_INFO=1 &
           sbt 
           "test-runtime ${{matrix.scala}}"

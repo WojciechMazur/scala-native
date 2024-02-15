@@ -42,21 +42,25 @@ void **scalanative_GC_yieldpoint_trap;
 
 #ifdef _WIN32
 static LONG WINAPI SafepointTrapHandler(EXCEPTION_POINTERS *ex) {
-    switch (ex->ExceptionRecord->ExceptionCode) {
-    case EXCEPTION_ACCESS_VIOLATION:
-        ULONG_PTR addr = ex->ExceptionRecord->ExceptionInformation[1];
-        if ((void *)addr == scalanative_GC_yieldpoint_trap) {
-            Synchronizer_yield();
-            return EXCEPTION_CONTINUE_EXECUTION;
+    if (ex->ExceptionRecord->ExceptionFlags == 0) {
+        switch (ex->ExceptionRecord->ExceptionCode) {
+        case EXCEPTION_ACCESS_VIOLATION:
+            ULONG_PTR addr = ex->ExceptionRecord->ExceptionInformation[1];
+            if ((void *)addr == scalanative_GC_yieldpoint_trap) {
+                Synchronizer_yield();
+                return EXCEPTION_CONTINUE_EXECUTION;
+            }
+            fprintf(stderr,
+                    "Caught exception code %p in GC exception handler\n",
+                    (void *)(uintptr_t)ex->ExceptionRecord->ExceptionCode);
+            fflush(stdout);
+            StackTrace_PrintStackTrace();
+        // pass-through
+        default:
+            return EXCEPTION_CONTINUE_SEARCH;
         }
-        fprintf(stderr, "Caught exception code %p in GC exception handler\n",
-                (void *)(uintptr_t)ex->ExceptionRecord->ExceptionCode);
-        fflush(stdout);
-        StackTrace_PrintStackTrace();
-    // pass-through
-    default:
-        return EXCEPTION_CONTINUE_SEARCH;
     }
+    return EXCEPTION_CONTINUE_SEARCH;
 }
 #else
 #ifdef __APPLE__
@@ -67,6 +71,25 @@ static LONG WINAPI SafepointTrapHandler(EXCEPTION_POINTERS *ex) {
 #define THREAD_WAKEUP_SIGNAL SIGCONT
 static struct sigaction defaultAction;
 static sigset_t threadWakupSignals;
+
+static void SigDieHandler(int sig, siginfo_t *siginfo, void *uap) {
+    sigset_t sset = {0};
+    sigfillset(&sset);
+    sigprocmask(SIG_UNBLOCK, &sset, NULL);
+    signal(sig, SIG_DFL);
+
+    switch (sig) {
+    case SIGSEGV:
+    case SIGBUS:
+    case SIGILL:
+        // fall-through return to re-execute faulting statement (but without the
+        // error handler)
+        break;
+    default:
+        raise(sig);
+    }
+}
+
 static void SafepointTrapHandler(int signal, siginfo_t *siginfo, void *uap) {
     int old_errno = errno;
     if (siginfo->si_addr == scalanative_GC_yieldpoint_trap) {
@@ -78,7 +101,7 @@ static void SafepointTrapHandler(int signal, siginfo_t *siginfo, void *uap) {
                 "code=%d\n",
                 signal, siginfo->si_addr, siginfo->si_code);
         StackTrace_PrintStackTrace();
-        defaultAction.sa_handler(signal);
+        SigDieHandler(signal, siginfo, uap);
     }
 }
 #endif
@@ -86,7 +109,7 @@ static void SafepointTrapHandler(int signal, siginfo_t *siginfo, void *uap) {
 static void SetupYieldPointTrapHandler() {
 #ifdef _WIN32
     // Call it as first exception handler
-    AddVectoredExceptionHandler(1, &SafepointTrapHandler);
+    SetUnhandledExceptionFilter(&SafepointTrapHandler);
 #else
     sigemptyset(&threadWakupSignals);
     sigaddset(&threadWakupSignals, THREAD_WAKEUP_SIGNAL);
@@ -97,7 +120,7 @@ static void SetupYieldPointTrapHandler() {
     memset(&sa, 0, sizeof(struct sigaction));
     sigemptyset(&sa.sa_mask);
     sa.sa_sigaction = &SafepointTrapHandler;
-    sa.sa_flags = SA_SIGINFO | SA_RESTART;
+    sa.sa_flags = SA_ONSTACK | SA_SIGINFO;
     if (sigaction(SAFEPOINT_TRAP_SIGNAL, &sa, &defaultAction) == -1) {
         perror("Error: cannot setup safepoint synchronization handler");
         exit(errno);

@@ -92,7 +92,7 @@ static void SigDieHandler(int sig, siginfo_t *siginfo, void *uap) {
 
 static void SafepointTrapHandler(int signal, siginfo_t *siginfo, void *uap) {
     int old_errno = errno;
-    if (siginfo->si_addr == scalanative_GC_yieldpoint_trap) {
+    if (signal == SAFEPOINT_TRAP_SIGNAL && siginfo->si_addr == scalanative_GC_yieldpoint_trap) {
         Synchronizer_yield();
         errno = old_errno;
     } else {
@@ -122,6 +122,10 @@ static void SetupYieldPointTrapHandler() {
     sa.sa_sigaction = &SafepointTrapHandler;
     sa.sa_flags = SA_ONSTACK | SA_SIGINFO;
     if (sigaction(SAFEPOINT_TRAP_SIGNAL, &sa, &defaultAction) == -1) {
+        perror("Error: cannot setup safepoint synchronization handler");
+        exit(errno);
+    }
+    if (sigaction(SIGILL, &sa, NULL) == -1) {
         perror("Error: cannot setup safepoint synchronization handler");
         exit(errno);
     }

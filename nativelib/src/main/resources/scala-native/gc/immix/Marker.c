@@ -1,4 +1,3 @@
-#include <pthread.h>
 #if defined(SCALANATIVE_GC_IMMIX)
 #include <stdint.h>
 #include <stdio.h>

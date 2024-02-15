@@ -24,7 +24,7 @@
 # The arguably more useful "-J-XX:GCTimeRatio" is not passed by the
 # scala-sbt.org runner.
 
--J-Xmx5G
+-J-Xmx7G
 -J-Xms1G
 # -J-Xms1G is the upper bound supplied by scala-sbt.org runner, lower may work.
 

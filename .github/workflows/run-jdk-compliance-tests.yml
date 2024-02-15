@@ -21,12 +21,12 @@ jobs:
         scala: [3, 2.13, 3-next]
         java: [21]
         gc: [immix, commix]
-        lto: [thin, full]
+        lto: [thin, none]
         exclude:
           - lto: thin
             os: macos-12
           - lto: thin
-            os: macos-12
+            os: macos-14
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/macos-setup-env
@@ -42,10 +42,9 @@ jobs:
 
       - name: Test runtime
         run: >
-          _JAVA_OPTIONS='${{ matrix.java-options }}'
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO=1
           SCALANATIVE_GC=${{matrix.gc}}
-          SCALANATIVE_MODE=release-fast
+          SCALANATIVE_MODE=release-full
           SCALANATIVE_LTO=${{matrix.lto}}
           sbt 
           "-J-Xmx7G" 
@@ -79,7 +78,7 @@ jobs:
         run: >
           set SCALANATIVE_INCLUDE_DIRS=${{steps.setup.outputs.vcpkg-dir}}\include&
           set SCALANATIVE_LIB_DIRS=${{steps.setup.outputs.vcpkg-dir}}\lib&
-          set SCALANATIVE_MODE=release-fast&
+          set SCALANATIVE_MODE=release-full&
           set SCALANATIVE_GC=${{matrix.gc}}&
           set SCALANATIVE_LTO=${{matrix.lto}}&
           set SCALANATIVE &

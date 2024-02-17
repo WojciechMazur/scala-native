@@ -26,6 +26,9 @@
 #elif defined(__x86_64__) && defined(_WIN64) // x86-64 Windows
 #define ASM_JMPBUF_SIZE 256
 #define JMPBUF_STACK_POINTER_OFFSET (16 / 8)
+#elif defined(__arm__) // ARMv7
+#define ASM_JMPBUF_SIZE 156
+#define JMPBUF_STACK_POINTER_OFFSET (60 / 4)
 #else
 #error "Unsupported platform"
 #endif

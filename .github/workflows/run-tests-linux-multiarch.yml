@@ -20,7 +20,7 @@ jobs:
       image-name: ${{ steps.build-image.outputs.image-base-name }}
     strategy:
       matrix:
-        arch: [linux-arm64, linux-x86]
+        arch: [linux-arm64, linux-armv7, linux-armv7a, linux-armv6, linux-x86]
 
     steps:
       - uses: actions/checkout@v4
@@ -82,43 +82,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [linux-arm64, linux-x86]
-        scala: [3, 3-next]
-        build-mode: [debug, release-fast]
+        arch: [linux-arm64, linux-armv7, linux-armv7a, linux-armv6, linux-x86]
+        scala: [3]
+        build-mode: [debug]
         lto: [none, thin]
-        gc: [boehm, immix, commix]
-        exclude:
-          # LTO is broken on linux-x86/llvm-10
-          - arch: linux-x86
-            lto: thin
-          # Release without LTO produces 1 big file taking long to compile, especially when emulated
-          - build-mode: release-fast
-            lto: none
-          - build-mode: release-size
-            lto: none
-          - build-mode: debug
-            lto: thin
-          # Reduce ammount of builds combinations
-          - gc: immix
-            lto: none
-          - gc: immix
-            build-mode: debug
-          - gc: commix
-            lto: none
-          - gc: commix
-            build-mode: debug
-          - gc: boehm
-            build-mode: release-fast
-          - gc: boehm
-            build-mode: release-size
-          - scala: 3-next
-            build-mode: debug
-          - scala: 3-next
-            lto: none
-          - scala: 3-next
-            gc: boehm
-          - scala: 3-next
-            gc: commix
+        gc: [immix, commix]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/linux-setup-env
@@ -134,13 +102,6 @@ jobs:
         shell: bash
         # Following envs CROSS_ are always present in docker container
         run: |
-          buildMode=${{matrix.build-mode}}
-          if [[ "$buildMode" == "release-fast" ]]; then
-            buildMode=releaseFast
-          elif [[ "$buildMode" == "release-size" ]]; then
-            buildMode=releaseSize
-          fi
-
           SetConfigTemplate=$(cat << EOM
             nativeConfig ~= { prev =>
               val sysRoot: List[String] =
@@ -157,7 +118,7 @@ jobs:
                   )};
 
               prev
-                .withMode(scalanative.build.Mode.${buildMode})
+                .withMode(scalanative.build.Mode("${{matrix.build-mode}}"))
                 .withGC(scalanative.build.GC.${{matrix.gc}})
                 .withLTO(scalanative.build.LTO.${{matrix.lto}})
                 .withEmbedResources(true)
@@ -165,7 +126,6 @@ jobs:
                 .withCheck(true)
                 .withCheckFatalWarnings(true)
                 .withTargetTriple(sys.env.get("CROSS_TRIPLE"))
-                .withMultithreadingSupport(${{ matrix.gc != 'commix' }})
                 .withCompileOptions(_ ++ sysRoot ++ List("-fuse-ld=lld"))
                 .withLinkingOptions(_ ++ sysRoot ++ List("-fuse-ld=lld", "-latomic"))
             }
@@ -193,13 +153,15 @@ jobs:
           # testsExt${{env.project-version}}/test;
           TEST_COMMAND: >
             set sandbox.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
+            set testInterface.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set tests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set junitTestOutputsNative.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set scalaPartestJunitTests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
-
+            set every parallelExecution := false;
             show sandbox${{env.project-version}}/nativeConfig;
 
             sandbox${{env.project-version}}/run;
+            testInterface${{env.project-version}}/test;
             testsJVM${{env.project-version}}/test;
             tests${{env.project-version}}/test;
             junitTestOutputsNative${{env.project-version}}/test;

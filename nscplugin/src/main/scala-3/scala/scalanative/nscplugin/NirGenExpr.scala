@@ -22,6 +22,7 @@ import core._
 import dotty.tools.FatalError
 import dotty.tools.dotc.report
 import dotty.tools.dotc.transform
+import dotty.tools.dotc.util.Spans.*
 import transform.{ValueClasses, Erasure}
 import dotty.tools.backend.jvm.DottyBackendInterface.symExtensions
 import scala.scalanative.nscplugin.CompilerCompat.SymUtilsCompat.*
@@ -39,8 +40,21 @@ trait NirGenExpr(using Context) {
   self: NirCodeGen =>
   import positionsConversions.fromSpan
 
-  sealed case class ValTree(value: nir.Val) extends Tree
-  sealed case class ContTree(f: () => nir.Val) extends Tree
+  sealed case class ValTree(value: nir.Val)(
+      span: Span = NoSpan
+  ) extends Tree { this.span = span }
+
+  def ValTree(from: Tree)(value: nir.Val) =
+    new ValTree(value = value)(span = from.span)
+
+  sealed case class ContTree(f: ExprBuffer => nir.Val)(
+      span: Span = NoSpan
+  ) extends Tree { this.span = span }
+
+  def ContTree(from: Tree)(build: ExprBuffer => nir.Val) =
+    new ContTree(f = build)(span = from.span)
+
+  def fallbackSourcePosition: nir.SourcePosition = curMethodSym.get.span
 
   class ExprBuffer(using fresh: nir.Fresh) extends FixupBuffer {
     buf =>
@@ -49,7 +63,7 @@ trait NirGenExpr(using Context) {
       tree match {
         case EmptyTree      => nir.Val.Unit
         case ValTree(value) => value
-        case ContTree(f)    => f()
+        case ContTree(f)    => f(this)
         case tree: Apply =>
           val updatedTree = lazyValsAdapter.transformApply(tree)
           genApply(updatedTree)
@@ -83,7 +97,7 @@ trait NirGenExpr(using Context) {
     object SafeZoneInstance extends Property.Key[nir.Val]
 
     def genApply(app: Apply): nir.Val = {
-      given nir.SourcePosition = app.span
+      given nir.SourcePosition = app.span.orElse(fallbackSourcePosition)
       val Apply(fun, args) = app
 
       val sym = fun.symbol
@@ -366,7 +380,8 @@ trait NirGenExpr(using Context) {
               for (sym, (tpe, name)) <- captureSyms.zip(captureTypesAndNames)
               yield buf.fieldload(tpe, self, name, unwind)
 
-            val allVals = (captureVals ++ paramVals).toList.map(ValTree(_))
+            val allVals =
+              (captureVals ++ paramVals).toList.map(ValTree(_)(sym.span))
             val res = if (isStaticCall) {
               scoped(curMethodThis := None) {
                 buf.genApplyStaticMethod(
@@ -465,14 +480,12 @@ trait NirGenExpr(using Context) {
         thenp: Tree,
         elsep: Tree,
         ensureLinktime: Boolean = false
-    )(using
-        nir.SourcePosition
-    ): nir.Val = {
+    )(using enclosingPos: nir.SourcePosition): nir.Val = {
       val thenn, elsen, mergen = fresh()
       val mergev = nir.Val.Local(fresh(), retty)
 
       locally {
-        given nir.SourcePosition = condp.span
+        given nir.SourcePosition = condp.span.orElse(enclosingPos)
         getLinktimeCondition(condp) match {
           case Some(cond) =>
             curMethodEnv.get.isUsingLinktimeResolvedValue = true
@@ -484,18 +497,18 @@ trait NirGenExpr(using Context) {
                 condp.srcPos
               )
             val cond = genExpr(condp)
-            buf.branch(cond, nir.Next(thenn), nir.Next(elsen))(using condp.span)
+            buf.branch(cond, nir.Next(thenn), nir.Next(elsen))
         }
       }
 
       locally {
-        given nir.SourcePosition = thenp.span
+        given nir.SourcePosition = thenp.span.orElse(enclosingPos)
         buf.label(thenn)
         val thenv = genExpr(thenp)
         buf.jumpExcludeUnitValue(retty)(mergen, thenv)
       }
       locally {
-        given nir.SourcePosition = elsep.span
+        given nir.SourcePosition = elsep.span.orElse(enclosingPos)
         buf.label(elsen)
         val elsev = genExpr(elsep)
         buf.jumpExcludeUnitValue(retty)(mergen, elsev)
@@ -671,16 +684,16 @@ trait NirGenExpr(using Context) {
 
               val cond =
                 buf.genClassEquality(
-                  leftp = ValTree(scrut),
-                  rightp = ValTree(caze),
+                  leftp = ValTree(scrutp)(scrut),
+                  rightp = ValTree(body)(caze),
                   ref = false,
                   negated = false
                 )
               buf.genIf(
                 retty = retty,
-                condp = ValTree(cond),
-                thenp = ContTree(() => genExpr(body)),
-                elsep = ContTree(() => loop(elsep))
+                condp = ValTree(body)(cond),
+                thenp = ContTree(body)(_.genExpr(body)),
+                elsep = ContTree(body)(_ => loop(elsep))
               )
 
             case Nil => optDefaultLabel.getOrElse(genExpr(defaultp))
@@ -867,7 +880,7 @@ trait NirGenExpr(using Context) {
             case Bind(_, _) =>
               genType(pat.tpe) -> Some(pat.symbol)
           }
-          val f = { () =>
+          val f = ContTree(body) { (buf: ExprBuffer) =>
             withFreshBlockScope(body.span) { _ =>
               symopt.foreach { sym =>
                 val cast = buf.as(excty, exc, unwind)(cd.span, getScopeId)
@@ -883,7 +896,7 @@ trait NirGenExpr(using Context) {
       }
 
       def wrap(
-          cases: Seq[(nir.Type, () => nir.Val, nir.SourcePosition)]
+          cases: Seq[(nir.Type, ContTree, nir.SourcePosition)]
       ): nir.Val =
         cases match {
           case Seq() =>
@@ -893,9 +906,9 @@ trait NirGenExpr(using Context) {
             val cond = buf.is(excty, exc, unwind)(pos, getScopeId)
             genIf(
               retty,
-              ValTree(cond),
-              ContTree(f),
-              ContTree(() => wrap(rest))
+              ValTree(f)(cond),
+              f,
+              ContTree(f)(_ => wrap(rest))
             )(using pos)
         }
 
@@ -1036,7 +1049,7 @@ trait NirGenExpr(using Context) {
       }
 
       locally {
-        given nir.SourcePosition = cond.span
+        given nir.SourcePosition = cond.span.orElse(wd.span)
         buf.label(condLabel)
         val genCond =
           if (cond == EmptyTree) nir.Val.Bool(true)
@@ -1296,7 +1309,7 @@ trait NirGenExpr(using Context) {
     )(using nir.SourcePosition): nir.Val = {
       require(!sym.isExtern, sym)
 
-      val sig = genMethodSig(sym)
+      val sig = genMethodSig(sym, statically = true)
       val args = genMethodArgs(sym, argsp)
       val methodName = genStaticMemberName(sym, receiver)
       val method = nir.Val.Global(methodName, nir.Type.Ptr)
@@ -1325,10 +1338,10 @@ trait NirGenExpr(using Context) {
         genApplyModuleMethod(
           defnNir.RuntimeBoxesModule,
           defnNir.BoxUnsignedMethod(st.sym),
-          Seq(ValTree(value))
+          Seq(ValTree(value)())
         )
       else if (genPrimCode(st) == 'O') value
-      else genApplyBox(st, ValTree(value))
+      else genApplyBox(st, ValTree(value)())
     }
 
     private def unboxValue(st: SimpleType, partial: Boolean, value: nir.Val)(
@@ -1342,10 +1355,10 @@ trait NirGenExpr(using Context) {
           genApplyModuleMethod(
             defnNir.RuntimeBoxesModule,
             defnNir.UnboxUnsignedMethod(st.sym),
-            Seq(ValTree(value))
+            Seq(ValTree(value)())
           )
       } else if (genPrimCode(st) == 'O') value
-      else genApplyUnbox(st, ValTree(value))
+      else genApplyUnbox(st, ValTree(value)())
     }
 
     private def genSimpleOp(
@@ -1969,7 +1982,11 @@ trait NirGenExpr(using Context) {
       val mergen = fresh()
 
       // scalanative.runtime.`package`.enterMonitor(receiver)
-      genExpr(Apply(ref(defnNir.RuntimePackage_enterMonitor), List(receiverp)))
+      genApplyStaticMethod(
+        defnNir.RuntimePackage_enterMonitor,
+        defnNir.RuntimePackageClass,
+        List(receiverp)
+      )
 
       // synchronized block
       val retValue = scoped(curUnwindHandler := Some(handler)) {
@@ -1993,7 +2010,13 @@ trait NirGenExpr(using Context) {
       buf.jump(nir.Next(normaln))
       buf ++= genTryFinally(
         // scalanative.runtime.`package`.exitMonitor(receiver)
-        Apply(ref(defnNir.RuntimePackage_exitMonitor), List(receiverp)),
+        ContTree(receiverp)(
+          _.genApplyStaticMethod(
+            defnNir.RuntimePackage_exitMonitor,
+            defnNir.RuntimePackageClass,
+            List(receiverp)
+          )
+        ),
         nested.toSeq
       )
       buf.labelExcludeUnitValue(mergen, mergev)
@@ -2920,7 +2943,7 @@ trait NirGenExpr(using Context) {
         val origTypes =
           if (funSym.isStaticInNIR || isAdapted) origtys else origtys.tail
         val boxedParams = origTypes.zip(params).map(buf.fromExtern(_, _))
-        val argsp = boxedParams.map(ValTree(_))
+        val argsp = boxedParams.map(ValTree(funTree)(_))
 
         // Check number of arguments that would be be used in a call to the function,
         // it should be equal to the quantity of implicit evidences (without return type evidence)
@@ -2937,7 +2960,7 @@ trait NirGenExpr(using Context) {
             buf.genApplyStaticMethod(funSym, NoSymbol, argsp)
           else
             val owner = buf.genModule(funSym.owner)
-            val selfp = ValTree(owner)
+            val selfp = ValTree(funTree)(owner)
             buf.genApplyMethod(funSym, statically = true, selfp, argsp)
 
         val unboxedRes = buf.toExtern(retty, res)

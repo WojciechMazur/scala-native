@@ -126,6 +126,7 @@ object GC {
    *    End of the range including the last address that should be scanned when
    *    marking
    */
+  @blocking
   @name("scalanative_GC_add_roots")
   def addRoots(addressLow: CVoidPtr, addressHigh: CVoidPtr): Unit = extern
 
@@ -143,6 +144,7 @@ object GC {
    *    End of the range including the last address that should be scanned when
    *    marking
    */
+  @blocking
   @name("scalanative_GC_remove_roots")
   def removeRoots(addressLow: CVoidPtr, addressHigh: CVoidPtr): Unit = extern
 }

@@ -16,7 +16,7 @@ typedef struct GC_Root {
 } GC_Root;
 
 typedef struct GC_Roots {
-    _Atomic(GC_Root *)head;
+    _Atomic(GC_Root *) head;
     mutex_t modificationLock;
 } GC_Roots;
 

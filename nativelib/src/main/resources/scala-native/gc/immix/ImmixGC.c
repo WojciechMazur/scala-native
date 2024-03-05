@@ -100,11 +100,13 @@ size_t scalanative_GC_get_max_heapsize() {
 
 void scalanative_GC_add_roots(void *addr_low, void *addr_high) {
     AddressRange range = {addr_low, addr_high};
+    printf("Roots add: {%p - %p}, size=%zu\n", addr_low, addr_high, (addr_high - addr_low) * sizeof(word_t));
     GC_Roots_Add(customRoots, range);
 }
 
 void scalanative_GC_remove_roots(void *addr_low, void *addr_high) {
     AddressRange range = {addr_low, addr_high};
+    printf("Roots remove: {%p - %p}, size=%zu\n", addr_low, addr_high, (addr_high - addr_low) * sizeof(word_t));
     GC_Roots_RemoveByRange(customRoots, range);
 }
 

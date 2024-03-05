@@ -186,6 +186,10 @@ void Marker_markModules(Heap *heap, Stack *stack) {
 void Marker_markCustomRoots(Heap *heap, Stack *stack, GC_Roots *roots) {
     mutex_lock(&roots->modificationLock);
     for (GC_Root *it = roots->head; it != NULL; it = it->next) {
+        printf("Mark roots: {%p - %p}, size=%zu\n", it->range.address_low,
+               it->range.address_high,
+               (it->range.address_high - it->range.address_low) *
+                   sizeof(word_t));
         Marker_markRange(heap, stack, (word_t **)it->range.address_low,
                          (word_t **)it->range.address_high, sizeof(word_t));
     }

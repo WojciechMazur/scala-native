@@ -112,6 +112,8 @@ void scalanative_GC_remove_roots(void *addr_low, void *addr_high) {
            (addr_high - addr_low));
     fflush(stdout);
     GC_Roots_RemoveByRange(customRoots, range);
+    printf("Roots removed: {%p - %p}, size=%zu\n", addr_low, addr_high,
+           (addr_high - addr_low));
 }
 
 typedef void *RoutineArgs;

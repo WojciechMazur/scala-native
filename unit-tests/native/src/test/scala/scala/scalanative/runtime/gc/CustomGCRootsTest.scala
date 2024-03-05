@@ -88,6 +88,7 @@ class CustomGCRootsTest {
         }
       }
     } finally zone.close()
+    println("custom gc root test done")
   }
 }
 

@@ -107,12 +107,12 @@ object CustomGCRootsTest {
     private val start = cursor
     private val limit = cursor + size
     // Notify the GC about the range of created zone
-    pritnln(s"add roots: ${cursor} -> ${limit}")
+    println(s"add roots: ${cursor} -> ${limit}")
     GC.addRoots(cursor, limit)
 
     def close(): Unit = {
       // Notify the GC about removal of the zone
-      pritnln(s"remove roots: ${start} -> ${limit}")
+      println(s"remove roots: ${start} -> ${limit}")
       GC.removeRoots(start, limit)
       memset(start, 0, size)
       free(start)

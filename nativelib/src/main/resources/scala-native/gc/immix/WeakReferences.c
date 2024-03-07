@@ -34,7 +34,9 @@ void WeakReferences_Nullify(void) {
     }
 }
 
-void WeakReferences_SetGCFinishedCallback(void *handler) { gcFinishedCallback = handler; }
+void WeakReferences_SetGCFinishedCallback(void *handler) {
+    gcFinishedCallback = handler;
+}
 
 void WeakReferences_InvokeGCFinishedCallback(void) {
     if (collectedWeakReferences && gcFinishedCallback != NULL) {

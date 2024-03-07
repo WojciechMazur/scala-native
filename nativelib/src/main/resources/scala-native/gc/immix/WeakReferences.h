@@ -5,4 +5,4 @@ void WeakReferences_Nullify(void);
 void WeakReferences_SetGCFinishedCallback(void *handler);
 void WeakReferences_InvokeGCFinishedCallback(void);
 
-#endif 
+#endif

@@ -67,7 +67,10 @@ class WeakReferenceTest {
             .map(_ => Thread.sleep(100))
             .takeWhile(_ => !ref.isEnqueued())
             .foreach(_ => ())
-          assertTrue(s"collected but not enqueued: $ref, ${ref.isEnqueued()}", ref.isEnqueued())
+          assertTrue(
+            s"collected but not enqueued: $ref, ${ref.isEnqueued()}",
+            ref.isEnqueued()
+          )
         case v =>
           if (System.currentTimeMillis() < deadline) {
             // Give GC something to collect

@@ -8,95 +8,25 @@
 #include "datastructures/Stack.h"
 #include "State.h"
 #include "immix_commix/utils/MathUtils.h"
+#include "WeakReferences.h"
 #include "Settings.h"
-#include "WeakRefStack.h"
 #include "shared/Parsing.h"
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
 #include "immix_commix/Synchronizer.h"
-#include "GCThreads.h"
 #endif
 #include "MutatorThread.h"
 #include <stdatomic.h>
-
-#include "immix_commix/StackTrace.h"
-#include <errno.h>
-#ifdef _WIN32
-#include <errhandlingapi.h>
-#else
-#include <signal.h>
-#include <pthread.h>
-#include <sys/mman.h>
-#include <sys/time.h>
-#include <unistd.h>
-#endif
-
-#ifdef _WIN32
-static LONG WINAPI SafepointTrapHandler(EXCEPTION_POINTERS *ex) {
-    switch (ex->ExceptionRecord->ExceptionCode) {
-    case EXCEPTION_ACCESS_VIOLATION:
-        ULONG_PTR addr = ex->ExceptionRecord->ExceptionInformation[1];
-        fprintf(
-            stderr,
-            "Caught exception code %p in GC exception handler, address=%p\n",
-            (void *)(uintptr_t)ex->ExceptionRecord->ExceptionCode,
-            (void *)addr);
-        fflush(stdout);
-        StackTrace_PrintStackTrace();
-    // pass-through
-    default:
-        return EXCEPTION_CONTINUE_SEARCH;
-    }
-}
-#else
-static void SafepointTrapHandler(int signal, siginfo_t *siginfo, void *uap) {
-    fprintf(stderr,
-            "Unexpected signal %d when accessing memory at address %p, "
-            "errno=%d, code=%d\n",
-            signal, siginfo->si_addr, siginfo->si_errno, siginfo->si_code);
-    StackTrace_PrintStackTrace();
-    exit(signal);
-}
-#endif
-
-static void SetupYieldPointTrapHandler(int signal) {
-#ifdef _WIN32
-    // Call it as first exception handler
-    AddVectoredExceptionHandler(1, &SafepointTrapHandler);
-#else
-    struct sigaction sa, osa;
-    memset(&sa, 0, sizeof(struct sigaction));
-    sigemptyset(&sa.sa_mask);
-    sa.sa_sigaction = &SafepointTrapHandler;
-    sa.sa_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK;
-    if (sigaction(signal, &sa, &osa) == -1) {
-        perror("Error: cannot setup safepoint synchronization handler");
-        exit(errno);
-    }
-    printf("setup handler for %d in %d\n", signal, getpid());
-#endif
-}
-
-void scalanative_GC_collect();
 
 void scalanative_afterexit() { Stats_OnExit(heap.stats); }
 
 NOINLINE void scalanative_GC_init() {
     volatile word_t dummy = 0;
     dummy = (word_t)&dummy;
-    #ifdef _WIN32
-        SetupYieldPointTrapHandler(-1);
-    #else
-        SetupYieldPointTrapHandler(SIGBUS);
-        SetupYieldPointTrapHandler(SIGSEGV);
-        SetupYieldPointTrapHandler(SIGILL);
-    #endif
-
     Heap_Init(&heap, Settings_MinHeapSize(), Settings_MaxHeapSize());
     Stack_Init(&stack, INITIAL_STACK_SIZE);
     Stack_Init(&weakRefStack, INITIAL_STACK_SIZE);
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
     Synchronizer_init();
-    weakRefsHandlerThread = GCThread_WeakThreadsHandler_Start();
 #endif
     MutatorThreads_init();
     MutatorThread_init((word_t **)dummy); // approximate stack bottom
@@ -147,7 +77,7 @@ INLINE void *scalanative_GC_alloc_array(Rtti *info, size_t length,
 INLINE void scalanative_GC_collect() { Heap_Collect(&heap, &stack); }
 
 INLINE void scalanative_GC_register_weak_reference_handler(void *handler) {
-    WeakRefStack_SetHandler(handler);
+    WeakReferences_SetGCFinishedCallback(handler);
 }
 
 /* Get the minimum heap size */
@@ -168,20 +98,12 @@ size_t scalanative_GC_get_max_heapsize() {
 
 void scalanative_GC_add_roots(void *addr_low, void *addr_high) {
     AddressRange range = {addr_low, addr_high};
-    printf("Roots add: {%p - %p}, size=%zu\n", addr_low, addr_high,
-           (addr_high - addr_low));
-    fflush(stdout);
     GC_Roots_Add(customRoots, range);
 }
 
 void scalanative_GC_remove_roots(void *addr_low, void *addr_high) {
     AddressRange range = {addr_low, addr_high};
-    printf("Roots remove: {%p - %p}, size=%zu\n", addr_low, addr_high,
-           (addr_high - addr_low));
-    fflush(stdout);
     GC_Roots_RemoveByRange(customRoots, range);
-    printf("Roots removed: {%p - %p}, size=%zu\n", addr_low, addr_high,
-           (addr_high - addr_low));
 }
 
 typedef void *RoutineArgs;

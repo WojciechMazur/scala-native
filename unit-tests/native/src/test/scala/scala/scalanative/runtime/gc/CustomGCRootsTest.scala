@@ -88,7 +88,6 @@ class CustomGCRootsTest {
         }
       }
     } finally zone.close()
-    println("custom gc root test done")
   }
 }
 
@@ -108,28 +107,23 @@ object CustomGCRootsTest {
     private val start = cursor
     private val limit = cursor + size
     // Notify the GC about the range of created zone
-    println(s"add roots: ${cursor} -> ${limit}")
     GC.addRoots(cursor, limit)
 
     def close(): Unit = {
       // Notify the GC about removal of the zone
-      println(s"remove roots: ${start} -> ${limit}")
       GC.removeRoots(start, limit)
       memset(start, 0, size)
       free(start)
     }
 
     def alloc[T](size: CSize, cls: Class[T]): T = {
-      println(s"alloc $size, cls=$cls, cursor=$cursor")
       val ptr = cursor
       cursor += size
       if (cursor.toLong > limit.toLong)
         throw new OutOfMemoryError()
 
       !(ptr.asInstanceOf[Ptr[Class[_]]]) = cls
-      val x = Intrinsics.castRawPtrToObject(toRawPtr(ptr)).asInstanceOf[T]
-      println(s"allocated: $x")
-      x
+      Intrinsics.castRawPtrToObject(toRawPtr(ptr)).asInstanceOf[T]
     }
   }
 

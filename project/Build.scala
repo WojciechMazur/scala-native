@@ -974,7 +974,7 @@ object Build {
       ),
       // No control over sources
       nativeConfig ~= { _.withCheckFeatures(false) },
-      testOptions += Tests.Argument(TestFrameworks.JUnit, "-a", "-s", "-v"),
+      testOptions += Tests.Argument(TestFrameworks.JUnit, "-a", "-s"),
       shouldPartest := {
         (Test / resourceDirectory).value / scalaVersion.value
       }.exists()

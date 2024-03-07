@@ -9,7 +9,6 @@
 #include "datastructures/Stack.h"
 #include "immix_commix/headers/ObjectHeader.h"
 #include "Block.h"
-#include "WeakRefStack.h"
 #include "shared/GCTypes.h"
 #include <stdatomic.h>
 #include "shared/ThreadUtil.h"
@@ -185,19 +184,7 @@ void Marker_markModules(Heap *heap, Stack *stack) {
 
 void Marker_markCustomRoots(Heap *heap, Stack *stack, GC_Roots *roots) {
     mutex_lock(&roots->modificationLock);
-    int i = 0;
-    printf("Mark roots: ");
-    fflush(stdout);
-    printf("roots=%p", roots);
-    fflush(stdout);
-    printf("head=%p\n", roots->head);
-    fflush(stdout);
     for (GC_Root *it = roots->head; it != NULL; it = it->next) {
-        printf("Mark roots[%d]: {%p - %p}, size=%zu\n", i++,
-               it->range.address_low, it->range.address_high,
-               (it->range.address_high - it->range.address_low) *
-                   sizeof(word_t));
-        fflush(stdout);
         Marker_markRange(heap, stack, (word_t **)it->range.address_low,
                          (word_t **)it->range.address_high, sizeof(word_t));
     }

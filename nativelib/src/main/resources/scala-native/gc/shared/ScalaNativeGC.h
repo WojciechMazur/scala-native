@@ -3,12 +3,13 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include "shared/GCTypes.h"
+#include "immix_commix/headers/ObjectHeader.h"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 // Boehm on Windows needs User32.lib linked
-#pragma comment(lib, "User32.lib")
-#pragma comment(lib, "Kernel32.lib")
+#pragma comment(lib, "user32.lib")
+#pragma comment(lib, "kernel32.lib")
 #include <windows.h>
 typedef DWORD ThreadRoutineReturnType;
 #else
@@ -20,12 +21,19 @@ typedef ThreadRoutineReturnType (*ThreadStartRoutine)(void *);
 typedef void *RoutineArgs;
 
 void scalanative_GC_init();
-void *scalanative_GC_alloc(void *info, size_t size);
-void *scalanative_GC_alloc_small(void *info, size_t size);
-void *scalanative_GC_alloc_large(void *info, size_t size);
-void *scalanative_GC_alloc_atomic(void *info, size_t size);
+void *scalanative_GC_alloc(Rtti *info, size_t size);
+void *scalanative_GC_alloc_small(Rtti *info, size_t size);
+void *scalanative_GC_alloc_large(Rtti *info, size_t size);
+/* Allocate an array with capacity of `length` elements of element size equal to
+ * `stride`. Total ammount of allocated memory should be at least equal to
+ * `info->rtti + length * stride`. After successful allocation GC is
+ * responsible to assign length and stride to Array header. */
+void *scalanative_GC_alloc_array(Rtti *info, size_t length, size_t stride);
 void scalanative_GC_collect();
-void scalanative_GC_register_weak_reference_handler(void *handler);
+
+typedef void (*WeakReferencesCollectedCallback)();
+void scalanative_GC_set_weak_references_collected_callback(
+    WeakReferencesCollectedCallback);
 
 size_t scalanative_GC_get_init_heapsize();
 size_t scalanative_GC_get_max_heapsize();

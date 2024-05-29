@@ -74,7 +74,7 @@ object Build {
    *        NativeConfig.empty
    *        .withGC(GC.default)
    *        .withMode(Mode.default)
-   *        .withMultithreadingSupport(enabled = false)
+   *        .withMultithreading(enabled = false)
    *        .withClang(clang)
    *        .withClangPP(clangpp)
    *        .withLinkingOptions(linkopts)
@@ -149,25 +149,10 @@ object Build {
           )
         }
 
-      /* Used to pass alternative paths of compiled native (lib) sources,
-       * eg: reused native sources used in partests.
+      /* Finds all the libraries on the classpath that contain native
+       * code and then compiles them.
        */
-      val compileNativeLibs = {
-        Properties.propOrNone("scalanative.build.paths.libobj") match {
-          case None =>
-            /* Finds all the libraries on the classpath that contain native
-             * code and then compiles them.
-             */
-            findAndCompileNativeLibraries(config, analysis)
-          case Some(libObjectPaths) =>
-            Future.successful {
-              libObjectPaths
-                .split(java.io.File.pathSeparatorChar)
-                .toSeq
-                .map(Paths.get(_))
-            }
-        }
-      }
+      val compileNativeLibs = findAndCompileNativeLibraries(config, analysis)
 
       Future.reduceLeft(
         immutable.Seq(compileGeneratedIR, compileNativeLibs)
@@ -198,24 +183,25 @@ object Build {
     // Each block can modify currentConfig stat,
     // modification should be lazy to not reconstruct object when not required
     locally { // disable unused mulithreading
-      val envFlag = "SCALANATIVE_DISABLE_UNUSED_MULTITHREADING"
-      val suppressDisablingThreads = sys.env.get(envFlag).contains("0")
-      if (!suppressDisablingThreads && config.compilerConfig.multithreadingSupport) {
+      if (config.compilerConfig.multithreading.isEmpty) {
         // format: off
         val jlThread = nir.Global.Top("java.lang.Thread")
-        val jlThreadStart = jlThread.member(nir.Sig.Method("start", Seq(nir.Type.Unit)))
-        val jlPlatformContext = nir.Global.Top("java.lang.PlatformThreadContext")
-        val jlPlatformContextStart = jlPlatformContext.member(nir.Sig.Method("start", Seq(nir.Type.Ref(jlThread), nir.Type.Unit)))
-        val usesSystemThreads = analysis.infos.contains(jlThreadStart) || analysis.infos.contains(jlPlatformContextStart)
+        val jlMainThread = nir.Global.Top("java.lang.Thread$MainThread$")
+        val jlVirtualThread = nir.Global.Top("java.lang.VirtualThread")
+        val usesSystemThreads = analysis.infos.get(jlThread).collect{
+          case cls: linker.Class =>
+            cls.subclasses.size > 2 ||
+            cls.subclasses.map(_.name).diff(Set(jlMainThread, jlVirtualThread)).nonEmpty || 
+            cls.allocations > 4 // minimal number of allocations
+        }.getOrElse(false)
         // format: on
         if (!usesSystemThreads) {
           config.logger.info(
-            "Detected enabled multithreading, but not found any usage of system threads. " +
-              "Multihreading will be disabled to improve performance. " +
-              s"This behavior can be disabled by setting enviornment variable $envFlag=0."
+            "Multithreading was not explicitly enabled - initial class loading has not detected any usage of system threads. " +
+              "Multithreading support will be disabled to improve performance."
           )
           currentConfig = currentConfig.withCompilerConfig(
-            _.withMultithreadingSupport(false)
+            _.withMultithreading(false)
           )
           needsToReload = true
         }
@@ -257,7 +243,7 @@ object Build {
    *  @return
    *    the paths to the compiled objects
    */
-  def findAndCompileNativeLibraries(
+  private[scala] def findAndCompileNativeLibraries(
       config: Config,
       analysis: ReachabilityAnalysis.Result
   )(implicit ec: ExecutionContext): Future[Seq[Path]] = {

@@ -8,13 +8,13 @@
 #include "Allocator.h"
 #include "Marker.h"
 #include "State.h"
-#include "immix_commix/utils/MathUtils.h"
+#include "immix_commix/utils/Time.h"
 #include "immix_commix/StackTrace.h"
 #include "Settings.h"
 #include "shared/MemoryInfo.h"
 #include "shared/MemoryMap.h"
 #include <time.h>
-#include "WeakRefStack.h"
+#include "WeakReferences.h"
 #include "immix_commix/Synchronizer.h"
 
 void Heap_exitWithOutOfMemory(const char *details) {
@@ -152,6 +152,7 @@ void Heap_Init(Heap *heap, size_t minHeapSize, size_t maxHeapSize) {
 }
 
 void Heap_Collect(Heap *heap, Stack *stack) {
+    MutatorThread *mutatorThread = currentMutatorThread;
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
     if (!Synchronizer_acquire())
         return;
@@ -166,30 +167,29 @@ void Heap_Collect(Heap *heap, Stack *stack) {
     fflush(stdout);
 #endif
     if (stats != NULL) {
-        start_ns = scalanative_nano_time();
+        start_ns = Time_current_nanos();
     }
     Marker_MarkRoots(heap, stack);
     if (stats != NULL) {
-        nullify_start_ns = scalanative_nano_time();
+        nullify_start_ns = Time_current_nanos();
     }
-    WeakRefStack_Nullify();
+    WeakReferences_Nullify();
     if (stats != NULL) {
-        sweep_start_ns = scalanative_nano_time();
+        sweep_start_ns = Time_current_nanos();
     }
     Heap_Recycle(heap);
     if (stats != NULL) {
-        end_ns = scalanative_nano_time();
+        end_ns = Time_current_nanos();
         Stats_RecordCollection(stats, start_ns, nullify_start_ns,
                                sweep_start_ns, end_ns);
     }
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
     Synchronizer_release();
-    GCThread_WeakThreadsHandler_Resume(weakRefsHandlerThread);
 #else
     MutatorThread_switchState(currentMutatorThread,
                               GC_MutatorThreadState_Managed);
-    WeakRefStack_CallHandlers();
 #endif
+    WeakReferences_InvokeGCFinishedCallback();
 #ifdef DEBUG_PRINT
     printf("End collect\n");
     fflush(stdout);

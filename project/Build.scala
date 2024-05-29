@@ -84,13 +84,6 @@ object Build {
     }.value
   }
 
-  val crossPublish = taskKey[Unit](
-    "Cross publish project without signing and excluding currently used version"
-  )
-  val crossPublishSigned = taskKey[Unit](
-    "Cross publish signed project excluding currently used version"
-  )
-
   lazy val root: Project =
     Project(id = "scala-native", base = file("."))
       .settings(
@@ -105,17 +98,8 @@ object Build {
         Seq(Compile / compile, Test / compile).map(
           setDepenencyForCurrentBinVersion(_, allMultiScalaProjects)
         ),
-        crossPublish := {},
-        crossPublishSigned := {},
         Seq(publish, publishSigned, publishLocal).map(
           setDepenencyForCurrentBinVersion(_, publishedMultiScalaProjects)
-        ),
-        Seq(crossPublish, crossPublishSigned).map(
-          setDepenencyForCurrentBinVersion(
-            _,
-            crossPublishedMultiScalaProjects,
-            includeNoCrossProjects = false
-          )
         )
       )
 
@@ -518,7 +502,8 @@ object Build {
     publishSettings(Some(VersionScheme.BreakOnMajor)),
     name := "javalib-intf",
     crossPaths := false,
-    autoScalaLibrary := false
+    autoScalaLibrary := false,
+    scalaVersion := scala3
   )
 
   lazy val javalibExtDummies =
@@ -545,7 +530,8 @@ object Build {
       .settings(
         publishSettings(Some(VersionScheme.BreakOnMajor)),
         disabledDocsSettings,
-        scalacOptions --= ignoredScalaDeprecations(scalaVersion.value)
+        scalacOptions --= ignoredScalaDeprecations(scalaVersion.value),
+        NIROnlySettings
       )
       .withNativeCompilerPlugin
       .mapBinaryVersions {
@@ -592,17 +578,6 @@ object Build {
               }.value
             }
           )
-      }
-      .mapBinaryVersions { version =>
-        // Compiling both nscplugins and scalalib might lead to dataraces and missing classfiles
-        _.settings(
-          crossPublish := crossPublish
-            .dependsOn(nscPlugin.forBinaryVersion(version) / crossPublish)
-            .value,
-          crossPublishSigned := crossPublish
-            .dependsOn(nscPlugin.forBinaryVersion(version) / crossPublishSigned)
-            .value
-        )
       }
       .dependsOn(auxlib)
 
@@ -668,6 +643,9 @@ object Build {
       .enablePlugins(MyScalaNativePlugin)
       .settings(noPublishSettings)
       .settings(
+        // Setting only used to ensure that compiler does not crash when reporting deprecated options
+        scalacOptions += "-P:scalanative:mapSourceURI:path->unused",
+        scalacOptions -= "-Xfatal-warnings",
         nativeConfig ~= {
           _.withLinkStubs(true)
         },
@@ -895,9 +873,6 @@ object Build {
         noIDEExportSettings,
         Test / fork := true,
         Test / javaOptions += "-Xmx1G",
-        Test / envVars ++= Map(
-          "SCALANATIVE_DISABLE_UNUSED_MULTITHREADING" -> "0"
-        ),
         // Override the dependency of partest - see Scala.js issue #1889
         dependencyOverrides += Deps.ScalaLibrary(scalaVersion.value) % "test",
         testFrameworks ++= {
@@ -1033,7 +1008,8 @@ object Build {
               val base =
                 denylistedFromFile(versionTestsDir / "DenylistedTests.txt")
               val requiringMultithreading =
-                if (nativeConfig.value.multithreadingSupport) Set.empty[String]
+                if (nativeConfig.value.multithreading.getOrElse(true))
+                  Set.empty[String]
                 else
                   denylistedFromFile(
                     versionTestsDir / "DenylistedTests-require-threads.txt",

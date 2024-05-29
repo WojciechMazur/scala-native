@@ -2,7 +2,7 @@ package scala.scalanative
 package libc
 
 import scalanative.unsafe._
-import scalanative.meta.LinktimeInfo.isLinux
+import scalanative.meta.LinktimeInfo.{isLinux, isOpenBSD}
 
 /** ISO/IEC C definitions for locale.h
  *
@@ -11,7 +11,9 @@ import scalanative.meta.LinktimeInfo.isLinux
 @extern object locale extends locale
 
 /** Definitions shared with POSIX */
-@extern private[scalanative] trait locale {
+@extern
+@define("__SCALANATIVE_C_LOCALE")
+private[scalanative] trait locale {
 
   // CStruct is limited to 22 fields, lconv wants 24, so group int_* & use Ops
 
@@ -105,11 +107,11 @@ object localeOpsImpl {
   def n_sign_posn(ptr: Ptr[lconv]): CChar = ptr._18
   def int_p_cs_precedes(ptr: Ptr[lconv]): CChar = ptr._19._1
   def int_p_sep_by_space(ptr: Ptr[lconv]): CChar =
-    if (isLinux) ptr._19._2
+    if (isLinux || isOpenBSD) ptr._19._2
     else ptr._19._3 // macOS & probably BSDs
 
   def int_n_cs_precedes(ptr: Ptr[lconv]): CChar =
-    if (isLinux) ptr._19._3
+    if (isLinux || isOpenBSD) ptr._19._3
     else ptr._19._2 // macOS & probably BSDs
 
   def int_n_sep_by_space(ptr: Ptr[lconv]): CChar = ptr._19._4

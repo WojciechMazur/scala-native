@@ -6,7 +6,9 @@ import java.lang.Thread.UncaughtExceptionHandler
 import java.lang.ref.WeakReference
 
 import scala.annotation.tailrec
-import scala.scalanative.runtime.{NativeThread, Proxy}
+import scala.scalanative.runtime.NativeThread
+import scala.scalanative.runtime.javalib.Proxy
+
 class ThreadGroup(
     final val parent: ThreadGroup,
     final val name: String,
@@ -107,7 +109,7 @@ class ThreadGroup(
     if (out == null) throw new NullPointerException()
     if (out.length == 0) 0
     else {
-      val aliveThreads = NativeThread.Registry.aliveThreads
+      val aliveThreads = NativeThread.Registry.aliveThreads.toArray
       @tailrec def loop(idx: Int, included: Int): Int =
         if (idx == aliveThreads.length || included == out.length) included
         else {

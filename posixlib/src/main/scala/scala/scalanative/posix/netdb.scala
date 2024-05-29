@@ -11,6 +11,7 @@ import scala.scalanative.meta.LinktimeInfo
  *    [[https://scala-native.readthedocs.io/en/latest/lib/posixlib.html]]
  */
 @extern
+@define("__SCALANATIVE_POSIX_NETDB")
 object netdb {
   /* This is the Linux layout. FreeBSD, macOS, and Windows have the same
    * size but swap ai_addr and ai_canonname. FreeBSD & Windows document this.
@@ -151,6 +152,7 @@ object netdbOps {
   @resolvedAtLinktime
   def useBsdAddrinfo = (LinktimeInfo.isMac ||
     LinktimeInfo.isFreeBSD ||
+    LinktimeInfo.isNetBSD ||
     LinktimeInfo.isWindows)
 
   implicit class addrinfoOps(private val ptr: Ptr[addrinfo]) extends AnyVal {

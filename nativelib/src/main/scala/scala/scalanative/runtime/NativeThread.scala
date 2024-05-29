@@ -1,21 +1,26 @@
-package scala.scalanative.runtime
+package scala.scalanative
+package runtime
 
 import scala.scalanative.runtime.Intrinsics._
 import scala.scalanative.runtime.GC.{ThreadRoutineArg, ThreadStartRoutine}
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.unsafe._
-import scala.scalanative.meta.LinktimeInfo.isMultithreadingEnabled
-import scala.scalanative.runtime.libc.atomic_thread_fence
-import scala.scalanative.runtime.libc.memory_order._
+import scala.scalanative.meta.LinktimeInfo.{isMultithreadingEnabled, isWindows}
+import scala.scalanative.runtime.ffi.stdatomic.atomic_thread_fence
+import scala.scalanative.runtime.ffi.stdatomic.memory_order._
 import scala.annotation.nowarn
 
 import java.util.concurrent.ConcurrentHashMap
+import java.{util => ju}
+import scala.scalanative.concurrent.NativeExecutionContext
+import scala.concurrent.duration._
 
 trait NativeThread {
   import NativeThread._
 
   val thread: Thread
 
+  private[runtime] var isFillingStackTrace: scala.Boolean = false
   @volatile private var _state: State = State.New
   def state: State = _state
   protected[runtime] def state_=(newState: State): Unit = _state match {
@@ -39,16 +44,22 @@ trait NativeThread {
 
   @alwaysinline
   final def park(): Unit =
-    park(0, isAbsolute = false)
+    if (isMultithreadingEnabled) park(0, isAbsolute = false)
+    else NativeExecutionContext.queueInternal.helpComplete()
 
   @alwaysinline
   final def parkNanos(nanos: Long): Unit = if (nanos > 0) {
-    park(nanos, isAbsolute = false)
+    if (isMultithreadingEnabled) park(nanos, isAbsolute = false)
+    else NativeExecutionContext.queueInternal.stealWork(nanos.nanos)
   }
 
   @alwaysinline
   final def parkUntil(deadlineEpoch: scala.Long): Unit =
-    park(deadlineEpoch, isAbsolute = true)
+    if (isMultithreadingEnabled) park(deadlineEpoch, isAbsolute = true)
+    else {
+      val timeout = (deadlineEpoch - System.currentTimeMillis()).millis
+      NativeExecutionContext.queueInternal.stealWork(timeout)
+    }
 
   @alwaysinline
   @nowarn // Thread.getId is deprecated since JDK 19
@@ -57,6 +68,7 @@ trait NativeThread {
   protected def onTermination(): Unit = if (isMultithreadingEnabled) {
     state = NativeThread.State.Terminated
     Registry.remove(this)
+    MainThreadShutdownContext.onThreadFinished(this.thread)
   }
 }
 
@@ -87,7 +99,7 @@ object NativeThread {
   @alwaysinline def currentThread: Thread = TLS.currentThread
   @alwaysinline def currentNativeThread: NativeThread = TLS.currentNativeThread
 
-  @alwaysinline def onSpinWait(): Unit = Platform.yieldProcessor()
+  def onSpinWait(): Unit = LLVMIntrinsics.`llvm.donothing`
 
   @inline def holdsLock(obj: Object): Boolean = if (isMultithreadingEnabled) {
     getMonitor(obj.asInstanceOf[_Object]).isLockedBy(currentThread)
@@ -103,14 +115,14 @@ object NativeThread {
     private[NativeThread] def add(thread: NativeThread): Unit =
       _aliveThreads.put(thread.thread.getId(): @nowarn, thread)
 
-    private[NativeThread] def remove(thread: NativeThread): Unit =
+    private[NativeThread] def remove(thread: NativeThread): Unit = {
       _aliveThreads.remove(thread.thread.getId(): @nowarn)
+    }
 
-    def aliveThreads: scala.Array[NativeThread] =
-      _aliveThreads.values.toArray().asInstanceOf[scala.Array[NativeThread]]
-
-    def onMainThreadTermination() = {
-      _aliveThreads.remove(MainThreadId)
+    @nowarn
+    def aliveThreads: Iterable[NativeThread] = {
+      import scala.collection.JavaConverters._
+      _aliveThreads.values.asScala
     }
   }
 
@@ -162,11 +174,4 @@ object NativeThread {
     @name("scalanative_currentThread")
     def currentThread: Thread = extern
   }
-
-  @extern object Platform {
-    @blocking
-    @name("scalanative_yield_processor")
-    def yieldProcessor(): Unit = extern
-  }
-
 }

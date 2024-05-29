@@ -1,7 +1,7 @@
 package scala.scalanative.runtime
 
 import scala.scalanative.unsafe.*
-import scala.scalanative.runtime.libc.{malloc, free}
+import scala.scalanative.runtime.ffi.{malloc, free}
 import scala.scalanative.runtime.Intrinsics.*
 import scala.collection.mutable
 
@@ -142,7 +142,7 @@ object Continuations:
   ): Ptr[?] = continuation.alloc(size)
 
   /** Continuations implementation imported from C (see `delimcc.h`) */
-  @extern private object Impl:
+  @extern @define("__SCALANATIVE_DELIMCC") private object Impl:
     private type ContinuationLabel = CUnsignedLong
     type BoundaryLabel = ContinuationLabel
 

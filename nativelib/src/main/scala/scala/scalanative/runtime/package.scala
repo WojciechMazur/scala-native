@@ -5,17 +5,12 @@ import scalanative.unsafe._
 import scalanative.unsigned.USize
 import scalanative.runtime.Intrinsics._
 import scalanative.runtime.monitor._
+import scalanative.runtime.ffi.stdatomic.{atomic_thread_fence, memory_order}
 import scala.scalanative.meta.LinktimeInfo.isMultithreadingEnabled
-
-// Extract any fields from runtime package to ensure it does not require initialization
-private object runtimeState {
-  var _filename: String = null
-}
+import java.util.concurrent.locks.LockSupport
 
 package object runtime {
-  import runtimeState._
-
-  def filename = _filename
+  def filename = ExecInfo.filename
 
   /** Used as a stub right hand of intrinsified methods. */
   private[scalanative] def intrinsic: Nothing = throwUndefined()
@@ -55,7 +50,7 @@ package object runtime {
   /** Initialize runtime with given arguments and return the rest as Java-style
    *  array.
    */
-  private[scalanative] def init(
+  private[runtime] def init(
       argc: Int,
       rawargv: RawPtr
   ): scala.Array[String] = {
@@ -77,8 +72,43 @@ package object runtime {
       c += 1
     }
 
-    _filename = fromCString(argv(0))
+    ExecInfo.filename = fromCString(argv(0))
     args
+  }
+
+  /* Internal shutdown method called after successfully running the main method.
+   * Ensures that all scheduled tasks / non-deamon threads would finish before exit.
+   */
+  @noinline private[runtime] def onShutdown(): Unit = {
+    import MainThreadShutdownContext._
+    if (isMultithreadingEnabled) {
+      shutdownThread = Thread.currentThread()
+      atomic_thread_fence(memory_order.memory_order_seq_cst)
+    }
+    def pollNonDaemonThreads = NativeThread.Registry.aliveThreads.iterator
+      .map(_.thread)
+      .filter { thread =>
+        (thread ne shutdownThread) && !thread.isDaemon() &&
+        thread.isAlive()
+      }
+
+    def queue = concurrent.NativeExecutionContext.queueInternal
+    def shouldWaitForThreads =
+      if (isMultithreadingEnabled) gracefully && pollNonDaemonThreads.hasNext
+      else false
+    def shouldRunQueuedTasks = gracefully && queue.nonEmpty
+
+    // Both runnable from the NativeExecutionContext.queue and the running threads can spawn new runnables
+    while ({
+      // drain the queue
+      queue.helpComplete()
+      // queue is empty, threads might be still running
+      if (isMultithreadingEnabled) {
+        if (shouldWaitForThreads) LockSupport.park()
+        // When unparked thread has either finished execution or there are new tasks enqueued
+      }
+      shouldWaitForThreads || shouldRunQueuedTasks
+    }) ()
   }
 
   private[scalanative] final def executeUncaughtExceptionHandler(
@@ -117,7 +147,19 @@ package object runtime {
   /** Run the runtime's event loop. The method is called from the generated
    *  C-style after the application's main method terminates.
    */
-  @noinline def loop(): Unit = ExecutionContext.loop()
+  @deprecated(
+    "Usage in the users code is discouraged, public method would be removed in the future. Use `scala.scalanative` package private method `scala.scalanative.concurrent.NativeExecutionContext.queueInternal.helpComplete()) instead",
+    since = "0.5.0"
+  )
+  @noinline def loop(): Unit =
+    concurrent.NativeExecutionContext.queueInternal.helpComplete()
+
+  // It should be val but we don't want any fields in runtime package object
+  @deprecated(
+    "Use `scala.scalanative.concurrent.NativeExecutionContext",
+    since = "0.5.0"
+  )
+  def ExecutionContext = concurrent.NativeExecutionContext
 
   /** Called by the generated code in case of division by zero. */
   @noinline

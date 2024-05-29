@@ -1,6 +1,32 @@
+#if defined(SCALANATIVE_COMPILE_ALWAYS) || defined(__SCALANATIVE_POSIX_SIGNAL)
 #if defined(__unix__) || defined(__unix) || defined(unix) ||                   \
     (defined(__APPLE__) && defined(__MACH__))
 #include <signal.h>
+
+#ifdef __OpenBSD__
+
+// OpenBSD doesn't implenent SIGEB_ signals, use 0 instead
+#define SIGEV_NONE 0
+#define SIGEV_SIGNAL 0
+#define SIGEV_THREAD 0
+
+// nor SIGPOLL
+#define POLL_IN 0
+#define POLL_OUT 0
+#define POLL_MSG 0
+#define POLL_ERR 0
+#define POLL_PRI 0
+#define POLL_HUP 0
+#define NSIGPOLL 0
+
+// nor SIGPROF
+#define PROF_SIG 0
+#define NSIGPROF 0
+
+// SI_ASYNCIO and SI_MESGQ are missed as well
+#define SI_ASYNCIO 0
+#define SI_MESGQ 0
+#endif
 
 // symbolic constants -  see signal.scala
 // some missing are deprecated or not supported
@@ -88,3 +114,4 @@ int scalanative_si_timer() { return SI_TIMER; }
 int scalanative_si_asyncio() { return SI_ASYNCIO; }
 int scalanative_si_mesgq() { return SI_MESGQ; }
 #endif // is Unix or MacOS
+#endif

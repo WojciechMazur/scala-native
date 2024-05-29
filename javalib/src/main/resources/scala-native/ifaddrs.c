@@ -1,3 +1,5 @@
+#if defined(SCALANATIVE_COMPILE_ALWAYS) ||                                     \
+    defined(__SCALANATIVE_JAVALIB_IFADDRS)
 #if defined(_WIN32)
 // No Windows support. These are dummies for linking.
 int getifaddrs(void *dummy) { return -1; };
@@ -48,7 +50,8 @@ struct scalanative_ifaddrs {
         /* Point-to-point destination address */
     } ifa_ifu;
 #endif
-    void *ifa_data;               /* Address-specific data */
+    /* Address-specific data */
+    void *ifa_data;
 };
 
 _Static_assert(sizeof(struct scalanative_ifaddrs) <= sizeof(struct ifaddrs),
@@ -84,3 +87,5 @@ _Static_assert(offsetof(struct scalanative_ifaddrs, ifa_data) ==
 
 #endif
 #endif // not _WIN32
+#endif // defined(SCALANATIVE_COMPILE_ALWAYS) ||
+       // defined(__SCALANATIVE_JAVALIB_IFADDRS)

@@ -4,7 +4,7 @@ import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.runtime.Intrinsics.{castRawSizeToInt, sizeOf}
 import scala.scalanative.meta.LinktimeInfo.isMultithreadingEnabled
 
-object MemoryLayout {
+private[runtime] object MemoryLayout {
 
   /*  Even though it might seem non-idiomatic to use `def` instead of `final val`
    *  for the constants it actual can be faster at runtime. Vals would require
@@ -19,7 +19,7 @@ object MemoryLayout {
     "Field available only in multithreading mode"
   )
 
-  private[scalanative] object Rtti {
+  object Rtti {
     @alwaysinline def ClassOffset = 0
     @alwaysinline def LockWordOffset =
       if (isMultithreadingEnabled) PtrSize
@@ -36,14 +36,14 @@ object MemoryLayout {
     @alwaysinline def size = NameOffset + PtrSize
   }
 
-  private[scalanative] object ClassRtti {
+  object ClassRtti {
     @alwaysinline def RttiOffset = 0
     @alwaysinline def SizeOffset = RttiOffset + Rtti.size
     // Remaining fields has optional or contain intrinsic data,
     // they should never be accessed in the runtime
   }
 
-  private[scalanative] object Object {
+  object Object {
     @alwaysinline def RttiOffset = 0
     @alwaysinline def LockWordOffset =
       if (isMultithreadingEnabled) PtrSize
@@ -53,7 +53,7 @@ object MemoryLayout {
       else PtrSize
   }
 
-  private[scalanative] object Array {
+  object Array {
     @alwaysinline def RttiOffset = 0
     @alwaysinline def LockWordOffset =
       if (isMultithreadingEnabled) PtrSize

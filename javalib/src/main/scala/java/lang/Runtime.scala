@@ -3,12 +3,14 @@ package java.lang
 import java.io.File
 import java.util.{Set => juSet}
 import java.util.Comparator
+import scala.scalanative.libc.signal
 import scala.scalanative.libc.stdlib
 import scala.scalanative.posix.unistd._
 import scala.scalanative.windows.SysInfoApi._
 import scala.scalanative.windows.SysInfoApiOps._
 import scala.scalanative.unsafe._
-import scala.scalanative.meta.LinktimeInfo.isWindows
+import scala.scalanative.meta.LinktimeInfo._
+import scala.scalanative.runtime.javalib.Proxy
 
 class Runtime private () {
   import Runtime._
@@ -18,6 +20,23 @@ class Runtime private () {
   lazy val setupAtExitHandler = {
     stdlib.atexit(() => Runtime.getRuntime().runHooks())
   }
+
+  // https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html
+  // Currently, we use C lib signals so SIGHUP is not covered for POSIX platforms.
+  lazy val setupSignalHandler = {
+    // Executing handler during GC might lead to deadlock
+    // Make sure include any additional signals in `Synchronizer_init` and `sigset_t signalsBlockedDuringGC` in both Immix/Commix GC
+    // Warning: We cannot safetly adapt Boehm GC - it can deadlock for the same reasons as above
+    signal.signal(signal.SIGINT, handleSignal(_))
+    signal.signal(signal.SIGTERM, handleSignal(_))
+  }
+
+  private def handleSignal(sig: CInt): Unit = {
+    Proxy.disableGracefullShutdown()
+    Runtime.getRuntime().runHooks()
+    exit(128 + sig)
+  }
+
   private def ensureCanModify(hook: Thread): Unit = if (shutdownStarted) {
     throw new IllegalStateException(
       s"Shutdown sequence started, cannot add/remove hook $hook"
@@ -28,6 +47,7 @@ class Runtime private () {
     ensureCanModify(thread)
     hooks.add(thread)
     setupAtExitHandler
+    setupSignalHandler
   }
 
   def removeShutdownHook(thread: Thread): Boolean = hooks.synchronized {
@@ -41,7 +61,7 @@ class Runtime private () {
       .asInstanceOf[Array[Thread]]
       .sorted(Ordering.by[Thread, Int](-_.getPriority()))
     hooks.foreach { t =>
-      t.setUncaughtExceptionHandler(ShutdownHookUncoughExceptionHandler)
+      t.setUncaughtExceptionHandler(ShutdownHookUncaughtExceptionHandler)
     }
     // JDK specifies that hooks might run in any order.
     // However, for Scala Native it might be beneficial to support partial ordering
@@ -70,16 +90,18 @@ class Runtime private () {
         try t.run()
         catch {
           case ex: Throwable =>
-            ShutdownHookUncoughExceptionHandler.uncaughtException(t, ex)
+            ShutdownHookUncaughtExceptionHandler.uncaughtException(t, ex)
         }
       }
   }
   private def runHooks() = {
     import scala.scalanative.meta.LinktimeInfo.isMultithreadingEnabled
     hooks.synchronized {
-      shutdownStarted = true
-      if (isMultithreadingEnabled) runHooksConcurrent()
-      else runHooksSequential()
+      if (!shutdownStarted) {
+        shutdownStarted = true
+        if (isMultithreadingEnabled) runHooksConcurrent()
+        else runHooksSequential()
+      }
     }
   }
 
@@ -108,7 +130,7 @@ class Runtime private () {
     exec(Array(cmd), envp, dir)
 }
 
-private object ShutdownHookUncoughExceptionHandler
+private object ShutdownHookUncaughtExceptionHandler
     extends Thread.UncaughtExceptionHandler {
   def uncaughtException(t: Thread, e: Throwable): Unit = {
     System.err.println(s"Shutdown hook $t failed, reason: $e")

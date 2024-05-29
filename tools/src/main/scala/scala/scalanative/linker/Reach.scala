@@ -5,7 +5,7 @@ import java.nio.file.{Path, Paths}
 import scala.annotation.tailrec
 import scala.collection.mutable
 
-class Reach(
+private[linker] class Reach(
     protected val config: build.Config,
     entries: Seq[nir.Global],
     protected val loader: ClassLoader
@@ -418,8 +418,9 @@ class Reach(
   def reachAllocation(
       info: Class
   )(implicit srcPosition: nir.SourcePosition): Unit =
-    if (!info.allocated) {
-      info.allocated = true
+    if (info.allocated) info.allocations += 1
+    else {
+      info.allocations += 1
 
       // Handle all class and trait virtual calls
       // on this class. This includes virtual calls
@@ -1156,7 +1157,7 @@ class Reach(
   lazy val injects: Seq[nir.Defn] = UnsupportedFeatureExtractor.injects
 }
 
-object Reach {
+private[scalanative] object Reach {
   def apply(
       config: build.Config,
       entries: Seq[nir.Global],

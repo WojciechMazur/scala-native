@@ -12,19 +12,30 @@ import scala.scalanative.annotation.alwaysinline
 @extern
 object GC {
   @name("scalanative_GC_alloc")
-  def alloc(cls: Class[_], size: Int): RawPtr = extern
-  @name("scalanative_GC_alloc_atomic")
-  def alloc_atomic(cls: Class[_], size: Int): RawPtr = extern
+  private[runtime] def alloc(cls: Class[_], size: Int): RawPtr = extern
   @name("scalanative_GC_alloc_small")
-  def alloc_small(cls: Class[_], size: Int): RawPtr = extern
+  private[runtime] def alloc_small(cls: Class[_], size: Int): RawPtr = extern
   @name("scalanative_GC_alloc_large")
-  def alloc_large(cls: Class[_], size: Int): RawPtr = extern
+  private[runtime] def alloc_large(cls: Class[_], size: Int): RawPtr = extern
+  @name("scalanative_GC_alloc_array")
+  private[runtime] def alloc_array[T <: Array[_]](
+      cls: Class[T],
+      length: Int,
+      stride: Int
+  ): RawPtr = extern
+
   @name("scalanative_GC_collect")
-  def collect(): Unit = extern
+  private[runtime] def collect(): Unit = extern
+
+  private[runtime] type WeakReferencesCollectedCallback = CFuncPtr0[Unit]
+  @name("scalanative_GC_set_weak_references_collected_callback")
+  private[runtime] def setWeakReferencesCollectedCallback(
+      callback: WeakReferencesCollectedCallback
+  ): Unit = extern
+
   @name("scalanative_GC_init")
-  def init(): Unit = extern
-  @name("scalanative_GC_register_weak_reference_handler")
-  def registerWeakReferenceHandler(handler: CFuncPtr0[Unit]): Unit = extern
+  private[runtime] def init(): Unit = extern
+
   @name("scalanative_GC_get_init_heapsize")
   def getInitHeapSize(): CSize = extern
   @name("scalanative_GC_get_max_heapsize")
@@ -66,8 +77,8 @@ object GC {
       threadId: Ptr[DWord]
   ): Handle = extern
 
-  private[scalanative] type MutatorThreadState = CInt
-  private[scalanative] object MutatorThreadState {
+  private[runtime] type MutatorThreadState = CInt
+  private[runtime] object MutatorThreadState {
 
     /** Thread executes Scala Native code using GC following cooperative mode -
      *  it periodically polls for synchronization events.
@@ -86,7 +97,7 @@ object GC {
    *  Native runtime on calls/returns from potentially blocking extern functions
    */
   @name("scalanative_GC_set_mutator_thread_state")
-  private[scalanative] def setMutatorThreadState(
+  private[runtime] def setMutatorThreadState(
       newState: MutatorThreadState
   ): Unit = extern
 
@@ -97,7 +108,7 @@ object GC {
    *  should stop execution of the thread.
    */
   @name("scalanative_GC_yield")
-  private[scalanative] def `yield`(): Unit = extern
+  private[runtime] def `yield`(): Unit = extern
 
   /** Address of yield point trap - conditionally protected memory address used
    *  for polling StopTheWorld event. Lowering phase would introduce write/read
@@ -108,7 +119,7 @@ object GC {
    *  yieldpoints
    */
   @name("scalanative_GC_yieldpoint_trap")
-  private[scalanative] var yieldPointTrap: RawPtr = extern
+  private[runtime] var yieldPointTrap: RawPtr = extern
 
   /** Notify the Garbage Collector about the range of memory which should be
    *  scanned when marking the objects. The range should contain only memory NOT

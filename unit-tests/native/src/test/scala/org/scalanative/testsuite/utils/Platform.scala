@@ -29,6 +29,8 @@ object Platform {
   private val osNameProp = System.getProperty("os.name")
 
   final val isFreeBSD = runtime.Platform.isFreeBSD()
+  final val isOpenBSD = runtime.Platform.isOpenBSD()
+  final val isNetBSD = runtime.Platform.isNetBSD()
   final val isLinux = runtime.Platform.isLinux()
   final val isMacOs = runtime.Platform.isMac()
   final val isWindows = runtime.Platform.isWindows()

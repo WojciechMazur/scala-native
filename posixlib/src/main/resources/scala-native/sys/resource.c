@@ -1,3 +1,5 @@
+#if defined(SCALANATIVE_COMPILE_ALWAYS) ||                                     \
+    defined(__SCALANATIVE_POSIX_SYS_RESOURCE)
 #if defined(__unix__) || defined(__unix) || defined(unix) ||                   \
     (defined(__APPLE__) && defined(__MACH__))
 // The Open Group Base Specifications Issue 7, 2018 edition
@@ -83,7 +85,13 @@ rlim_t scalanative_rlim_saved_cur() { return RLIM_SAVED_CUR; };
 
 rlim_t scalanative_rlim_saved_max() { return RLIM_SAVED_MAX; };
 
-int scalanative_rlimit_as() { return RLIMIT_AS; };
+int scalanative_rlimit_as() {
+#ifdef RLIMIT_AS
+    return RLIMIT_AS;
+#else
+    return 0;
+#endif
+};
 
 int scalanative_rlimit_core() { return RLIMIT_CORE; };
 
@@ -102,3 +110,4 @@ int scalanative_rusage_children() { return RUSAGE_CHILDREN; };
 int scalanative_rusage_self() { return RUSAGE_SELF; };
 
 #endif // Unix or Mac OS
+#endif

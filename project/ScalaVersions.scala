@@ -18,16 +18,20 @@ package build
 
 object ScalaVersions {
   // Versions of Scala used for publishing compiler plugins
-  val crossScala212 = (14 to 18).map(v => s"2.12.$v")
-  val crossScala213 = (8 to 12).map(v => s"2.13.$v")
+  val crossScala212 = crossScalaVersions("2.12.", 14 to 19)
+  val crossScala213 = crossScalaVersions("2.13.", 8 to 14)
   val crossScala3 = List(
-    // Move it to last entry (default binary version) when Scala 2.13 supports Scala 3.4 TASTy
-    (0 to 0).map(v => s"3.4.$v"),
+    extraCrossScalaVersion("3.").toList,
+    scala3RCVersions,
     // windowslib fails to compile with 3.1.{0-1}
     (2 to 3).map(v => s"3.1.$v"),
     (0 to 2).map(v => s"3.2.$v"),
-    (0 to 2).map(v => s"3.3.$v")
-  ).flatten
+    (0 to 3).map(v => s"3.3.$v"),
+    (0 to 2).map(v => s"3.4.$v")
+  ).flatten.distinct
+
+  // Tested in scheduled nightly CI to check compiler plugins
+  lazy val scala3RCVersions = List("3.5.0-RC1")
 
   // Scala versions used for publishing libraries
   val scala212: String = crossScala212.last
@@ -46,10 +50,23 @@ object ScalaVersions {
   //   1.9.0 is required in order to use Java >= 21
   //   1.9.4 fixes (Common Vulnerabilities and Exposures) CVE-2022-46751
   //   1.9.7 fixes sbt IO.unzip vulnerability described in sbt release notes.
+  //   1.10.0 Latest sbt version.
 
-  val sbt10Version: String = "1.9.7"
+  val sbt10Version: String = "1.10.0"
   val sbt10ScalaVersion: String = scala212
 
   val libCrossScalaVersions: Seq[String] =
     crossScala212 ++ crossScala213 ++ crossScala3 ++ Seq(scala3Nightly)
+
+  private def extraCrossScalaVersion(binVersionPrefix: String) = sys.env
+    .get("EXTRA_CROSS_SCALA_VERSION")
+    .filter(_.startsWith(binVersionPrefix))
+
+  private def crossScalaVersions(
+      prefix: String,
+      patches: Range.Inclusive
+  ): List[String] = {
+    patches.map(v => prefix + v) ++
+      extraCrossScalaVersion(prefix)
+  }.distinct.toList
 }

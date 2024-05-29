@@ -9,13 +9,17 @@ import java.nio.file.attribute._
 import java.nio.file.StandardCopyOption.{COPY_ATTRIBUTES, REPLACE_EXISTING}
 
 import java.util._
-import java.util.function.BiPredicate
-import java.util.stream.Stream
+import java.util.function.{BiPredicate, Consumer, Supplier}
+
+import java.util.stream.{Stream, StreamSupport}
+import java.util.{Spliterator, Spliterators}
 
 import scalanative.unsigned._
 import scalanative.unsafe._
 import scalanative.libc._
 
+import scalanative.posix.dirent._
+import scalanative.posix.direntOps._
 import scalanative.posix.errno.{errno, EEXIST, ENOENT, ENOTEMPTY}
 import scalanative.posix.{fcntl, limits, unistd}
 import scalanative.posix.sys.stat
@@ -88,16 +92,15 @@ object Files {
       else classOf[PosixFileAttributes]
 
     val attrs = Files.readAttributes(source, attrsCls, linkOpts)
-    if (attrs.isSymbolicLink())
-      throw new IOException(
-        s"Unsupported operation: copy symbolic link $source to $target"
-      )
-
     val targetExists = exists(target, linkOpts)
     if (targetExists && !options.contains(REPLACE_EXISTING))
       throw new FileAlreadyExistsException(target.toString)
 
-    if (isDirectory(source, Array.empty)) {
+    if (attrs.isSymbolicLink() &&
+        options.contains(LinkOption.NOFOLLOW_LINKS)) {
+      if (targetExists) Files.delete(target)
+      createSymbolicLink(target, readSymbolicLink(source), Array.empty)
+    } else if (isDirectory(source, Array.empty)) {
       createDirectory(target, Array.empty)
     } else {
       val in = newInputStream(source, Array.empty)
@@ -134,17 +137,8 @@ object Files {
     target
   }
 
-  private def copy(in: InputStream, out: OutputStream): Long = {
-    var written: Long = 0L
-    var value: Int = 0
-
-    while ({ value = in.read(); value != -1 }) {
-      out.write(value)
-      written += 1
-    }
-
-    written
-  }
+  private def copy(in: InputStream, out: OutputStream): Long =
+    in.transferTo(out)
 
   def createDirectories(dir: Path, attrs: Array[FileAttribute[_]]): Path =
     if (exists(dir, Array.empty) && !isDirectory(dir, Array.empty))
@@ -236,8 +230,9 @@ object Files {
         val targetFilename = toCWideStringUTF16LE(target.toString())
         val linkFilename = toCWideStringUTF16LE(link.toString())
         val flags =
-          if (target.toFile().isFile()) SYMBOLIC_LINK_FLAG_FILE
-          else SYMBOLIC_LINK_FLAG_DIRECTORY
+          if (isDirectory(target, Array(LinkOption.NOFOLLOW_LINKS)))
+            SYMBOLIC_LINK_FLAG_DIRECTORY
+          else SYMBOLIC_LINK_FLAG_FILE
         val created =
           CreateSymbolicLinkW(
             symlinkFileName = linkFilename,
@@ -367,7 +362,7 @@ object Files {
   }
 
   def delete(path: Path): Unit = {
-    if (!exists(path, Array.empty)) {
+    if (!exists(path, Array(LinkOption.NOFOLLOW_LINKS))) {
       throw new NoSuchFileException(path.toString)
     } else if (isWindows) {
       windowsDeletePath(path)
@@ -397,14 +392,9 @@ object Files {
     val nofollow = Array(LinkOption.NOFOLLOW_LINKS)
     val stream =
       walk(start, maxDepth, 0, options, new HashSet[Path]()).filter { p =>
-        val brokenSymLink =
-          if (isSymbolicLink(p)) {
-            val target = readSymbolicLink(p)
-            val targetExists = exists(target, nofollow)
-            !targetExists
-          } else false
         val linkOpts =
-          if (!brokenSymLink) linkOptsFromFileVisitOpts(options) else nofollow
+          if (isBrokenSymbolicLink(p)) nofollow
+          else linkOptsFromFileVisitOpts(options)
         val attributes =
           getFileAttributeView(p, classOf[BasicFileAttributeView], linkOpts)
             .readAttributes()
@@ -464,12 +454,11 @@ object Files {
     getAttribute(path, "posix:permissions", options)
       .asInstanceOf[Set[PosixFilePermission]]
 
-  def isDirectory(path: Path, options: Array[LinkOption]): Boolean = {
-    def notALink =
-      if (options.contains(LinkOption.NOFOLLOW_LINKS)) !isSymbolicLink(path)
-      else true
-    exists(path, options) && notALink && path.toFile().isDirectory()
-  }
+  def isDirectory(path: Path, options: Array[LinkOption]): Boolean =
+    try {
+      val attrs = readAttributes(path, classOf[BasicFileAttributes], options)
+      attrs != null && attrs.isDirectory()
+    } catch { case _: IOException => false }
 
   def isExecutable(path: Path): Boolean =
     path.toFile().canExecute()
@@ -481,42 +470,24 @@ object Files {
     path.toFile().canRead()
 
   def isRegularFile(path: Path, options: Array[LinkOption]): Boolean = {
-    if (isWindows) {
-      getAttribute(path, "basic:isRegularFile", options).asInstanceOf[Boolean]
-    } else
-      Zone.acquire { implicit z =>
-        val buf = alloc[stat.stat]()
-        val err =
-          if (options.contains(LinkOption.NOFOLLOW_LINKS)) {
-            stat.lstat(toCString(path.toFile().getPath()), buf)
-          } else {
-            stat.stat(toCString(path.toFile().getPath()), buf)
-          }
-        if (err == 0) stat.S_ISREG(buf._13) == 1
-        else false
-      }
+    try {
+      val attrs = readAttributes(path, classOf[BasicFileAttributes], options)
+      attrs != null && attrs.isRegularFile()
+    } catch { case _: IOException => false }
   }
 
   def isSameFile(path: Path, path2: Path): Boolean =
     path.toFile().getCanonicalPath() == path2.toFile().getCanonicalPath()
 
-  def isSymbolicLink(path: Path): Boolean = Zone.acquire { implicit z =>
-    if (isWindows) {
-      val filename = toCWideStringUTF16LE(path.toFile().getPath())
-      val attrs = FileApi.GetFileAttributesW(filename)
-      val exists = attrs != INVALID_FILE_ATTRIBUTES
-      def isReparsePoint = (attrs & FILE_ATTRIBUTE_REPARSE_POINT) != 0
-      exists & isReparsePoint
-    } else {
-      val filename = toCString(path.toFile().getPath())
-      val buf = alloc[stat.stat]()
-      if (stat.lstat(filename, buf) == 0) {
-        stat.S_ISLNK(buf._13) == 1
-      } else {
-        false
-      }
-    }
-  }
+  def isSymbolicLink(path: Path): Boolean =
+    try {
+      val attrs = readAttributes(
+        path,
+        classOf[BasicFileAttributes],
+        Array(LinkOption.NOFOLLOW_LINKS)
+      )
+      attrs != null && attrs.isSymbolicLink()
+    } catch { case _: IOException => false }
 
   def isWritable(path: Path): Boolean =
     path.toFile().canWrite()
@@ -526,6 +497,144 @@ object Files {
 
   def lines(path: Path, cs: Charset): Stream[String] =
     newBufferedReader(path, cs).lines(true)
+
+  private final val nul = 0.toByte // ASCII NUL
+  private final val dot = 46.toByte // ASCII period or dot
+
+  private def posixList(dir: Path, dirString: String): Stream[Path] = {
+    /* The JVM specification describes the returned stream as lazy.
+     *
+     * FileHelpers.unixList() is not used here because it eagerly creates an
+     * Array of all the entries in the directory.
+     */
+
+    class PosixDir(dir: Path, dirString: String)
+        extends Supplier[Spliterator[Path]] {
+      /* Older operating system provided no guarantee that the
+       * dirent data returned by readdir() would not be overwritten.
+       *
+       * Open Group 2018 says "They shall not be affected by a call to
+       * readdir() on a different directory stream.". Most if not all current
+       * (circa 2024) operating systems supported by Scala Native describe
+       * the same guarantee.
+       *
+       * The calls to readdir() here are two uses of result of the same
+       * one opendir() call. Exactly the kind of access pattern which
+       * "must be externally synchronized".
+       *
+       * That "external synchronization" exists in this method but is
+       * not obvious on a quick reading.
+       *
+       * The __essential__ concept that the "trySplit()" method of the
+       * Spliterator for the returned stream is overriden to _never_ split.
+       * No split, no parallel execution of this stream, no conflict.
+       *
+       * The Stream "spliterator" and "iterator" methods are described in
+       * JVM as terminal operations. That is, one should not be able to
+       * obtain more than one. Subsequent attempts will fail.
+       * Both are also described as non-thread safe, only the returned
+       * stream needs to be thread-safe.
+       *
+       * Belt, suspenders, duct tape, and instant glue
+       * "external synchronization" by design rather than runtime
+       * "synchronized" blocks.
+       */
+
+      private var posixDirClosed = true
+
+      private lazy val posixDir: Ptr[DIR] = Zone.acquire { implicit z =>
+        val ptr = opendir(toCString(dirString))
+        if (ptr == null)
+          throw new UncheckedIOException(PosixException(dirString, errno))
+
+        posixDirClosed = false
+        ptr
+      }
+
+      private type T = Path
+
+      def get(): Spliterator[T] = {
+
+        new Spliterators.AbstractSpliterator[T](Long.MaxValue, 0) {
+          private def appendToStream(
+              cName: CString,
+              action: Consumer[_ >: T]
+          ): Boolean = {
+            val entryPath = dir.resolve(fromCString(cName))
+
+            action.accept(entryPath)
+            true
+          }
+
+          /* See Design Note at top of method about serializing access
+           * to C's readdir buffer.
+           *
+           * _Never_ splitting this Spliterator is __critical__.
+           */
+          override def trySplit(): Spliterator[T] = null
+
+          def tryAdvance(action: Consumer[_ >: T]): Boolean = {
+            /* Reduce execution cost by relying upon readdir() to detect
+             * a closed directory rather than checking posixDirclosed.
+             */
+
+            val entry = { errno = 0; readdir(posixDir) }
+
+            if (entry == null) {
+              if (errno != 0) {
+                throw new UncheckedIOException(PosixException(dirString, errno))
+              } else { // End of OS directory stream
+                closeImpl()
+                false
+              }
+            } else {
+              /* Consume "." and "..", Java does not want to see them.
+               *
+               * Those two entries are usually the first two, but that
+               * is not guaranteed. There are obscure scenarios where
+               * at least '.' can come later.
+               *
+               * This is conceptually a 'stream.filter()' operation but
+               * with less overhead.
+               */
+
+              val entryName = entry.d_name // A CString, so byte comparisons
+
+              if (entryName(0) != dot)
+                appendToStream(entryName, action)
+              else if (entryName(1) == nul)
+                tryAdvance(action) // past "."
+              else if ((entryName(1) == dot) && (entryName(2) == nul))
+                tryAdvance(action) // past ".."
+              else
+                appendToStream(entryName, action) // ".git" or such
+            }
+          }
+        }
+      }
+
+      /* Call only while holding dirLock.
+       * When closedir() is called more than once, some operating systems
+       * set errno to EBADF. Others are not so robust and fail (signal? exit?).
+       */
+
+      private def closeImpl(): Unit = {
+        if (!posixDirClosed) {
+          val err = closedir(posixDir)
+          if (err != 0)
+            throw new UncheckedIOException(PosixException(dirString, errno))
+
+          posixDirClosed = true
+        }
+      }
+
+      def close(): Unit =
+        closeImpl()
+    }
+
+    val posixDir = new PosixDir(dir, dirString)
+    StreamSupport.stream(posixDir, 0, false).onClose(() => posixDir.close())
+  }
 
   def list(dir: Path): Stream[Path] = {
     /* Fix Issue 3165 - From Java "Path" documentation URL:
@@ -537,11 +646,16 @@ object Files {
      * Operating Systems can not opendir() an empty string, so expand "" to
      * "./".
      */
+
     val dirString =
       if (dir.equals(emptyPath)) "./"
       else dir.toString()
 
-    Arrays.stream[Path](FileHelpers.list(dirString, (n, _) => dir.resolve(n)))
+    if (!isWindows)
+      posixList(dir, dirString) // see comment re: args at top of that method
+    else {
+      Arrays.stream[Path](FileHelpers.list(dirString, (n, _) => dir.resolve(n)))
+    }
   }
 
   def move(source: Path, target: Path, options: Array[CopyOption]): Path = {
@@ -568,16 +682,29 @@ object Files {
     Zone.acquire { implicit z =>
       val sourceAbs = source.toAbsolutePath().toString
       val targetAbs = target.toAbsolutePath().toString
-      // We cannot replace directory, it needs to be removed first
+
       if (replaceExisting && target.toFile().isDirectory()) {
-        // todo delete children
-        Files.delete(target)
+        val mustDeleteTarget =
+          if (isWindows) {
+            // We can not replace directory at all, it must be removed first.
+            true
+          } else {
+            // We can not replace a directory with a file on unix-like.
+            (!source.toFile().isDirectory())
+          }
+
+        if (mustDeleteTarget)
+          Files.delete(target) // will detect & throw if target is not empty.
       }
+
       if (isWindows) {
         val sourceCString = toCWideStringUTF16LE(sourceAbs)
         val targetCString = toCWideStringUTF16LE(targetAbs)
 
         // stdio.rename on Windows does not replace existing file
+        if (replaceExisting && target.toFile().isDirectory())
+          Files.delete(target)
+
         val flags = {
           val replace =
             if (replaceExisting) MOVEFILE_REPLACE_EXISTING else 0.toUInt
@@ -926,7 +1053,7 @@ object Files {
       maxDepth: Int,
       currentDepth: Int,
       options: Array[FileVisitOption],
-      visited: Set[Path] // Java Set, gets mutated. Private so no footgun.
+      visitedDirs: Set[Path] // Java Set, gets mutated. Private so no footgun.
   ): Stream[Path] = {
     /* Design Note:
      *    This implementation is an update to Java streams of the historical
@@ -948,6 +1075,7 @@ object Files {
         (maxDepth == 0)) {
       Stream.of(start)
     } else {
+      val followLinks = options.contains(FileVisitOption.FOLLOW_LINKS)
       Stream.concat(
         Stream.of(start),
         Arrays
@@ -960,23 +1088,34 @@ object Files {
 
               val target = readSymbolicLink(path)
 
-              visited.add(path)
+              // TODO: use FileAttributes key instead of isSameFile
+              if (followLinks) {
+                // No need to detect cycles when not following links
+                val wouldLoop =
+                  try {
+                    isDirectory(target, Array.empty) && visitedDirs
+                      .stream()
+                      .filter(isSameFile(_, target))
+                      .findFirst()
+                      .isPresent()
+                  } catch { case _: IOException => false }
+                if (wouldLoop)
+                  throw new UncheckedIOException(
+                    new FileSystemLoopException(path.toString)
+                  )
+              }
 
-              if (visited.contains(target))
-                throw new UncheckedIOException(
-                  new FileSystemLoopException(path.toString)
-                )
-              else if (!exists(target, Array(LinkOption.NOFOLLOW_LINKS)))
+              if (!exists(target, Array(LinkOption.NOFOLLOW_LINKS)))
                 Stream.of(start.resolve(name))
               else
-                walk(path, maxDepth, currentDepth + 1, options, visited)
+                walk(path, maxDepth, currentDepth + 1, options, visitedDirs)
 
             case (name, FileHelpers.FileType.Directory)
                 if currentDepth < maxDepth =>
               val path = start.resolve(name)
               if (options.contains(FileVisitOption.FOLLOW_LINKS))
-                visited.add(path)
-              walk(path, maxDepth, currentDepth + 1, options, visited)
+                visitedDirs.add(path)
+              walk(path, maxDepth, currentDepth + 1, options, visitedDirs)
 
             case (name, _) =>
               Stream.of(start.resolve(name))
@@ -1019,6 +1158,15 @@ object Files {
     else Array(LinkOption.NOFOLLOW_LINKS)
   }
 
+  private def isBrokenSymbolicLink(path: Path): Boolean =
+    isSymbolicLink(path) && {
+      val target = readSymbolicLink(path)
+      val resolvedTarget =
+        if (target.isAbsolute()) target
+        else path.resolveSibling(target)
+      !exists(resolvedTarget, Array(LinkOption.NOFOLLOW_LINKS))
+    }
+
   private def _walkFileTree(
       start: Path,
       options: Set[FileVisitOption],
@@ -1042,16 +1190,9 @@ object Files {
       if (dirsToSkip.contains(parent)) ()
       else {
         try {
-          val brokenSymLink =
-            if (isSymbolicLink(p)) {
-              val target = readSymbolicLink(p)
-              val targetExists = exists(target, nofollow)
-              !targetExists
-            } else false
-
           val linkOpts =
-            if (!brokenSymLink) linkOptsFromFileVisitOpts(optsArray)
-            else nofollow
+            if (isBrokenSymbolicLink(p)) nofollow
+            else linkOptsFromFileVisitOpts(optsArray)
 
           val attributes =
             getFileAttributeView(p, classOf[BasicFileAttributeView], linkOpts)

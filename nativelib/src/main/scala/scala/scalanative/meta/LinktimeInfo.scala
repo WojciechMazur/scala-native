@@ -25,11 +25,20 @@ object LinktimeInfo {
   @resolvedAtLinktime
   def isFreeBSD: Boolean = target.os == "freebsd"
 
+  @resolvedAtLinktime
+  def isOpenBSD: Boolean = target.os == "openbsd"
+
+  @resolvedAtLinktime
+  def isNetBSD: Boolean = target.os == "netbsd"
+
   @resolvedAtLinktime("scala.scalanative.meta.linktimeinfo.is32BitPlatform")
   def is32BitPlatform: Boolean = resolved
 
-  @resolvedAtLinktime("scala.scalanative.meta.linktimeinfo.asanEnabled")
-  def asanEnabled: Boolean = resolved
+  @resolvedAtLinktime("scala.scalanative.meta.linktimeinfo.enabledSanitizer")
+  def enabledSanitizer: String = resolved
+
+  @resolvedAtLinktime()
+  def asanEnabled: Boolean = enabledSanitizer == "address"
 
   @resolvedAtLinktime(
     "scala.scalanative.meta.linktimeinfo.isWeakReferenceSupported"

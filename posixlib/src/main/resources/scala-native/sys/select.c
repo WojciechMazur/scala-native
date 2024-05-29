@@ -1,11 +1,13 @@
+#if defined(SCALANATIVE_COMPILE_ALWAYS) ||                                     \
+    defined(__SCALANATIVE_POSIX_SYS_SELECT)
 #include <stdbool.h>
 #include <errno.h>
 #include <stddef.h>
 #include <string.h>
 
 #ifdef _WIN32
-#pragma comment(lib, "Ws2_32.lib")
-#include <WinSock2.h>
+#pragma comment(lib, "ws2_32.lib")
+#include <winsock2.h>
 typedef long int suseconds_t;
 #else
 #include <sys/select.h>
@@ -86,3 +88,4 @@ int scalanative_select(int nfds, struct scalanative_fd_set *readfds,
 
     return status;
 }
+#endif

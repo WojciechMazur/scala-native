@@ -90,7 +90,7 @@ private[scalanative] object LLVM {
       else Nil
 
     val flags: Seq[String] =
-      buildTargetCompileOpts ++ flto ++ asan ++ target ++
+      buildTargetCompileOpts ++ flto ++ sanitizer ++ target ++
         stdflag ++ platformFlags ++ debugFlags ++ exceptionsHandling ++
         configFlags ++ Seq("-fvisibility=hidden", opt) ++
         Seq("-fomit-frame-pointer") ++
@@ -191,7 +191,9 @@ private[scalanative] object LLVM {
       // * libpthread for process APIs and parallel garbage collection.
       // * Dbghelp for windows implementation of unwind libunwind API
       val platformsLinks =
-        if (config.targetsWindows) Seq("Dbghelp")
+        if (config.targetsWindows) Seq("dbghelp")
+        else if (config.targetsOpenBSD || config.targetsNetBSD)
+          Seq("pthread")
         else Seq("pthread", "dl")
       platformsLinks ++ srclinks ++ gclinks
     }.distinct
@@ -233,7 +235,7 @@ private[scalanative] object LLVM {
 
       val output = Seq("-o", config.buildPath.abs)
 
-      buildTargetLinkOpts ++ flto ++ debugFlags ++ platformFlags ++ linkNameFlags ++ output ++ asan ++ target
+      buildTargetLinkOpts ++ flto ++ debugFlags ++ platformFlags ++ linkNameFlags ++ output ++ sanitizer ++ target
     }
     val paths = objectsPaths.map(_.abs)
     // it's a fix for passing too many file paths to the clang compiler,
@@ -321,8 +323,11 @@ private[scalanative] object LLVM {
    *  @return
    *    true if it needs compiling false otherwise.
    */
-  @inline private def needsCompiling(in: Path, out: Path): Boolean = {
-    in.toFile().lastModified() > out.toFile().lastModified()
+  @inline private def needsCompiling(in: Path, out: Path)(implicit
+      config: Config
+  ): Boolean = {
+    in.toFile().lastModified() > out.toFile().lastModified() ||
+    Build.userConfigHasChanged(config)
   }
 
   /** Looks at all the object files to see if one is newer than the output
@@ -349,10 +354,11 @@ private[scalanative] object LLVM {
       case lto      => Seq(s"-flto=${lto.name}")
     }
 
-  private def asan(implicit config: Config): Seq[String] =
-    config.compilerConfig.asan match {
-      case true  => Seq("-fsanitize=address", "-fno-omit-frame-pointer")
-      case false => Seq.empty
+  private def sanitizer(implicit config: Config): Seq[String] =
+    config.compilerConfig.sanitizer match {
+      case Some(sanitizer) =>
+        Seq(s"-fsanitize=${sanitizer.name}", "-fno-omit-frame-pointer")
+      case _ => Seq.empty
     }
 
   private def target(implicit config: Config): Seq[String] =

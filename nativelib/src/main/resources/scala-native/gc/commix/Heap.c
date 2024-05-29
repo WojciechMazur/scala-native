@@ -1,3 +1,4 @@
+#include "immix_commix/utils/Time.h"
 #if defined(SCALANATIVE_GC_COMMIX)
 
 #include <stdlib.h>
@@ -19,7 +20,7 @@
 #include <memory.h>
 #include <time.h>
 #include <inttypes.h>
-#include "WeakRefGreyList.h"
+#include "WeakReferences.h"
 #include "immix_commix/Synchronizer.h"
 
 void Heap_exitWithOutOfMemory(const char *details) {
@@ -212,13 +213,14 @@ void Heap_Init(Heap *heap, size_t minHeapSize, size_t maxHeapSize) {
         GCThread_Init(&gcThreads[i], i, heap, stats);
     }
 
-    heap->mark.lastEnd_ns = scalanative_nano_time();
+    heap->mark.lastEnd_ns = Time_current_nanos();
 
     mutex_init(&heap->sweep.growMutex);
     mutex_init(&heap->lock);
 }
 
 void Heap_Collect(Heap *heap) {
+    MutatorThread *mutatorThread = currentMutatorThread;
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
     if (!Synchronizer_acquire())
         return;
@@ -255,12 +257,11 @@ void Heap_Collect(Heap *heap) {
     Phase_StartSweep(heap);
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
     Synchronizer_release();
-    GCThread_WeakThreadsHandler_Resume(weakRefsHandlerThread);
 #else
     MutatorThread_switchState(currentMutatorThread,
                               GC_MutatorThreadState_Managed);
-    WeakRefGreyList_CallHandlers();
 #endif
+    WeakReferences_InvokeGCFinishedCallback();
 }
 
 bool Heap_shouldGrow(Heap *heap) {

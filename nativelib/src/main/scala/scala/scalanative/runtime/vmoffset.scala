@@ -3,7 +3,8 @@ package scala.scalanative.runtime
 import scalanative.unsafe._
 
 @extern
-object vmoffset {
+@define("__SCALANATIVE_VMOFFSET")
+private[runtime] object vmoffset {
 
   /** Get the image offset of this executable.
    */

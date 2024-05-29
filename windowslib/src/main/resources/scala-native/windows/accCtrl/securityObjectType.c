@@ -1,6 +1,6 @@
-#if (defined(_WIN32) || defined(WIN32)) && !defined(__MINGW64__)
+#if (defined(_WIN32) || defined(WIN32))
 #define WIN32_LEAN_AND_MEAN
-#include <AccCtrl.h>
+#include <accctrl.h>
 
 int scalanative_se_unknown_object_type() { return SE_UNKNOWN_OBJECT_TYPE; }
 int scalanative_se_file_object() { return SE_FILE_OBJECT; }
@@ -17,6 +17,8 @@ int scalanative_se_provider_defined_object() {
 }
 int scalanative_se_wmiguid_object() { return SE_WMIGUID_OBJECT; }
 int scalanative_se_registry_wow64_32key() { return SE_REGISTRY_WOW64_32KEY; }
+#ifndef __MINGW32__
+// missing in mingw 3.11 / mingw-64 12.0.0
 int scalanative_se_registry_wow64_64key() { return SE_REGISTRY_WOW64_64KEY; }
-
+#endif
 #endif // defined(_WIN32)

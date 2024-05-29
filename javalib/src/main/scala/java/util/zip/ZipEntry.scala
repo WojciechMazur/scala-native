@@ -1,6 +1,6 @@
 package java.util.zip
 
-// Ported from Apache Harmony
+// Ported from Apache Harmony. Extensive changes for Scala Native.
 
 import java.io.{
   EOFException,
@@ -8,8 +8,16 @@ import java.io.{
   RandomAccessFile,
   UnsupportedEncodingException
 }
+
+import java.nio.charset.Charset
+
+import scala.scalanative.posix.time._
+import scala.scalanative.posix.timeOps.tmOps
+
+import scala.scalanative.unsafe._
+
 class ZipEntry private (
-    private[zip] var name: String,
+    private[zip] val name: String, // immutable for safety
     private[zip] var comment: String,
     private[zip] var compressedSize: Long,
     private[zip] var crc: Long,
@@ -18,13 +26,12 @@ class ZipEntry private (
     private[zip] var time: Int,
     private[zip] var modDate: Int,
     private[zip] var extra: Array[Byte],
-    private[zip] var nameLen: Int,
     private[zip] var mLocalHeaderRelOffset: Long
 ) extends ZipConstants
     with Cloneable {
 
   def this(name: String) =
-    this(name, null, -1, -1, -1, -1, -1, -1, null, -1, -1)
+    this(name, null, -1L, -1L, -1L, -1, -1, -1, null, -1L)
 
   def this(e: ZipEntry) =
     this(
@@ -37,13 +44,13 @@ class ZipEntry private (
       e.time,
       e.modDate,
       e.extra,
-      e.nameLen,
       e.mLocalHeaderRelOffset
     )
 
   if (name == null) {
     throw new NullPointerException()
   }
+
   if (name.length() > 0xffff) {
     throw new IllegalArgumentException()
   }
@@ -69,27 +76,45 @@ class ZipEntry private (
   def getSize(): Long =
     size
 
-  def getTime(): Long =
-    -1
-  // TODO: Uncomment once we have Calendar
-  // if (time != -1) {
-  //   val cal = new GregorianCalendar()
-  //   cal.set(Calendar.MILLISECOND, 0)
-  //   cal.set(1980 + ((modDate >> 9) & 0x7f),
-  //           ((modDate >> 5) & 0xf) - 1,
-  //           modDate & 0x1f,
-  //           (time >> 11) & 0x1f,
-  //           (time >> 5) & 0x3f,
-  //           (time & 0x1f) << 1)
-  //   cal.getTime().getTime()
-  // } else {
-  //   -1
-  // }
+  def getTime(): Long = {
+    // Revert PR #3794 so I can chase intermittent bad values & Segfault
+    if (true) -1
+    else {
+      if ((time == -1) || (modDate == -1)) -1L
+      else
+        synchronized {
+          val tm = stackalloc[tm]()
+
+          tm.tm_year = ((modDate >> 9) & 0x7f) + 80
+          tm.tm_mon = ((modDate >> 5) & 0xf) - 1
+          tm.tm_mday = modDate & 0x1f
+
+          tm.tm_hour = (time >> 11) & 0x1f
+          tm.tm_min = (time >> 5) & 0x3f
+          tm.tm_sec = (time & 0x1f) << 1
+
+          tm.tm_isdst = -1
+
+          val unixEpochSeconds = mktime(tm)
+
+          if (unixEpochSeconds < 0) -1L // Per JVM doc, -1 means "Unspecified"
+          else unixEpochSeconds * 1000L
+        }
+    }
+  }
 
   def isDirectory(): Boolean =
     name.charAt(name.length - 1) == '/'
 
   def setComment(string: String): Unit = {
+    /* This length is a count of Java UTF-16 characters. It is
+     * accurate for Strings which contain characters < 128 but may
+     * not be for greater values.
+     *
+     * Depending on the charset given to ZipOutputStream, its conversion
+     * to bytes may generate more than lengthLimit bytes, resulting in
+     * truncation that is not obvious or tested here.
+     */
     val lengthLimit = 0xffff
     comment =
       if (string == null || string.length() <= lengthLimit) string
@@ -130,21 +155,53 @@ class ZipEntry private (
     }
 
   def setTime(value: Long): Unit = {
-    // TODO: Uncomment once we have Date
-    // val cal = new GregorianCalendar()
-    // cal.setTime(new Date(value))
-    // val year = cal.get(Calendar.YEAR)
-    // if (year < 1980) {
-    //   modDate = 0x21
-    //   time = 0
-    // } else {
-    //   modDate = cal.get(Calendar.DATE)
-    //   modDate = (cal.get(Calendar.MONTH) + 1 << 5) | modDate
-    //   modDate = ((cal.get(Calendar.YEAR) - 1980) << 9) | modDate
-    //   time = cal.get(Calendar.SECOND) >> 1
-    //   time = (cal.get(Calendar.MINUTE) << 5) | time
-    //   time = (cal.get(Calendar.HOUR_OF_DAY) << 11) | time
-    // }
+    // Revert PR #3794 so I can chase intermittent bad values & Segfault
+    if (false) {
+      /* Convert Java time in milliseconds since the Unix epoch to
+       * MS-DOS standard time.
+       *
+       * This URL gives a good description of standard MS-DOS time & the
+       * required bit manipulations:
+       *     https://learn.microsoft.com/en-us/windows/win32/api/oleauto/
+       *         nf-oleauto-dosdatetimetovarianttime
+       *
+       * Someone familiar with Windows could probably provide an operating
+       * system specific version of this method.
+       */
+
+      /* Concurrency issue:
+       *   localtime() is not required to be thread-safe, but is likely to exist
+       *   on Windows. Change to known thread-safe localtime_r() when this
+       *   section is unix-only.
+       */
+
+      val timer = stackalloc[time_t]()
+
+      // truncation OK, MS-DOS uses 2 second intervals, no rounding.
+      !timer = (value / 1000L).toSize
+
+      val tm = localtime(timer) // Not necessarily thread safe.
+
+      if (tm == null) {
+        modDate = 0x21
+        time = 0
+      } else {
+        val msDosYears = tm.tm_year - 80
+
+        if (msDosYears <= 0) {
+          modDate = 0x21 // 01-01-1980 00:00 MS-DOS epoch
+          time = 0
+        } else {
+          modDate = tm.tm_mday
+          modDate = ((tm.tm_mon + 1) << 5) | modDate
+          modDate = (msDosYears << 9) | modDate
+
+          time = tm.tm_sec >> 1
+          time = (tm.tm_min << 5) | time
+          time = (tm.tm_hour << 11) | time
+        }
+      }
+    }
   }
 
   override def toString(): String =
@@ -162,18 +219,20 @@ object ZipEntry extends ZipConstants {
   final val DEFLATED = 8
   final val STORED = 0
 
-  private def myReadFully(in: InputStream, b: Array[Byte]): Unit = {
+  private[zip] def myReadFully(in: InputStream, b: Array[Byte]): Array[Byte] = {
     var len = b.length
     var off = 0
 
     while (len > 0) {
       val count = in.read(b, off, len)
-      if (count <= 0) {
+      if (count <= 0)
         throw new EOFException()
-      }
+
       off += count
       len -= count
     }
+
+    b
   }
 
   private[zip] def readIntLE(raf: RandomAccessFile): Long = {
@@ -189,9 +248,12 @@ object ZipEntry extends ZipConstants {
     }
   }
 
-  def fromInputStream(ler: LittleEndianReader, in: InputStream): ZipEntry = {
-    val hdrBuf = ler.hdrBuf
-    myReadFully(in, hdrBuf)
+  private[zip] def fromInputStream(
+      ler: LittleEndianReader,
+      in: InputStream,
+      defaultCharset: Charset
+  ): ZipEntry = {
+    val hdrBuf = myReadFully(in, ler.hdrBuf)
 
     val sig =
       ((hdrBuf(0) & 0xff) | ((hdrBuf(1) & 0xff) << 8) |
@@ -201,6 +263,7 @@ object ZipEntry extends ZipConstants {
       throw new ZipException("Central Directory Entry not found")
     }
 
+    val gpBitFlag = ((hdrBuf(8) & 0xff) | ((hdrBuf(9) & 0xff) << 8)).toShort
     val compressionMethod = (hdrBuf(10) & 0xff) | ((hdrBuf(11) & 0xff) << 8)
     val time = (hdrBuf(12) & 0xff) | ((hdrBuf(13) & 0xff) << 8)
     val modDate = (hdrBuf(14) & 0xff) | ((hdrBuf(15) & 0xff) << 8)
@@ -216,48 +279,37 @@ object ZipEntry extends ZipConstants {
       (hdrBuf(24) & 0xff) | ((hdrBuf(25) & 0xff) << 8) | ((hdrBuf(
         26
       ) & 0xff) << 16) | ((hdrBuf(27) << 24) & 0xffffffffL)
+
     val nameLen = (hdrBuf(28) & 0xff) | ((hdrBuf(29) & 0xff) << 8)
     val extraLen = (hdrBuf(30) & 0xff) | ((hdrBuf(31) & 0xff) << 8)
     val commentLen = (hdrBuf(32) & 0xff) | ((hdrBuf(33) & 0xff) << 8)
+
     val mLocalHeaderRelOffset =
       (hdrBuf(42) & 0xff) | ((hdrBuf(43) & 0xff) << 8) | ((hdrBuf(
         44
       ) & 0xff) << 16) | ((hdrBuf(45) << 24) & 0xffffffffL)
 
-    val nameBytes = new Array[Byte](nameLen)
-    myReadFully(in, nameBytes)
-
-    val commentBytes =
-      if (commentLen > 0) {
-        val commentBytes = new Array[Byte](commentLen)
-        myReadFully(in, commentBytes)
-        commentBytes
-      } else {
-        null
-      }
+    val nameBytes = myReadFully(in, new Array[Byte](nameLen))
 
     val extra =
-      if (extraLen > 0) {
-        val extra = new Array[Byte](extraLen)
-        myReadFully(in, extra)
-        extra
-      } else {
-        null
-      }
+      if (extraLen <= 0) null
+      else myReadFully(in, new Array[Byte](extraLen))
+
+    val commentBytes =
+      if (commentLen <= 0) null
+      else myReadFully(in, new Array[Byte](commentLen))
 
     try {
-      /*
-       * The actual character set is "IBM Code Page 437".  As of
-       * Sep 2006, the Zip spec (APPNOTE.TXT) supports UTF-8.  When
-       * bit 11 of the GP flags field is set, the file name and
-       * comment fields are UTF-8.
-       *
-       * TODO: add correct UTF-8 support.
-       */
-      val name = new String(nameBytes, "iso-8859-1")
+      val name =
+        ZipByteConversions.bytesToString(nameBytes, gpBitFlag, defaultCharset)
+
       val comment =
-        if (commentBytes != null) new String(commentBytes, "iso-8859-1")
-        else null
+        ZipByteConversions.bytesToString(
+          commentBytes,
+          gpBitFlag,
+          defaultCharset
+        )
+
       new ZipEntry(
         name,
         comment,
@@ -268,7 +320,6 @@ object ZipEntry extends ZipConstants {
         time,
         modDate,
         extra,
-        nameLen,
         mLocalHeaderRelOffset
       )
     } catch {

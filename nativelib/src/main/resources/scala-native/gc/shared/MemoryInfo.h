@@ -9,7 +9,6 @@
  */
 
 #if defined(_WIN32)
-#include <Windows.h>
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #elif defined(__unix__) || defined(__unix) || defined(unix) ||                 \
@@ -59,7 +58,8 @@ size_t getMemorySize() {
 #elif defined(HW_PHYSMEM64)
     mib[1] = HW_PHYSMEM64; /* NetBSD, OpenBSD. --------- */
 #endif
-    int64_t size = 0;    /* 64-bit */
+    /* 64-bit */
+    int64_t size = 0;
     size_t len = sizeof(size);
     if (sysctl(mib, 2, &size, &len, NULL, 0) == 0)
         return (size_t)size;
@@ -82,7 +82,8 @@ size_t getMemorySize() {
     int mib[2];
     mib[0] = CTL_HW;
 #if defined(HW_REALMEM)
-    mib[1] = HW_REALMEM;   /* FreeBSD. ----------------- */
+    /* FreeBSD. ----------------- */
+    mib[1] = HW_REALMEM;
 #elif defined(HW_PYSMEM)
     mib[1] = HW_PHYSMEM; /* Others. ------------------ */
 #endif

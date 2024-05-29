@@ -1,3 +1,4 @@
+#if defined(SCALANATIVE_COMPILE_ALWAYS) || defined(__SCALANATIVE_POSIX_TERMIOS)
 #if defined(__unix__) || defined(__unix) || defined(unix) ||                   \
     (defined(__APPLE__) && defined(__MACH__))
 #include <termios.h>
@@ -9,6 +10,34 @@
 #define BSDLY BSDELAY
 #define VTDLY VTDELAY
 #endif
+
+#if defined(__OpenBSD__) || defined(__NetBSD__)
+// OpenBSD and NetBSD has missed some constatn, use 0 instead
+#define NLDLY 0
+#define CRDLY 0
+#define BSDLY 0
+#define VTDLY 0
+#define BS0 0
+#define BS1 0
+#define CR0 0
+#define CR1 0
+#define CR2 0
+#define CR3 0
+#define FF0 0
+#define FF1 0
+#define NL0 0
+#define NL1 0
+#define TAB1 0
+#define TAB2 0
+
+// NetBSD requires a few more
+#ifdef __NetBSD__
+#define TABDLY 0
+#define TAB0 0
+#define TAB3 0
+#endif // NetBSD
+
+#endif // OpenBSD || NetBSD
 
 // symbolic constants for use as subscripts for the array c_cc
 
@@ -168,3 +197,4 @@ int scalanative_termios_tcooff() { return TCOOFF; }
 int scalanative_termios_tcoon() { return TCOON; }
 
 #endif // Unix or Mac OS
+#endif

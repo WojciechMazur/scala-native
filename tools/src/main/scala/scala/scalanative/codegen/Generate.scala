@@ -12,7 +12,7 @@ import scala.scalanative.linker.{
 import scala.scalanative.build.Logger
 
 // scalafmt: { maxColumn = 120}
-object Generate {
+private[codegen] object Generate {
   private implicit val pos: nir.SourcePosition = nir.SourcePosition.NoPosition
   private implicit val scopeId: nir.ScopeId = nir.ScopeId.TopLevel
   import Impl._
@@ -300,7 +300,6 @@ object Generate {
           val arr = nir.Val.Local(fresh(), ObjectArray)
 
           def unwind = unwindProvider()
-
           Seq(nir.Inst.Label(fresh(), Seq(argc, argv))) ++
             genGcInit(unwindProvider) ++
             genClassInitializersCalls(unwindProvider) ++
@@ -315,7 +314,7 @@ object Generate {
                 nir.Op.Call(entryMainTy, entryMainMethod, Seq(arr)),
                 unwind
               ),
-              nir.Inst.Let(nir.Op.Call(RuntimeLoopSig, RuntimeLoop, Seq(rt)), unwind)
+              nir.Inst.Let(nir.Op.Call(RuntimeOnShutdownSig, RuntimeOnShutdown, Seq(rt)), unwind)
             )
         }
       )
@@ -332,7 +331,7 @@ object Generate {
         LoadModuleSig
       )
       val LoadModule = nir.Val.Global(LoadModuleDecl.name, nir.Type.Ptr)
-      val useSynchronizedAccessors = meta.config.multithreadingSupport
+      val useSynchronizedAccessors = meta.platform.isMultithreadingEnabled
       if (useSynchronizedAccessors) {
         buf += LoadModuleDecl
       }
@@ -616,7 +615,7 @@ object Generate {
   }
 
   private object Impl {
-    val rttiModule = nir.Global.Top("java.lang.rtti$")
+    val rttiModule = nir.Global.Top("scala.scalanative.runtime.rtti$")
 
     val ObjectArray = nir.Type.Ref(nir.Global.Top("scala.scalanative.runtime.ObjectArray"))
 
@@ -626,9 +625,10 @@ object Generate {
       nir.Sig.Method("init", Seq(nir.Type.Int, nir.Type.Ptr, nir.Type.Array(nir.Rt.String)))
     )
     val RuntimeInit = nir.Val.Global(RuntimeInitName, nir.Type.Ptr)
-    val RuntimeLoopSig = nir.Type.Function(Seq(Runtime), nir.Type.Unit)
-    val RuntimeLoopName = Runtime.name.member(nir.Sig.Method("loop", Seq(nir.Type.Unit)))
-    val RuntimeLoop = nir.Val.Global(RuntimeLoopName, nir.Type.Ptr)
+    val RuntimeOnShutdownSig = nir.Type.Function(Seq(Runtime), nir.Type.Unit)
+    val RuntimeOnShutdownName = Runtime.name
+      .member(nir.Sig.Method("onShutdown", Seq(nir.Type.Unit)))
+    val RuntimeOnShutdown = nir.Val.Global(RuntimeOnShutdownName, nir.Type.Ptr)
 
     val LibraryInitName = extern("ScalaNativeInit")
     val LibraryInitSig = nir.Type.Function(Seq.empty, nir.Type.Int)
@@ -682,15 +682,17 @@ object Generate {
       nir.Global.Member(nir.Global.Top("__"), nir.Sig.Extern(id))
   }
 
-  val depends: Seq[nir.Global] = Seq(
-    ObjectArray.name,
-    Runtime.name,
-    RuntimeInit.name,
-    RuntimeLoop.name,
-    RuntimeExecuteUEH,
-    JavaThread,
-    JavaThreadCurrentThread,
-    JavaThreadGetUEH,
-    JavaThreadUEH
-  )
+  def depends(implicit platform: PlatformInfo): Seq[nir.Global] = {
+    Seq(
+      ObjectArray.name,
+      Runtime.name,
+      RuntimeInit.name,
+      RuntimeOnShutdown.name,
+      RuntimeExecuteUEH,
+      JavaThread,
+      JavaThreadCurrentThread,
+      JavaThreadGetUEH,
+      JavaThreadUEH
+    )
+  }
 }

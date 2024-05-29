@@ -3,7 +3,7 @@ package scala.scalanative.build
 import scala.scalanative.meta.LinktimeInfo
 
 /** Utility methods indicating the platform type */
-object Platform {
+private[scala] object Platform {
   final val isJVM = false
 
   /** Test for the platform type
@@ -41,6 +41,20 @@ object Platform {
    *    true if `FreeBSD`, false otherwise
    */
   lazy val isFreeBSD: Boolean = LinktimeInfo.isFreeBSD
+
+  /** Test for the platform type
+   *
+   *  @return
+   *    true if `OpenBSD`, false otherwise
+   */
+  lazy val isOpenBSD: Boolean = LinktimeInfo.isOpenBSD
+
+  /** Test for the platform type
+   *
+   *  @return
+   *    true if `NetBSD`, false otherwise
+   */
+  lazy val isNetBSD: Boolean = LinktimeInfo.isNetBSD
 
   /** Test for the target type
    *

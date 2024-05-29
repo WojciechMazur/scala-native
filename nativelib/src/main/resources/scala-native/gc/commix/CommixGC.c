@@ -14,18 +14,14 @@
 #include "Constants.h"
 #include "Settings.h"
 #include "GCThread.h"
-#include "WeakRefGreyList.h"
+#include "WeakReferences.h"
 #include "Sweeper.h"
 #include "immix_commix/Synchronizer.h"
 
 #include "shared/Parsing.h"
 
-#ifdef SCALANATIVE_MULTITHREADING_ENABLED
-#endif
 #include "MutatorThread.h"
 #include <stdatomic.h>
-
-void scalanative_GC_collect();
 
 void scalanative_afterexit() {
 #ifdef ENABLE_GC_STATS
@@ -45,7 +41,6 @@ NOINLINE void scalanative_GC_init() {
     Heap_Init(&heap, Settings_MinHeapSize(), Settings_MaxHeapSize());
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
     Synchronizer_init();
-    weakRefsHandlerThread = GCThread_WeakThreadsHandler_Start();
 #endif
     MutatorThreads_init();
     MutatorThread_init((word_t **)dummy); // approximate stack bottom
@@ -55,45 +50,50 @@ NOINLINE void scalanative_GC_init() {
 #endif
 }
 
-INLINE void *scalanative_GC_alloc(void *info, size_t size) {
+INLINE void *scalanative_GC_alloc(Rtti *info, size_t size) {
     size = MathUtils_RoundToNextMultiple(size, ALLOCATION_ALIGNMENT);
+
     assert(size % ALLOCATION_ALIGNMENT == 0);
 
-    void **alloc;
+    Object *alloc;
     if (size >= LARGE_BLOCK_SIZE) {
-        alloc = (void **)LargeAllocator_Alloc(&heap, size);
+        alloc = (Object *)LargeAllocator_Alloc(&heap, size);
     } else {
-        alloc = (void **)Allocator_Alloc(&heap, size);
+        alloc = (Object *)Allocator_Alloc(&heap, size);
     }
-
-    *alloc = info;
+    alloc->rtti = info;
     return (void *)alloc;
 }
 
-INLINE void *scalanative_GC_alloc_small(void *info, size_t size) {
+INLINE void *scalanative_GC_alloc_small(Rtti *info, size_t size) {
     size = MathUtils_RoundToNextMultiple(size, ALLOCATION_ALIGNMENT);
 
-    void **alloc = (void **)Allocator_Alloc(&heap, size);
-    *alloc = info;
+    Object *alloc = (Object *)Allocator_Alloc(&heap, size);
+    alloc->rtti = info;
     return (void *)alloc;
 }
 
-INLINE void *scalanative_GC_alloc_large(void *info, size_t size) {
+INLINE void *scalanative_GC_alloc_large(Rtti *info, size_t size) {
     size = MathUtils_RoundToNextMultiple(size, ALLOCATION_ALIGNMENT);
 
-    void **alloc = (void **)LargeAllocator_Alloc(&heap, size);
-    *alloc = info;
+    Object *alloc = (Object *)LargeAllocator_Alloc(&heap, size);
+    alloc->rtti = info;
     return (void *)alloc;
 }
-
-INLINE void *scalanative_GC_alloc_atomic(void *info, size_t size) {
-    return scalanative_GC_alloc(info, size);
+INLINE void *scalanative_GC_alloc_array(Rtti *info, size_t length,
+                                        size_t stride) {
+    size_t size = info->size + length * stride;
+    ArrayHeader *alloc = (ArrayHeader *)scalanative_GC_alloc(info, size);
+    alloc->length = length;
+    alloc->stride = stride;
+    return (void *)alloc;
 }
 
 INLINE void scalanative_GC_collect() { Heap_Collect(&heap); }
 
-INLINE void scalanative_GC_register_weak_reference_handler(void *handler) {
-    WeakRefGreyList_SetHandler(handler);
+INLINE void scalanative_GC_set_weak_references_collected_callback(
+    WeakReferencesCollectedCallback callback) {
+    WeakReferences_SetGCFinishedCallback(callback);
 }
 
 /* Get the minimum heap size */
@@ -104,8 +104,8 @@ INLINE void scalanative_GC_register_weak_reference_handler(void *handler) {
 size_t scalanative_GC_get_init_heapsize() { return Settings_MinHeapSize(); }
 
 /* Get the maximum heap size */
-/* If the user has set a maximum heap size using the GC_MAXIMUM_HEAP_SIZE */
-/* environment variable,*/
+/* If the user has set a maximum heap size using the GC_MAXIMUM_HEAP_SIZE
+ * environment variable,*/
 /* then this size will be returned.*/
 /* Otherwise, the total size of the physical memory (guarded) will be returned*/
 size_t scalanative_GC_get_max_heapsize() {
@@ -133,7 +133,7 @@ static ThreadRoutineReturnType WINAPI ProxyThreadStartRoutine(void *args) {
 #else
 static ThreadRoutineReturnType ProxyThreadStartRoutine(void *args) {
 #endif
-    volatile word_t stackBottom = 1;
+    volatile word_t stackBottom = 0;
     stackBottom = (word_t)&stackBottom;
     WrappedFunctionCallArgs *wrapped = (WrappedFunctionCallArgs *)args;
     ThreadStartRoutine originalFn = wrapped->fn;

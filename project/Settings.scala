@@ -14,11 +14,10 @@ import ScriptedPlugin.autoImport._
 import com.jsuereth.sbtpgp.PgpKeys
 
 import scala.collection.mutable
-import scala.scalanative.build.Platform
-import Build.{crossPublish, crossPublishSigned}
 import MyScalaNativePlugin.isGeneratingForIDE
 
 import java.io.File
+import java.util.Locale
 
 object Settings {
   lazy val fetchScalaSource = taskKey[File](
@@ -45,6 +44,22 @@ object Settings {
           "This build requires JDK 8 or later. Aborting."
         )
       v
+    },
+    Global / onLoad ~= { prev =>
+      if (!scala.util.Properties.isWin) {
+        import java.nio.file._
+        val prePush = Paths.get(".git", "hooks", "pre-push")
+        Files.createDirectories(prePush.getParent)
+        Files.write(
+          prePush,
+          """#!/bin/sh
+          |set -eux
+          |CHECK_MODIFIED_ONLY=1 ./scripts/check-lint.sh
+          |""".stripMargin.getBytes()
+        )
+        prePush.toFile.setExecutable(true)
+      }
+      prev
     }
   )
 
@@ -167,7 +182,11 @@ object Settings {
       apiMappings += file("/modules/java.base") -> url(javaDocBaseURL),
       Compile / doc / sources := {
         val prev = (Compile / doc / sources).value
-        if (Platform.isWindows &&
+        val isWindows = System
+          .getProperty("os.name", "unknown")
+          .toLowerCase(Locale.ROOT)
+          .startsWith("windows")
+        if (isWindows &&
             sys.env.contains("CI") // Always present in GitHub Actions
         ) Nil
         else prev
@@ -182,12 +201,11 @@ object Settings {
   // MiMa
   lazy val mimaSettings = Seq(
     mimaFailOnNoPrevious := false,
-    mimaBinaryIssueFilters ++= BinaryIncompatibilities.moduleFilters(
-      name.value
-    ),
+    mimaBinaryIssueFilters ++= BinaryIncompatibilities.moduleFilters
+      .getOrElse(name.value, Nil),
     mimaPreviousArtifacts ++= {
       // The previous releases of Scala Native with which this version is binary compatible.
-      val binCompatVersions = Set.empty
+      val binCompatVersions = 0.to(1).map(v => s"0.5.$v").toSet
       binCompatVersions
         .map { version =>
           ModuleID(organization.value, moduleName.value, version)
@@ -582,51 +600,8 @@ object Settings {
     publishSettings(None),
     mavenPublishSettings,
     exportJars := true,
-    crossPublishSettings
+    scalacOptions --= Seq("-deprecation", "-Xfatal-warnings")
   )
-
-  lazy val crossPublishSettings = Def.settings(
-    crossPublish := crossPublishProject(publish).value,
-    crossPublishSigned := crossPublishProject(publishSigned).value
-  )
-
-  /** Builds a given project across all crossScalaVersion values. It does not
-   *  modify the value of scalaVersion outside of it's scope. This allows to
-   *  build multiple projects in parallel.
-   */
-  def crossPublishProject(publishKey: TaskKey[Unit]) = Def.task {
-    val currentVersion = scalaVersion.value
-    val binVersion = CrossVersion.binaryScalaVersion(currentVersion)
-    val s = state.value
-    val log = s.log
-    val extracted = sbt.Project.extract(s)
-    val id = thisProjectRef.value.project
-    val selfRef = thisProjectRef.value
-    val _ = crossScalaVersions.value.foreach {
-      case `currentVersion` =>
-        log.info(
-          s"Skip publish $id ${currentVersion} - it should be already published"
-        )
-      case crossVersion =>
-        log.info(s"Try publish $id ${crossVersion}")
-        val (_, result) = sbt.Project
-          .runTask(
-            selfRef / publishKey,
-            state = extracted.appendWithoutSession(
-              Build.allMultiScalaProjects
-                .map(
-                  _.forBinaryVersion(binVersion) / scalaVersion := crossVersion
-                ),
-              s
-            )
-          )
-          .get
-        result.toEither match {
-          case Left(failure) => throw new RuntimeException(failure)
-          case Right(_)      => System.gc()
-        }
-    }
-  }
 
   lazy val sbtPluginSettings = Def.settings(
     commonSettings,
@@ -699,7 +674,8 @@ object Settings {
         case (_, path) => !ignoredExtensions.exists(path.endsWith(_))
       }
     },
-    exportJars := true
+    exportJars := true,
+    mimaPreviousArtifacts := Set.empty // No bytecode, so no point to check MiMa
   )
   lazy val commonJavalibSettings = Def.settings(
     recompileAllOrNothingSettings,
@@ -738,7 +714,6 @@ object Settings {
   def commonScalalibSettings(libraryName: String): Seq[Setting[_]] = {
     Def.settings(
       version := scalalibVersion(scalaVersion.value, nativeVersion),
-      crossPublishSettings,
       mavenPublishSettings,
       disabledDocsSettings,
       recompileAllOrNothingSettings,
@@ -760,6 +735,7 @@ object Settings {
         scalaNativeCompilerOptions(
           s"positionRelativizationPaths:${crossTarget.value / "patched"};${(fetchScalaSource / artifactPath).value}"
         ),
+      scalacOptions --= Seq("-deprecation", "-Xfatal-warnings"),
       // Scala.js original comment modified to clarify issue is Scala.js.
       /* Work around for https://github.com/scala-js/scala-js/issues/2649
        * We would like to always use `update`, but
@@ -789,7 +765,11 @@ object Settings {
         val report = (fetchScalaSource / update).value
         lazy val lm = {
           import sbt.librarymanagement.ivy._
-          val ivyConfig = InlineIvyConfiguration().withLog(s.log)
+          val ivyConfig = InlineIvyConfiguration()
+            .withLog(s.log)
+            .withResolvers(
+              resolvers.value.toVector ++ InlineIvyConfiguration().resolvers
+            )
           IvyDependencyResolution(ivyConfig)
         }
         lazy val scalaLibSourcesJar = lm
@@ -849,6 +829,16 @@ object Settings {
         def listFilesInOrder(patterns: Glob*) =
           patterns.flatMap(fileTree.list(_))
 
+          /* Exclude files coming from Scala's `library-aux` directory, as they are not
+           * meant to be compiled. They are part of the source jar since Scala 2.13.14.
+           */
+        val ignoredSourceFiles = Set(
+          "Any.scala",
+          "AnyRef.scala",
+          "Singleton.scala",
+          "Nothing.scala",
+          "Null.scala"
+        ).map(java.nio.file.Paths.get("scala", _))
         var failedToApplyPatches = false
         for {
           srcDir <- sourceDirectories
@@ -856,6 +846,7 @@ object Settings {
           scalaGlob = srcDir.toGlob / ** / "*.scala"
           patchGlob = srcDir.toGlob / ** / "*.scala.patch"
           (sourcePath, _) <- listFilesInOrder(scalaGlob, patchGlob)
+          if !ignoredSourceFiles.exists(sourcePath.endsWith(_))
           path = normPath(sourcePath.toFile).substring(normSrcDir.length)
         } {
           def addSource(path: String)(optSource: => Option[File]): Unit = {

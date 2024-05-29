@@ -11,6 +11,7 @@ import scalanative.meta.LinktimeInfo._
  */
 
 @extern
+@define("__SCALANATIVE_POSIX_SYS_UN")
 object un {
   type _108 = Nat.Digit3[Nat._1, Nat._0, Nat._8]
 
@@ -35,7 +36,7 @@ object unOps {
 
   @resolvedAtLinktime
   def useSinXLen = !isLinux &&
-    (isMac || isFreeBSD)
+    (isMac || isFreeBSD || isOpenBSD)
 
   implicit class sockaddr_unOps(val ptr: Ptr[sockaddr_un]) extends AnyVal {
     def sun_len: uint8_t = if (!useSinXLen) {

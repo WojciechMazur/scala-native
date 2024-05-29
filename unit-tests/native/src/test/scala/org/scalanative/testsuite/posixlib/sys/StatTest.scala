@@ -84,7 +84,8 @@ class StatTest {
       )
 
       val expectedRdev =
-        if (!LinktimeInfo.isFreeBSD) 0.toUSize // Linux, macOS
+        if (!LinktimeInfo.isFreeBSD && !LinktimeInfo.isNetBSD)
+          0.toUSize // Linux, macOS
         else ULong.MaxValue.toUSize
 
       assertEquals(
@@ -253,11 +254,15 @@ class StatTest {
         stat.S_ISDIR(dirStatFromPath.st_mode)
       )
 
-      assertEquals(
-        s"st_rdev must be ${expectedRdev} for dir file",
-        expectedRdev,
-        dirStatFromPath.st_rdev
-      )
+      /* OpenBSD returns some vlaue as st_rdev for directory,
+       * which seems to be related to inode => we can't predict it */
+      if (!LinktimeInfo.isOpenBSD) {
+        assertEquals(
+          s"st_rdev must be ${expectedRdev} for dir file",
+          expectedRdev,
+          dirStatFromPath.st_rdev
+        )
+      }
 
       assert(
         dirStatFromPath.st_nlink.toInt >= 2

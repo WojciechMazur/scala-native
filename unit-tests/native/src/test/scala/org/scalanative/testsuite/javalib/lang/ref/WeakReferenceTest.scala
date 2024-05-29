@@ -28,22 +28,22 @@ class WeakReferenceTest {
     )
   }
 
-  @noinline def allocWeakRef(
+  @nooptimize @noinline def allocWeakRef(
       referenceQueue: ReferenceQueue[A]
   ): WeakReference[A] = {
     var a = A()
     val weakRef = new WeakReference(a, referenceQueue)
-    assertEquals("get() should return object reference", weakRef.get(), A())
+    assertEquals("get() should return object reference", weakRef.get(), a)
     a = null
     weakRef
   }
 
-  @noinline def allocSubclassedWeakRef(
+  @nooptimize @noinline def allocSubclassedWeakRef(
       referenceQueue: ReferenceQueue[A]
   ): SubclassedWeakRef[A] = {
     var a = A()
     val weakRef = new SubclassedWeakRef(a, referenceQueue)
-    assertEquals("get() should return object reference", weakRef.get(), A())
+    assertEquals("get() should return object reference", weakRef.get(), a)
     a = null
     weakRef
   }
@@ -54,7 +54,7 @@ class WeakReferenceTest {
       sys.env.contains("CI") && Platform.isWindows
     )
 
-    def assertEventuallyIsCollected(
+    @noinline def assertEventuallyIsCollected(
         clue: String,
         ref: WeakReference[_],
         deadline: Long
@@ -74,8 +74,8 @@ class WeakReferenceTest {
             locally {
               val _ = Seq.fill(1000)(new Object {})
             }
+            System.gc()
             Thread.sleep(200)
-            GC.collect()
             assertEventuallyIsCollected(clue, ref, deadline)
           } else {
             fail(
@@ -92,7 +92,7 @@ class WeakReferenceTest {
     val weakRef3 = allocSubclassedWeakRef(refQueue)
     val weakRefList = List(weakRef1, weakRef2, weakRef3)
 
-    GC.collect()
+    System.gc()
     def newDeadline() = System.currentTimeMillis() + 60 * 1000
     assertEventuallyIsCollected("weakRef1", weakRef1, deadline = newDeadline())
     assertEventuallyIsCollected("weakRef2", weakRef2, deadline = newDeadline())

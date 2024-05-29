@@ -1,6 +1,7 @@
+#if defined(SCALANATIVE_COMPILE_ALWAYS) || defined(__SCALANATIVE_C_COMPLEX)
 #include <complex.h>
 
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(__MINGW32__)
 typedef _Fcomplex FloatComplex;
 typedef _Dcomplex DoubleComplex;
 #else
@@ -201,3 +202,4 @@ float scalanative_crealf(float snfc[2]) { return crealf(toFloatComplex(snfc)); }
 double scalanative_creal(double sndc[2]) {
     return creal(toDoubleComplex(sndc));
 }
+#endif

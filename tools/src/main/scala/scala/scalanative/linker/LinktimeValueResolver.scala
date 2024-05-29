@@ -5,7 +5,7 @@ import scala.collection.mutable
 import scala.scalanative.build._
 import scala.scalanative.util.unsupported
 
-trait LinktimeValueResolver { self: Reach =>
+private[linker] trait LinktimeValueResolver { self: Reach =>
 
   import LinktimeValueResolver._
 
@@ -28,7 +28,9 @@ trait LinktimeValueResolver { self: Reach =>
         conf.gc == GC.Commix
       },
       s"$linktimeInfo.is32BitPlatform" -> conf.is32BitPlatform,
-      s"$linktimeInfo.asanEnabled" -> conf.asan,
+      s"$linktimeInfo.enabledSanitizer" -> conf.sanitizer
+        .map(_.name)
+        .getOrElse(""),
       s"$linktimeInfo.isMsys" -> Platform.isMsys,
       s"$linktimeInfo.isCygwin" -> Platform.isCygwin,
       s"$linktimeInfo.target.arch" -> triple.arch,

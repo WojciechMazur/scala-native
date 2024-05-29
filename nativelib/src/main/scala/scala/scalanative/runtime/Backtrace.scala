@@ -15,8 +15,11 @@ import scala.annotation.tailrec
 
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import scala.scalanative.meta.LinktimeInfo.isMultithreadingEnabled
+import java.util.HashMap
+import java.util.AbstractMap
 
-object Backtrace {
+private[runtime] object Backtrace {
   private sealed trait Format
   private case object MACHO extends Format
   private case object ELF extends Format
@@ -38,7 +41,9 @@ object Backtrace {
   private val MACHO_MAGIC = "cffaedfe"
   private val ELF_MAGIC = "7f454c46"
 
-  private val cache = new ConcurrentHashMap[String, Option[DwarfInfo]]
+  private val cache: AbstractMap[String, Option[DwarfInfo]] =
+    if (isMultithreadingEnabled) new ConcurrentHashMap
+    else new HashMap
   case class Position(filename: String, line: Int)
   object Position {
     final val empty = Position(null, 0)

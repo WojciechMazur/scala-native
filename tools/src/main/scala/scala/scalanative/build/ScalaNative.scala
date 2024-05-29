@@ -38,8 +38,9 @@ private[scalanative] object ScalaNative {
     dumpFile = "linked",
     forceQuickCheck = true
   )(Future {
-    val mtSupport = config.compilerConfig.multithreadingSupport.toString()
-    val linkingMsg = s"Linking (multithreading ${mtSupport})"
+    val mtSupport = config.compilerConfig.multithreading
+      .getOrElse("true, disable if not used")
+    val linkingMsg = s"Linking (multithreadingEnabled=${mtSupport})"
     config.logger.time(linkingMsg) {
       Link(config, entries)
     }
@@ -177,7 +178,7 @@ private[scalanative] object ScalaNative {
       log.info(
         s"Loaded ${serviceProvidersLoaded} service provider(s) for ${servicesFound} referenced service(s):"
       )
-      log.info(analysis.foundServiceProviders.asTable(config.noColor))
+      analysis.foundServiceProviders.asTable(config.noColor).foreach(log.info)
     }
 
     def showStats(): Unit = {

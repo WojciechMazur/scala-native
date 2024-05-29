@@ -1,7 +1,8 @@
+#if defined(SCALANATIVE_COMPILE_ALWAYS) || defined(__SCALANATIVE_POSIX_NETDB)
 #ifdef _WIN32
-#include <WinSock2.h>
+#include <winsock2.h>
 #include <ws2tcpip.h> // socklen_t
-// #include <Winerror.h>
+// #include <winerror.h>
 #else // not _WIN32
 /* FreeBSD wants AF_INET, which is in <sys/socket.h>
  *
@@ -51,7 +52,8 @@ _Static_assert(offsetof(struct scalanative_addrinfo, ai_addrlen) ==
                    offsetof(struct addrinfo, ai_addrlen),
                "Unexpected offset: scalanative_addrinfo.ai_addrlen");
 
-#if !(defined(__APPLE__) || defined(__FreeBSD__) || defined(_WIN32))
+#if !(defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) ||     \
+      defined(_WIN32))
 // Linux, etc.
 
 _Static_assert(offsetof(struct scalanative_addrinfo, ai_addr) ==
@@ -70,7 +72,8 @@ _Static_assert(offsetof(struct scalanative_addrinfo, ai_canonname) ==
                    offsetof(struct addrinfo, ai_addr),
                "Unexpected offset: BSD addrinfo ai_canonname fixup");
 
-#endif // (defined(__APPLE__) || defined(__FreeBSD__) || defined(_WIN32))
+#endif // (defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) ||
+       // defined(_WIN32))
 
 _Static_assert(offsetof(struct scalanative_addrinfo, ai_next) ==
                    offsetof(struct addrinfo, ai_next),
@@ -99,9 +102,21 @@ int scalanative_ai_numerichost() { return AI_NUMERICHOST; }
 
 int scalanative_ai_numericserv() { return AI_NUMERICSERV; }
 
-int scalanative_ai_v4mapped() { return AI_V4MAPPED; }
+int scalanative_ai_v4mapped() {
+#ifdef AI_V4MAPPED
+    return AI_V4MAPPED;
+#else
+    return 0;
+#endif
+}
 
-int scalanative_ai_all() { return AI_ALL; }
+int scalanative_ai_all() {
+#ifdef AI_ALL
+    return AI_ALL;
+#else
+    return 0;
+#endif
+}
 
 int scalanative_ai_addrconfig() { return AI_ADDRCONFIG; }
 
@@ -183,3 +198,4 @@ int scalanative_eai_system() { return -1; }
 int scalanative_eai_overflow() { return -1; }
 
 #endif // _Win32
+#endif

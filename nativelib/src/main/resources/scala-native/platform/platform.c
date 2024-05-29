@@ -1,38 +1,55 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
+#include <windows.h>
 #else
 #include <sys/utsname.h>
 #endif
 
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 
 #ifdef __APPLE__
 #include <sys/sysctl.h>
 #endif
 
-int scalanative_platform_is_freebsd() {
+bool scalanative_platform_is_freebsd() {
 #if defined(__FreeBSD__)
-    return 1;
+    return true;
 #else
-    return 0;
+    return false;
 #endif
 }
 
-int scalanative_platform_is_linux() {
+bool scalanative_platform_is_openbsd() {
+#if defined(__OpenBSD__)
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool scalanative_platform_is_netbsd() {
+#if defined(__NetBSD__)
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool scalanative_platform_is_linux() {
 #ifdef __linux__
-    return 1;
+    return true;
 #else
-    return 0;
+    return false;
 #endif
 }
 
-int scalanative_platform_is_mac() {
+bool scalanative_platform_is_mac() {
 #ifdef __APPLE__
-    return 1;
+    return true;
 #else
-    return 0;
+    return false;
 #endif
 }
 
@@ -77,26 +94,26 @@ int scalanative_platform_probe_mac_x8664_is_arm64() {
     return translated;
 }
 
-int scalanative_platform_is_windows() {
+bool scalanative_platform_is_windows() {
 #ifdef _WIN32
-    return 1;
+    return true;
 #else
-    return 0;
+    return false;
 #endif
 }
 
-int scalanative_platform_is_msys() {
+bool scalanative_platform_is_msys() {
 #ifdef __MSYS__
-    return 1;
+    return true;
 #else
-    return 0;
+    return false;
 #endif
 }
 
 // See http://stackoverflow.com/a/4181991
-int scalanative_little_endian() {
+bool scalanative_little_endian() {
     int n = 1;
-    return (*(char *)&n);
+    return (bool)(*(char *)&n);
 }
 
 void scalanative_set_os_props(void (*add_prop)(const char *, const char *)) {

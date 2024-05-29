@@ -16,8 +16,9 @@ import scala.scalanative.runtime.NativeThread.State._
 import scala.scalanative.libc.stdatomic.{AtomicLongLong, atomic_thread_fence}
 import scala.scalanative.libc.stdatomic.memory_order._
 import scala.scalanative.runtime.UnsupportedFeature
-
-import scala.scalanative.runtime.JoinNonDaemonThreads
+import scala.scalanative.runtime.javalib.Proxy
+import scala.concurrent.duration._
+import scala.scalanative.concurrent.NativeExecutionContext
 
 class Thread private[lang] (
     @volatile private var name: String,
@@ -249,7 +250,6 @@ class Thread private[lang] (
 
   def start(): Unit = synchronized {
     if (!isMultithreadingEnabled) UnsupportedFeature.threads()
-    if (!isDaemon()) JoinNonDaemonThreads.registerExitHook
     if (isVirtual())
       throw new UnsupportedOperationException(
         "VirtualThreads are not yet supported"
@@ -495,14 +495,15 @@ object Thread {
   final val MIN_PRIORITY = 1
   final val NORM_PRIORITY = 5
 
-  final val MainThread = new Thread(
-    name = "main",
-    platformCtx = PlatformThreadContext(
-      group = new ThreadGroup(ThreadGroup.System, "main"),
-      task = null: Runnable,
-      stackSize = 0L
-    )
-  ) {
+  object MainThread
+      extends Thread(
+        name = "main",
+        platformCtx = PlatformThreadContext(
+          group = new ThreadGroup(ThreadGroup.System, "main"),
+          task = null: Runnable,
+          stackSize = 0L
+        )
+      ) {
     override protected val tid: scala.Long = 0L
     inheritableThreadLocals = new ThreadLocal.Values()
     platformCtx.nativeThread = nativeCompanion.create(this, 0L)
@@ -557,18 +558,35 @@ object Thread {
       throw new IllegalArgumentException("millis must be >= 0")
     if (nanos < 0 || nanos > 999999)
       throw new IllegalArgumentException("nanos value out of range")
-
     val nativeThread = nativeCompanion.currentNativeThread()
-    if (millis == 0) nativeThread.sleepNanos(nanos)
-    else
-      nativeThread.sleep(nanos match {
-        case 0 => millis
-        case _ => millis + 1
-      })
+
+    def doSleep(millis: scala.Long, nanos: Int) = {
+      if (millis == 0) nativeThread.sleepNanos(nanos)
+      else
+        nativeThread.sleep(nanos match {
+          case 0 => millis
+          case _ => millis + 1
+        })
+    }
+
+    if (isMultithreadingEnabled) doSleep(millis, nanos)
+    else if (NativeExecutionContext.queue.nonEmpty) {
+      val now = System.nanoTime()
+      val timeout = millis.millis + nanos.nanos
+      Proxy.stealWork(timeout)
+      val deadline = now + timeout.toNanos
+      val remainingNanos = deadline - System.nanoTime()
+      if (remainingNanos > 0) {
+        doSleep(remainingNanos / 1000000, (remainingNanos % 1000000).toInt)
+      }
+    } else doSleep(millis, nanos)
+
     if (interrupted()) throw new InterruptedException()
   }
 
-  @alwaysinline def `yield`(): Unit = nativeCompanion.yieldThread()
+  @alwaysinline def `yield`(): Unit =
+    if (isMultithreadingEnabled) nativeCompanion.yieldThread()
+    else Proxy.stealWork(1)
 
   // Since JDK 19
   @throws[InterruptedException](
@@ -600,10 +618,14 @@ object Thread {
   // Counter used to generate thread's ID, 0 resevered for main
   sealed abstract class Numbering {
     final protected var cursor = 1L
-    final protected val cursorRef = new AtomicLongLong(
+    @inline def cursorRef = new AtomicLongLong(
       fromRawPtr(classFieldRawPtr(this, "cursor"))
     )
-    def next(): scala.Long = cursorRef.fetchAdd(1L)
+    def next(): scala.Long =
+      if (isMultithreadingEnabled) cursorRef.fetchAdd(1L)
+      else
+        try cursor
+        finally cursor += 1L
   }
   object ThreadNamesNumbering extends Numbering
   object ThreadIdentifiers extends Numbering
@@ -615,8 +637,7 @@ private[java] case class PlatformThreadContext(
     task: Runnable,
     stackSize: scala.Long,
     @volatile var priority: Int = Thread.NORM_PRIORITY,
-    @volatile var daemon: scala.Boolean = false,
-    var isFillingStackTrace: scala.Boolean = false
+    @volatile var daemon: scala.Boolean = false
 ) {
   var nativeThread: NativeThread = _
 

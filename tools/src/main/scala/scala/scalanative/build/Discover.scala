@@ -15,7 +15,10 @@ object Discover {
 
   /** Compilation mode name from SCALANATIVE_MODE env var or default. */
   def mode(): Mode =
-    getenv("SCALANATIVE_MODE").map(build.Mode(_)).getOrElse(build.Mode.default)
+    getenv("SCALANATIVE_MODE")
+      .filterNot(_.isEmpty())
+      .map(build.Mode(_))
+      .getOrElse(build.Mode.default)
 
   def optimize(): Boolean =
     getenv("SCALANATIVE_OPTIMIZE").forall(_.toBoolean)
@@ -23,11 +26,17 @@ object Discover {
   /** LTO variant used for release mode from SCALANATIVE_LTO env var or default.
    */
   def LTO(): LTO =
-    getenv("SCALANATIVE_LTO").map(build.LTO(_)).getOrElse(build.LTO.None)
+    getenv("SCALANATIVE_LTO")
+      .filterNot(_.isEmpty())
+      .map(build.LTO(_))
+      .getOrElse(build.LTO.None)
 
   /** GC variant used from SCALANATIVE_GC env var or default. */
   def GC(): GC =
-    getenv("SCALANATIVE_GC").map(build.GC(_)).getOrElse(build.GC.default)
+    getenv("SCALANATIVE_GC")
+      .filterNot(_.isEmpty())
+      .map(build.GC(_))
+      .getOrElse(build.GC.default)
 
   /** Use the clang binary on the path or via LLVM_BIN env var. */
   def clang(): Path = {
@@ -43,6 +52,12 @@ object Discover {
     path
   }
 
+  /** Use llvm-config binary on the path or via LLVM_BIN env var */
+  private lazy val llvmConfigCLI: String =
+    tryDiscover("llvm-config", "LLVM_BIN")
+      .map(_.toAbsolutePath.toString)
+      .getOrElse("llvm-config")
+
   private def filterExisting(paths: Seq[String]): Seq[String] =
     paths.filter(new File(_).exists())
 
@@ -50,7 +65,7 @@ object Discover {
   def compileOptions(): Seq[String] = {
     val includes = {
       val llvmIncludeDir =
-        Try(Process("llvm-config --includedir").lineStream_!.toSeq)
+        Try(Process(s"$llvmConfigCLI --includedir").lineStream_!.toSeq)
           .getOrElse(Seq.empty)
       // dirs: standard, macports, brew M1 arm
       val includeDirs =
@@ -75,7 +90,7 @@ object Discover {
   def linkingOptions(): Seq[String] = {
     val libs = {
       val llvmLibDir =
-        Try(Process("llvm-config --libdir").lineStream_!.toSeq)
+        Try(Process(s"$llvmConfigCLI --libdir").lineStream_!.toSeq)
           .getOrElse(Seq.empty)
 
       val libDirs =
@@ -199,7 +214,7 @@ object Discover {
           .map(envPath => s"or via '$envPath' environment variable")
           .getOrElse("")
         throw new BuildException(
-          s"""'$binaryName' not found in PATH$envMessage.
+          s"""'$binaryName' not found in PATH $envMessage.
             |Please refer to ($docSetup)""".stripMargin
         )
       }
@@ -270,7 +285,7 @@ object Discover {
     }
   }
 
-  class ContextBasedCache[Ctx, Key, Value <: AnyRef] {
+  private class ContextBasedCache[Ctx, Key, Value <: AnyRef] {
     private val cachedValues = scala.collection.mutable.Map.empty[Key, Value]
     private var lastContext: Ctx = _
     def apply[T <: Value: ClassTag](

@@ -2,11 +2,12 @@ package scala.scalanative.nscplugin
 
 import dotty.tools.dotc.plugins._
 import dotty.tools.dotc.report
-import dotty.tools.dotc.core.Contexts.NoContext
+import dotty.tools.dotc.core.Contexts.ContextBase
 import java.net.URI
 import java.net.URISyntaxException
 import dotty.tools.dotc.core.Contexts.Context
 import java.nio.file.Paths
+import scala.annotation.nowarn
 
 class ScalaNativePlugin extends StandardPlugin:
   val name: String = "scalanative"
@@ -30,6 +31,7 @@ class ScalaNativePlugin extends StandardPlugin:
       |     If none of the patches matches path would be relative to -sourcepath if defined or -sourceroot otherwise.
       """.stripMargin)
 
+  @nowarn("cat=deprecation")
   override def init(options: List[String]): List[PluginPhase] = {
     val genNirSettings = options
       .foldLeft(GenNIR.Settings()) {
@@ -45,7 +47,7 @@ class ScalaNativePlugin extends StandardPlugin:
               .filter(_.isAbsolute())).distinct.sortBy(-_.getNameCount())
           )
         case (config, s"mapSourceURI:${mapping}") =>
-          given Context = NoContext
+          given Context = ContextBase().initialCtx
           report.warning("'mapSourceURI' is deprecated, it's ignored.")
           config
         case (config, _) => config

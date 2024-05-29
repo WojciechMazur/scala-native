@@ -5,6 +5,7 @@ on:
   schedule:
     # Every day at 2 AM UTC
     - cron: "0 2 * * *"
+  workflow_dispatch:
 concurrency:
   group: linux-${{ github.head_ref }}-${{ github.event_name }}
   cancel-in-progress: true
@@ -15,14 +16,14 @@ jobs:
   # Test tools, if any of them fails, further tests will not start.
   tests-tools:
     name: Compile & test tools
-    if: "github.event_name == 'pull_request' || ((github.event_name == 'schedule' || github.event_name == 'workflow_call') && github.repository == 'scala-native/scala-native')"
+    if: "github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || ((github.event_name == 'schedule' || github.event_name == 'workflow_call') && github.repository == 'scala-native/scala-native')"
     runs-on: ubuntu-22.04
     env:
       ENABLE_EXPERIMENTAL_COMPILER: true
     strategy:
       fail-fast: false
       matrix:
-        scala: [2.12, 2.13, 3, 3-next]
+        scala: [2.12, 2.13, 3]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/linux-setup-env
@@ -77,26 +78,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scala: [3]
-        gc: [none, boehm, immix, commix]
-        include:
-          - scala: 3-next
-            gc: immix
-          - scala: 2.13
-            gc: immix
-          - scala: 2.12
-            gc: immix
+        scala: [3, 2.13, 2.12, 3-next]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/linux-setup-env
         with:
           scala-version: ${{matrix.scala}}
+      - name: Test GC compilation
+        timeout-minutes: 15
+        run: sbt "test-gc ${{ matrix.scala }}"
       - name: Run tests
         timeout-minutes: 45
         env:
-          SCALANATIVE_GC: ${{ matrix.gc }}
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
-        run: sbt "test-runtime ${{ matrix.scala }}"
+        run: sbt "test-runtime ${{ matrix.scala }}"      
 
   test-runtime-ext:
     name: Test runtime extension
@@ -108,7 +103,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scala: [2.13, 3, 3-next]
+        scala: [2.13, 3]
         build-mode: [debug, release-fast]
         lto: [none, thin]
         gc: [boehm, immix, commix]
@@ -165,7 +160,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scala: [3, 2.13]
+        scala: [3]
         build-mode: [debug]
     steps:
       - uses: actions/checkout@v4
@@ -192,7 +187,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scala: [2.12, 3]
+        scala: [3]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/linux-setup-env
@@ -249,7 +244,7 @@ jobs:
 
         # Make sure that Scala partest denylisted tests contain only valid test names
       - name: Setup Scala-cli
-        uses: VirtusLab/scala-cli-setup@v1.1
+        uses: VirtusLab/scala-cli-setup@v1.3
 
       - name: Check partest disabled tests list
         # No partests support for Scala 3

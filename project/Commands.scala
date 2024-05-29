@@ -9,13 +9,12 @@ import ScriptedPlugin.autoImport._
 object Commands {
   lazy val values = Seq(
     testAll,
-    testSandboxGC,
+    testGC,
     testTools,
     testRuntime,
     testMima,
     testScripted,
     publishLocalDev,
-    publishRelease,
     publishReleaseForVersion
   )
 
@@ -27,16 +26,21 @@ object Commands {
   }
 
   // Compile and run the sandbox for each GC as a minimal check
-  lazy val testSandboxGC = projectVersionCommand("test-sandbox-gc") {
+  lazy val testGC = projectVersionCommand("test-gc") {
     case (version, state) =>
+      import scala.scalanative.build.GC
       val runs =
-        List(sandbox)
-          .map(_.forBinaryVersion(version).id)
-          .flatMap(id =>
-            List("none", "boehm", "immix", "commix").map(gc =>
-              s"set ThisBuild / nativeConfig ~= (_.withGC(scala.scalanative.build.GC.$gc)); $id/run"
-            )
+        for {
+          gc <- List(GC.none, GC.boehm, GC.immix, GC.commix)
+          (project, command) <- Map(
+            sandbox -> "run",
+            testInterface -> "test"
           )
+        } yield {
+          val projectId = project.forBinaryVersion(version).id
+          val selectGC = s"""scala.scalanative.build.GC("${gc.name}")"""
+          s"""set ${project.name}.forBinaryVersion("${version}")/nativeConfig ~= (_.withGC($selectGC)); $projectId/$command"""
+        }
       runs :::
         state
   }
@@ -182,23 +186,35 @@ object Commands {
 
   lazy val publishReleaseForVersion =
     projectVersionCommand("publish-release-for-version") {
-      case (version, state) =>
-        val scalaVersion = version match {
-          case "2.12" => ScalaVersions.scala212
-          case "2.13" => ScalaVersions.scala213
-          case "3"    => ScalaVersions.scala3PublishVersion
-          case _      => sys.error(s"Invalid Scala binary version: '$version'")
+      case (binVersion, state) =>
+        val (scalaVersion, crossScalaVersions) = binVersion match {
+          case "2.12" => ScalaVersions.scala212 -> ScalaVersions.crossScala212
+          case "2.13" => ScalaVersions.scala213 -> ScalaVersions.crossScala213
+          case "3" =>
+            ScalaVersions.scala3PublishVersion -> ScalaVersions.crossScala3
+          case _ => sys.error(s"Invalid Scala binary version: '$binVersion'")
         }
-        "clean" :: s"++$scalaVersion; publishSigned; crossPublishSigned" :: state
+        val publishCommand = "publishSigned"
+        val publishBaseVersion = s"++$scalaVersion; $publishCommand"
+        val publishCrossVersions = crossScalaVersions
+          .diff(scalaVersion :: Nil) // exclude already published base version
+          .toList
+          .map { crossVersion =>
+            Build.crossPublishedMultiScalaProjects
+              .map(_.forBinaryVersion(binVersion))
+              .map(project => s"${project.id}/$publishCommand")
+              .mkString(s"++ $crossVersion; all ", " ", "")
+          }
+        val crossPublish = ScalaVersions
+        val commandsToExecute =
+          "clean" :: publishBaseVersion :: publishCrossVersions
+
+        println(
+          s"Publish for Scala $binVersion would execute following commands:"
+        )
+        commandsToExecute.foreach(println)
+        println("")
+
+        commandsToExecute ::: state
     }
-
-  lazy val publishRelease = Command.command("publish-release") { state =>
-    import ScalaVersions._
-    val publishEachVersion = for {
-      version <- List(scala212, scala213, scala3PublishVersion)
-    } yield s"++$version; publishSigned; crossPublishSigned"
-
-    "clean" :: publishEachVersion ::: state
-  }
-
 }

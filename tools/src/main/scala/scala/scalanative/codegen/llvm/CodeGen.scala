@@ -159,7 +159,7 @@ object CodeGen {
       llvmIRGenerators ++ maybeBuildInfoGenerator
     }
 
-  object Impl {
+  private object Impl {
     import scala.scalanative.codegen.llvm.AbstractCodeGen
     def apply(
         env: Map[nir.Global, nir.Defn],
@@ -184,7 +184,7 @@ object CodeGen {
     ) extends AbstractCodeGen(env, Nil) {
       import meta.config
       val buildInfos: Map[String, Any] = Map(
-        "ASAN support" -> config.asan,
+        "Sanitizer" -> config.sanitizer.map(_.name).getOrElse("disabled"),
         "Debug metadata" -> config.sourceLevelDebuggingConfig.enabled,
         "Embed resources" -> config.embedResources,
         "GC" -> config.gc,
@@ -231,7 +231,9 @@ object CodeGen {
     }
   }
 
-  def depends(implicit platform: PlatformInfo): Seq[nir.Global] = {
+  private[scalanative] def depends(implicit
+      platform: PlatformInfo
+  ): Seq[nir.Global] = {
     val buf = mutable.UnrolledBuffer.empty[nir.Global]
     buf ++= Lower.depends
     buf ++= Generate.depends

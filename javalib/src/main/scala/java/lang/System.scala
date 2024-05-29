@@ -6,7 +6,9 @@ import java.util.{Collections, HashMap, Map, Properties, WindowsHelperMethods}
 import scala.scalanative.posix.pwdOps._
 import scala.scalanative.posix.{pwd, unistd}
 import scala.scalanative.meta.LinktimeInfo.isWindows
-import scala.scalanative.runtime.{GC, Intrinsics, Platform, time}
+import scala.scalanative.runtime.{Intrinsics, Platform}
+import scala.scalanative.runtime.javalib.Proxy
+import scala.scalanative.ffi.time
 import scala.scalanative.unsafe._
 import scala.scalanative.unsigned._
 import scala.scalanative.windows.FileApi._
@@ -83,7 +85,7 @@ object System {
   def setErr(err: PrintStream): Unit =
     this.err = err
 
-  def gc(): Unit = GC.collect()
+  def gc(): Unit = Proxy.GC_collect()
 }
 
 // Extract mutable fields to custom object allowing to skip allocations of unused features

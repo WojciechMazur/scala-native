@@ -3,7 +3,7 @@ package scala.scalanative.build
 import java.util.Locale
 
 /** Utility methods indicating the platform type */
-object Platform {
+private[scala] object Platform {
   final val isJVM = true
 
   private lazy val osUsed =
@@ -43,6 +43,20 @@ object Platform {
    *    true if `FreeBSD`, false otherwise
    */
   lazy val isFreeBSD: Boolean = osUsed.contains("freebsd")
+
+  /** Test for the platform type
+   *
+   *  @return
+   *    true if `OpenBSD`, false otherwise
+   */
+  lazy val isOpenBSD: Boolean = osUsed.contains("openbsd")
+
+  /** Test for the platform type
+   *
+   *  @return
+   *    true if `OpenBSD`, false otherwise
+   */
+  lazy val isNetBSD: Boolean = osUsed.contains("netbsd")
 
   /** Test for the target type
    *

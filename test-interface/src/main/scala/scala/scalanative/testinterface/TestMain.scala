@@ -63,6 +63,7 @@ object TestMain {
       System.err.println(usage)
       throw new IllegalArgumentException("One argument expected")
     }
+    println(s"start: ${args.head}")
 
     locally {
       val shouldSetupSignalHandlers = sys.env

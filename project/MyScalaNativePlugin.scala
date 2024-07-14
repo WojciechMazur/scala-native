@@ -149,10 +149,11 @@ object MyScalaNativePlugin extends AutoPlugin {
       nc.withCheck(true)
         .withCheckFatalWarnings(true)
         .withDump(true)
-        .withSourceLevelDebuggingConfig(_.enableAll)
+        // .withSourceLevelDebuggingConfig(_.enableAll)
         .withMultithreading(
-          multithreadingEnabledBySbtSysProps()
-            .orElse(nc.multithreading)
+          false
+          // multithreadingEnabledBySbtSysProps()
+          //   .orElse(nc.multithreading)
         )
     },
     inConfig(Compile) {

@@ -68,8 +68,10 @@ object TestMain {
       val shouldSetupSignalHandlers = sys.env
         .get("SCALANATIVE_TEST_DEBUG_SIGNALS")
         .exists(v => v.isEmpty() || v == "1")
-      if (shouldSetupSignalHandlers)
+      if (shouldSetupSignalHandlers) {
+          println("test debug signal=1")
         SignalConfig.setDefaultHandlers()
+      }
     }
 
     maybeSetPreferIPv4Stack()
@@ -87,13 +89,16 @@ object TestMain {
         sys.env
           .get("SCALANATIVE_TEST_PREFETCH_DEBUG_INFO")
           .exists(v => v.isEmpty() || v == "1")
-      if (shouldPrefetch)
+      if (shouldPrefetch) {
+        println("prefetch=1")
         new RuntimeException().fillInStackTrace().ensuring(_ != null)
+      }
     }
 
     bridge.start()
-
+    println("bridge started")
     val exitCode = nativeRPC.loop()
+    println(s"loop done=$exitCode")
     sys.exit(exitCode)
   }
 

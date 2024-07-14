@@ -139,6 +139,8 @@ jobs:
           # Temporaly excluded due to failures in linux-x86,
           # missing __mulodi4 symbol used in j.l.Math.addExact(Long,Long)
           # testsExt${{env.project-version}}/test;
+          SCALANATIVE_TEST_DEBUG_SIGNALS: 1
+          SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
           TEST_COMMAND: >
             set sandbox.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set tests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};

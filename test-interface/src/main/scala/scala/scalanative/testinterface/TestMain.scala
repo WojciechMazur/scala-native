@@ -69,7 +69,7 @@ object TestMain {
         .get("SCALANATIVE_TEST_DEBUG_SIGNALS")
         .exists(v => v.isEmpty() || v == "1")
       if (shouldSetupSignalHandlers) {
-          println("test debug signal=1")
+        println("test debug signal=1")
         SignalConfig.setDefaultHandlers()
       }
     }

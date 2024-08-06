@@ -84,6 +84,7 @@ jobs:
       matrix:
         arch: [linux-arm64, linux-x86]
         scala: [3]
+        gc: [immix, commix, boehm, none]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/linux-setup-env
@@ -115,6 +116,7 @@ jobs:
                   )};
 
               prev
+                .withGC(scalanative.build.GC.${{matrix.gc}})
                 .withTargetTriple(sys.env.get("CROSS_TRIPLE"))
                 .withCompileOptions(_ ++ sysRoot ++ List("-fuse-ld=lld"))
                 .withLinkingOptions(_ ++ sysRoot ++ List("-fuse-ld=lld", "-latomic"))
@@ -135,6 +137,7 @@ jobs:
 
       - name: Run tests
         env:
+          SCALANATIVE_GC: "${{matrix.gc}}"
           # Temporaly excluded due to failures in linux-x86,
           # missing __mulodi4 symbol used in j.l.Math.addExact(Long,Long)
           # testsExt${{env.project-version}}/test;
@@ -148,7 +151,8 @@ jobs:
 
             show sandbox${{env.project-version}}/nativeConfig;
 
-            test-gc ${{matrix.scala}};
+            sandbox${{env.project-version}}/run;
+            testInterface${{env.project-version}}/test;
             testsJVM${{env.project-version}}/test;
             tests${{env.project-version}}/test;
             junitTestOutputsNative${{env.project-version}}/test;

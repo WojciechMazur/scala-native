@@ -63,16 +63,13 @@ object TestMain {
       System.err.println(usage)
       throw new IllegalArgumentException("One argument expected")
     }
-    println(s"start: ${args.head}")
 
     locally {
       val shouldSetupSignalHandlers = sys.env
         .get("SCALANATIVE_TEST_DEBUG_SIGNALS")
         .exists(v => v.isEmpty() || v == "1")
-      if (shouldSetupSignalHandlers) {
-        println("test debug signal=1")
+      if (shouldSetupSignalHandlers)
         SignalConfig.setDefaultHandlers()
-      }
     }
 
     maybeSetPreferIPv4Stack()
@@ -90,16 +87,13 @@ object TestMain {
         sys.env
           .get("SCALANATIVE_TEST_PREFETCH_DEBUG_INFO")
           .exists(v => v.isEmpty() || v == "1")
-      if (shouldPrefetch) {
-        println("prefetch=1")
+      if (shouldPrefetch)
         new RuntimeException().fillInStackTrace().ensuring(_ != null)
-      }
     }
 
     bridge.start()
-    println("bridge started")
+
     val exitCode = nativeRPC.loop()
-    println(s"loop done=$exitCode")
     sys.exit(exitCode)
   }
 

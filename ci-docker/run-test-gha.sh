@@ -40,10 +40,10 @@ if ! docker pull $FULL_IMAGE_NAME; then
     -t ${IMAGE_NAME} \
     --build-arg BASE_IMAGE="$BASE_IMAGE" \
     --build-arg LLVM_VERSION="$LLVM_VERSION" \
-    --build-arg BUILD_DEPS="${BUILD_DEPS}"
+    --build-arg BUILD_DEPS="${BUILD_DEPS}" \
     --platform "${BUILD_PLATFORM}" \
-    ci-docker &&
-    docker tag ${IMAGE_NAME} ${FULL_IMAGE_NAME} &&
+    ci-docker && \
+    docker tag ${IMAGE_NAME} ${FULL_IMAGE_NAME} && \
     docker push ${FULL_IMAGE_NAME}
 fi
 

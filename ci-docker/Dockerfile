@@ -1,13 +1,14 @@
 # syntax=docker/dockerfile:1
 ARG BASE_IMAGE
 
-FROM --platform=${TARGETPLATFORM} $BASE_IMAGE as cross
+FROM $BASE_IMAGE 
 # Platform args are populated by buildx, needs to be defined after FROM command
-ARG BUILDPLATFORM
-ARG TARGETPLATFORM
 ARG LLVM_VERSION
 ARG BUILD_DEPS
-RUN echo "Running on $BUILDPLATFORM, building for $TARGETPLATFORM, LLVM toolchain: $LLVM_VERSION"
+ARG IMAGE_NAME
+ENV DEFAULT_DOCKCROSS_IMAGE=${IMAGE_NAME}
+
+RUN echo "BASE_IMAGE: $BASE_IMAGE, LLVM toolchain: $LLVM_VERSION, BUILD_DEPS=$BUILD_DEPS"
 RUN apt-get update && apt-get install -y zip unzip lsb-release curl wget software-properties-common iputils-ping libgc-dev libz-dev git
 
 RUN wget -O - https://apt.llvm.org/llvm.sh | bash /dev/stdin $LLVM_VERSION
@@ -49,8 +50,8 @@ RUN curl -s "https://get.sdkman.io" | bash  \
   && sdk install sbt 1.7.2 \ 
   && sdk install java 8.0.332-tem
 
-ENV LC_ALL "C.UTF-8"
-ENV LANG "C.UTF-8"
+ENV LC_ALL="C.UTF-8"
+ENV LANG="C.UTF-8"
 ENV PATH=/usr/lib/llvm-$LLVM_VERSION/bin:~/.sdkman/candidates/java/current/bin:~/.sdkman/candidates/sbt/current/bin:${PATH}
 ENV ENABLE_EXPERIMENTAL_COMPILER=true
 

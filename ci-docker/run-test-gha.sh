@@ -41,9 +41,9 @@ if ! docker pull $FULL_IMAGE_NAME; then
     --build-arg BASE_IMAGE="$BASE_IMAGE" \
     --build-arg LLVM_VERSION="$LLVM_VERSION" \
     --build-arg BUILD_DEPS="${BUILD_DEPS}" \
-    --platform "${BUILD_PLATFORM}" \
+    --build-arg IMAGE_NAME="${IMAGE_NAME}" \
     ci-docker && \
-    docker tag ${IMAGE_NAME} ${FULL_IMAGE_NAME} && \
+    docker tag ${IMAGE_NAME} ${FULL_IMAGE_NAME} \
     docker push ${FULL_IMAGE_NAME}
 fi
 
@@ -53,13 +53,12 @@ IvyDir=$HOME/.ivy
 SbtDir=$HOME/.sbt
 mkdir -p $CacheDir $IvyDir $SbtDir
 
-docker run --platform=${BUILD_PLATFORM} -i "${FULL_IMAGE_NAME}" bash -c "java -version"
-docker run \
+docker run --rm -i "${FULL_IMAGE_NAME}" bash -c "java -version"
+docker run --rm \
   --mount type=bind,source=$CacheDir,target=/home/scala-native/.cache \
   --mount type=bind,source=$SbtDir,target=/home/scala-native/.sbt \
   --mount type=bind,source=$IvyDir,target=/home/scala-native/.ivy \
   --mount type=bind,source=$PWD,target=/home/scala-native/scala-native \
-  --platform=${BUILD_PLATFORM} \
   -e TARGET_EMULATOR="$TARGET_EMULATOR" \
   -e TEST_COMMAND="$TEST_COMMAND" \
   -e SCALANATIVE_MODE="$SCALANATIVE_MODE" \
@@ -67,4 +66,4 @@ docker run \
   -e SCALANATIVE_LTO="${SCALANATIVE_LTO:-none}" \
   -e SCALANATIVE_TEST_DEBUG_SIGNALS=1 \
   -e SCALANATIVE_TEST_PREFETCH_DEBUG_INFO=1 \
-  -i "${FULL_IMAGE_NAME}"
+  -i "${FULL_IMAGE_NAME}" -- bash

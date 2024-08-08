@@ -48,7 +48,6 @@ jobs:
           echo "image-base-name=${imageBase}" >> $GITHUB_OUTPUT
           echo "image-full-name=${imageName}" >> $GITHUB_OUTPUT
           . ./ci-docker/env/${{matrix.arch}}
-          echo "BASE_IMAGE=$BASE_IMAGE"
 
           docker run -d -p 5000:5000 \
             --restart=always \
@@ -78,6 +77,7 @@ jobs:
     name: Test runtime
     if: "github.event_name == 'pull_request' || ((github.event_name == 'schedule' || github.event_name == 'workflow_call') && github.repository == 'scala-native/scala-native')"
     runs-on: ubuntu-22.04
+    needs: build-image
     env:
       ENABLE_EXPERIMENTAL_COMPILER: true
       SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
@@ -146,7 +146,6 @@ jobs:
           SCALANATIVE_TEST_DEBUG_SIGNALS: 1
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
           TEST_COMMAND: >
-            debug;
             set sandbox.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set tests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set junitTestOutputsNative.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
@@ -165,4 +164,4 @@ jobs:
           timeout_minutes: 180
           max_attempts: 2
           retry_on: error
-          command: ./ci-docker/run-test-gha.sh "scala-native-testing:${{ matrix.arch }}"
+          command: ./ci-docker/run-test-gha.sh "${{ needs.build-image.outputs.image-name }}:${{ matrix.arch }}"

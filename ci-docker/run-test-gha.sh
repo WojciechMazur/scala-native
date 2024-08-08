@@ -42,6 +42,7 @@ if ! docker pull $FULL_IMAGE_NAME; then
     --build-arg LLVM_VERSION="$LLVM_VERSION" \
     --build-arg BUILD_DEPS="${BUILD_DEPS}" \
     --build-arg IMAGE_NAME="${IMAGE_NAME}" \
+    --build-arg TARGET_EMULATOR="$TARGET_EMULATOR" \
     ci-docker && \
     docker tag ${IMAGE_NAME} ${FULL_IMAGE_NAME} && \
     docker push ${FULL_IMAGE_NAME}

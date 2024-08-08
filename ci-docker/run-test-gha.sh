@@ -43,7 +43,7 @@ if ! docker pull $FULL_IMAGE_NAME; then
     --build-arg BUILD_DEPS="${BUILD_DEPS}" \
     --build-arg IMAGE_NAME="${IMAGE_NAME}" \
     ci-docker && \
-    docker tag ${IMAGE_NAME} ${FULL_IMAGE_NAME} \
+    docker tag ${IMAGE_NAME} ${FULL_IMAGE_NAME} && \
     docker push ${FULL_IMAGE_NAME}
 fi
 

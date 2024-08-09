@@ -27,7 +27,7 @@ private[testinterface] class ProcessRunner(
     }
     if (emulatorOpts.nonEmpty) {
       logger.info(s"Using test process emulator: ${emulatorOpts.mkString(" ")}")
-      new ProcessBuilder("bash", "-c", "file", executableFile.getAbsolutePath())
+      new ProcessBuilder("bash", "-c", s"file ${executableFile.getAbsolutePath()}")
         .inheritIO()
         .start()
     }

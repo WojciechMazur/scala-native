@@ -120,8 +120,8 @@ jobs:
               prev
                 .withGC(scalanative.build.GC.${{matrix.gc}})
                 .withTargetTriple(sys.env.get("CROSS_TRIPLE"))
-                .withCompileOptions(_ ++ sysRoot ++ List("-fuse-ld=lld"))
-                .withLinkingOptions(_ ++ sysRoot ++ List("-fuse-ld=lld", "-latomic"))
+                .withCompileOptions(sysRoot ++ List("-fuse-ld=lld"))
+                .withLinkingOptions(sysRoot ++ List("-fuse-ld=lld", "-latomic"))
             }
           EOM
           )

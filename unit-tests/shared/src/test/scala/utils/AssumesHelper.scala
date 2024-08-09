@@ -51,4 +51,11 @@ object AssumesHelper {
       Platform.executingInScalaNative && Platform.isMultithreadingEnabled
     )
   }
+
+  def assumeNotEmulated() = {
+    Assume.assumeFalse(
+      "Ignore when running in emulated mode",
+      sys.env.get("TARGET_EMULATOR").isDefined
+    )
+  }
 }

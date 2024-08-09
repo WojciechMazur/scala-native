@@ -120,7 +120,7 @@ jobs:
               prev
                 .withGC(scalanative.build.GC.${{matrix.gc}})
                 .withTargetTriple(sys.env.get("CROSS_TRIPLE"))
-                .withCompileOptions(sysRoot ++ List("-fuse-ld=lld"))
+                .withCompileOptions(sysRoot)
                 .withLinkingOptions(sysRoot ++ List("-fuse-ld=lld", "-latomic"))
             }
           EOM
@@ -148,6 +148,7 @@ jobs:
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
           TEST_COMMAND: >
             set sandbox.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
+            set testInterface.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set tests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set junitTestOutputsNative.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set scalaPartestJunitTests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};

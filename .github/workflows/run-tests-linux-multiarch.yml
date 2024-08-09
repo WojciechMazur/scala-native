@@ -115,7 +115,7 @@ jobs:
                   s"--sysroot=\${root}",
                   s"--gcc-toolchain=\${sys.env("CROSS_ROOT")}"
                 )};
-              println(s"Sysroot options: \$sysRoot")
+              println(s"Sysroot options: \$sysRoot");
               prev
                 .withGC(scalanative.build.GC.${{matrix.gc}})
                 .withTargetTriple(sys.env.get("CROSS_TRIPLE"))

@@ -90,7 +90,12 @@ object MyScalaNativePlugin extends AutoPlugin {
       "-c",
       s"${runnerArgs.mkString(" ")} --version"
     ).inheritIO().start()
-    println(checkEmulator.waitFor())
+
+    val checkBinaryInfo = new ProcessBuilder(
+      "bash",
+      "-c",
+      s"file ${runnerArgs.take(1).mkString(" ")}"
+    ).inheritIO().start()
 
     val exitCode = {
       val proc = new ProcessBuilder()

@@ -104,19 +104,18 @@ jobs:
         run: |
           SetConfigTemplate=$(cat << EOM
             nativeConfig ~= { prev =>
-              val sysRoot: List[String] =
-                if(Seq("linux-x86").contains("${{ matrix.arch }}")) Nil
-                else Option {
+              val sysRoot: List[String] = 
+                Option {
                   sys.process.stringSeqToProcess(Seq(
                     s"\${sys.env("CROSS_ROOT")}/bin/\${sys.env("CROSS_TRIPLE")}-gcc",
                     "-print-sysroot"
                   )).!!.trim
-                  }.filter(_.nonEmpty)
-                  .fold(List.empty[String]){ root => List(
-                    s"--sysroot=\${root}",
-                    s"--gcc-toolchain=\${sys.env("CROSS_ROOT")}"
-                  )};
-
+                }.filter(_.nonEmpty)
+                .fold(List.empty[String]){ root => List(
+                  s"--sysroot=\${root}",
+                  s"--gcc-toolchain=\${sys.env("CROSS_ROOT")}"
+                )};
+              println(s"Sysroot options: \$sysRoot")
               prev
                 .withGC(scalanative.build.GC.${{matrix.gc}})
                 .withTargetTriple(sys.env.get("CROSS_TRIPLE"))

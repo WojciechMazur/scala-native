@@ -37,7 +37,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/docker-registry
-          key: docker-registry-${{ hashFiles('ci-docker/Dockerfile') }}-${{matrix.arch}}
+          key: docker-registry-${{ matrix.arch }}-${{ hashFiles('ci-docker/Dockerfile', format('ci-docker/env/{0}', matrix.arch)) }}
 
       # Builds images and saves image base name in output - it allows to re-use it in other steps.
       - name: Build image
@@ -61,10 +61,11 @@ jobs:
             docker buildx build \
               -t ${imageName} \
               --cache-from=localhost:5000/${imageName} \
-              --build-arg BASE_IMAGE=$BASE_IMAGE \
-              --build-arg LLVM_VERSION=$LLVM_VERSION \
+              --build-arg BASE_IMAGE="$BASE_IMAGE" \
+              --build-arg LLVM_VERSION="$LLVM_VERSION" \
               --build-arg BUILD_DEPS="${BUILD_DEPS}" \
-              --platform ${BUILD_PLATFORM} \
+              --build-arg IMAGE_NAME="${IMAGE_NAME}" \
+              --build-arg TARGET_EMULATOR="$TARGET_EMULATOR" \
               ci-docker && \
             docker tag $imageName localhost:5000/${imageName} && \
             docker push localhost:5000/${imageName}
@@ -84,43 +85,8 @@ jobs:
       fail-fast: false
       matrix:
         arch: [linux-arm64, linux-x86]
-        scala: [3, 3-next]
-        build-mode: [debug, release-fast]
-        lto: [none, thin]
-        gc: [boehm, immix, commix]
-        exclude:
-          # LTO is broken on linux-x86/llvm-10
-          - arch: linux-x86
-            lto: thin
-          # Release without LTO produces 1 big file taking long to compile, especially when emulated
-          - build-mode: release-fast
-            lto: none
-          - build-mode: release-size
-            lto: none
-          - build-mode: debug
-            lto: thin
-          # Fails frequently
-          - gc: commix
-            lto: thin
-          # Reduce ammount of builds combinations
-          - gc: immix
-            lto: none
-          - gc: immix
-            build-mode: debug
-          - gc: commix
-            build-mode: debug
-          - gc: boehm
-            build-mode: release-fast
-          - gc: boehm
-            build-mode: release-size
-          - scala: 3-next
-            build-mode: debug
-          - scala: 3-next
-            lto: none
-          - scala: 3-next
-            gc: boehm
-          - scala: 3-next
-            gc: commix
+        scala: [3]
+        gc: [immix, commix, boehm, none]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/linux-setup-env
@@ -130,46 +96,31 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/docker-registry
-          key: docker-registry-${{ hashFiles('ci-docker/Dockerfile') }}-${{matrix.arch}}
+          key: docker-registry-${{ matrix.arch }}-${{ hashFiles('ci-docker/Dockerfile', format('ci-docker/env/{0}', matrix.arch)) }}
 
       - name: Prepare native config
         shell: bash
         # Following envs CROSS_ are always present in docker container
         run: |
-          buildMode=${{matrix.build-mode}}
-          if [[ "$buildMode" == "release-fast" ]]; then
-            buildMode=releaseFast
-          elif [[ "$buildMode" == "release-size" ]]; then
-            buildMode=releaseSize
-          fi
-
           SetConfigTemplate=$(cat << EOM
             nativeConfig ~= { prev =>
-              val sysRoot: List[String] =
-                if(Seq("linux-x86").contains("${{ matrix.arch }}")) Nil
-                else Option {
+              val sysRoot: List[String] = 
+                Option {
                   sys.process.stringSeqToProcess(Seq(
                     s"\${sys.env("CROSS_ROOT")}/bin/\${sys.env("CROSS_TRIPLE")}-gcc",
                     "-print-sysroot"
                   )).!!.trim
-                  }.filter(_.nonEmpty)
-                  .fold(List.empty[String]){ root => List(
-                    s"--sysroot=\${root}",
-                    s"--gcc-toolchain=\${sys.env("CROSS_ROOT")}"
-                  )};
-
+                }.filter(_.nonEmpty)
+                .fold(List.empty[String]){ root => List(
+                  s"--sysroot=\${root}",
+                  s"--gcc-toolchain=\${sys.env("CROSS_ROOT")}"
+                )};
+              assert(sysRoot.nonEmpty, "Failed to setup cross sysroot settings");
               prev
-                .withMode(scalanative.build.Mode.${buildMode})
                 .withGC(scalanative.build.GC.${{matrix.gc}})
-                .withLTO(scalanative.build.LTO.${{matrix.lto}})
-                .withEmbedResources(true)
-                .withOptimize(true)
-                .withCheck(true)
-                .withCheckFatalWarnings(true)
                 .withTargetTriple(sys.env.get("CROSS_TRIPLE"))
-                .withMultithreading(${{ matrix.gc != 'commix' }})
-                .withCompileOptions(_ ++ sysRoot ++ List("-fuse-ld=lld"))
-                .withLinkingOptions(_ ++ sysRoot ++ List("-fuse-ld=lld", "-latomic"))
+                .withCompileOptions(sysRoot)
+                .withLinkingOptions(sysRoot ++ List("-fuse-ld=lld", "-latomic"))
             }
           EOM
           )
@@ -187,21 +138,24 @@ jobs:
 
       - name: Run tests
         env:
-          SCALANATIVE_MODE: "${{matrix.build-mode}}"
           SCALANATIVE_GC: "${{matrix.gc}}"
-          SCALANATIVE_LTO: "${{matrix.lto}}"
           # Temporaly excluded due to failures in linux-x86,
           # missing __mulodi4 symbol used in j.l.Math.addExact(Long,Long)
           # testsExt${{env.project-version}}/test;
+          # TARGET_EMULATOR uld be provided by run-test-gha.sh
+          SCALANATIVE_TEST_DEBUG_SIGNALS: 1
+          SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
           TEST_COMMAND: >
             set sandbox.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
+            set testInterface.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set tests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set junitTestOutputsNative.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set scalaPartestJunitTests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
 
             show sandbox${{env.project-version}}/nativeConfig;
 
-            sandbox${{env.project-version}}/run;
+            sandbox${{env.project-version}}/runUsing $TARGET_EMULATOR;
+            testInterface${{env.project-version}}/test;
             testsJVM${{env.project-version}}/test;
             tests${{env.project-version}}/test;
             junitTestOutputsNative${{env.project-version}}/test;

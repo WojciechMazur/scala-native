@@ -96,7 +96,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/docker-registry
-          key: docker-registry-${{ hashFiles('ci-docker/Dockerfile') }}-${{matrix.arch}}
+          key: docker-registry-${{ matrix.arch }}-${{ hashFiles('ci-docker/Dockerfile', format('ci-docker/env/{0}', matrix.arch)) }}
 
       - name: Prepare native config
         shell: bash

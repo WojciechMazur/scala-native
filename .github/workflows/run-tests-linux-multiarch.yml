@@ -34,7 +34,6 @@ jobs:
       # Cache automatically saves content specified paths after executing all steps defined after this one.
       # It will not update cache on hit.
       - name: Cache docker
-        id: cache-docker
         uses: actions/cache@v4
         with:
           path: /tmp/docker-registry
@@ -42,7 +41,6 @@ jobs:
 
       # Builds images and saves image base name in output - it allows to re-use it in other steps.
       - name: Build image
-        if: steps.cache-docker.outputs.cache-hit != 'true'
         id: build-image
         run: |
           imageBase="scala-native-testing"

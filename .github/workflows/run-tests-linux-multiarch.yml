@@ -21,7 +21,10 @@ jobs:
       image-name: ${{ steps.build-image.outputs.image-base-name }}
     strategy:
       matrix:
-        arch: [linux-arm64, linux-x86]
+        arch: [
+          {name: linux-arm64, emulator: qemu-aarch64}, 
+          {name: linux-x86,   emulator: qemu-i386 }
+        ]
 
     steps:
       - uses: actions/checkout@v4
@@ -37,17 +40,17 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/docker-registry
-          key: docker-registry-${{ matrix.arch }}-${{ hashFiles('ci-docker/Dockerfile', format('ci-docker/env/{0}', matrix.arch)) }}
+          key: docker-registry-${{ matrix.arch.name }}-${{ hashFiles('ci-docker/Dockerfile', format('ci-docker/env/{0}', matrix.arch.name)) }}
 
       # Builds images and saves image base name in output - it allows to re-use it in other steps.
       - name: Build image
         id: build-image
         run: |
           imageBase="scala-native-testing"
-          imageName="${imageBase}:${{ matrix.arch }}"
+          imageName="${imageBase}:${{ matrix.arch.name }}"
           echo "image-base-name=${imageBase}" >> $GITHUB_OUTPUT
           echo "image-full-name=${imageName}" >> $GITHUB_OUTPUT
-          . ./ci-docker/env/${{matrix.arch}}
+          . ./ci-docker/env/${{matrix.arch.name}}
 
           docker run -d -p 5000:5000 \
             --restart=always \
@@ -96,7 +99,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/docker-registry
-          key: docker-registry-${{ hashFiles('ci-docker/Dockerfile') }}-${{matrix.arch}}
+          key: docker-registry-${{ matrix.arch.name }}-${{ hashFiles('ci-docker/Dockerfile', format('ci-docker/env/{0}', matrix.arch.name)) }}
 
       - name: Prepare native config
         shell: bash
@@ -105,7 +108,7 @@ jobs:
           SetConfigTemplate=$(cat << EOM
             nativeConfig ~= { prev =>
               val sysRoot: List[String] =
-                if(Seq("linux-x86").contains("${{ matrix.arch }}")) Nil
+                if(Seq("linux-x86").contains("${{ matrix.arch.name }}")) Nil
                 else Option {
                   sys.process.stringSeqToProcess(Seq(
                     s"\${sys.env("CROSS_ROOT")}/bin/\${sys.env("CROSS_TRIPLE")}-gcc",
@@ -154,7 +157,7 @@ jobs:
 
             show sandbox${{env.project-version}}/nativeConfig;
 
-            sandbox${{env.project-version}}/runUsing $TARGET_EMULATOR;
+            sandbox${{env.project-version}}/runUsing ${{ matrix.arch.emulator }};
             testInterface${{env.project-version}}/test;
             testsJVM${{env.project-version}}/test;
             tests${{env.project-version}}/test;
@@ -165,4 +168,4 @@ jobs:
           timeout_minutes: 180
           max_attempts: 2
           retry_on: error
-          command: ./ci-docker/run-test-gha.sh "${{ needs.build-image.outputs.image-name }}:${{ matrix.arch }}"
+          command: ./ci-docker/run-test-gha.sh "${{ needs.build-image.outputs.image-name }}:${{ matrix.arch.name }}"

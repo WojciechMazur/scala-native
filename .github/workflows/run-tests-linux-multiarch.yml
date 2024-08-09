@@ -145,6 +145,7 @@ jobs:
           # Temporaly excluded due to failures in linux-x86,
           # missing __mulodi4 symbol used in j.l.Math.addExact(Long,Long)
           # testsExt${{env.project-version}}/test;
+          # TARGET_EMULATOR uld be provided by run-test-gha.sh
           SCALANATIVE_TEST_DEBUG_SIGNALS: 1
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
           TEST_COMMAND: >
@@ -155,7 +156,7 @@ jobs:
 
             show sandbox${{env.project-version}}/nativeConfig;
 
-            sandbox${{env.project-version}}/run;
+            sandbox${{env.project-version}}/runUsing $TARGET_EMULATOR;
             testInterface${{env.project-version}}/test;
             testsJVM${{env.project-version}}/test;
             tests${{env.project-version}}/test;

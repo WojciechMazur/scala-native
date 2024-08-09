@@ -29,11 +29,13 @@ object Commands {
   lazy val testGC = projectVersionCommand("test-gc") {
     case (version, state) =>
       import scala.scalanative.build.GC
+      val emualator = sys.env.get("TARGET_EMULATOR")
+      val runCommand = emualator.map(v => "runUsing $v").getOrElse("run")
       val runs =
         for {
           gc <- List(GC.immix, GC.commix, GC.boehm, GC.none)
           (project, command) <- Map(
-            sandbox -> "run",
+            sandbox -> runCommand,
             testInterface -> "test"
           )
         } yield {

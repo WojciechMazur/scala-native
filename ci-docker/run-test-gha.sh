@@ -54,6 +54,8 @@ IvyDir=$HOME/.ivy
 SbtDir=$HOME/.sbt
 mkdir -p $CacheDir $IvyDir $SbtDir
 
+TEST_COMMAND_EVALUATED="${TEST_COMMAND//\$TARGET_EMULATOR/$TARGET_EMULATOR}"
+
 docker run --rm -i "${FULL_IMAGE_NAME}" bash -c "java -version"
 docker run --rm \
   --mount type=bind,source=$CacheDir,target=/home/scala-native/.cache \
@@ -61,7 +63,7 @@ docker run --rm \
   --mount type=bind,source=$IvyDir,target=/home/scala-native/.ivy \
   --mount type=bind,source=$PWD,target=/home/scala-native/scala-native \
   -e TARGET_EMULATOR="$TARGET_EMULATOR" \
-  -e TEST_COMMAND="$TEST_COMMAND" \
+  -e TEST_COMMAND="$TEST_COMMAND_EVALUATED" \
   -e SCALANATIVE_MODE="$SCALANATIVE_MODE" \
   -e SCALANATIVE_GC="$SCALANATIVE_GC" \
   -e SCALANATIVE_LTO="${SCALANATIVE_LTO:-none}" \

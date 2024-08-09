@@ -85,6 +85,13 @@ object MyScalaNativePlugin extends AutoPlugin {
     val command = (runnerArgs :+ binary) ++ programArgs
     logger.running(command)
 
+    val checkEmulator = new ProcessBuilder(
+      "bash",
+      "-c",
+      s"${runnerArgs.mkString(" ")} --version"
+    ).inheritIO().start()
+    println(checkEmulator.waitFor())
+
     val exitCode = {
       val proc = new ProcessBuilder()
         .command(command: _*)
@@ -93,11 +100,11 @@ object MyScalaNativePlugin extends AutoPlugin {
       proc.start().waitFor()
     }
 
-    val message =
-      if (exitCode == 0) None
-      else Some("Nonzero exit code: " + exitCode)
+    if (exitCode != 0) {
+      logger.error(s"Command failed: ${command.mkString(" ")}")
+      sys.error(s"Nonzero exit code: $exitCode")
+    }
 
-    message.foreach(sys.error)
   }
 
   private def nativeLinkProfilingImpl = Def.inputTaskDyn {

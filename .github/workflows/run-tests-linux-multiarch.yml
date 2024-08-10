@@ -154,7 +154,7 @@ jobs:
 
             show sandbox${{env.project-version}}/nativeConfig;
 
-            sandbox${{env.project-version}}/runUsing $TARGET_EMULATOR;
+            sandbox${{env.project-version}}/runUsing $TARGET_EMULATOR -strace;
             testInterface${{env.project-version}}/test;
             testsJVM${{env.project-version}}/test;
             tests${{env.project-version}}/test;

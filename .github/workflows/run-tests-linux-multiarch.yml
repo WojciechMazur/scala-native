@@ -110,8 +110,8 @@ jobs:
                 assert(java.nio.file.Files.exists(java.nio.file.Paths.get(crossRoot)), "crossroot does not exist");
                 assert(java.nio.file.Files.exists(java.nio.file.Paths.get(crossRoot, crossTriple, "sysroot")), "sysroot does not exist");
                 List(
-                  s"--sysroot=${crossRoot}/${crossTriple}/sysroot",
-                  s"--gcc-toolchain=${crossRoot}"
+                  s"--sysroot=\${crossRoot}/\${crossTriple}/sysroot",
+                  s"--gcc-toolchain=\${crossRoot}"
                 )
               };
               prev

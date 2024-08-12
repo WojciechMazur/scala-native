@@ -159,7 +159,7 @@ jobs:
         with:
           name: sandbox-${{ matrix.gc }}-${{ matrix.arch }}
           path: sandbox/.3/target/scala-3.4.2/sandbox
-          
+
       - name: Run tests
         env:
           SCALANATIVE_GC: "${{matrix.gc}}"
@@ -170,6 +170,7 @@ jobs:
           SCALANATIVE_TEST_DEBUG_SIGNALS: 1
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
           TEST_COMMAND: >
+            eval scala.sys.env.toSeq.sortBy(_._1).foreach(println);
             set sandbox.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set testInterface.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set tests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};

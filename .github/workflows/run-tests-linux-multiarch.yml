@@ -145,6 +145,7 @@ jobs:
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
           TEST_COMMAND: >
             set sandbox.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
+            show sandbox${{env.project-version}}/nativeConfig;
             sandbox${{env.project-version}}/nativeLink;
         uses: nick-fields/retry@v3
         with:

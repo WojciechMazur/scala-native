@@ -104,21 +104,19 @@ jobs:
         run: |
           SetConfigTemplate=$(cat << EOM
             nativeConfig ~= { prev =>
-              val sysRoot: List[String] = 
-                Option {
-                  sys.process.stringSeqToProcess(Seq(
-                    s"\${sys.env("CROSS_ROOT")}/bin/\${sys.env("CROSS_TRIPLE")}-gcc",
-                    "-print-sysroot"
-                  )).!!.trim
-                }.filter(_.nonEmpty)
-                .fold(List.empty[String]){ root => List(
-                  s"--sysroot=\${root}",
-                  s"--gcc-toolchain=\${sys.env("CROSS_ROOT")}"
-                )};
-              assert(sysRoot.nonEmpty, "Failed to setup cross sysroot settings");
+              val crossRoot = sys.env("CROSS_ROOT");
+              val crossTriple = sys.env("CROSS_TRIPLE");
+              val sysRoot: List[String] = {
+                assert(java.nio.file.Files.exists(java.nio.file.Paths.get(crossRoot)), "crossroot does not exist");
+                assert(java.nio.file.Files.exists(java.nio.file.Paths.get(crossRoot, crossTriple, "sysroot")), "sysroot does not exist");
+                List(
+                  s"--sysroot=${crossRoot}/${crossTriple}/sysroot",
+                  s"--gcc-toolchain=${crossRoot}"
+                )
+              }
               prev
                 .withGC(scalanative.build.GC.${{matrix.gc}})
-                .withTargetTriple(sys.env.get("CROSS_TRIPLE"))
+                .withTargetTriple(crossTriple)
                 .withCompileOptions(sysRoot)
                 .withLinkingOptions(sysRoot ++ List("-fuse-ld=lld", "-latomic"))
             }

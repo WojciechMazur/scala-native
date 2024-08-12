@@ -21,7 +21,7 @@ jobs:
       image-name: ${{ steps.build-image.outputs.image-base-name }}
     strategy:
       matrix:
-        arch: [linux-arm64, linux-x86]
+        arch: [linux-arm64, linux-x86, linux-armv7, linux-riscv32,	linux-riscv64	]
 
     steps:
       - uses: actions/checkout@v4
@@ -84,7 +84,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [linux-arm64, linux-x86]
+        arch: [linux-arm64, linux-x86, linux-armv7, linux-riscv32,	linux-riscv64	]
         scala: [3]
         gc: [immix, commix, boehm, none]
     steps:
@@ -113,7 +113,7 @@ jobs:
                   s"--sysroot=${crossRoot}/${crossTriple}/sysroot",
                   s"--gcc-toolchain=${crossRoot}"
                 )
-              }
+              };
               prev
                 .withGC(scalanative.build.GC.${{matrix.gc}})
                 .withTargetTriple(crossTriple)

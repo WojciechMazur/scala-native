@@ -1,0 +1,4 @@
+BUILD_DEPS=true
+BASE_IMAGE=dockcross/linux-riscv32	
+LLVM_VERSION=17
+TARGET_EMULATOR=qemu-riscv32

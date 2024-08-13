@@ -57,7 +57,7 @@ ENV PATH=/usr/lib/llvm-$LLVM_VERSION/bin:~/.sdkman/candidates/java/current/bin:~
 ENV ENABLE_EXPERIMENTAL_COMPILER=true
 
 CMD sbt \
-  "-Dscala.scalanative.testinterface.processrunner.emulator=$TARGET_EMULATOR" \
+  "-Dscala.scalanative.testinterface.processrunner.emulator=/dockcross/entrypoint.sh" \
   "-J-Xmx5G" \
   "set sbtScalaNative/scriptedBufferLog := false" \
   "$TEST_COMMAND"

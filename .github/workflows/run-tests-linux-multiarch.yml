@@ -180,7 +180,7 @@ jobs:
 
             show sandbox${{env.project-version}}/nativeConfig;
 
-            sandbox${{env.project-version}}/runUsing $TARGET_EMULATOR -strace -d exec;
+            sandbox${{env.project-version}}/runUsing /dockcross/entrypoint.sh;
             testInterface${{env.project-version}}/test;
             testsJVM${{env.project-version}}/test;
             tests${{env.project-version}}/test;

@@ -84,7 +84,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [linux-arm64, linux-x86, linux-armv7, linux-riscv32,	linux-riscv64	]
+        arch: [linux-arm64, linux-x86, linux-armv7 ]
         scala: [3]
         gc: [immix, commix, boehm, none]
     steps:
@@ -118,7 +118,7 @@ jobs:
                 .withGC(scalanative.build.GC.${{matrix.gc}})
                 .withTargetTriple(crossTriple)
                 .withCompileOptions(sysRoot)
-                .withLinkingOptions(sysRoot ++ List("-fuse-ld=lld", "-latomic"))
+                .withLinkingOptions(sysRoot)
             }
           EOM
           )

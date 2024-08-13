@@ -119,8 +119,8 @@ size_t getFreeMemorySize() {
     GlobalMemoryStatusEx(&status);
     return (size_t)status.ullAvailPhys;
 
-#elif defined(__unix__) || defined(__unix) || defined(unix) ||                 \
-    (defined(__APPLE__) && defined(__MACH__))
+#elif (defined(__unix__) || defined(__unix) || defined(unix) ||                \
+       (defined(__APPLE__) && defined(__MACH__)) && defined(_SC_AVPHYS_PAGES))
     /* UNIX variants. ------------------------------------------- */
     long pages = sysconf(_SC_AVPHYS_PAGES);
     long page_size = sysconf(_SC_PAGESIZE);

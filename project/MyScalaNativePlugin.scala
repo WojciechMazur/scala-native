@@ -82,7 +82,8 @@ object MyScalaNativePlugin extends AutoPlugin {
     val env = (run / envVars).value.toSeq
     val logger = streams.value.log
     val binary = nativeLink.value.getAbsolutePath
-    val command = (runnerArgs :+ binary) ++ programArgs
+    val command = Seq("/dockcross/entrypoint.sh", "bash", "-c", binary)
+    //(runnerArgs :+ binary) ++ programArgs
     logger.running(command)
 
     val checkEmulator = new ProcessBuilder(

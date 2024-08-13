@@ -180,7 +180,7 @@ jobs:
 
             show sandbox${{env.project-version}}/nativeConfig;
 
-            sandbox${{env.project-version}}/runUsing $TARGET_EMULATOR -strace -d in_asm,out_asm,exec;
+            sandbox${{env.project-version}}/runUsing $TARGET_EMULATOR -strace -d exec;
             testInterface${{env.project-version}}/test;
             testsJVM${{env.project-version}}/test;
             tests${{env.project-version}}/test;

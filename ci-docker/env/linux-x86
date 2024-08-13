@@ -1,4 +1,4 @@
 BASE_IMAGE=dockcross/linux-i686
 BUILD_DEPS=true
 LLVM_VERSION=17
-TARGET_EMULATOR=qemu-i386-static
+TARGET_EMULATOR=qemu-i386

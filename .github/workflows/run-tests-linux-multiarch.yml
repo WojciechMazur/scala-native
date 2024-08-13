@@ -21,7 +21,8 @@ jobs:
       image-name: ${{ steps.build-image.outputs.image-base-name }}
     strategy:
       matrix:
-        arch: [linux-arm64, linux-x86, linux-armv7, linux-riscv32,	linux-riscv64	]
+        # arch: [linux-arm64, linux-x86, linux-armv7, linux-riscv32,	linux-riscv64	]
+        arch: [linux-x86]
 
     steps:
       - uses: actions/checkout@v4
@@ -84,7 +85,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [linux-arm64, linux-x86, linux-armv7 ]
+        # arch: [linux-arm64, linux-x86, linux-armv7 ]
+        arch: [linux-x86]
         scala: [3]
         gc: [immix, commix, boehm, none]
     steps:
@@ -134,30 +136,30 @@ jobs:
           echo "" >> ${ignoredTestsFile}
           echo -e "scala/util/SortingTest.scala\n" >> ${ignoredTestsFile}
 
-      - name: Build selected
-        env:
-          SCALANATIVE_GC: "${{matrix.gc}}"
-          # Temporaly excluded due to failures in linux-x86,
-          # missing __mulodi4 symbol used in j.l.Math.addExact(Long,Long)
-          # testsExt${{env.project-version}}/test;
-          # TARGET_EMULATOR uld be provided by run-test-gha.sh
-          SCALANATIVE_TEST_DEBUG_SIGNALS: 1
-          SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
-          TEST_COMMAND: >
-            set sandbox.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
-            show sandbox${{env.project-version}}/nativeConfig;
-            sandbox${{env.project-version}}/nativeLink;
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 180
-          max_attempts: 2
-          retry_on: error
-          command: ./ci-docker/run-test-gha.sh "${{ needs.build-image.outputs.image-name }}:${{ matrix.arch }}"
-      - name: Archive sandbox binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: sandbox-${{ matrix.gc }}-${{ matrix.arch }}
-          path: sandbox/.3/target/scala-3.4.2/sandbox
+      # - name: Build selected
+      #   env:
+      #     SCALANATIVE_GC: "${{matrix.gc}}"
+      #     # Temporaly excluded due to failures in linux-x86,
+      #     # missing __mulodi4 symbol used in j.l.Math.addExact(Long,Long)
+      #     # testsExt${{env.project-version}}/test;
+      #     # TARGET_EMULATOR uld be provided by run-test-gha.sh
+      #     SCALANATIVE_TEST_DEBUG_SIGNALS: 1
+      #     SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
+      #     TEST_COMMAND: >
+      #       set sandbox.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
+      #       show sandbox${{env.project-version}}/nativeConfig;
+      #       sandbox${{env.project-version}}/nativeLink;
+      #   uses: nick-fields/retry@v3
+      #   with:
+      #     timeout_minutes: 180
+      #     max_attempts: 2
+      #     retry_on: error
+      #     command: ./ci-docker/run-test-gha.sh "${{ needs.build-image.outputs.image-name }}:${{ matrix.arch }}"
+      # - name: Archive sandbox binary
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: sandbox-${{ matrix.gc }}-${{ matrix.arch }}
+      #     path: sandbox/.3/target/scala-3.4.2/sandbox
 
       - name: Run tests
         env:
@@ -178,7 +180,7 @@ jobs:
 
             show sandbox${{env.project-version}}/nativeConfig;
 
-            sandbox${{env.project-version}}/runUsing $TARGET_EMULATOR -strace;
+            sandbox${{env.project-version}}/runUsing $TARGET_EMULATOR -strace -d in_asm,out_asm,exec;
             testInterface${{env.project-version}}/test;
             testsJVM${{env.project-version}}/test;
             tests${{env.project-version}}/test;

@@ -1,3 +1,2 @@
 BASE_IMAGE=dockcross/linux-arm64
-CROSSCOMPILING_EMULATOR=/usr/bin/qemu-aarch64
 LLVM_VERSION=17

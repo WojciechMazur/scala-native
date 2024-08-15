@@ -1,3 +1,2 @@
 BASE_IMAGE=dockcross/linux-i686
-CROSSCOMPILING_EMULATOR="/usr/bin/qemu-x86_64 -cpu qemu32"
 LLVM_VERSION=17

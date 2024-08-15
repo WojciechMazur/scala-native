@@ -14,7 +14,7 @@ sudo chmod a+rwx -R "$HOME"
 imageNamePattern="scala-native-testing:(.*)"
 if [[ "$IMAGE_NAME" =~ $imageNamePattern ]]; then
   arch=${BASH_REMATCH[1]}
-  source ci-docker/env/${arch}
+  . ci-docker/env/${arch}
 else
   echo >&2 "$IMAGE_NAME is not regular testing image name"
   exit 1
@@ -29,6 +29,7 @@ docker run -d -p 5000:5000 \
   npx wait-on tcp:5000
 
 docker buildx ls
+docker run --privileged --rm tonistiigi/binfmt --install all
 
 # Pull cached image or build locally if image is missing
 # In most cases image should exist, however in the past we have observed single
@@ -51,7 +52,6 @@ IvyDir=$HOME/.ivy
 SbtDir=$HOME/.sbt
 mkdir -p $CacheDir $IvyDir $SbtDir
 
-docker run --rm -i "${FULL_IMAGE_NAME}" bash -c "java -version"
 docker run --rm \
   --mount type=bind,source=$CacheDir,target=/home/scala-native/.cache \
   --mount type=bind,source=$SbtDir,target=/home/scala-native/.sbt \

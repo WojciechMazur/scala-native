@@ -51,9 +51,8 @@ ENV PATH=/usr/lib/llvm-$LLVM_VERSION/bin:~/.sdkman/candidates/java/current/bin:~
 ENV ENABLE_EXPERIMENTAL_COMPILER=true
 
 
-CMD 
-  ls ${CROSS_ROOT}/${CROSS_TRIPLE}/sysroot/lib && \
-  LD_LIBRARY_PATH=${CROSS_ROOT}/${CROSS_TRIPLE}/sysroot/lib:${CROSS_ROOT}/${CROSS_TRIPLE}/lib:${CROSS_ROOT}/lib & \
+CMD ls ${CROSS_ROOT}/${CROSS_TRIPLE}/sysroot/lib && \
+  LD_LIBRARY_PATH=${CROSS_ROOT}/${CROSS_TRIPLE}/sysroot/lib:${CROSS_ROOT}/${CROSS_TRIPLE}/lib:${CROSS_ROOT}/lib \
   sbt \
   "-J-Xmx7G" \
   "set sbtScalaNative/scriptedBufferLog := false" \

@@ -1,4 +1,2 @@
-BUILD_DEPS=true
 BASE_IMAGE=dockcross/linux-arm64
 LLVM_VERSION=17
-TARGET_EMULATOR=qemu-aarch64

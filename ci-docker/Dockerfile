@@ -4,9 +4,7 @@ ARG BASE_IMAGE
 FROM $BASE_IMAGE 
 # Platform args are populated by buildx, needs to be defined after FROM command
 ARG LLVM_VERSION
-ARG BUILD_DEPS
 ARG IMAGE_NAME
-ARG TARGET_EMULATOR
 ENV DEFAULT_DOCKCROSS_IMAGE=${IMAGE_NAME}
 
 RUN echo "BASE_IMAGE: $BASE_IMAGE, LLVM toolchain: $LLVM_VERSION, BUILD_DEPS=$BUILD_DEPS"
@@ -17,17 +15,14 @@ RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-$LLVM_VERS
 RUN update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-$LLVM_VERSION 100
 
 # We cannot easily install dependencies, clone and build zlib and Boehm locally
-RUN $BUILD_DEPS \
-    && git clone https://github.com/madler/zlib /tmp/zlib \
+RUN git clone https://github.com/madler/zlib /tmp/zlib \
     && cd /tmp/zlib/ \
     && git checkout v1.2.11 \
     && ./configure \
     && make install prefix=$QEMU_LD_PREFIX \
-    && rm -rf /tmp/zlib \
-    || echo "Skip building zlib"
+    && rm -rf /tmp/zlib
 
-RUN $BUILD_DEPS \
-    && git clone https://github.com/ivmai/bdwgc /tmp/bdwgc \
+RUN git clone https://github.com/ivmai/bdwgc /tmp/bdwgc \
     && cd /tmp/bdwgc/ \
     && git checkout v8.0.6 \
     && git clone https://github.com/ivmai/libatomic_ops \
@@ -37,13 +32,12 @@ RUN $BUILD_DEPS \
     && ./autogen.sh \
     && ./configure --host $CROSS_TRIPLE \
     && make install prefix=$QEMU_LD_PREFIX \
-    && rm -rf /tmp/bdwgc \
-    || echo "Skip building Boehm GC"
+    && rm -rf /tmp/bdwgc
 
 # Switch shell and user to allow for usage of sdk and installed by it binaries 
 SHELL ["/bin/bash", "-c"]
 RUN useradd -ms /bin/bash scala-native
-USER scala-native
+# USER scala-native
 WORKDIR /home/scala-native/scala-native
 
 RUN curl -s "https://get.sdkman.io" | bash  \
@@ -57,8 +51,6 @@ ENV PATH=/usr/lib/llvm-$LLVM_VERSION/bin:~/.sdkman/candidates/java/current/bin:~
 ENV ENABLE_EXPERIMENTAL_COMPILER=true
 
 CMD sbt \
-  "-Dscala.scalanative.testinterface.processrunner.emulator=$TARGET_EMULATOR" \
-  "-Dscala.scalanative.testinterface.processrunner.emulator-args=-cpu,max" \
-  "-J-Xmx5G" \
+  "-J-Xmx7G" \
   "set sbtScalaNative/scriptedBufferLog := false" \
   "$TEST_COMMAND"

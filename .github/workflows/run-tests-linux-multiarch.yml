@@ -58,15 +58,12 @@ jobs:
 
           docker pull localhost:5000/${imageName} || { \
             docker buildx ls
-            docker run --privileged --rm tonistiigi/binfmt --install all && \
             docker buildx build \
               -t ${imageName} \
               --cache-from=localhost:5000/${imageName} \
               --build-arg BASE_IMAGE="$BASE_IMAGE" \
               --build-arg LLVM_VERSION="$LLVM_VERSION" \
-              --build-arg BUILD_DEPS="${BUILD_DEPS}" \
               --build-arg IMAGE_NAME="${IMAGE_NAME}" \
-              --build-arg TARGET_EMULATOR="$TARGET_EMULATOR" \
               ci-docker && \
             docker tag $imageName localhost:5000/${imageName} && \
             docker push localhost:5000/${imageName}
@@ -142,7 +139,6 @@ jobs:
           # Temporaly excluded due to failures in linux-x86,
           # missing __mulodi4 symbol used in j.l.Math.addExact(Long,Long)
           # testsExt${{env.project-version}}/test;
-          # TARGET_EMULATOR uld be provided by run-test-gha.sh
           SCALANATIVE_TEST_DEBUG_SIGNALS: 1
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
           TEST_COMMAND: >

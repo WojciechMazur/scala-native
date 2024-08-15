@@ -14,7 +14,7 @@ sudo chmod a+rwx -R "$HOME"
 imageNamePattern="scala-native-testing:(.*)"
 if [[ "$IMAGE_NAME" =~ $imageNamePattern ]]; then
   arch=${BASH_REMATCH[1]}
-  . ci-docker/env/${arch}
+  source ci-docker/env/${arch}
 else
   echo >&2 "$IMAGE_NAME is not regular testing image name"
   exit 1
@@ -29,7 +29,6 @@ docker run -d -p 5000:5000 \
   npx wait-on tcp:5000
 
 docker buildx ls
-docker run --privileged --rm tonistiigi/binfmt --install all
 
 # Pull cached image or build locally if image is missing
 # In most cases image should exist, however in the past we have observed single
@@ -64,4 +63,5 @@ docker run --rm \
   -e SCALANATIVE_LTO="${SCALANATIVE_LTO:-none}" \
   -e SCALANATIVE_TEST_DEBUG_SIGNALS=1 \
   -e SCALANATIVE_TEST_PREFETCH_DEBUG_INFO=1 \
+  -e CROSSCOMPILING_EMULATOR=${CROSSCOMPILING_EMULATOR} \
   -i "${FULL_IMAGE_NAME}"

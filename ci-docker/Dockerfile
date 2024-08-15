@@ -50,6 +50,7 @@ ENV LANG="C.UTF-8"
 ENV PATH=/usr/lib/llvm-$LLVM_VERSION/bin:~/.sdkman/candidates/java/current/bin:~/.sdkman/candidates/sbt/current/bin:${PATH}
 ENV ENABLE_EXPERIMENTAL_COMPILER=true
 
+
 CMD sbt \
   "-J-Xmx7G" \
   "set sbtScalaNative/scriptedBufferLog := false" \

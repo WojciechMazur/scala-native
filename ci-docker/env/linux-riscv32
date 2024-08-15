@@ -1,2 +1,0 @@
-BASE_IMAGE=dockcross/linux-riscv32	
-LLVM_VERSION=17

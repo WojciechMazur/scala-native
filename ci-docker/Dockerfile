@@ -52,7 +52,7 @@ ENV ENABLE_EXPERIMENTAL_COMPILER=true
 
 
 CMD ls ${CROSS_ROOT}/${CROSS_TRIPLE}/sysroot/lib && \
-  LD_LIBRARY_PATH=${CROSS_ROOT}/${CROSS_TRIPLE}/sysroot/lib:${CROSS_ROOT}/${CROSS_TRIPLE}/lib:${CROSS_ROOT}/lib \
+  QEMU_SET_ENV="LD_LIBRARY_PATH=${CROSS_ROOT}/lib:${QEMU_LD_PREFIX}:${QEMU_LD_PREFIX}/lib:${CROSS_ROOT}/${CROSS_TRIPLE}/lib" \
   sbt \
   "-J-Xmx7G" \
   "set sbtScalaNative/scriptedBufferLog := false" \

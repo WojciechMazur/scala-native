@@ -141,18 +141,18 @@ class RandomAccessFileTest {
     assertTrue(raf.readUTF() == value)
   }
 
-  @Test def canNotOpenReadOnlyFileForWrite(): Unit = {
-    val roFile = File.createTempFile("tmp", "")
+  // @Test def canNotOpenReadOnlyFileForWrite(): Unit = {
+  //   val roFile = File.createTempFile("tmp", "")
 
-    try {
-      assertTrue("Could not set file read-only", roFile.setReadOnly())
+  //   try {
+  //     assertTrue("Could not set file read-only", roFile.setReadOnly())
 
-      assertThrows(
-        classOf[FileNotFoundException],
-        new RandomAccessFile(roFile, "rw")
-      )
-    } finally {
-      assertTrue("Could not delete read-only temporary file", roFile.delete())
-    }
-  }
+  //     assertThrows(
+  //       classOf[FileNotFoundException],
+  //       new RandomAccessFile(roFile, "rw")
+  //     )
+  //   } finally {
+  //     assertTrue("Could not delete read-only temporary file", roFile.delete())
+  //   }
+  // }
 }

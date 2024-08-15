@@ -56,7 +56,8 @@ ENV LANG="C.UTF-8"
 ENV PATH=/usr/lib/llvm-$LLVM_VERSION/bin:~/.sdkman/candidates/java/current/bin:~/.sdkman/candidates/sbt/current/bin:${PATH}
 ENV ENABLE_EXPERIMENTAL_COMPILER=true
 
-CMD LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:{QEMU_LD_PREFIX}/lib sbt \
+CMD echo $QEMU_LD_PREFIX && ls $QEMU_LD_PREFIX && sbt \
+  "-Dscala.scalanative.testinterface.processrunner.emulator=$TARGET_EMULATOR" \
   "-J-Xmx5G" \
   "set sbtScalaNative/scriptedBufferLog := false" \
   "$TEST_COMMAND"

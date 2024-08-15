@@ -142,7 +142,6 @@ jobs:
           SCALANATIVE_TEST_DEBUG_SIGNALS: 1
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
           TEST_COMMAND: >
-            eval scala.sys.env.toSeq.sortBy(_._1).foreach(println);
             set sandbox.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set testInterface.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set tests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
@@ -150,7 +149,7 @@ jobs:
             set scalaPartestJunitTests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
 
             show sandbox${{env.project-version}}/nativeConfig;
-
+            clean;
             sandbox${{env.project-version}}/run;
             testInterface${{env.project-version}}/test;
             testsJVM${{env.project-version}}/test;

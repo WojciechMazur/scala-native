@@ -21,8 +21,8 @@ jobs:
       image-name: ${{ steps.build-image.outputs.image-base-name }}
     strategy:
       matrix:
-        # arch: [linux-arm64, linux-x86, linux-armv7, linux-riscv32,	linux-riscv64	]
-        arch: [linux-x86, linux-arm64]
+        arch: [linux-arm64, linux-x86, linux-armv7, linux-riscv32,	linux-riscv64	]
+        # arch: [linux-x86, linux-arm64]
 
     steps:
       - uses: actions/checkout@v4
@@ -82,8 +82,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # arch: [linux-arm64, linux-x86, linux-armv7 ]
-        arch: [linux-x86, linux-arm64]
+        arch: [linux-arm64, linux-x86, linux-armv7, linux-riscv32,	linux-riscv64	]
+        # arch: [linux-x86, linux-arm64]
         scala: [3]
         gc: [immix, commix, boehm, none]
     steps:

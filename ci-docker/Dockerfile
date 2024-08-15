@@ -43,7 +43,7 @@ WORKDIR /home/scala-native/scala-native
 RUN curl -s "https://get.sdkman.io" | bash  \
   && . "$HOME/.sdkman/bin/sdkman-init.sh" \
   && sdk install sbt 1.10.1 \ 
-  && sdk install java 17.0.12-tem 
+  && sdk install java 8.0.332-tem
 
 ENV LC_ALL="C.UTF-8"
 ENV LANG="C.UTF-8"

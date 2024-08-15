@@ -16,7 +16,7 @@ jobs:
   build-image:
     if: "github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || ((github.event_name == 'schedule' || github.event_name == 'workflow_call') && github.repository == 'scala-native/scala-native')"
     name: Build image
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     outputs:
       image-name: ${{ steps.build-image.outputs.image-base-name }}
     strategy:
@@ -74,7 +74,7 @@ jobs:
   test-runtime:
     name: Test runtime
     if: "github.event_name == 'pull_request' || ((github.event_name == 'schedule' || github.event_name == 'workflow_call') && github.repository == 'scala-native/scala-native')"
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: build-image
     env:
       ENABLE_EXPERIMENTAL_COMPILER: true

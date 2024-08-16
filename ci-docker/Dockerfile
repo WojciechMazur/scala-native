@@ -7,7 +7,7 @@ ARG LLVM_VERSION
 ARG IMAGE_NAME
 ENV DEFAULT_DOCKCROSS_IMAGE=${IMAGE_NAME}
 
-RUN echo "BASE_IMAGE: $BASE_IMAGE, LLVM toolchain: $LLVM_VERSION, BUILD_DEPS=$BUILD_DEPS"
+RUN echo "BASE_IMAGE: $BASE_IMAGE, LLVM toolchain: $LLVM_VERSION"
 RUN apt-get update && apt-get install -y zip unzip lsb-release curl wget software-properties-common iputils-ping libgc-dev libz-dev git
 
 RUN wget -O - https://apt.llvm.org/llvm.sh | bash /dev/stdin $LLVM_VERSION
@@ -51,11 +51,8 @@ ENV PATH=/usr/lib/llvm-$LLVM_VERSION/bin:~/.sdkman/candidates/java/current/bin:~
 ENV ENABLE_EXPERIMENTAL_COMPILER=true
 
 # For some reasons the x86 builds cannot find built dependencies 
-RUN \
-  if [[ "$BASE_IMAGE" =~ "linux-i686" ]]; then \
-    dpkg --add-architecture i386 && \
-    apt-get update && apt-get install -y libgc-dev:i386 libz-dev:i386;\
-  fi
+RUN dpkg --add-architecture i386 && \
+    apt-get update && apt-get install -y libgc-dev:i386 libz-dev:i386
 
 CMD sbt \
   "-J-Xmx7G" \

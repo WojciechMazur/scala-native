@@ -122,7 +122,7 @@ jobs:
           echo set-native-config=${SetConfigTemplate} >> $GITHUB_ENV
       
       - name: Set sandbox source
-        run: >
+        run: |
           cat <<EOT > sandbox/src/main/scala/Test.scala
           import scala.scalanative.meta.LinktimeInfo._
           import scala.scalanative.unsafe._

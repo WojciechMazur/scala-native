@@ -209,7 +209,6 @@ jobs:
             set scalaPartestJunitTests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
 
             show sandbox${{env.project-version}}/nativeConfig;
-            clean;
             sandbox${{env.project-version}}/run;
             testInterface${{env.project-version}}/test;
             testsJVM${{env.project-version}}/test;

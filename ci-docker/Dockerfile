@@ -52,7 +52,7 @@ ENV ENABLE_EXPERIMENTAL_COMPILER=true
 
 # For some reasons the x86 builds cannot find built dependencies 
 RUN dpkg --add-architecture i386 && \
-    apt-get update && apt-get install -y libgc-dev:i386 libz-dev:i386
+    apt-get update && apt-get install -y libgc-dev:i386 libz-dev:i386 libatomic1:i386
 
 CMD sbt \
   "-J-Xmx7G" \

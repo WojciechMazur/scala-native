@@ -109,8 +109,10 @@ void Marker_Mark(Heap *heap, Stack *stack) {
             for (int i = 0; refFieldOffsets[i] != LAST_FIELD_OFFSET; i++) {
                 size_t fieldOffset = (size_t)refFieldOffsets[i];
                 Field_t *fieldRef = (Field_t *)((int8_t *)object + fieldOffset);
-                if (Object_IsReferantOfWeakReference(object, fieldOffset))
+                if (Object_IsReferantOfWeakReference(object, fieldOffset)) {
+                    printf("Referant of weakref %p -> %p\n", object, fieldRef);
                     continue;
+                }
                 Marker_markField(heap, stack, *fieldRef);
             }
             if (objectId == __boxed_ptr_id) {

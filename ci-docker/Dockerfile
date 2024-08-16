@@ -44,7 +44,6 @@ RUN \
 # Switch shell and user to allow for usage of sdk and installed by it binaries 
 SHELL ["/bin/bash", "-c"]
 RUN useradd -ms /bin/bash scala-native
-USER scala-native
 WORKDIR /home/scala-native/scala-native
 
 RUN curl -s "https://get.sdkman.io" | bash  \

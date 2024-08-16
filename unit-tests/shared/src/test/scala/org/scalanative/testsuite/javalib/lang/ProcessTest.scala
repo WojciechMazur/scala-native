@@ -427,7 +427,7 @@ class ProcessTest {
   }
 
   @Test def shellFallback(): Unit = {
-    assumeNotEmulated()
+    assumeNotCrossCompiling()
     val proc = processForScript(Scripts.hello).start()
 
     assertProcessExitOrTimeout(proc)
@@ -441,7 +441,7 @@ class ProcessTest {
   }
 
   @Test def concurrentPipe(): Unit = {
-    assumeNotEmulated()
+    assumeNotCrossCompiling()
     assumeMultithreadingIsEnabled()
     assumeNot32Bit() // Flaky on x86
     // Ensure that reading from process stdout does not lead to exceptions

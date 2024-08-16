@@ -52,10 +52,12 @@ object AssumesHelper {
     )
   }
 
-  def assumeNotEmulated() = {
+  def assumeNotCrossCompiling() = {
     Assume.assumeFalse(
       "Ignore when running in emulated mode",
-      sys.env.get("TARGET_EMULATOR").isDefined
+      Seq("CROSSCOMPILING_EMULATOR", "CROSS_ROOT", "CROSS_TRIPLE").exists(
+        sys.env.get(_).isDefined
+      )
     )
   }
 

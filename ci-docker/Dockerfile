@@ -34,12 +34,6 @@ RUN git clone https://github.com/ivmai/bdwgc /tmp/bdwgc \
     && make install prefix=$QEMU_LD_PREFIX \
     && rm -rf /tmp/bdwgc
 
-# For some reasons the x86 builds cannot find built dependencies 
-RUN \
-  if [[ "$ARCH" == "i686" ]]; then \
-    dpkg --add-architecture i386 && \
-    apt-get update && apt-get install -y libgc-dev:i386 libz-dev:i386;\
-  fi
 
 # Switch shell and user to allow for usage of sdk and installed by it binaries 
 SHELL ["/bin/bash", "-c"]
@@ -56,8 +50,14 @@ ENV LANG="C.UTF-8"
 ENV PATH=/usr/lib/llvm-$LLVM_VERSION/bin:~/.sdkman/candidates/java/current/bin:~/.sdkman/candidates/sbt/current/bin:${PATH}
 ENV ENABLE_EXPERIMENTAL_COMPILER=true
 
-CMD QEMU_SET_ENV="LD_LIBRARY_PATH=${CROSS_ROOT}/lib:${QEMU_LD_PREFIX}:${QEMU_LD_PREFIX}/lib:${CROSS_ROOT}/${CROSS_TRIPLE}/lib" \
-  sbt \
+# For some reasons the x86 builds cannot find built dependencies 
+RUN \
+  if [[ "$BASE_IMAGE" =~ "linux-i686" ]]; then \
+    dpkg --add-architecture i386 && \
+    apt-get update && apt-get install -y libgc-dev:i386 libz-dev:i386;\
+  fi
+
+CMD sbt \
   "-J-Xmx7G" \
   "set sbtScalaNative/scriptedBufferLog := false" \
   "$TEST_COMMAND"

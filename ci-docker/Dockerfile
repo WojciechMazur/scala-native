@@ -37,7 +37,6 @@ RUN git clone https://github.com/ivmai/bdwgc /tmp/bdwgc \
 # Switch shell and user to allow for usage of sdk and installed by it binaries 
 SHELL ["/bin/bash", "-c"]
 RUN useradd -ms /bin/bash scala-native
-# USER scala-native
 WORKDIR /home/scala-native/scala-native
 
 RUN curl -s "https://get.sdkman.io" | bash  \
@@ -57,6 +56,7 @@ RUN \
     apt-get update && apt-get install -y libgc-dev:i386 libz-dev:i386;\
   fi
 
+USER scala-native
 CMD QEMU_SET_ENV="LD_LIBRARY_PATH=${CROSS_ROOT}/lib:${QEMU_LD_PREFIX}:${QEMU_LD_PREFIX}/lib:${CROSS_ROOT}/${CROSS_TRIPLE}/lib" \
   sbt \
   "-J-Xmx7G" \

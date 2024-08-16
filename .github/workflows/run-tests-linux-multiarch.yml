@@ -123,7 +123,11 @@ jobs:
 
       - name: Test GC + infra
         env:
-          TEST_COMMAND: test-gc ${{env.binary-version}}
+          TEST_COMMAND: >
+            set sandbox.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
+            set testInterface.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
+            set junitTestOutputsNative.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
+            test-gc ${{env.binary-version}}
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 60
@@ -148,15 +152,11 @@ jobs:
           SCALANATIVE_TEST_DEBUG_SIGNALS: 1
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
           TEST_COMMAND: >
-            set testInterface.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set tests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
-            set junitTestOutputsNative.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set scalaPartestJunitTests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
-
-            testInterface${{env.project-version}}/test;
+            
             testsJVM${{env.project-version}}/test;
             tests${{env.project-version}}/test;
-            junitTestOutputsNative${{env.project-version}}/test;
             scalaPartestJunitTests${{env.project-version}}/test
         uses: nick-fields/retry@v3
         with:

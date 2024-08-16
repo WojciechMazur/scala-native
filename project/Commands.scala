@@ -36,7 +36,8 @@ object Commands {
           gc <- List(GC.immix, GC.commix, GC.boehm, GC.none)
           (project, command) <- Map(
             sandbox -> runCommand,
-            testInterface -> "test"
+            testInterface -> "test",
+            junitTestOutputsNative -> "test"
           )
         } yield {
           val projectId = project.forBinaryVersion(version).id

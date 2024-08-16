@@ -50,6 +50,8 @@ ENV LANG="C.UTF-8"
 ENV PATH=/usr/lib/llvm-$LLVM_VERSION/bin:~/.sdkman/candidates/java/current/bin:~/.sdkman/candidates/sbt/current/bin:${PATH}
 ENV ENABLE_EXPERIMENTAL_COMPILER=true
 
+RUN dpkg --add-architecture ${ARCH}
+RUN apt-get update && apt-get install -y libgc-dev:${ARCH} libz-dev:${ARCH} || true
 
 CMD ls ${CROSS_ROOT}/${CROSS_TRIPLE}/sysroot/lib && \
   QEMU_SET_ENV="LD_LIBRARY_PATH=${CROSS_ROOT}/lib:${QEMU_LD_PREFIX}:${QEMU_LD_PREFIX}/lib:${CROSS_ROOT}/${CROSS_TRIPLE}/lib" \

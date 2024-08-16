@@ -114,7 +114,7 @@ jobs:
               prev
                 .withTargetTriple(crossTriple)
                 .withCompileOptions(sysRoot)
-                .withLinkingOptions(sysRoot)
+                .withLinkingOptions(sysRoot ++ List("-latomic"))
             }
           EOM
           )

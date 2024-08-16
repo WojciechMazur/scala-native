@@ -8,6 +8,7 @@ import org.junit.Ignore
 
 import org.scalanative.testsuite.utils.AssertThrows.assertThrows
 import org.scalanative.testsuite.utils.Platform
+import scala.scalanative.junit.utils.AssumesHelper._
 
 import java.{lang => jl}
 
@@ -564,21 +565,22 @@ class FileChannelTest {
     }
   }
 
-  // @Test def fileChannelThrowsAccessDeniedForReadOnly(): Unit = {
-  //   withTemporaryDirectory { dir =>
-  //     val f = dir.resolve("file")
-  //     Files.write(f, "hello, world".getBytes("UTF-8"))
+  @Test def fileChannelThrowsAccessDeniedForReadOnly(): Unit = {
+    withTemporaryDirectory { dir =>
+      val f = dir.resolve("file")
+      Files.write(f, "hello, world".getBytes("UTF-8"))
 
-  //     val sroStatus = f.toFile().setReadOnly()
-  //     assertTrue("setReadOnly failed", sroStatus)
+      val sroStatus = f.toFile().setReadOnly()
+      assertTrue("setReadOnly failed", sroStatus)
 
-  //     assertThrows(
-  //       f.toString(),
-  //       classOf[AccessDeniedException],
-  //       FileChannel.open(f, StandardOpenOption.WRITE)
-  //     )
-  //   }
-  // }
+      assumeNotRoot()
+      assertThrows(
+        f.toString(),
+        classOf[AccessDeniedException],
+        FileChannel.open(f, StandardOpenOption.WRITE)
+      )
+    }
+  }
 
   // Issue #3328
   @Test def sizeQueryDoesNotChangeCurrentPosition(): Unit = {

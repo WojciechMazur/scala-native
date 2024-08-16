@@ -58,4 +58,11 @@ object AssumesHelper {
       sys.env.get("TARGET_EMULATOR").isDefined
     )
   }
+
+  def assumeNotRoot() = {
+    Assume.assumeFalse(
+      "Ignore when running as root user",
+      sys.props.get("user.name").forall(_.equalsIgnoreCase("root"))
+    )
+  }
 }

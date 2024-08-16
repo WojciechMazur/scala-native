@@ -10,6 +10,7 @@ import org.junit.Test
 import org.junit.Assert._
 
 import org.scalanative.testsuite.utils.AssertThrows.assertThrows
+import scala.scalanative.junit.utils.AssumesHelper._
 
 class RandomAccessFileTest {
 
@@ -141,18 +142,18 @@ class RandomAccessFileTest {
     assertTrue(raf.readUTF() == value)
   }
 
-  // @Test def canNotOpenReadOnlyFileForWrite(): Unit = {
-  //   val roFile = File.createTempFile("tmp", "")
+  @Test def canNotOpenReadOnlyFileForWrite(): Unit = {
+    val roFile = File.createTempFile("tmp", "")
 
-  //   try {
-  //     assertTrue("Could not set file read-only", roFile.setReadOnly())
-
-  //     assertThrows(
-  //       classOf[FileNotFoundException],
-  //       new RandomAccessFile(roFile, "rw")
-  //     )
-  //   } finally {
-  //     assertTrue("Could not delete read-only temporary file", roFile.delete())
-  //   }
-  // }
+    try {
+      assertTrue("Could not set file read-only", roFile.setReadOnly())
+      assumeNotRoot()
+      assertThrows(
+        classOf[FileNotFoundException],
+        new RandomAccessFile(roFile, "rw")
+      )
+    } finally {
+      assertTrue("Could not delete read-only temporary file", roFile.delete())
+    }
+  }
 }

@@ -82,6 +82,66 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        arch: [linux-arm64, linux-x86, linux-armv7 ]
+        scala: [3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/linux-setup-env
+        with:
+          scala-version: ${{matrix.scala}}
+      - name: Cache docker
+        uses: actions/cache@v4
+        with:
+          path: /tmp/docker-registry
+          key: docker-registry-${{ matrix.arch }}-${{ hashFiles('ci-docker/Dockerfile', format('ci-docker/env/{0}', matrix.arch)) }}
+
+      - name: Prepare native config
+        shell: bash
+        # Following envs CROSS_ are always present in docker container
+        run: |
+          SetConfigTemplate=$(cat << EOM
+            nativeConfig ~= { prev =>
+              val crossRoot = sys.env("CROSS_ROOT");
+              val crossTriple = sys.env("CROSS_TRIPLE");
+              val sysRoot: List[String] = {
+                assert(java.nio.file.Files.exists(java.nio.file.Paths.get(crossRoot)), "crossroot does not exist");
+                assert(java.nio.file.Files.exists(java.nio.file.Paths.get(crossRoot, crossTriple, "sysroot")), "sysroot does not exist");
+                List(
+                  s"--sysroot=\${crossRoot}/\${crossTriple}/sysroot",
+                  s"--gcc-toolchain=\${crossRoot}"
+                )
+              };
+              prev
+                .withTargetTriple(crossTriple)
+                .withCompileOptions(sysRoot)
+                .withLinkingOptions(sysRoot)
+            }
+          EOM
+          )
+
+          echo set-native-config=${SetConfigTemplate} >> $GITHUB_ENV
+
+      - name: Run tests
+        env:
+          TEST_COMMAND: test-gc $${{env.binary-version}}
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 60
+          max_attempts: 2
+          retry_on: error
+          command: ./ci-docker/run-test-gha.sh "${{ needs.build-image.outputs.image-name }}:${{ matrix.arch }}"
+
+  test-runtime-ext:
+    name: Test runtime
+    if: "github.event_name == 'pull_request' || ((github.event_name == 'schedule' || github.event_name == 'workflow_call') && github.repository == 'scala-native/scala-native')"
+    runs-on: ubuntu-22.04
+    needs: build-image
+    env:
+      ENABLE_EXPERIMENTAL_COMPILER: true
+      SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
+    strategy:
+      fail-fast: false
+      matrix:
         arch: [linux-arm64, linux-x86, linux-armv7	]
         # arch: [linux-x86, linux-arm64]
         scala: [3]

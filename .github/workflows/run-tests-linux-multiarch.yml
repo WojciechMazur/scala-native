@@ -121,7 +121,7 @@ jobs:
 
           echo set-native-config=${SetConfigTemplate} >> $GITHUB_ENV
 
-      - name: Run tests
+      - name: Test GC + infra
         env:
           TEST_COMMAND: test-gc ${{env.binary-version}}
         uses: nick-fields/retry@v3
@@ -130,59 +130,6 @@ jobs:
           max_attempts: 2
           retry_on: error
           command: ./ci-docker/run-test-gha.sh "${{ needs.build-image.outputs.image-name }}:${{ matrix.arch }}"
-
-  test-runtime-ext:
-    name: Test runtime (ext)
-    if: "github.event_name == 'pull_request' || ((github.event_name == 'schedule' || github.event_name == 'workflow_call') && github.repository == 'scala-native/scala-native')"
-    runs-on: ubuntu-22.04
-    needs: build-image
-    env:
-      ENABLE_EXPERIMENTAL_COMPILER: true
-      SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: [linux-arm64, linux-x86, linux-armv7	]
-        # arch: [linux-x86, linux-arm64]
-        scala: [3]
-        gc: [immix, commix, boehm, none]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/linux-setup-env
-        with:
-          scala-version: ${{matrix.scala}}
-      - name: Cache docker
-        uses: actions/cache@v4
-        with:
-          path: /tmp/docker-registry
-          key: docker-registry-${{ matrix.arch }}-${{ hashFiles('ci-docker/Dockerfile', format('ci-docker/env/{0}', matrix.arch)) }}
-
-      - name: Prepare native config
-        shell: bash
-        # Following envs CROSS_ are always present in docker container
-        run: |
-          SetConfigTemplate=$(cat << EOM
-            nativeConfig ~= { prev =>
-              val crossRoot = sys.env("CROSS_ROOT");
-              val crossTriple = sys.env("CROSS_TRIPLE");
-              val sysRoot: List[String] = {
-                assert(java.nio.file.Files.exists(java.nio.file.Paths.get(crossRoot)), "crossroot does not exist");
-                assert(java.nio.file.Files.exists(java.nio.file.Paths.get(crossRoot, crossTriple, "sysroot")), "sysroot does not exist");
-                List(
-                  s"--sysroot=\${crossRoot}/\${crossTriple}/sysroot",
-                  s"--gcc-toolchain=\${crossRoot}"
-                )
-              };
-              prev
-                .withGC(scalanative.build.GC.${{matrix.gc}})
-                .withTargetTriple(crossTriple)
-                .withCompileOptions(sysRoot)
-                .withLinkingOptions(sysRoot ++ List("-latomic"))
-            }
-          EOM
-          )
-
-          echo set-native-config=${SetConfigTemplate} >> $GITHUB_ENV
 
       # Conditionally disable some of the tests (Scala 2 only)
       - name: Set filters for partests
@@ -193,23 +140,19 @@ jobs:
           echo "" >> ${ignoredTestsFile}
           echo -e "scala/util/SortingTest.scala\n" >> ${ignoredTestsFile}
 
-      - name: Run tests
+      - name: Test runtime
         env:
-          SCALANATIVE_GC: "${{matrix.gc}}"
           # Temporaly excluded due to failures in linux-x86,
           # missing __mulodi4 symbol used in j.l.Math.addExact(Long,Long)
           # testsExt${{env.project-version}}/test;
           SCALANATIVE_TEST_DEBUG_SIGNALS: 1
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
           TEST_COMMAND: >
-            set sandbox.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set testInterface.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set tests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set junitTestOutputsNative.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set scalaPartestJunitTests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
 
-            show sandbox${{env.project-version}}/nativeConfig;
-            sandbox${{env.project-version}}/run;
             testInterface${{env.project-version}}/test;
             testsJVM${{env.project-version}}/test;
             tests${{env.project-version}}/test;

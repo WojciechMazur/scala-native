@@ -50,10 +50,12 @@ ENV LANG="C.UTF-8"
 ENV PATH=/usr/lib/llvm-$LLVM_VERSION/bin:~/.sdkman/candidates/java/current/bin:~/.sdkman/candidates/sbt/current/bin:${PATH}
 ENV ENABLE_EXPERIMENTAL_COMPILER=true
 
-RUN dpkg --add-architecture ${ARCH}
-RUN apt-get update && apt-get install -y libgc-dev:${ARCH} libz-dev:${ARCH} || true
 RUN dpkg --add-architecture i386
-RUN apt-get update && apt-get install -y libgc-dev:i386 libz-dev:i386 || true
+# For some reasons the x86 builds cannot find built dependencies 
+RUN \
+  if [[ "$ARCH" == "i686" ]]; then \
+    apt-get update && apt-get install -y libgc-dev:i386 libz-dev:i386;\
+  fi
 
 CMD QEMU_SET_ENV="LD_LIBRARY_PATH=${CROSS_ROOT}/lib:${QEMU_LD_PREFIX}:${QEMU_LD_PREFIX}/lib:${CROSS_ROOT}/${CROSS_TRIPLE}/lib" \
   sbt \

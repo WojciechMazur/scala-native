@@ -94,10 +94,13 @@ class WeakReferenceTest {
 
     System.gc()
     def newDeadline() = System.currentTimeMillis() + 60 * 1000
+    println(">>WeakRefTest-1")
     assertEventuallyIsCollected("weakRef1", weakRef1, deadline = newDeadline())
+    println(">>WeakRefTest-2")
     assertEventuallyIsCollected("weakRef2", weakRef2, deadline = newDeadline())
+    println(">>WeakRefTest-3")
     assertEventuallyIsCollected("weakRef3", weakRef3, deadline = newDeadline())
-
+    println(">>WeakRefTest-4")
     assertEquals("weakRef1", null, weakRef1.get())
     assertEquals("weakRef2", null, weakRef2.get())
     assertEquals("weakRef3", null, weakRef3.get())

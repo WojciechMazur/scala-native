@@ -120,6 +120,25 @@ jobs:
           )
 
           echo set-native-config=${SetConfigTemplate} >> $GITHUB_ENV
+      
+      - name: Set sandbox source
+        run: >
+          cat <<EOT > sandbox/src/main/scala/Test.scala
+          import scala.scalanative.meta.LinktimeInfo._
+          import scala.scalanative.unsafe._
+          import scala.scalanative.runtime.Platform
+          object Test {
+            def main(args: Array[String]): Unit = {
+              println("Hello, World!")
+              println(s"is32bit=$is32BitPlatform")
+              println(s"multithreading=${isMultithreadingEnabled}")
+              println(s"triple=${target.arch}-${target.vendor}-${target.os}-${target.env}")
+              println(s"sizeOf[Ptr[_]]: ${sizeOf[Ptr[_]]}")
+              println(s"sizeOf[WChar]: ${Platform.SizeOfWChar}")
+              println(s"LittleEndian: ${Platform.littleEndian()}")
+            }
+          }
+          EOT
 
       - name: Test GC + infra
         env:
@@ -127,6 +146,7 @@ jobs:
             set sandbox.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set testInterface.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             set junitTestOutputsNative.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
+            clean;
             test-gc ${{env.binary-version}}
         uses: nick-fields/retry@v3
         with:
@@ -156,7 +176,9 @@ jobs:
             set scalaPartestJunitTests.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
             
             testsJVM${{env.project-version}}/test;
+            tests${{env.project-version}}/clean;
             tests${{env.project-version}}/test;
+            scalaPartestJunitTests${{env.project-version}}/clean;
             scalaPartestJunitTests${{env.project-version}}/test
         uses: nick-fields/retry@v3
         with:

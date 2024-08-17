@@ -19,9 +19,6 @@ object MyScalaNativePlugin extends AutoPlugin {
   lazy val nativeLinkProfiling =
     inputKey[File]("Running nativeLink with AsyncProfiler.")
 
-  lazy val runUsing =
-    inputKey[Unit]("Run project artifact using emulator or interpreter")
-
   // see: https://github.com/scalameta/metals/blob/0176a491cd209a09852ab33f99fd7de639e8e2dd/metals/src/main/scala/scala/meta/internal/builds/BloopInstall.scala#L81
   final val isGeneratingForIDE =
     env.getOrElse("METALS_ENABLED", "false").toBoolean
@@ -65,38 +62,6 @@ object MyScalaNativePlugin extends AutoPlugin {
       case Some(v) => Some(java.lang.Boolean.parseBoolean(v))
       case None    => None
     }
-  }
-
-  private def runUsingImpl = Def.inputTask {
-    val (runnerArgs, programArgs): (List[String], List[String]) = {
-      val args = spaceDelimited("<arg>").parsed.toList
-      if (!args.contains("--")) (args, Nil)
-      else
-        args.splitAt(args.indexOf("--")) match {
-          // First elem of second list is "--"
-          case (rArgs, _ :: programArgs) => rArgs -> programArgs
-          case (_, Nil)                  => (args, Nil) // unreachable
-        }
-    }
-
-    val env = (run / envVars).value.toSeq
-    val logger = streams.value.log
-    val binary = nativeLink.value.getAbsolutePath
-    val command = (runnerArgs :+ binary) ++ programArgs
-    logger.running(command)
-    val exitCode = {
-      val proc = new ProcessBuilder()
-        .command(command: _*)
-        .inheritIO()
-      env.foreach((proc.environment().put(_, _)).tupled)
-      proc.start().waitFor()
-    }
-
-    if (exitCode != 0) {
-      logger.error(s"Command failed: ${command.mkString(" ")}")
-      sys.error(s"Nonzero exit code: $exitCode")
-    }
-
   }
 
   private def nativeLinkProfilingImpl = Def.inputTaskDyn {
@@ -184,7 +149,7 @@ object MyScalaNativePlugin extends AutoPlugin {
       nc.withCheck(true)
         .withCheckFatalWarnings(true)
         .withDump(true)
-        // .withSourceLevelDebuggingConfig(_.enableAll)
+        .withSourceLevelDebuggingConfig(_.enableAll)
         .withMultithreading(
           multithreadingEnabledBySbtSysProps()
             .orElse(nc.multithreading)
@@ -193,8 +158,7 @@ object MyScalaNativePlugin extends AutoPlugin {
     inConfig(Compile) {
       nativeLinkProfiling := nativeLinkProfilingImpl
         .tag(NativeTags.Link)
-        .evaluated
-      runUsing := runUsingImpl.evaluated
+        .evaluated,
     }
   )
 }

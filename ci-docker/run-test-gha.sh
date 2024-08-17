@@ -28,6 +28,8 @@ docker run -d -p 5000:5000 \
   registry:2 &&
   npx wait-on tcp:5000
 
+docker run --privileged --rm tonistiigi/binfmt --install all
+
 # Pull cached image or build locally if image is missing
 # In most cases image should exist, however in the past we have observed single
 # CI jobs failing due to missing image.

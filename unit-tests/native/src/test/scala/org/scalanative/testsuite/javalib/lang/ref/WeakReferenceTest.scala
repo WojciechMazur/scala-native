@@ -83,7 +83,7 @@ class WeakReferenceTest {
     val weakRef3 = allocWeakRef(refQueue, new SubclassedWeakRef(_, _))
     val weakRefList = List(weakRef1, weakRef2, weakRef3)
     // Zero-memory the stack from possible stale references to allocated objects
-    val dummy = stackalloc[Long](128)()
+    val dummy = stackalloc[Long](128)
     assert(dummy != null)
 
     System.gc()

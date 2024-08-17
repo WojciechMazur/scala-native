@@ -543,7 +543,7 @@ private[codegen] object Generate {
             case (weakRef, weakRefReferantField) =>
               // if WeakReferences are being compiled and therefore supported
               val layout = meta.layout(weakRef)
-              println(s"WeakRefLayout: ${layout.tys}")
+              println(s"WeakRefLayout: ${layout.layout.tys}")
               val gcModifiedFieldReferentIdx = layout
                 .index(weakRefReferantField)
                 .ensuring(

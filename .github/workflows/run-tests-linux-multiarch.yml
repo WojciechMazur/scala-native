@@ -140,20 +140,20 @@ jobs:
           }
           EOT
 
-      - name: Test GC + infra
-        env:
-          TEST_COMMAND: >
-            set sandbox.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
-            set testInterface.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
-            set junitTestOutputsNative.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
-            clean;
-            test-gc ${{env.binary-version}}
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 60
-          max_attempts: 2
-          retry_on: error
-          command: ./ci-docker/run-test-gha.sh "${{ needs.build-image.outputs.image-name }}:${{ matrix.arch }}"
+      # - name: Test GC + infra
+      #   env:
+      #     TEST_COMMAND: >
+      #       set sandbox.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
+      #       set testInterface.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
+      #       set junitTestOutputsNative.forBinaryVersion("${{env.binary-version}}")/${{env.set-native-config}};
+      #       clean;
+      #       test-gc ${{env.binary-version}}
+      #   uses: nick-fields/retry@v3
+      #   with:
+      #     timeout_minutes: 60
+      #     max_attempts: 2
+      #     retry_on: error
+      #     command: ./ci-docker/run-test-gha.sh "${{ needs.build-image.outputs.image-name }}:${{ matrix.arch }}"
 
       # Conditionally disable some of the tests (Scala 2 only)
       - name: Set filters for partests

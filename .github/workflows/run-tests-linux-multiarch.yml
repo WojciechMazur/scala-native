@@ -96,15 +96,6 @@ jobs:
           retry_on: error
           command: ./ci-docker/run-test-gha.sh "scala-native-testing:${{ matrix.arch }}"
 
-      # Conditionally disable some of the tests (Scala 2 only)
-      - name: Set filters for partests
-        shell: bash
-        if: ${{ !startsWith(matrix.scala, '3') }}
-        run: |
-          ignoredTestsFile=scala-partest-junit-tests/src/test/resources/${{matrix.scala}}/DenylistedTests.txt
-          echo "" >> ${ignoredTestsFile}
-          echo -e "scala/util/SortingTest.scala\n" >> ${ignoredTestsFile}
-
       - name: Test runtime
         env:
           # Temporaly excluded due to failures in linux-x86,

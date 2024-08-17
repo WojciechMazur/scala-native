@@ -12,6 +12,7 @@ import scala.scalanative.buildinfo.ScalaNativeBuildInfo
 
 import scala.scalanative.runtime.GC
 import org.scalanative.testsuite.utils.Platform
+import scala.scalanative.unsafe._
 
 // "AfterGC" tests are very sensitive to optimizations,
 // both by Scala Native and LLVM.
@@ -29,9 +30,9 @@ class WeakReferenceTest {
   }
 
   @nooptimize @noinline def allocWeakRef(
-    referenceQueue: ReferenceQueue[A],
-    factory: (A, ReferenceQueue[A]) => WeakReference[A]
-    ): WeakReference[A] = {
+      referenceQueue: ReferenceQueue[A],
+      factory: (A, ReferenceQueue[A]) => WeakReference[A]
+  ): WeakReference[A] = {
     @nooptimize @noinline def allocA = A()
     val weakRef = factory(allocA, referenceQueue)
     assertNotNull("get() should return object reference", weakRef.get())

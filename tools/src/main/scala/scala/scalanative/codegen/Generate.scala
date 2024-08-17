@@ -561,6 +561,15 @@ private[codegen] object Generate {
                 gcModifiedFieldReferentOffset.toInt
               )
           }
+      println(s"WeakRefsRange: ${weakRefIdsMin}..${weakRefIdsMax}")
+      println(s"WeakRefSubclasses:")
+      (weakRefIdsMin to weakRefIdsMax).foreach { id =>
+        val cls = meta.ids
+          .find(_._2 == id)
+          .map(_._1)
+          .map(_.name)
+        println(s"$id - $cls")
+      }
       addToBuf(weakRefIdsMaxName, weakRefIdsMax)
       addToBuf(weakRefIdsMinName, weakRefIdsMin)
       addToBuf(weakRefFieldOffsetName, modifiedFieldOffset)

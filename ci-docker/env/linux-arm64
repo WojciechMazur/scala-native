@@ -1,2 +1,2 @@
-BASE_IMAGE=dockcross/linux-arm64
+BASE_IMAGE=dockcross/linux-arm64:20240812-60fa1b0
 LLVM_VERSION=17

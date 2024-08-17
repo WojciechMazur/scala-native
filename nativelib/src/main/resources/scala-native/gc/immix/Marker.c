@@ -12,7 +12,6 @@
 #include "shared/GCTypes.h"
 #include <stdatomic.h>
 #include "shared/ThreadUtil.h"
-#include <stdio.h>
 
 extern word_t *__modules;
 extern int __modules_size;
@@ -31,7 +30,6 @@ void Marker_markObject(Heap *heap, Stack *stack, Bytemap *bytemap,
 
     Marker_markLockWords(heap, stack, object);
     if (Object_IsWeakReference(object)) {
-        printf("Add WeakRef %p - id=%d\n", object, object->rtti->rt.id);
         // Added to the WeakReference stack for additional later visit
         Stack_Push(&weakRefStack, object);
     }

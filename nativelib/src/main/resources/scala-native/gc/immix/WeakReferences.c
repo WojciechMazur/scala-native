@@ -1,5 +1,3 @@
-#include "immix/Heap.h"
-#include <stdio.h>
 #if defined(SCALANATIVE_GC_IMMIX)
 
 #include "WeakReferences.h"

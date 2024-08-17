@@ -543,14 +543,12 @@ private[codegen] object Generate {
             case (weakRef, weakRefReferantField) =>
               // if WeakReferences are being compiled and therefore supported
               val layout = meta.layout(weakRef)
-              println(s"WeakRefLayout: ${layout.layout.tys}")
               val gcModifiedFieldReferentIdx = layout
                 .index(weakRefReferantField)
                 .ensuring(
                   _ > 0,
                   "Runtime implementation error, no \"_gc_modified_referent\" field in java.lang.ref.WeakReference"
                 )
-              println(s"WeakRefRefenantIdx=${gcModifiedFieldReferentIdx}")
               val gcModifiedFieldReferentOffset = layout.layout
                 .tys(gcModifiedFieldReferentIdx)
                 .offset
@@ -561,15 +559,6 @@ private[codegen] object Generate {
                 gcModifiedFieldReferentOffset.toInt
               )
           }
-      println(s"WeakRefsRange: ${weakRefIdsMin}..${weakRefIdsMax}")
-      println(s"WeakRefSubclasses:")
-      (weakRefIdsMin to weakRefIdsMax).foreach { id =>
-        val cls = meta.ids
-          .find(_._2 == id)
-          .map(_._1)
-          .map(_.name)
-        println(s"$id - $cls")
-      }
       addToBuf(weakRefIdsMaxName, weakRefIdsMax)
       addToBuf(weakRefIdsMinName, weakRefIdsMin)
       addToBuf(weakRefFieldOffsetName, modifiedFieldOffset)

@@ -23,13 +23,8 @@ void WeakReferences_Nullify(void) {
         Object **weakRefReferantField =
             (Object **)((int8_t *)object + __weak_ref_field_offset);
         word_t *weakRefReferant = (word_t *)*weakRefReferantField;
-        printf("Try nullify %p->%p - inHeap=%d", object, weakRefReferant,
-               Heap_IsWordInHeap(&heap, weakRefReferant));
         if (Heap_IsWordInHeap(&heap, weakRefReferant)) {
             ObjectMeta *objectMeta = Bytemap_Get(bytemap, weakRefReferant);
-            printf(", allocated=%d, marked=%d",
-                   ObjectMeta_IsAllocated(objectMeta),
-                   ObjectMeta_IsMarked(objectMeta));
             if (ObjectMeta_IsAllocated(objectMeta) &&
                 !ObjectMeta_IsMarked(objectMeta)) {
                 // WeakReferences should have the held referent
@@ -38,7 +33,6 @@ void WeakReferences_Nullify(void) {
                 collectedWeakReferences = true;
             }
         }
-        printf("\n");
     }
 }
 

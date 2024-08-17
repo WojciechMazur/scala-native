@@ -18,7 +18,6 @@
 #include <stdatomic.h>
 
 void scalanative_afterexit() { Stats_OnExit(heap.stats); }
-extern const int __weak_ref_field_offset;
 
 NOINLINE void scalanative_GC_init() {
     volatile word_t dummy = 0;
@@ -26,7 +25,6 @@ NOINLINE void scalanative_GC_init() {
     Heap_Init(&heap, Settings_MinHeapSize(), Settings_MaxHeapSize());
     Stack_Init(&stack, INITIAL_STACK_SIZE);
     Stack_Init(&weakRefStack, INITIAL_STACK_SIZE);
-    printf("WeakRef offset = %d\n", __weak_ref_field_offset);
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
     Synchronizer_init();
 #endif

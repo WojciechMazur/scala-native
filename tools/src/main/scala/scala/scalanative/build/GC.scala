@@ -24,6 +24,10 @@ package scala.scalanative.build
  */
 sealed abstract class GC private (val name: String) {
   def links(config: NativeConfig): Seq[String] = Nil
+  @deprecated(
+    "Use config-based links to resolve dynamically linked libraries instead",
+    since = "0.5.6"
+  ) def links: Seq[String] = links(NativeConfig.empty)
 
   /** The name of the [[GC]] object
    *

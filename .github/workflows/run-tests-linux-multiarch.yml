@@ -52,10 +52,10 @@ jobs:
                 val crossTriple = sys.env("CROSS_TRIPLE");
                 val setSysRoot: List[String] = {
                   assert(Files.exists(Paths.get(crossRoot)), s"crossroot \${crossRoot} does not exist");
-                  val sysroot = Paths.get(crossRoot, crossTriple, "sysroot"));
+                  val sysroot = Paths.get(crossRoot, crossTriple, "sysroot");
                   assert(Files.exists(sysroot), s"sysroot \${sysroot} does not exist");
                   List(
-                    s"--sysroot=\${sysRoot}",
+                    s"--sysroot=\${sysroot}",
                     s"--gcc-toolchain=\${crossRoot}"
                   )
                 };
@@ -69,7 +69,6 @@ jobs:
           )
 
           echo set-native-config=${SetConfigTemplate} >> $GITHUB_ENV
-      
       - name: Set sandbox source
         run: |
           cat <<EOT > sandbox/src/main/scala/Test.scala

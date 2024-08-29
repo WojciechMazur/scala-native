@@ -189,16 +189,14 @@ private[scalanative] object LLVM {
     val workDir = config.workDir
     val links = {
       val srclinks = analysis.links.map(_.name)
-      val gclinks = config.gc.links
+      val gclinks = config.gc.links(config.compilerConfig)
       // We need extra linking dependencies for:
       // * libdl for our vendored libunwind implementation.
-      // * libpthread for process APIs and parallel garbage collection.
       // * Dbghelp for windows implementation of unwind libunwind API
       val platformsLinks =
         if (config.targetsWindows) Seq("dbghelp")
-        else if (config.targetsOpenBSD || config.targetsNetBSD)
-          Seq("pthread")
-        else Seq("pthread", "dl")
+        else if (config.targetsOpenBSD || config.targetsNetBSD) Nil
+        else Nil
       platformsLinks ++ srclinks ++ gclinks
     }.distinct
     config.logger.info(s"Linking with [${links.mkString(", ")}]")

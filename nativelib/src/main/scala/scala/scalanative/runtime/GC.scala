@@ -61,6 +61,7 @@ object GC {
 
   /** Proxy to pthread_create which registers created thread in the GC */
   @name("scalanative_GC_pthread_create")
+  @link("pthread")
   def pthread_create(
       thread: Ptr[pthread_t],
       attr: Ptr[pthread_attr_t],

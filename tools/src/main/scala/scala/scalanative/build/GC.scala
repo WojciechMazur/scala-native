@@ -22,10 +22,8 @@ package scala.scalanative.build
  *  @param links
  *    linking dependencies of the gc
  */
-sealed abstract class GC private (
-    val name: String,
-    val links: NativeConfig => Seq[String]
-) {
+sealed abstract class GC private (val name: String) {
+  def links(config: NativeConfig): Seq[String] = Nil
 
   /** The name of the [[GC]] object
    *
@@ -37,19 +35,21 @@ sealed abstract class GC private (
 
 /** Utility to create a [[GC]] object */
 object GC {
-  private[scalanative] case object None extends GC("none", _ => Seq.empty)
-  private[scalanative] case object Boehm extends GC("boehm", _ => Seq("gc"))
-  private[scalanative] case object Immix
-      extends GC(
-        "immix",
-        config =>
-          if (config.multithreadingSupport) Seq("pthread")
-          else Seq.empty
-      )
-  private[scalanative] case object Commix
-      extends GC("commix", _ => Seq("pthread"))
-  private[scalanative] case object Experimental
-      extends GC("experimental", _ => Seq.empty)
+  private[scalanative] case object None extends GC("none")
+  private[scalanative] case object Boehm extends GC("boehm") {
+    override def links(config: NativeConfig): Seq[String] = Seq("gc")
+  }
+  private[scalanative] case object Immix extends GC("immix") {
+    override def links(config: NativeConfig): Seq[String] =
+      if (config.multithreadingSupport && !config.targetsWindows) Seq("pthread")
+      else Seq.empty
+  }
+  private[scalanative] case object Commix extends GC("commix") {
+    override def links(config: NativeConfig): Seq[String] =
+      if (!config.targetsWindows) Seq("pthread")
+      else Seq.empty
+  }
+  private[scalanative] case object Experimental extends GC("experimental")
 
   /** Non-freeing garbage collector. */
   def none: GC = None

@@ -196,7 +196,7 @@ private[scalanative] object LLVM {
       val platformsLinks =
         if (config.targetsWindows) Seq("dbghelp")
         else if (config.targetsOpenBSD || config.targetsNetBSD) Nil
-        else Nil
+        else Seq("dl")
       platformsLinks ++ srclinks ++ gclinks
     }.distinct
     config.logger.info(s"Linking with [${links.mkString(", ")}]")

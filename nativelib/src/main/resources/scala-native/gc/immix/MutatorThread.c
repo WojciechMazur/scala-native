@@ -4,10 +4,12 @@
 #include "State.h"
 #include <stdlib.h>
 #include <stdatomic.h>
-#include "shared/ThreadUtil.h"
 #include <assert.h>
 
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
+#include "shared/ThreadUtil.h"
 static mutex_t threadListsModificationLock;
+#endif
 
 void MutatorThread_init(Field_t *stackbottom) {
     MutatorThread *self = (MutatorThread *)malloc(sizeof(MutatorThread));
@@ -81,7 +83,11 @@ INLINE void MutatorThread_switchState(MutatorThread *self,
     self->state = newState;
 }
 
-void MutatorThreads_init() { mutex_init(&threadListsModificationLock); }
+void MutatorThreads_init() {
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
+    mutex_init(&threadListsModificationLock);
+#endif
+}
 
 void MutatorThreads_add(MutatorThread *node) {
     if (!node)
@@ -118,8 +124,16 @@ void MutatorThreads_remove(MutatorThread *node) {
     MutatorThreads_unlock();
 }
 
-void MutatorThreads_lock() { mutex_lock(&threadListsModificationLock); }
+void MutatorThreads_lock() {
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
+    mutex_lock(&threadListsModificationLock);
+#endif
+}
 
-void MutatorThreads_unlock() { mutex_unlock(&threadListsModificationLock); }
+void MutatorThreads_unlock() {
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
+    mutex_unlock(&threadListsModificationLock);
+#endif
+}
 
 #endif

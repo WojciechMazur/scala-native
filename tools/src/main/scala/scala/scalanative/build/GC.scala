@@ -22,10 +22,12 @@ package scala.scalanative.build
  *  @param links
  *    linking dependencies of the gc
  */
-sealed abstract class GC private (
-    val name: String,
-    val links: Seq[String]
-) {
+sealed abstract class GC private (val name: String) {
+  def links(config: NativeConfig): Seq[String] = Nil
+  @deprecated(
+    "Use config-based links to resolve dynamically linked libraries instead",
+    since = "0.5.6"
+  ) def links: Seq[String] = links(NativeConfig.empty)
 
   /** The name of the [[GC]] object
    *
@@ -37,12 +39,21 @@ sealed abstract class GC private (
 
 /** Utility to create a [[GC]] object */
 object GC {
-  private[scalanative] case object None extends GC("none", Seq.empty)
-  private[scalanative] case object Boehm extends GC("boehm", Seq("gc"))
-  private[scalanative] case object Immix extends GC("immix", Seq.empty)
-  private[scalanative] case object Commix extends GC("commix", Seq.empty)
-  private[scalanative] case object Experimental
-      extends GC("experimental", Seq.empty)
+  private[scalanative] case object None extends GC("none")
+  private[scalanative] case object Boehm extends GC("boehm") {
+    override def links(config: NativeConfig): Seq[String] = Seq("gc")
+  }
+  private[scalanative] case object Immix extends GC("immix") {
+    override def links(config: NativeConfig): Seq[String] =
+      if (config.multithreadingSupport && !config.targetsWindows) Seq("pthread")
+      else Seq.empty
+  }
+  private[scalanative] case object Commix extends GC("commix") {
+    override def links(config: NativeConfig): Seq[String] =
+      if (!config.targetsWindows) Seq("pthread")
+      else Seq.empty
+  }
+  private[scalanative] case object Experimental extends GC("experimental")
 
   /** Non-freeing garbage collector. */
   def none: GC = None

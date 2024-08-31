@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [linux-arm64, linux-x86]
+        arch: [linux-arm64, linux-x86, android-x86, android-x86_64, android-arm, android-arm64]
         # Scala 2.13 only for increased tests coverage (Scala2 partests) while keeping total number of jobs low
         scala: [2.13]
     steps:
@@ -40,26 +40,35 @@ jobs:
         run: |
           SetConfigTemplate=$(cat << EOM
             nativeConfig ~= { prev =>
-              val crossRoot = sys.env("CROSS_ROOT");
-              val crossTriple = sys.env("CROSS_TRIPLE");
-              val sysRoot: List[String] = {
-                assert(java.nio.file.Files.exists(java.nio.file.Paths.get(crossRoot)), "crossroot does not exist");
-                assert(java.nio.file.Files.exists(java.nio.file.Paths.get(crossRoot, crossTriple, "sysroot")), "sysroot does not exist");
-                List(
-                  s"--sysroot=\${crossRoot}/\${crossTriple}/sysroot",
-                  s"--gcc-toolchain=\${crossRoot}"
-                )
-              };
-              prev
-                .withTargetTriple(crossTriple)
-                .withCompileOptions(sysRoot)
-                .withLinkingOptions(sysRoot ++ List("-latomic"))
+              import java.nio.file.Paths;
+              import java.nio.file.Files;
+
+              if("${{matrix.arch}}".startsWith("android-")){
+                prev
+                  .withClang(Paths.get(sys.env("CC")))
+                  .withClangPP(Paths.get(sys.env("CXX")))
+              } else {
+                val crossRoot = sys.env("CROSS_ROOT");
+                val crossTriple = sys.env("CROSS_TRIPLE");
+                val setSysRoot: List[String] = {
+                  assert(Files.exists(Paths.get(crossRoot)), s"crossroot \${crossRoot} does not exist");
+                  val sysroot = Paths.get(crossRoot, crossTriple, "sysroot");
+                  assert(Files.exists(sysroot), s"sysroot \${sysroot} does not exist");
+                  List(
+                    s"--sysroot=\${sysroot}",
+                    s"--gcc-toolchain=\${crossRoot}"
+                  )
+                };
+                prev
+                  .withTargetTriple(crossTriple)
+                  .withCompileOptions(setSysRoot)
+                  .withLinkingOptions(setSysRoot ++ List("-latomic"))
+              }
             }
           EOM
           )
 
           echo set-native-config=${SetConfigTemplate} >> $GITHUB_ENV
-      
       - name: Set sandbox source
         run: |
           cat <<EOT > sandbox/src/main/scala/Test.scala

@@ -1,4 +1,6 @@
 #include "shared/ThreadUtil.h"
+
+#ifdef SCALANATIVE_CAN_USE_THREADS
 #include <stdio.h>
 #include <limits.h>
 
@@ -160,3 +162,4 @@ bool rwlock_unlockRead(rwlock_t *ref) {
     return pthread_rwlock_unlock(ref) == 0;
 #endif
 }
+#endif

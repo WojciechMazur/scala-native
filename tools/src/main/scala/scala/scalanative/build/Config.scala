@@ -146,56 +146,25 @@ sealed trait Config {
 
   protected def nameSuffix = if (testConfig) testSuffix else ""
 
-  private[scalanative] lazy val targetsWindows: Boolean = {
-    compilerConfig.targetTriple.fold(Platform.isWindows) { customTriple =>
-      customTriple.contains("win32") ||
-      customTriple.contains("windows")
-    }
-  }
-
-  private[scalanative] lazy val targetsMac: Boolean =
-    compilerConfig.targetTriple.fold(Platform.isMac) { customTriple =>
-      Seq("mac", "apple", "darwin").exists(customTriple.contains(_))
-    }
-
-  private[scalanative] lazy val targetsMsys: Boolean = {
-    compilerConfig.targetTriple.fold(Platform.isMsys) { customTriple =>
-      customTriple.contains("windows-msys")
-    }
-  }
-  private[scalanative] lazy val targetsCygwin: Boolean = {
-    compilerConfig.targetTriple.fold(Platform.isCygwin) { customTriple =>
-      customTriple.contains("windows-cygnus")
-    }
-  }
-
+  private[scalanative] lazy val targetsWindows: Boolean =
+    compilerConfig.targetsWindows
+  private[scalanative] lazy val targetsMac: Boolean = compilerConfig.targetsMac
+  private[scalanative] lazy val targetsMsys: Boolean =
+    compilerConfig.targetsMsys
+  private[scalanative] lazy val targetsCygwin: Boolean =
+    compilerConfig.targetsCygwin
   private[scalanative] lazy val targetsLinux: Boolean =
-    compilerConfig.targetTriple.fold(Platform.isLinux) { customTriple =>
-      Seq("linux").exists(customTriple.contains(_))
-    }
-
+    compilerConfig.targetsLinux
   private[scalanative] lazy val targetsOpenBSD: Boolean =
-    compilerConfig.targetTriple.fold(Platform.isOpenBSD) { customTriple =>
-      Seq("openbsd").exists(customTriple.contains(_))
-    }
-
+    compilerConfig.targetsOpenBSD
   private[scalanative] lazy val targetsNetBSD: Boolean =
-    compilerConfig.targetTriple.fold(Platform.isNetBSD) { customTriple =>
-      Seq("netbsd").exists(customTriple.contains(_))
-    }
+    compilerConfig.targetsNetBSD
+  private[scalanative] lazy val useTrapBasedGCYieldPoints =
+    compilerConfig.useTrapBasedGCYieldPoints
 
   // see https://no-color.org/
   private[scalanative] lazy val noColor: Boolean = sys.env.contains("NO_COLOR")
 
-  private[scalanative] lazy val useTrapBasedGCYieldPoints =
-    compilerConfig.gc match {
-      case GC.Immix | GC.Commix | GC.Experimental =>
-        sys.env
-          .get("SCALANATIVE_GC_TRAP_BASED_YIELDPOINTS")
-          .map(_ == "1")
-          .getOrElse(compilerConfig.mode.isInstanceOf[Mode.Release])
-      case _ => false
-    }
 }
 
 /** Factory to create [[#empty]] [[Config]] objects */

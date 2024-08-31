@@ -6,12 +6,16 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stdatomic.h>
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
 #include "shared/ThreadUtil.h"
+#endif
 
 GC_Roots *GC_Roots_Init() {
     GC_Roots *roots = (GC_Roots *)malloc(sizeof(GC_Roots));
     roots->head = ATOMIC_VAR_INIT(NULL);
+#ifdef SCALANATIVE_CAN_USE_THREADS
     mutex_init(&roots->modificationLock);
+#endif
     return roots;
 }
 
@@ -19,10 +23,14 @@ void GC_Roots_Add(GC_Roots *roots, AddressRange range) {
     // Prepend the node with given range to the head of linked list of GC roots
     GC_Root *node = (GC_Root *)malloc(sizeof(GC_Root));
     node->range = range;
+#ifdef SCALANATIVE_CAN_USE_THREADS
     mutex_lock(&roots->modificationLock);
+#endif
     node->next = roots->head;
     roots->head = node;
+#ifdef SCALANATIVE_CAN_USE_THREADS
     mutex_unlock(&roots->modificationLock);
+#endif
 }
 
 void GC_Roots_Add_Range_Except(GC_Roots *roots, AddressRange range,
@@ -39,7 +47,9 @@ void GC_Roots_Add_Range_Except(GC_Roots *roots, AddressRange range,
 }
 
 void GC_Roots_RemoveByRange(GC_Roots *roots, AddressRange range) {
+#ifdef SCALANATIVE_CAN_USE_THREADS
     mutex_lock(&roots->modificationLock);
+#endif
     GC_Root *current = roots->head;
     GC_Root *prev = NULL;
     while (current != NULL) {
@@ -60,6 +70,8 @@ void GC_Roots_RemoveByRange(GC_Roots *roots, AddressRange range) {
             current = current->next;
         }
     }
+#ifdef SCALANATIVE_CAN_USE_THREADS
     mutex_unlock(&roots->modificationLock);
+#endif
 }
 #endif

@@ -17,7 +17,9 @@ typedef struct GC_Root {
 
 typedef struct GC_Roots {
     GC_Root *head;
+#ifdef SCALANATIVE_CAN_USE_THREADS
     mutex_t modificationLock;
+#endif
 } GC_Roots;
 
 INLINE static bool AddressRange_Contains(AddressRange self,

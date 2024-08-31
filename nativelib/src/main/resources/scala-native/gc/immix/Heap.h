@@ -21,7 +21,9 @@ typedef struct {
     uint32_t maxBlockCount;
     Bytemap *bytemap;
     Stats *stats;
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
     mutex_t lock;
+#endif
 } Heap;
 
 static inline bool Heap_IsWordInHeap(Heap *heap, word_t *word) {

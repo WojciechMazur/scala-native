@@ -31,6 +31,11 @@
 #endif
 #endif // SCALANATIVE_MULTITHREADING_ENABLED
 
+#if defined(SCALANATIVE_GC_COMMIX) ||                                          \
+    defined(SCALANATIVE_MULTITHREADING_ENABLED) ||                             \
+    defined(SCALANATIVE_COMPILE_ALWAYS)
+#define SCALANATIVE_CAN_USE_THREADS
+
 typedef void *(*routine_fn)(void *);
 #ifdef _WIN32
 typedef HANDLE thread_t;
@@ -68,5 +73,6 @@ bool rwlock_lockRead(rwlock_t *ref);
 bool rwlock_lockWrite(rwlock_t *ref);
 bool rwlock_unlockRead(rwlock_t *ref);
 bool rwlock_unlockWrite(rwlock_t *ref);
+#endif
 
 #endif // COMMIX_THREAD_UTIL_H

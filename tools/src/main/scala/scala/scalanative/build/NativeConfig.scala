@@ -119,6 +119,53 @@ sealed trait NativeConfig {
   private[scalanative] lazy val configuredOrDetectedTriple =
     TargetTriple.parse(targetTriple.getOrElse(Discover.targetTriple(this)))
 
+  private[scalanative] lazy val targetsWindows: Boolean = {
+    targetTriple.fold(Platform.isWindows) { customTriple =>
+      customTriple.contains("win32") ||
+      customTriple.contains("windows")
+    }
+  }
+
+  private[scalanative] lazy val targetsMac: Boolean =
+    targetTriple.fold(Platform.isMac) { customTriple =>
+      Seq("mac", "apple", "darwin").exists(customTriple.contains(_))
+    }
+
+  private[scalanative] lazy val targetsMsys: Boolean = {
+    targetTriple.fold(Platform.isMsys) { customTriple =>
+      customTriple.contains("windows-msys")
+    }
+  }
+  private[scalanative] lazy val targetsCygwin: Boolean = {
+    targetTriple.fold(Platform.isCygwin) { customTriple =>
+      customTriple.contains("windows-cygnus")
+    }
+  }
+
+  private[scalanative] lazy val targetsLinux: Boolean =
+    targetTriple.fold(Platform.isLinux) { customTriple =>
+      Seq("linux").exists(customTriple.contains(_))
+    }
+
+  private[scalanative] lazy val targetsOpenBSD: Boolean =
+    targetTriple.fold(Platform.isOpenBSD) { customTriple =>
+      Seq("openbsd").exists(customTriple.contains(_))
+    }
+
+  private[scalanative] lazy val targetsNetBSD: Boolean =
+    targetTriple.fold(Platform.isNetBSD) { customTriple =>
+      Seq("netbsd").exists(customTriple.contains(_))
+    }
+
+  private[scalanative] lazy val useTrapBasedGCYieldPoints = gc match {
+    case GC.Immix | GC.Commix | GC.Experimental =>
+      multithreadingSupport && sys.env
+        .get("SCALANATIVE_GC_TRAP_BASED_YIELDPOINTS")
+        .map(_ == "1")
+        .getOrElse(mode.isInstanceOf[Mode.Release])
+    case _ => false
+  }
+
   /** Are we targeting a 32-bit platform?
    *
    *  @return

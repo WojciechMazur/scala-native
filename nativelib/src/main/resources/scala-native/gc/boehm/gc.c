@@ -90,12 +90,12 @@ int scalanative_GC_pthread_create(pthread_t *thread, pthread_attr_t *attr,
     return GC_pthread_create(thread, attr, routine, args);
 }
 #endif
-#endif // SCALANATIVE_MULTITHREADING_ENABLED
 
 // ScalaNativeGC interface stubs. Boehm GC relies on STW using signal handlers
 void scalanative_GC_set_mutator_thread_state(GC_MutatorThreadState unused){};
 
 void scalanative_GC_yield(){};
+#endif // SCALANATIVE_MULTITHREADING_ENABLED
 
 void scalanative_GC_add_roots(void *addr_low, void *addr_high) {
     GC_add_roots(addr_low, addr_high);

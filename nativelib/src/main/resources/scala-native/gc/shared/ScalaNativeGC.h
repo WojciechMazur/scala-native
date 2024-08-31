@@ -39,6 +39,7 @@ size_t scalanative_GC_get_init_heapsize();
 size_t scalanative_GC_get_max_heapsize();
 size_t scalanative_GC_get_used_heapsize();
 
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
 // Functions used to create a new thread supporting multithreading support in
 // the garbage collector. Would execute a proxy startup routine to register
 // newly created thread upon startup and unregister it from the GC upon
@@ -52,6 +53,18 @@ HANDLE scalanative_GC_CreateThread(LPSECURITY_ATTRIBUTES threadAttributes,
 int scalanative_GC_pthread_create(pthread_t *thread, pthread_attr_t *attr,
                                   ThreadStartRoutine routine, RoutineArgs args);
 #endif
+
+// Check for StopTheWorld event and wait for its end if needed
+void scalanative_GC_yield();
+#ifdef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
+// Conditionally protected memory address used for STW events polling
+// Scala Native compiler would introduce load/store operations to location
+// pointed by this field. Under active StopTheWorld event these would trigger
+// thread execution suspension via exception handling mechanism
+// (signals/exceptionHandler)
+extern void **scalanative_GC_yieldpoint_trap;
+#endif
+#endif // SCALANATIVE_MULTITHREADING_ENABLED
 
 // Current type of execution by given threadin foreign scope be included in the
 // stop-the-world mechanism, as they're assumed to not modify the state of the
@@ -74,17 +87,6 @@ typedef enum scalanative_GC_MutatorThreadState {
 // Receiver for notifications on entering/exiting potentially blocking extern
 // functions. Changes the internal state of current (calling) thread
 void scalanative_GC_set_mutator_thread_state(GC_MutatorThreadState);
-
-// Check for StopTheWorld event and wait for its end if needed
-void scalanative_GC_yield();
-#ifdef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
-// Conditionally protected memory address used for STW events polling
-// Scala Native compiler would introduce load/store operations to location
-// pointed by this field. Under active StopTheWorld event these would trigger
-// thread execution suspension via exception handling mechanism
-// (signals/exceptionHandler)
-extern void **scalanative_GC_yieldpoint_trap;
-#endif
 
 void scalanative_GC_add_roots(void *addr_low, void *addr_high);
 void scalanative_GC_remove_roots(void *addr_low, void *addr_high);

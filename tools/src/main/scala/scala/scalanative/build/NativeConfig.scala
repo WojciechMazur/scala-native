@@ -159,7 +159,7 @@ sealed trait NativeConfig {
 
   private[scalanative] lazy val useTrapBasedGCYieldPoints = gc match {
     case GC.Immix | GC.Commix | GC.Experimental =>
-      sys.env
+      multithreadingSupport && sys.env
         .get("SCALANATIVE_GC_TRAP_BASED_YIELDPOINTS")
         .map(_ == "1")
         .getOrElse(mode.isInstanceOf[Mode.Release])

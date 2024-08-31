@@ -150,6 +150,7 @@ void scalanative_GC_collect() {}
 void scalanative_GC_set_weak_references_collected_callback(
     WeakReferencesCollectedCallback callback) {}
 
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
 #ifdef _WIN32
 HANDLE scalanative_GC_CreateThread(LPSECURITY_ATTRIBUTES threadAttributes,
                                    SIZE_T stackSize, ThreadStartRoutine routine,
@@ -167,8 +168,11 @@ int scalanative_GC_pthread_create(pthread_t *thread, pthread_attr_t *attr,
 #endif
 
 // ScalaNativeGC interface stubs. None GC does not need STW
-void scalanative_GC_set_mutator_thread_state(GC_MutatorThreadState unused){};
-void scalanative_GC_yield(){};
+void scalanative_GC_yield() {};
+#endif // SCALANATIVE_MULTITHREADING_ENABLED
+
+void scalanative_GC_set_mutator_thread_state(GC_MutatorThreadState unused) {};
+
 void scalanative_GC_add_roots(void *addr_low, void *addr_high) {}
 void scalanative_GC_remove_roots(void *addr_low, void *addr_high) {}
 #endif

@@ -4,7 +4,6 @@
 #include "immix_commix/Log.h"
 #include "immix_commix/utils/MathUtils.h"
 #include <stdio.h>
-#include "shared/ThreadUtil.h"
 #include <stdatomic.h>
 
 void BlockAllocator_addFreeBlocksInternal(BlockAllocator *blockAllocator,
@@ -21,16 +20,22 @@ void BlockAllocator_Init(BlockAllocator *blockAllocator, word_t *blockMetaStart,
     blockAllocator->smallestSuperblock.cursor = (BlockMeta *)blockMetaStart;
     blockAllocator->smallestSuperblock.limit =
         (BlockMeta *)blockMetaStart + blockCount;
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
     mutex_init(&blockAllocator->allocationLock);
+#endif
 }
 
 INLINE void BlockAllocator_Acquire(BlockAllocator *blockAllocator) {
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
     mutex_lock(&blockAllocator->allocationLock);
     atomic_thread_fence(memory_order_acquire);
+#endif
 }
 INLINE void BlockAllocator_Release(BlockAllocator *blockAllocator) {
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
     atomic_thread_fence(memory_order_release);
     mutex_unlock(&blockAllocator->allocationLock);
+#endif
 }
 
 inline static int BlockAllocator_sizeToLinkedListIndex(uint32_t size) {

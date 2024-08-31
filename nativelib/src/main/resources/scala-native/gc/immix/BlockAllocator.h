@@ -20,7 +20,9 @@ typedef struct {
         BlockMeta *limit;
     } coalescingSuperblock;
     BlockList freeSuperblocks[SUPERBLOCK_LIST_SIZE];
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
     mutex_t allocationLock;
+#endif
 } BlockAllocator;
 
 void BlockAllocator_Init(BlockAllocator *blockAllocator, word_t *blockMetaStart,

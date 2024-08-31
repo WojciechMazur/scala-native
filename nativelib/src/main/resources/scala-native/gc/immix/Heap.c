@@ -152,7 +152,9 @@ void Heap_Init(Heap *heap, size_t minHeapSize, size_t maxHeapSize) {
         heap->stats = malloc(sizeof(Stats));
         Stats_Init(heap->stats, statsFile);
     }
+#ifdef SCALANATIVE_MULTITHREADING_ENABLED
     mutex_init(&heap->lock);
+#endif
 }
 
 void Heap_Collect(Heap *heap, Stack *stack) {

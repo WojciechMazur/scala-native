@@ -6,6 +6,8 @@ import dotty.tools.dotc.core.Contexts.NoContext
 import java.net.URI
 import java.net.URISyntaxException
 import dotty.tools.dotc.core.Contexts.Context
+import java.nio.file.Paths
+import scala.annotation.nowarn
 
 class ScalaNativePlugin extends StandardPlugin:
   val name: String = "scalanative"
@@ -24,6 +26,7 @@ class ScalaNativePlugin extends StandardPlugin:
       |     When used together with -Xno-forwarders, this option has no effect.
       """.stripMargin)
 
+  @nowarn("cat=deprecation")
   override def init(options: List[String]): List[PluginPhase] = {
     val genNirSettings = options
       .foldLeft(GenNIR.Settings()) {

@@ -21,12 +21,15 @@ object ScalaVersions {
   val crossScala212 = (13 to 18).map(v => s"2.12.$v")
   val crossScala213 = (4 to 12).map(v => s"2.13.$v")
   val crossScala3 = List(
-    // Bug in compiler leads to errors in tests, don't use it as default until RC2
-    Seq("3.4.0-RC1"),
+    extraCrossScalaVersion("3.").toList,
     (0 to 3).map(v => s"3.1.$v"),
     (0 to 2).map(v => s"3.2.$v"),
-    (0 to 1).map(v => s"3.3.$v")
+    (0 to 1).map(v => s"3.3.$v"),
   ).flatten
+  
+  private def extraCrossScalaVersion(binVersionPrefix: String) = sys.env
+    .get("EXTRA_CROSS_SCALA_VERSION")
+    .filter(_.startsWith(binVersionPrefix))
 
   // Version of Scala 3 standard library sources used for publishing
   // Workaround allowing to produce NIR for Scala 3.2.x+ and allowing to consume existing libraries using 3.1.x

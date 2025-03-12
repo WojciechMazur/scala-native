@@ -493,6 +493,8 @@ object Settings {
     libraryDependencies ++= Deps.compilerPluginDependencies(scalaVersion.value),
     mavenPublishSettings,
     exportJars := true,
+    scalacOptions --= Seq("-deprecation", "-Xfatal-warnings"),
+    scalacOptions ++= ignoredScalaDeprecations(scalaVersion.value),
     crossPublish := crossPublishCompilerPlugin(publish).value,
     crossPublishSigned := crossPublishCompilerPlugin(publishSigned).value
   )
@@ -576,7 +578,8 @@ object Settings {
       // -Wconf msg string cannot contain ':' character, it cannot be escaped
       /*The syntax `x: _* is */ "no longer supported for vararg splice",
       "The syntax `<function> _` is no longer supported",
-      "with as a type operator has been deprecated"
+      "with as a type operator has been deprecated",
+      "Implicit parameters should be provided with a `using` clause"
     ).map(msg => s"-Wconf:msg=$msg:s")
 
     CrossVersion

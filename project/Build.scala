@@ -93,6 +93,7 @@ object Build {
         noPublishSettings,
         disabledTestsSettings,
         setDepenency(clean, allProjects),
+        mavenPublishSettings,
         Seq(Compile / compile, Test / compile).map(
           setDepenencyForCurrentBinVersion(_, allMultiScalaProjects)
         ),

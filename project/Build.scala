@@ -72,9 +72,7 @@ object Build {
       // There are 2 not cross build projects:
       // sbt-plugin which needs to build with 2.12
       // javalib-intf which contains only Java code and can be compiled with any version
-      val optNoCrossProjects = noCrossProjects.filter(_ =>
-        includeNoCrossProjects && binVersion == "2.12"
-      )
+      val optNoCrossProjects = noCrossProjects.filter(_ => includeNoCrossProjects && binVersion == "2.12")
       val dependencies =
         optNoCrossProjects ++ projects.map(_.forBinaryVersion(binVersion))
       val prev = key.value

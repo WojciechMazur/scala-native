@@ -749,12 +749,19 @@ object Settings {
     dirs.toSeq // most specific shadow less specific
   }
 
-  def commonScalalibSettings(libraryName: String): Seq[Setting[_]] = {
+  def usesSelfContainedStdlib(scalaVersion: String): Boolean =
+    CrossVersion.partialVersion(scalaVersion) match {
+      // Scala 3.8+ uses self-contained stdlib, previously it was using Scala 2.13 stdlib
+      case Some((3, minor)) => minor >= 8
+      case _                => true // all Scala 2 stdlibs are self-contained
+    }
+
+  def commonScalalibSettings(
+      scalaStdLibraryName: String,
+      shouldAddDependencyForVersion: String => Boolean = { _ => true }
+  ): Seq[Setting[_]] = {
     Def.settings(
-      version := scalalibVersion(
-        scalaVersion.value,
-        (ThisBuild / version).value
-      ),
+      version := scalalibVersion(scalaVersion.value, version.value),
       mavenPublishSettings,
       disabledDocsSettings,
       recompileAllOrNothingSettings,
@@ -767,7 +774,11 @@ object Settings {
       // By intent, the Scala Native code below is as identical as feasible.
       // Scala Native build.sbt uses a slightly different baseDirectory
       // than Scala.js. See commented starting with "SN Port:" below.
-      libraryDependencies += "org.scala-lang" % libraryName % scalaVersion.value,
+      libraryDependencies ++= {
+        if (shouldAddDependencyForVersion(scalaVersion.value))
+          Some("org.scala-lang" % scalaStdLibraryName % scalaVersion.value)
+        else None
+      },
       fetchScalaSource / artifactPath :=
         baseDirectory.value.getParentFile / "target" / "scalaSources" / scalaVersion.value,
       // Create nir.SourceFile relative to Scala sources dir instead of root dir
@@ -815,17 +826,21 @@ object Settings {
         }
         lazy val scalaLibSourcesJar = lm
           .retrieve(
-            "org.scala-lang" % libraryName % scalaVersion.value classifier "sources",
+            "org.scala-lang" % scalaStdLibraryName % version classifier "sources",
             scalaModuleInfo = None,
             retrieveDirectory = cacheDir,
             log = s.log
           )
-          .map(_.find(_.name.endsWith(s"$libraryName-$version-sources.jar")))
+          .map(
+            _.find(
+              _.name.endsWith(s"${scalaStdLibraryName}-$version-sources.jar")
+            )
+          )
           .toOption
           .flatten
           .getOrElse {
             throw new Exception(
-              s"Could not fetch $libraryName sources for version $version"
+              s"Could not fetch ${scalaStdLibraryName} sources for version $version"
             )
           }
 

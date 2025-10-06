@@ -812,7 +812,7 @@ object Settings {
         trgDir
       },
       Compile / unmanagedSourceDirectories := scalaVersionDirectories(
-        baseDirectory.value.getParentFile(),
+        (ThisBuild / baseDirectory).value / "scalalib",
         "overrides",
         scalaVersion.value
       ),
@@ -884,6 +884,12 @@ object Settings {
 
           def tryApplyPatch(sourceName: String): Option[File] = {
             val scalaSourcePath = scalaSrcDir / sourceName
+            if (!scalaSourcePath.exists()) {
+              s.log.warn(
+                s"Not found matching source file $sourceName for patch in Scala ${scalaVersion.value} sources, skipped"
+              )
+              return None
+            }
             val scalaSourceCopyPath = scalaSrcDir / (sourceName + ".copy")
             val outputFile = crossTarget.value / "patched" / sourceName
             val outputDir = outputFile.getParentFile
@@ -900,17 +906,31 @@ object Settings {
             try {
               import scala.sys.process._
               copy(scalaSourcePath, scalaSourceCopyPath)
+              var hasErrors = false
               Process(
                 command = Seq(
                   "git",
                   "apply",
+                  "-C1",
+                  "--reject",
                   "--whitespace=fix",
                   "--recount",
+                  "--ignore-space-change",
                   sourcePath.toAbsolutePath().toString()
                 ),
                 cwd = scalaSrcDir
-              ) !! s.log
-
+              ).!!(
+                ProcessLogger(
+                  stdout => (),
+                  stderr => {
+                    if (stderr.contains("error")) {
+                      hasErrors = true
+                    }
+                    if (hasErrors) s.log.warn(stderr)
+                    else s.log.debug(stderr)
+                  }
+                )
+              )
               copy(scalaSourcePath, outputFile)
               Some(outputFile)
             } catch {

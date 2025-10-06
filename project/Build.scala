@@ -201,7 +201,7 @@ object Build {
       withSharedCrossPlatformSources
     )
     .withNativeCompilerPlugin
-    .dependsOn(scalalib)
+    .withScalaStandardLibrary
 
   lazy val utilJVM =
     MultiScalaProject(id = "utilJVM", name = "util", file("util/jvm"))
@@ -594,7 +594,6 @@ object Build {
     .withNativeCompilerPlugin
     .withJUnitPlugin
     .dependsOn(
-      scalalib,
       testInterface,
       junitRuntime
     )
@@ -651,7 +650,8 @@ object Build {
       .settings(noJavaReleaseSettings)
       .withJUnitPlugin
       .withNativeCompilerPlugin
-      .dependsOn(scalalib, javalib, testInterface % "test")
+      .withScalaStandardLibrary
+      .dependsOn(javalib, testInterface % "test", junitRuntime % "test")
 
 // Testing infrastructure ------------------------------------------------
   lazy val testingCompilerInterface =
@@ -702,8 +702,8 @@ object Build {
       )
       .withNativeCompilerPlugin
       .withJUnitPlugin
+      .withScalaStandardLibrary
       .dependsOn(
-        scalalib,
         javalib,
         testInterfaceSbtDefs,
         junitRuntime % "test",
@@ -715,7 +715,7 @@ object Build {
       .settings(publishSettings(Some(VersionScheme.BreakOnMajor)))
       .settings(docsSettings)
       .withNativeCompilerPlugin
-      .dependsOn(scalalib)
+      .withScalaStandardLibrary
 
   lazy val testRunner =
     MultiScalaProject("testRunner", file("test-runner"))
@@ -761,7 +761,8 @@ object Build {
         Compile / publishArtifact := false
       )
       .withNativeCompilerPlugin
-      .dependsOn(scalalib, javalib)
+      .withScalaStandardLibrary
+      .dependsOn(javalib)
 
   lazy val junitAsyncJVM =
     MultiScalaProject("junitAsyncJVM", file("junit-async/jvm"))
@@ -1004,8 +1005,14 @@ object Build {
       testInterface % "test"
     )
 
-  implicit class MultiProjectOps(val project: MultiScalaProject)
-      extends AnyVal {
+  implicit class MultiProjectOps(val project: MultiScalaProject) extends AnyVal {
+    def withScalaStandardLibrary: MultiScalaProject = {
+      project.mapBinaryVersions {
+        // case v @ ("2.12" | "2.13") => _.dependsOn(scalalib.forBinaryVersion(v))
+        // case v @ ("3" | "3-next")  => _.dependsOn(scala3lib.forBinaryVersion(v))
+        case v => _.dependsOn(scalalib.forBinaryVersion(v))
+      }
+    }
 
     /** Uses the Scala Native compiler plugin. */
     def withNativeCompilerPlugin: MultiScalaProject = {

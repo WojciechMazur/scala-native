@@ -89,6 +89,7 @@ jobs:
         timeout-minutes: 45
         env:
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
+          GC_MAXIMUM_HEAP_SIZE: 4G
         run: |
           ./test-runtime.sh "${{ matrix.scala }}"
 

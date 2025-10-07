@@ -1012,7 +1012,7 @@ object Build {
         case "2.12" => _.dependsOn(scalalib.v2_12)
         case "2.13" => _.dependsOn(scalalib.v2_13)
         case "3"    => _.dependsOn(scalalib.v3)
-        case v      => _.dependsOn(scalalib.forBinaryVersion(v))
+        case "3-next"      => _.dependsOn(scalalib.v3Next))
       }
     }
 

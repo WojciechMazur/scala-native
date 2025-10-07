@@ -374,7 +374,6 @@ object Settings {
           !moduleName.value.contains("jvm")) Seq("-Xfatal-warnings")
       else Nil
     },
-    Test / parallelExecution := false,
     Test / testOptions ++= Seq(
       Tests.Argument(TestFrameworks.JUnit, "-a", "-s", "-v")
     ),

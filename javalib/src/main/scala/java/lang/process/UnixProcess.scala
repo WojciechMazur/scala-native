@@ -13,8 +13,11 @@ private[process] abstract class UnixProcessHandle extends GenericProcessHandle {
   override final def supportsNormalTermination(): Boolean = true
 
   override final protected def close(): Unit = {}
-  override final protected def destroyImpl(force: Boolean): Boolean =
-    signal.kill(_pid, if (force) signal.SIGKILL else sig.SIGTERM) == 0
+  override final protected def destroyImpl(force: Boolean): Boolean = {
+    val signal = if (force) signal.SIGKILL else sig.SIGTERM
+    println(s"destroy pid ${_pid} from ${scala.scalanative.posix.unistd.getpid()}, signal: $signal")
+    signal.kill(_pid, signal) == 0
+  }
 }
 
 private[process] object UnixProcess {

@@ -1,3 +1,4 @@
+// scalafmt: { maxColumn = 120}
 package build
 
 import sbt._
@@ -32,7 +33,7 @@ object Build {
     nir, util, tools,
     nirJVM, utilJVM, toolsJVM,
     nativelib, clib, posixlib, windowslib,
-    auxlib, javalib, scalalib,
+    auxlib, javalib, scalalib, scala3lib,
     testInterface, testInterfaceSbtDefs, testRunner,
     junitRuntime
   )
@@ -51,7 +52,7 @@ object Build {
   lazy val allMultiScalaProjects =
     publishedMultiScalaProjects ::: testMultiScalaProjects
   lazy val crossPublishedMultiScalaProjects =
-    scalalib :: compilerPlugins
+    scalalib :: scala3lib :: compilerPlugins
   lazy val publishedProjects =
     noCrossProjects ::: publishedMultiScalaProjects.flatMap(_.componentProjects)
   lazy val testProjects =
@@ -72,9 +73,7 @@ object Build {
       // There are 2 not cross build projects:
       // sbt-plugin which needs to build with 2.12
       // javalib-intf which contains only Java code and can be compiled with any version
-      val optNoCrossProjects = noCrossProjects.filter(_ =>
-        includeNoCrossProjects && binVersion == "2.12"
-      )
+      val optNoCrossProjects = noCrossProjects.filter(_ => includeNoCrossProjects && binVersion == "2.12")
       val dependencies =
         optNoCrossProjects ++ projects.map(_.forBinaryVersion(binVersion))
       val prev = key.value
@@ -236,6 +235,11 @@ object Build {
     }
     .dependsOn(utilJVM)
 
+  private val scalalibProjectSelect: Map[String, Map[String, String]] = Map(
+    "3" -> Map("scalalib" -> "scala3lib"),
+    "3-next" -> Map("scalalib" -> "scala3lib")
+  )
+
   lazy val tools = MultiScalaProject("tools", file("tools/native"))
     .settings(
       // Multiple check warnings due to usage of self-types
@@ -253,7 +257,10 @@ object Build {
     .withCommonTools
     .dependsOn(nir, util)
     .dependsOn(testInterface % "test", junitRuntime % "test")
-    .zippedSettings(Seq("nscplugin", "javalib", "scalalib")) {
+    .zippedSettings(
+      Seq("nscplugin", "javalib", "scalalib"),
+      versionsProjectReplacement = scalalibProjectSelect
+    ) {
       case Seq(nscPlugin, javalib, scalalib) =>
         toolsBuildInfoSettings(nscPlugin, javalib, scalalib)
     }
@@ -265,7 +272,7 @@ object Build {
         Test / fork := true
       )
       .withCommonTools
-      .zippedSettings(Seq("nscplugin", "javalib", "scalalib")) {
+      .zippedSettings(Seq("nscplugin", "javalib", "scalalib"), versionsProjectReplacement = scalalibProjectSelect) {
         case Seq(nscPlugin, javalib, scalalib) =>
           toolsBuildInfoSettings(nscPlugin, javalib, scalalib)
       }
@@ -401,6 +408,7 @@ object Build {
                     javalib.forBinaryVersion(ver) / publishLocal,
                     auxlib.forBinaryVersion(ver) / publishLocal,
                     scalalib.forBinaryVersion(ver) / publishLocal,
+                    scala3lib.forBinaryVersion(ver) / publishLocal,
                     // Testing infrastructure
                     testInterfaceSbtDefs.forBinaryVersion(ver) / publishLocal,
                     testInterface.forBinaryVersion(ver) / publishLocal,
@@ -556,6 +564,55 @@ object Build {
                 Def.taskDyn(scalalib.v2_13 / Compile / publishLocal)
               }.value
             }
+          )
+      }
+      .dependsOn(auxlib)
+      
+  lazy val scala3lib: MultiScalaProject =
+    MultiScalaProject("scala3lib")
+      .enablePlugins(MyScalaNativePlugin)
+      .settings(
+        publishSettings(Some(VersionScheme.BreakOnMajor)),
+        disabledDocsSettings,
+        scalacOptions --= ignoredScalaDeprecations(scalaVersion.value),
+        NIROnlySettings
+      )
+      .withNativeCompilerPlugin
+      .mapBinaryVersions {
+        case ("2.12" | "2.13") =>
+          _.settings(
+            noPublishSettings
+          )
+
+        case version @ ("3" | "3-next") =>
+          _.settings(
+            // commonScalalibSettings("scala3-library_3"),
+            // scalacOptions ++= Seq(
+            //   "-language:implicitConversions"
+            // ),
+            Compile / sources := Seq.empty[File], 
+            // {
+            //   if (usesSelfContainedStdlib(scalaVersion.value)) Seq.empty[File]
+            //   else (Compile / sources).value
+            // },
+            libraryDependencies += {
+              val nativeVersion = (ThisBuild / Keys.version).value
+              // if (usesSelfContainedStdlib(scalaVersion.value)) {
+                organization.value %%% "scalalib" % scalalibVersion(scalaVersion.value, nativeVersion)
+              // } else {
+              //   (organization.value %%% "scalalib" % scalalibVersion(ScalaVersions.scala213, nativeVersion))
+              //     .excludeAll(ExclusionRule(organization.value))
+              //     .cross(CrossVersion.for3Use2_13)
+              // }
+            },
+            update := update.dependsOn {
+              Def.taskDyn {
+                // if (usesSelfContainedStdlib(scalaVersion.value))
+                  scalalib.forBinaryVersion(version) / Compile / publishLocal
+                // else
+                  // scalalib.v2_13 / Compile / publishLocal
+              }
+            }.value
           )
       }
       .dependsOn(auxlib)
@@ -854,7 +911,8 @@ object Build {
         }
       )
       .zippedSettings(
-        Seq("scalaPartest", "auxlib", "scalalib", "scalaPartestRuntime")
+        Seq("scalaPartest", "auxlib", "scalalib", "scalaPartestRuntime"),
+        versionsProjectReplacement = scalalibProjectSelect
       ) {
         case Seq(scalaPartest, auxlib, scalalib, scalaPartestRuntime) =>
           Def.settings(
@@ -1007,8 +1065,7 @@ object Build {
       testInterface % "test"
     )
 
-  implicit class MultiProjectOps(val project: MultiScalaProject)
-      extends AnyVal {
+  implicit class MultiProjectOps(val project: MultiScalaProject) extends AnyVal {
     def withScalaStandardLibrary: MultiScalaProject = {
       project.mapBinaryVersions {
         case "2.12"   => _.dependsOn(scalalib.v2_12)

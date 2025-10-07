@@ -1005,11 +1005,14 @@ object Build {
       testInterface % "test"
     )
 
-  implicit class MultiProjectOps(val project: MultiScalaProject) extends AnyVal {
+  implicit class MultiProjectOps(val project: MultiScalaProject)
+      extends AnyVal {
     def withScalaStandardLibrary: MultiScalaProject = {
       project.mapBinaryVersions {
-        case v @ ("2.12" | "2.13") => _.dependsOn(scalalib.forBinaryVersion(v))
-        case v @ ("3" | "3-next")  => _.dependsOn(scalalib.forBinaryVersion(v))
+        case "2.12" => _.dependsOn(scalalib.v2_12)
+        case "2.13" => _.dependsOn(scalalib.v2_13)
+        case "3"    => _.dependsOn(scalalib.v3)
+        case v      => _.dependsOn(scalalib.forBinaryVersion(v))
       }
     }
 

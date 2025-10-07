@@ -89,83 +89,8 @@ jobs:
         timeout-minutes: 45
         env:
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
-
-
-test-runtime:
-  name: Test runtime
-  if: github.event_name == 'pull_request' || ((github.event_name == 'schedule' || github.event_name == 'workflow_call') && github.repository == 'scala-native/scala-native')
-  runs-on: ubuntu-22.04
-  env:
-    ENABLE_EXPERIMENTAL_COMPILER: true
-  strategy:
-    fail-fast: false
-    matrix:
-      scala: [3, 2.13, 2.12, 3-next]
-  steps:
-    - uses: actions/checkout@v5
-    - uses: ./.github/actions/linux-setup-env
-      with:
-        scala-version: ${{ matrix.scala }}
-
-    - name: Run tests (with resource monitor)
-      timeout-minutes: 45
-      env:
-        SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
-      run: |
-        set -euo pipefail
-
-        monitor_loop() {
-          while :; do
-            echo "===== RESOURCE SNAPSHOT $(date -u +"%Y-%m-%dT%H:%M:%SZ") ====="
-            # Quick CPU summary + load
-            top -b -n1 | head -5 || true
-
-            # System memory
-            echo "--- free -h ---"
-            free -h || true
-
-            # Top memory hogs
-            echo "--- top processes by RSS (KB) ---"
-            ps -eo pid,ppid,pcpu,pmem,rss,etime,comm --sort=-rss | head -n 15 || true
-
-            # Processes whose *command name* ends with "-test"
-            echo "--- processes ending with '-test' (per-process memory) ---"
-            # comm is the executable name; it has no spaces, so it's safe for awk matching.
-            hits=$(ps -eo pid,pcpu,pmem,rss,comm --sort=-rss \
-              | awk '$5 ~ /-test$/ {printf "pid=%s cpu=%s%% mem=%s%% rss=%sK cmd=%s\n",$1,$2,$3,$4,$5}')
-            if [ -n "${hits}" ]; then
-              printf "%s\n" "${hits}"
-              # Also show detailed RSS/PSS if available (Linux 4.14+: /proc/<pid>/smaps_rollup)
-              while read -r line; do
-                pid=$(printf "%s" "$line" | awk -F'[ =]' '{print $2}')
-                if [ -r "/proc/${pid}/status" ]; then
-                  rss_kb=$(awk '/VmRSS:/ {print $2}' "/proc/${pid}/status" 2>/dev/null || echo 0)
-                  if [ -r "/proc/${pid}/smaps_rollup" ]; then
-                    pss_kb=$(awk '/Pss:/ {print $2}' "/proc/${pid}/smaps_rollup" 2>/dev/null || echo 0)
-                    echo "  pid=${pid} VmRSS=${rss_kb}kB PSS=${pss_kb}kB"
-                  else
-                    echo "  pid=${pid} VmRSS=${rss_kb}kB"
-                  fi
-                fi
-              done <<EOF
-$(printf "%s\n" "${hits}")
-EOF
-            else
-              echo "(none)"
-            fi
-
-            echo
-            sleep 5
-          done
-        }
-
-        # Start monitor in background; ensure cleanup on any exit
-        monitor_loop & MONITOR_PID=$!
-        trap 'kill ${MONITOR_PID} 2>/dev/null || true' EXIT INT TERM
-
-        # Your actual test command
-        sbt "test-runtime ${{ matrix.scala }}"
-
+        run: |
+          ./test-runtime.sh "${{ matrix.scala }}"
 
   test-runtime-ext:
     name: Test runtime extension
@@ -261,7 +186,7 @@ EOF
     strategy:
       fail-fast: false
       matrix:
-        scala: ["3", "3-next"]
+        scala: [3, 3-next]
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/linux-setup-env

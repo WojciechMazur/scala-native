@@ -514,13 +514,16 @@ object Build {
         publishSettings(Some(VersionScheme.BreakOnMajor)),
         disabledDocsSettings,
         scalacOptions --= ignoredScalaDeprecations(scalaVersion.value),
-        NIROnlySettings
+        NIROnlySettings,
+        commonScalalibSettings(
+          "scala-library",
+          shouldAddDependencyForVersion = usesSelfContainedStdlib(_)
+        )
       )
       .withNativeCompilerPlugin
       .mapBinaryVersions {
         case "2.12" | "2.13" =>
           _.settings(
-            commonScalalibSettings("scala-library"),
             scalacOptions ++= Seq(
               "-deprecation:false",
               "-language:postfixOps",
@@ -544,30 +547,94 @@ object Build {
           )
         case "3" | "3-next" =>
           _.settings(
-            name := "scala3lib",
-            commonScalalibSettings("scala3-library_3"),
-            scalacOptions ++= Seq(
-              "-language:implicitConversions"
-            ),
-            libraryDependencies += {
-              val org = (ThisBuild / organization).value
-              val ver = scalalibVersion(
-                ScalaVersions.scala213,
-                (ThisBuild / version).value
-              )
-              (org %%% "scalalib" % ver)
-                .excludeAll(ExclusionRule(org))
-                .cross(CrossVersion.for3Use2_13)
+            Compile / sources := {
+              if (usesSelfContainedStdlib(scalaVersion.value)) (Compile / sources).value
+              else Seq.empty[File]
             },
-            update := {
-              update.dependsOn {
-                Def.taskDyn(scalalib.v2_13 / Compile / publishLocal)
-              }.value
-            }
+            scalacOptions ++= Seq(
+              "-language:implicitConversions",
+              "-Wconf:any:silent"
+            ),
+            scalacOptions ++= {
+              if (!usesSelfContainedStdlib(scalaVersion.value)) Nil
+              else
+                Seq(
+                  "-Yno-stdlib-patches"
+                )
+            },
+            Compile / packageBin / mappings := Def.taskDyn {
+              val currentMappings = (Compile / packageBin / mappings).value
+              Def.task {
+                if (!usesSelfContainedStdlib(scalaVersion.value)) currentMappings
+                else {
+                  // Scala 3 does not emit specialized classes, it's solved by copying them from Scala 2.13 jar
+                  // We need to do the same to ensure binary compatibility of Scala Native scalalib
+                  val newMappings = (scalalib.v2_13 / Compile / packageBin / mappings).value
+
+                  // Keep in sync with Scala 3 compiler logic
+                  // https://github.com/scala/scala3/blob/eb1bb7350a99208d9ced9863a996850316d583f7/project/ScalaLibraryPlugin.scala#L116
+                  val overridenFiles = Set(
+                    "scala/Tuple1.nir",
+                    "scala/Tuple2.nir",
+                    "scala/collection/DoubleStepper.nir",
+                    "scala/collection/IntStepper.nir",
+                    "scala/collection/LongStepper.nir",
+                    "scala/collection/immutable/DoubleVectorStepper.nir",
+                    "scala/collection/immutable/IntVectorStepper.nir",
+                    "scala/collection/immutable/LongVectorStepper.nir",
+                    "scala/jdk/DoubleAccumulator.nir",
+                    "scala/jdk/IntAccumulator.nir",
+                    "scala/jdk/LongAccumulator.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaDoubleBinaryOperator.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaBooleanSupplier.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaDoubleConsumer.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaDoublePredicate.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaDoubleSupplier.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaDoubleToIntFunction.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaDoubleToLongFunction.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaIntBinaryOperator.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaDoubleUnaryOperator.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaIntPredicate.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaIntConsumer.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaIntSupplier.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaIntToDoubleFunction.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaIntToLongFunction.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaIntUnaryOperator.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaLongBinaryOperator.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaLongConsumer.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaLongPredicate.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaLongSupplier.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaLongToDoubleFunction.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaLongToIntFunction.nir",
+                    "scala/jdk/FunctionWrappers$FromJavaLongUnaryOperator.nir",
+                    "scala/collection/ArrayOps$ReverseIterator.nir",
+                    "scala/runtime/NonLocalReturnControl.nir",
+                    "scala/util/Sorting.nir",
+                    "scala/util/Sorting$.nir" // Contains @specialized annotation
+                  )
+
+                  val mappingOverrides = newMappings.collect {
+                    case mapping @ (_, path) if overridenFiles.contains(path) => path -> mapping
+                  }.toMap
+                  assert(
+                    mappingOverrides.keySet == overridenFiles,
+                    s"Some specialized files are missing: ${overridenFiles -- mappingOverrides.keySet}"
+                  )
+                  val currentPaths = currentMappings.map(_._2).toSet
+                  val scala213ExtraFiles = newMappings.filter {
+                    case (file, path) => !currentPaths.contains(path)
+                  }
+                  val maybeReplacedScala3Files = currentMappings.map {
+                    case mapping @ (_, path) => mappingOverrides.getOrElse(path, mapping)
+                  }
+                  maybeReplacedScala3Files ++ scala213ExtraFiles
+                }
+              }
+            }.value
           )
       }
       .dependsOn(auxlib)
-      
+
   lazy val scala3lib: MultiScalaProject =
     MultiScalaProject("scala3lib")
       .enablePlugins(MyScalaNativePlugin)
@@ -586,31 +653,30 @@ object Build {
 
         case version @ ("3" | "3-next") =>
           _.settings(
-            // commonScalalibSettings("scala3-library_3"),
-            // scalacOptions ++= Seq(
-            //   "-language:implicitConversions"
-            // ),
-            Compile / sources := Seq.empty[File], 
-            // {
-            //   if (usesSelfContainedStdlib(scalaVersion.value)) Seq.empty[File]
-            //   else (Compile / sources).value
-            // },
+            commonScalalibSettings("scala3-library_3"),
+            scalacOptions ++= Seq(
+              "-language:implicitConversions"
+            ),
+            Compile / sources := {
+              if (usesSelfContainedStdlib(scalaVersion.value)) Seq.empty[File]
+              else (Compile / sources).value
+            },
             libraryDependencies += {
               val nativeVersion = (ThisBuild / Keys.version).value
-              // if (usesSelfContainedStdlib(scalaVersion.value)) {
+              if (usesSelfContainedStdlib(scalaVersion.value)) {
                 organization.value %%% "scalalib" % scalalibVersion(scalaVersion.value, nativeVersion)
-              // } else {
-              //   (organization.value %%% "scalalib" % scalalibVersion(ScalaVersions.scala213, nativeVersion))
-              //     .excludeAll(ExclusionRule(organization.value))
-              //     .cross(CrossVersion.for3Use2_13)
-              // }
+              } else {
+                (organization.value %%% "scalalib" % scalalibVersion(ScalaVersions.scala213, nativeVersion))
+                  .excludeAll(ExclusionRule(organization.value))
+                  .cross(CrossVersion.for3Use2_13)
+              }
             },
             update := update.dependsOn {
               Def.taskDyn {
-                // if (usesSelfContainedStdlib(scalaVersion.value))
+                if (usesSelfContainedStdlib(scalaVersion.value))
                   scalalib.forBinaryVersion(version) / Compile / publishLocal
-                // else
-                  // scalalib.v2_13 / Compile / publishLocal
+                else
+                  scalalib.v2_13 / Compile / publishLocal
               }
             }.value
           )
@@ -1070,8 +1136,8 @@ object Build {
       project.mapBinaryVersions {
         case "2.12"   => _.dependsOn(scalalib.v2_12)
         case "2.13"   => _.dependsOn(scalalib.v2_13)
-        case "3"      => _.dependsOn(scalalib.v3)
-        case "3-next" => _.dependsOn(scalalib.v3Next)
+        case "3"      => _.dependsOn(scala3lib.v3)
+        case "3-next" => _.dependsOn(scala3lib.v3Next)
       }
     }
 

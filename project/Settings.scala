@@ -375,7 +375,7 @@ object Settings {
       else Nil
     },
     Test / testOptions ++= Seq(
-      Tests.Argument(TestFrameworks.JUnit, "-a", "-s")
+      Tests.Argument(TestFrameworks.JUnit, "-a", "-s", "-v")
     ),
     Test / envVars ++= Map(
       "USER" -> System.getProperty("user.name"),

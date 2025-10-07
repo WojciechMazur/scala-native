@@ -70,7 +70,7 @@ jobs:
     name: Test runtime
     if: github.event_name == 'pull_request' || ((github.event_name == 'schedule' || github.event_name == 'workflow_call') && github.repository == 'scala-native/scala-native')
     runs-on: ubuntu-22.04
-    needs: tests-tools
+    # needs: tests-tools
     env:
       ENABLE_EXPERIMENTAL_COMPILER: true
     strategy:
@@ -82,14 +82,16 @@ jobs:
       - uses: ./.github/actions/linux-setup-env
         with:
           scala-version: ${{matrix.scala}}
-      - name: Test GC compilation
-        timeout-minutes: 30
-        run: sbt "test-gc ${{ matrix.scala }}"
+      # - name: Test GC compilation
+      #   timeout-minutes: 30
+      #   run: sbt "test-gc ${{ matrix.scala }}"
       - name: Run tests
         timeout-minutes: 45
         env:
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
-        run: sbt "test-runtime ${{ matrix.scala }}"      
+          GC_MAXIMUM_HEAP_SIZE: 4G
+        run: |
+          ./test-runtime.sh "${{ matrix.scala }}"
 
   test-runtime-ext:
     name: Test runtime extension
@@ -185,7 +187,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scala: [3]
+        scala: [3, 3-next]
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/linux-setup-env

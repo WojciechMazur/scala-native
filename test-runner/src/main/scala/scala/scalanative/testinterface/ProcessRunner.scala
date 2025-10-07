@@ -67,6 +67,7 @@ private[testinterface] class ProcessRunner(
   val future: Future[Unit] = runnerPromise.future
 
   override def close(): Unit = {
+    logger.info(s"close process runner: ${process}, isAlive: ${process.isAlive()}")
     process.destroyForcibly()
   }
 }

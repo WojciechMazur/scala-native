@@ -14,9 +14,9 @@ private[process] abstract class UnixProcessHandle extends GenericProcessHandle {
 
   override final protected def close(): Unit = {}
   override final protected def destroyImpl(force: Boolean): Boolean = {
-    val signal = if (force) signal.SIGKILL else sig.SIGTERM
-    println(s"destroy pid ${_pid} from ${scala.scalanative.posix.unistd.getpid()}, signal: $signal")
-    signal.kill(_pid, signal) == 0
+    val sigNum = if (force) signal.SIGKILL else sig.SIGTERM
+    println(s"destroy pid ${_pid} from ${scala.scalanative.posix.unistd.getpid()}, signal: $sigNum")
+    signal.kill(_pid, sigNum) == 0
   }
 }
 

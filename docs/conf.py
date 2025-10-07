@@ -32,7 +32,7 @@ def generateScalaNativeCurrentYear():
 def lastSnapshotVersion():
     # Reconstructs version based on the last-published tag
     tagName="last-published"
-    _git(["fetch", "origin", "tag", tagName])
+    _git(["fetch", "--tags"])
     date = tag_commit_date_utc(tagName)
     sha7 = tag_commit_sha(tagName)[:7]
     return f"{developed_version}-{date}-{sha7}-SNAPSHOT"

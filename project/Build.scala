@@ -1007,7 +1007,7 @@ object Build {
 
   implicit class MultiProjectOps(val project: MultiScalaProject) extends AnyVal {
     def withScalaStandardLibrary: MultiScalaProject = {
-      _.dependsOn(scalalib)
+      project.dependsOn(scalalib)
       // project.mapBinaryVersions {
       //   // case v @ ("2.12" | "2.13") => _.dependsOn(scalalib.forBinaryVersion(v))
       //   // case v @ ("3" | "3-next")  => _.dependsOn(scala3lib.forBinaryVersion(v))

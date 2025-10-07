@@ -26,7 +26,7 @@ final case class MultiScalaProject private (
   lazy val v3Next: Project = project("3-next")
     .settings(
       Settings.experimentalScalaSources,
-      Settings.noPublishSettings,
+      publish / skip := true,
       publishLocal / skip := false
     )
 

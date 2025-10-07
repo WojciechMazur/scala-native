@@ -72,7 +72,9 @@ object Build {
       // There are 2 not cross build projects:
       // sbt-plugin which needs to build with 2.12
       // javalib-intf which contains only Java code and can be compiled with any version
-      val optNoCrossProjects = noCrossProjects.filter(_ => includeNoCrossProjects && binVersion == "2.12")
+      val optNoCrossProjects = noCrossProjects.filter(_ =>
+        includeNoCrossProjects && binVersion == "2.12"
+      )
       val dependencies =
         optNoCrossProjects ++ projects.map(_.forBinaryVersion(binVersion))
       val prev = key.value
@@ -1009,10 +1011,10 @@ object Build {
       extends AnyVal {
     def withScalaStandardLibrary: MultiScalaProject = {
       project.mapBinaryVersions {
-        case "2.12" => _.dependsOn(scalalib.v2_12)
-        case "2.13" => _.dependsOn(scalalib.v2_13)
-        case "3"    => _.dependsOn(scalalib.v3)
-        case "3-next"      => _.dependsOn(scalalib.v3Next))
+        case "2.12"   => _.dependsOn(scalalib.v2_12)
+        case "2.13"   => _.dependsOn(scalalib.v2_13)
+        case "3"      => _.dependsOn(scalalib.v3)
+        case "3-next" => _.dependsOn(scalalib.v3Next)
       }
     }
 

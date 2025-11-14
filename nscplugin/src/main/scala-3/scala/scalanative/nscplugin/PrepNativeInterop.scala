@@ -1,19 +1,12 @@
 package scala.scalanative.nscplugin
 
-import dotty.tools.dotc.plugins.PluginPhase
 import dotty.tools._
-import dotc._
-import dotc.ast.tpd._
+import dotty.tools.dotc._
+import dotty.tools.dotc.ast.tpd._
+import dotty.tools.dotc.config.*
+import dotty.tools.dotc.plugins.PluginPhase
+
 import scala.scalanative.nscplugin.CompilerCompat.SymUtilsCompat.*
-import core.Contexts._
-import core.Definitions
-import core.Names._
-import core.Symbols._
-import core.Types._
-import core.StdNames._
-import core.Constants.Constant
-import core.Flags._
-import NirGenUtil.ContextCached
 
 /** This phase does:
  *    - Rewrite calls to scala.Enumeration.Value (include name string) (Ported
@@ -24,6 +17,18 @@ object PrepNativeInterop {
 }
 
 class PrepNativeInterop extends PluginPhase with NativeInteropUtil {
+
+  import core.Constants.Constant
+  import core.Contexts._
+  import core.Definitions
+  import core.Flags._
+  import core.Names._
+  import core.StdNames._
+  import core.Symbols._
+  import core.Types._
+
+  import NirGenUtil.ContextCached
+
   override val runsAfter = Set(transform.PostTyper.name)
   override val runsBefore = Set(transform.Pickler.name)
   val phaseName = PrepNativeInterop.name
@@ -143,6 +148,10 @@ class PrepNativeInterop extends PluginPhase with NativeInteropUtil {
     def get(using Context): EnumerationsContext = cached.get
   }
   private class EnumerationsContext(using Context) {
+    private val compilerUsesExplicitNulls = ScalaVersion.current match {
+      case SpecificScalaVersion(3, minor, _, _) => minor >= 8
+      case _                                    => false
+    }
     abstract class ScalaEnumFctExtractors(
         owner: ClassSymbol,
         methodName: TermName
@@ -158,10 +167,15 @@ class PrepNativeInterop extends PluginPhase with NativeInteropUtil {
         res
       }
 
+      private val ValueNameType =
+        if compilerUsesExplicitNulls then
+          OrType(defn.StringType, defn.NullType, soft = false)
+        else defn.StringType
+
       private val noArgDef = resolve()(_)
-      private val nameArgDef = resolve(defn.StringType)(_)
+      private val nameArgDef = resolve(ValueNameType)(_)
       private val intArgDef = resolve(defn.IntType)(_)
-      private val fullMethDef = resolve(defn.IntType, defn.StringType)(_)
+      private val fullMethDef = resolve(defn.IntType, ValueNameType)(_)
 
       val NoArg = noArgDef(owner)
       def noArg(owner: ClassSymbol) = noArgDef(owner)

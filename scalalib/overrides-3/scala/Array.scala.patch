@@ -1,4 +1,4 @@
---- 3.8.0-RC1-bin-20250914-afbb66b-NIGHTLY/scala/Array.scala
+--- 3.8.0-RC1-bin-20251029-840804f-NIGHTLY/scala/Array.scala
 +++ overrides-3/scala/Array.scala
 @@ -35,7 +35,7 @@
   *  where the array objects `a`, `b` and `c` have respectively the values

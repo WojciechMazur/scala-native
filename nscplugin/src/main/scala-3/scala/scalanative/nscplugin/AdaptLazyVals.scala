@@ -1,16 +1,9 @@
 package scala.scalanative.nscplugin
 
 import dotty.tools._
-import dotc._
-import dotc.transform.{LazyVals, MoveStatics}
-import dotc.ast.tpd._
-import plugins._
-import core.Flags._
-import core.Contexts._
-import core.Names._
-import core.Symbols._
-import core.StdNames._
-import core.Constants.{Constant, ClazzTag}
+import dotty.tools.dotc._
+import dotty.tools.dotc.ast.tpd._
+import dotty.tools.dotc.config.*
 import scala.annotation.{threadUnsafe => tu}
 
 // This helper class is responsible for rewriting calls to scala.runtime.LazyVals with
@@ -22,30 +15,51 @@ import scala.annotation.{threadUnsafe => tu}
 // be inlined and evaluated at compile time, however modified AST contains Scala Native
 // specific calls to Intrinsic methods. This would lead to throwing exception while compiling.
 class AdaptLazyVals(defnNir: NirDefinitions) {
+
+  import core.Constants.{ClazzTag, Constant}
+  import core.Contexts._
+  import core.Names._
+  import core.StdNames._
+  import core.Symbols._
+
   def defn(using Context) = LazyValsDefns.get
+
+  private val compilerUsesVarHandles = ScalaVersion.current match {
+    case SpecificScalaVersion(3, minor, _, _) => minor >= 8
+    case _                                    => false
+  }
 
   private def isLazyFieldOffset(name: Name) =
     name.startsWith(nme.LAZY_FIELD_OFFSET.toString)
 
+  private def isLazyFieldHandle(name: Name) =
+    CompilerCompat.LazyValHandleNameCompat.exists(name.is(_))
+
+  private def isLazyFieldStore(name: Name) =
+    if compilerUsesVarHandles then isLazyFieldHandle(name)
+    else isLazyFieldOffset(name)
+
+  private def hasLazyFields(sym: Symbol)(using Context) =
+    sym.denot.info.fields
+      .exists(f => isLazyFieldStore(f.name))
+
   // Map of field symbols for LazyVals offsets and literals
   // with the name of referenced bitmap fields within given TypeDef
-  private val bitmapFieldNames = collection.mutable.Map.empty[Symbol, Literal]
+  private val lazyFieldProxies = collection.mutable.Map.empty[Symbol, Literal]
 
   def clean(): Unit = {
-    bitmapFieldNames.clear()
+    lazyFieldProxies.clear()
   }
 
-  // Collect informations about offset fields
+  // Collect information about offset fields
   def prepareForTypeDef(td: TypeDef)(using Context): Unit = {
     val sym = td.symbol
-    val hasLazyFields = sym.denot.info.fields
-      .exists(f => isLazyFieldOffset(f.name))
 
-    if (hasLazyFields) {
+    if (hasLazyFields(sym)) {
       val template @ Template(_, _, _, _) = td.rhs: @unchecked
-      bitmapFieldNames ++= template.body.collect {
-        case vd: ValDef if isLazyFieldOffset(vd.name) =>
-          import LazyValsNames.{LazyVals, *}
+      lazyFieldProxies ++= template.body.collect {
+        case vd: ValDef if isLazyFieldStore(vd.name) =>
+          import LazyValsNames.*
           val fieldname = vd.rhs match {
             // Scala 3.1.x
             case Apply(
@@ -69,6 +83,12 @@ class AdaptLazyVals(defnNir: NirDefinitions) {
                   )
                 ) =>
               fieldname
+            // Scala 3.8.x
+            case Apply(
+                  Select(_, FindVarHandle),
+                  List(_, fieldname: Literal, _)
+                ) =>
+              fieldname
           }
           vd.symbol -> fieldname
       }.toMap
@@ -76,8 +96,7 @@ class AdaptLazyVals(defnNir: NirDefinitions) {
   }
 
   def transformDefDef(dd: DefDef)(using Context): DefDef | Thicket = {
-    val hasLazyFields = dd.symbol.owner.denot.info.fields
-      .exists(f => isLazyFieldOffset(f.name))
+    val hasLazyFields = this.hasLazyFields(dd.symbol.owner)
 
     // Remove LazyVals Offset fields assignments from static constructors,
     // as they're leading to reachability problems
@@ -87,7 +106,7 @@ class AdaptLazyVals(defnNir: NirDefinitions) {
       val newBlock = cpy.Block(b.asInstanceOf[Tree])(
         stats = b.stats
           .filter {
-            case Assign(lhs, rhs) => !isLazyFieldOffset(lhs.symbol.name)
+            case Assign(lhs, rhs) => !isLazyFieldStore(lhs.symbol.name)
             case _                => true
           }
           .asInstanceOf[List[Tree]],
@@ -103,17 +122,16 @@ class AdaptLazyVals(defnNir: NirDefinitions) {
   def transformApply(tree: Apply)(using Context): Apply = {
     // Create call to SN intrinsic methods returning pointer to bitmap field
     def classFieldPtr(target: Tree, fieldRef: Tree): Tree = {
-      val fieldName = bitmapFieldNames(fieldRef.symbol)
+      val fieldName = lazyFieldProxies(fieldRef.symbol)
       cpy.Apply(tree)(
         fun = ref(defnNir.Intrinsics_classFieldRawPtr),
         args = List(target, fieldName)
       )
     }
-
     val Apply(fun, args) = tree
     val sym = fun.symbol
 
-    if bitmapFieldNames.isEmpty then tree // No LazyVals in TypeDef, fast path
+    if lazyFieldProxies.isEmpty then tree // No LazyVals in TypeDef, fast path
     else if sym == defn.LazyVals_get then
       val List(target, fieldRef) = args
       cpy.Apply(tree)(
@@ -126,6 +144,16 @@ class AdaptLazyVals(defnNir: NirDefinitions) {
         fun = ref(defn.NativeLazyVals_setFlag),
         args = List(classFieldPtr(target, fieldRef), value, ord)
       )
+    else if sym.name == defn.VarHandleCASName then
+      fun match {
+        case Select(fieldRef, _) if isLazyFieldHandle(fieldRef.symbol.name) =>
+          val List(target, expected, value) = args
+          cpy.Apply(tree)(
+            fun = ref(defn.NativeLazyVals_objCAS),
+            args = List(classFieldPtr(target, fieldRef), expected, value)
+          )
+        case _ => tree
+      }
     else if defn.LazyVals_objCAS.contains(sym) then
       val List(targetTree, fieldRef, expected, value) = args
       val target = targetTree match {
@@ -157,6 +185,7 @@ class AdaptLazyVals(defnNir: NirDefinitions) {
     val GetOffsetStatic = termName("getOffsetStatic")
     val GetStaticFieldOffset = termName("getStaticFieldOffset")
     val GetDeclaredField = termName("getDeclaredField")
+    val FindVarHandle = termName("findVarHandle")
   }
 
   object LazyValsDefns {
@@ -187,6 +216,15 @@ class AdaptLazyVals(defnNir: NirDefinitions) {
       Option(LazyValsModule.info.member(termName("objCAS")).symbol)
         .filter(_ != NoSymbol)
         .map(_.asTerm)
+
+    final val VarHandleCASName = termName("compareAndSet")
+    @tu lazy val VarHandleCAS: Option[TermSymbol] =
+      scala.util
+        .Try {
+          requiredClass(termName("java.lang.invoke.VarHandle"))
+        }
+        .toOption
+        .map(_.requiredMethod(VarHandleCASName))
   }
 
 }

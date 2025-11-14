@@ -14,6 +14,7 @@ import core.StdNames._
 import core.Constants.Constant
 import core.Flags._
 import NirGenUtil.ContextCached
+import dotty.tools.dotc.config.*
 
 /** This phase does:
  *    - Rewrite calls to scala.Enumeration.Value (include name string) (Ported
@@ -123,6 +124,10 @@ class PrepNativeInterop extends PluginPhase with NativeInteropUtil {
     def get(using Context): EnumerationsContext = cached.get
   }
   private class EnumerationsContext(using Context) {
+    private val compilerUsesExplicitNulls = ScalaVersion.current match {
+      case SpecificScalaVersion(3, minor, _, _) => minor >= 8
+      case _                                    => false
+    }
     abstract class ScalaEnumFctExtractors(
         owner: ClassSymbol,
         methodName: TermName
@@ -138,10 +143,15 @@ class PrepNativeInterop extends PluginPhase with NativeInteropUtil {
         res
       }
 
+      private val ValueNameType =
+        if compilerUsesExplicitNulls then
+          OrType(defn.StringType, defn.NullType, soft = false)
+        else defn.StringType
+
       private val noArgDef = resolve()(_)
-      private val nameArgDef = resolve(defn.StringType)(_)
+      private val nameArgDef = resolve(ValueNameType)(_)
       private val intArgDef = resolve(defn.IntType)(_)
-      private val fullMethDef = resolve(defn.IntType, defn.StringType)(_)
+      private val fullMethDef = resolve(defn.IntType, ValueNameType)(_)
 
       val NoArg = noArgDef(owner)
       def noArg(owner: ClassSymbol) = noArgDef(owner)

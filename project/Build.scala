@@ -474,7 +474,10 @@ object Build {
       .withNativeCompilerPlugin
       .withJUnitPlugin
       .dependsOn(scalalib, testInterface % "test")
-
+      .settings(
+        noJavaReleaseSettings(Compile),
+        noJavaReleaseSettings(Test)
+      )
 // Testing infrastructure ------------------------------------------------
   lazy val testingCompilerInterface =
     MultiScalaProject(

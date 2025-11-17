@@ -73,35 +73,65 @@ object Settings {
     scalacOptions ++= ignoredScalaDeprecations(scalaVersion.value)
   )
 
+  def targetJDKVersion(scalaVersion: String) =
+    CrossVersion.partialVersion(scalaVersion) match {
+      case Some((3, minor)) if minor >= 8 => 17
+      case _                              => 8
+    }
+  // Target version as a string, for javac -target and -source flags - jdk 8 compatible
+  def targetJDKVersionString(jdkVersion: Int) =
+    jdkVersion match {
+      case 8       => "1.8"
+      case version => version.toString
+    }
+
   def javaReleaseSettings = {
     def patchVersion(prefix: String, scalaVersion: String): Int =
       scalaVersion.stripPrefix(prefix).takeWhile(_.isDigit).toInt
     def canUseRelease(scalaVersion: String) = CrossVersion
       .partialVersion(scalaVersion)
       .fold(false) {
+        case (2, 12) => patchVersion("2.12.", scalaVersion) > 16
         case (2, 13) => patchVersion("2.13.", scalaVersion) > 8
-        case (2, _)  => false
-        case (3, 1)  => patchVersion("3.1.", scalaVersion) > 1
-        case (3, _)  => true
+        case (3, _)  => true // since 3.1.2
       }
-    val javacSourceFlags = Seq("-source", "1.8")
-    val scalacReleaseFlag = "-release:8"
 
     Def.settings(
-      scalacOptions += {
-        if (canUseRelease(scalaVersion.value)) scalacReleaseFlag
-        else if (scalaVersion.value.startsWith("3.")) "-Xtarget:8"
-        else "-target:jvm-1.8"
+      Compile / scalacOptions += {
+        val jdkVersion = targetJDKVersion(scalaVersion.value)
+        if (canUseRelease(scalaVersion.value)) s"-release:$jdkVersion"
+        else s"-target:jvm-${targetJDKVersionString(jdkVersion)}"
       },
-      javacOptions ++= {
+      Compile / javacOptions ++= {
+        val jdkVersion = targetJDKVersion(scalaVersion.value)
         if (canUseRelease(scalaVersion.value)) Nil
-        else javacSourceFlags
+        else {
+          val version = targetJDKVersionString(jdkVersion)
+          List("-source", version, "-target", version)
+        }
       },
-      // Remove -source flags from tests to allow for multi-jdk version compliance tests
-      Test / javacOptions --= javacSourceFlags,
-      Test / scalacOptions -= scalacReleaseFlag
+      noJavaReleaseSettings(Test)
     )
   }
+
+  def isScalacJDKTargetOption(scalacOption: String) = {}
+
+  def noJavaReleaseSettings(scope: Configuration) = Def.settings(
+    scope / scalacOptions ~= {
+      _.filterNot { opt =>
+        Seq("-target", "-Xtarget", "-release").exists(opt.contains)
+      }
+    },
+    scope / javacOptions := {
+      val prev = javacOptions.value
+      val targetVersion =
+        targetJDKVersionString(targetJDKVersion(scalaVersion.value))
+      prev.filterNot { opt =>
+        opt == targetVersion ||
+        Seq("-source", "-target").exists(opt.contains)
+      }
+    }
+  )
 
   // Docs and API settings
   lazy val docsSettings: Seq[Setting[_]] = {

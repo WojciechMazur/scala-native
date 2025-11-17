@@ -598,7 +598,8 @@ object Settings {
       // Should not be replaced with HashMap due to performance reasons.
       "class|object OpenHashMap",
       "class Stream",
-      "method retain in trait SetOps"
+      "method retain in trait SetOps",
+      "object AnyRefMap.*Use `scala.collection.mutable.HashMap` "
     ).map(msg => s"-Wconf:cat=deprecation&msg=$msg:s")
 
     def scala3Deprecations = Seq(
@@ -815,6 +816,19 @@ object Settings {
         def listFilesInOrder(patterns: Glob*) =
           patterns.flatMap(fileTree.list(_))
 
+        /* Exclude files coming from Scala's `library-aux` directory, as they are not
+         * meant to be compiled. They are part of the source jar since Scala 2.13.14.
+         */
+        val ignoredSourceFiles = Set(
+          "Any.scala",
+          "AnyRef.scala",
+          "Singleton.scala",
+          "Nothing.scala",
+          "Null.scala",
+          // Since 3.5.1
+          "AnyKind.scala",
+          "Matchable.scala"
+        ).map(java.nio.file.Paths.get("scala", _))
         var failedToApplyPatches = false
         for {
           srcDir <- sourceDirectories
@@ -822,6 +836,7 @@ object Settings {
           scalaGlob = srcDir.toGlob / ** / "*.scala"
           patchGlob = srcDir.toGlob / ** / "*.scala.patch"
           (sourcePath, _) <- listFilesInOrder(scalaGlob, patchGlob)
+          if !ignoredSourceFiles.exists(sourcePath.endsWith(_))
           path = normPath(sourcePath.toFile).substring(normSrcDir.length)
         } {
           def addSource(path: String)(optSource: => Option[File]): Unit = {

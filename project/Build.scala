@@ -354,19 +354,7 @@ object Build {
               "-language:existentials",
               "-language:higherKinds"
             ),
-            /* Used to disable fatal warnings due to problems with compilation of `@nowarn` annotation */
-            scalacOptions --= {
-              scalaVersionsDependendent(scalaVersion.value)(
-                List.empty[String]
-              ) {
-                case (2, 12)
-                    if scalaVersion.value
-                      .stripPrefix("2.12.")
-                      .takeWhile(_.isDigit)
-                      .toInt >= 13 =>
-                  List("-Xfatal-warnings")
-              }
-            }
+            scalacOptions --= Seq("-Xfatal-warnings", "-deprecation"),
           )
         case "3" =>
           _.settings(

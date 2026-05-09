@@ -9,14 +9,18 @@ object Link {
   def apply(config: build.Config, entries: Seq[nir.Global])(implicit
       scope: Scope
   ): ReachabilityAnalysis =
-    Reach(config, entries, ClassLoader.fromDisk(config))
+    Reach(
+      config,
+      entries ++ RuntimeDylibLinkerRoots.extraEntryGlobals(config),
+      ClassLoader.fromDisk(config)
+    )
 
   /** Run reachability analysis on already loaded methods. */
   def apply(
       config: build.Config,
       entries: Seq[nir.Global],
       defns: Seq[nir.Defn]
-  ): ReachabilityAnalysis =
+  )(implicit scope: Scope): ReachabilityAnalysis =
     Reach(config, entries, ClassLoader.fromMemory(defns))
 
 }

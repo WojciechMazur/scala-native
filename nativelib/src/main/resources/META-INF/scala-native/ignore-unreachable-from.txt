@@ -1,0 +1,3 @@
+# References from nativelib / Scala Native runtime sources to symbols not present on this platform.
+@owner-prefix scala.scalanative.concurrent.
+@owner-prefix scala.scalanative.nio.fs.unix.

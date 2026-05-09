@@ -3,6 +3,8 @@ package sbtplugin
 
 import java.nio.file.{Path, Paths}
 
+import scala.util.Try
+
 import scala.scalanative.build.*
 import scala.scalanative.nir
 
@@ -513,6 +515,11 @@ object NativeConfigJsonFormats {
       final val OptimizerConfig = "optimizerConfig"
       final val SourceLevelDebuggingConfig = "sourceLevelDebuggingConfig"
       final val SemanticsConfig = "semanticsConfig"
+      final val UseCachedLibraries = "useCachedLibraries"
+      final val CacheRoot = "cacheRoot"
+      final val CacheMaxSizeBytes = "cacheMaxSizeBytes"
+      final val PrebuildScalaNativeRuntimeDso = "prebuildScalaNativeRuntimeDso"
+      final val UseCrossDsoRtti = "useCrossDsoRtti"
     }
 
     override def write[J](obj: NativeConfig, builder: Builder[J]): Unit = {
@@ -546,6 +553,11 @@ object NativeConfigJsonFormats {
       builder.addField(Field.OptimizerConfig, obj.optimizerConfig)
       builder.addField(Field.SourceLevelDebuggingConfig, obj.sourceLevelDebuggingConfig)
       builder.addField(Field.SemanticsConfig, obj.semanticsConfig)
+      builder.addField(Field.UseCachedLibraries, obj.useCachedLibraries)
+      builder.addField(Field.CacheRoot, obj.cacheRoot.map(_.toString))
+      builder.addField(Field.CacheMaxSizeBytes, obj.cacheMaxSizeBytes)
+      builder.addField(Field.PrebuildScalaNativeRuntimeDso, obj.prebuildScalaNativeRuntimeDso)
+      builder.addField(Field.UseCrossDsoRtti, obj.useCrossDsoRtti)
       builder.endObject()
     }
 
@@ -590,6 +602,25 @@ object NativeConfigJsonFormats {
             unbuilder.readField[SourceLevelDebuggingConfig](Field.SourceLevelDebuggingConfig)
           )
           .withSemanticsConfig(_ => unbuilder.readField[SemanticsConfig](Field.SemanticsConfig))
+          .withUseCachedLibraries(
+            Try(unbuilder.readField[Boolean](Field.UseCachedLibraries)).getOrElse(false)
+          )
+          .withCacheRoot(
+            Try(unbuilder.readField[Option[String]](Field.CacheRoot))
+              .getOrElse(None)
+              .filter(_.nonEmpty)
+              .map(Paths.get(_))
+          )
+          .withCacheMaxSizeBytes(
+            Try(unbuilder.readField[Long](Field.CacheMaxSizeBytes))
+              .getOrElse(10L * 1024 * 1024 * 1024)
+          )
+          .withPrebuildScalaNativeRuntimeDso(
+            Try(unbuilder.readField[Boolean](Field.PrebuildScalaNativeRuntimeDso)).getOrElse(false)
+          )
+          .withUseCrossDsoRtti(
+            Try(unbuilder.readField[Boolean](Field.UseCrossDsoRtti)).getOrElse(false)
+          )
       finally unbuilder.endObject()
     }
   }

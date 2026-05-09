@@ -1,0 +1,36 @@
+# Suppress unreachable-symbol reports for references from javalib methods that call
+# JDK APIs not yet modeled in Scala Native NIR.
+@owner-prefix java.lang.VirtualThread
+@owner-prefix java.time.
+@owner-prefix java.lang.invoke.
+@owner-prefix java.lang.reflect.
+@owner-prefix java.lang.ClassValue
+@owner-prefix java.lang.process.
+@owner-prefix java.security.
+@owner-prefix java.text.
+@owner-prefix java.io.Console
+@owner-prefix java.io.ObjectInputStream
+@owner-prefix java.io.ObjectOutputStream
+@owner-prefix java.net.URL
+@owner-prefix java.net.DatagramSocket
+@owner-prefix java.net.InterfaceAddress
+@owner-prefix javax.security.auth.
+@owner-prefix java.util.FormatterCompanionImpl
+@owner-prefix java.util.Locale
+@owner-prefix java.util.UUID$
+@owner-prefix java.util.Enumeration$
+@owner-prefix java.util.concurrent.
+@owner-prefix java.util.Spliterators$$
+@owner-prefix java.nio.channels.Channels$$
+@owner-prefix java.nio.channels.AsynchronousFileChannel
+@owner-prefix java.nio.channels.DatagramChannel
+@owner-prefix java.nio.file.spi.FileSystemProvider
+@owner-prefix java.nio.file.WalkFileAttrRetriever
+@owner-prefix java.nio.file.attribute.FileTime
+@owner-prefix java.nio.file.attribute.PosixFileAttributeViewImpl$$
+@owner-prefix java.lang.System$
+@owner-prefix java.lang.Class$
+@owner-prefix java.lang.ClassLoader$
+@owner-prefix java.lang.Character$
+@owner-prefix java.util.ArrayList$$
+@owner-prefix java.util.FormatterImpl

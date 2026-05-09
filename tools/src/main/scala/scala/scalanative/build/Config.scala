@@ -62,6 +62,12 @@ sealed trait Config {
   /** Sequence of all NIR locations. */
   def classPath: Seq[Path]
 
+  /** Jars kept for metadata (ignored symbols) when [[linkApplicationAgainstPrebuiltRuntimeDylib]] is true. */
+  private[scalanative] def classpathForMetaScan: Seq[Path]
+
+  /** When true, [[NativeLib]] skips unpacking C sources from stdlib jars and the linker uses `-lscala-native-runtime`. */
+  private[scalanative] def linkApplicationAgainstPrebuiltRuntimeDylib: Boolean
+
   /** Sequence of all Scala sources locations used when mapping binary symbols
    *  with original sources.
    */
@@ -95,6 +101,12 @@ sealed trait Config {
 
   /** Create a new config with given nir paths. */
   def withClassPath(value: Seq[Path]): Config
+
+  private[scalanative] def withClasspathForMetaScan(value: Seq[Path]): Config
+
+  private[scalanative] def withLinkApplicationAgainstPrebuiltRuntimeDylib(
+      value: Boolean
+  ): Config
 
   /** Create a new config with given Scala sources paths. */
   def withSourcesClassPath(value: Seq[Path]): Config
@@ -226,6 +238,8 @@ object Config {
       moduleName = "",
       mainClass = None,
       classPath = Seq.empty,
+      classpathForMetaScan = Seq.empty,
+      linkApplicationAgainstPrebuiltRuntimeDylib = false,
       sourcesClassPath = Seq.empty,
       compilerConfig = NativeConfig.empty
     )(Logger.default)
@@ -236,6 +250,8 @@ object Config {
       moduleName: String,
       mainClass: Option[String],
       classPath: Seq[Path],
+      classpathForMetaScan: Seq[Path],
+      linkApplicationAgainstPrebuiltRuntimeDylib: Boolean,
       sourcesClassPath: Seq[Path],
       compilerConfig: NativeConfig
   )(implicit
@@ -256,6 +272,12 @@ object Config {
 
     def withClassPath(value: Seq[Path]): Config =
       copy(classPath = value)
+
+    def withClasspathForMetaScan(value: Seq[Path]): Config =
+      copy(classpathForMetaScan = value)
+
+    def withLinkApplicationAgainstPrebuiltRuntimeDylib(value: Boolean): Config =
+      copy(linkApplicationAgainstPrebuiltRuntimeDylib = value)
 
     def withSourcesClassPath(value: Seq[Path]): Config =
       copy(sourcesClassPath = value)

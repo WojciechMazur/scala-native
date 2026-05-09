@@ -111,7 +111,8 @@ private[scalanative] object Lower {
       defns.foreach {
         case _: nir.Defn.Class | _: nir.Defn.Module | _: nir.Defn.Trait =>
           ()
-        case nir.Defn.Declare(attrs, MethodRef(_: Class | _: Trait, _), _) if !attrs.isExtern =>
+        case nir.Defn.Declare(attrs, MethodRef(_: Class | _: Trait, _), _) if !attrs.isExtern &&
+            !meta.buildConfig.linkApplicationAgainstPrebuiltRuntimeDylib =>
           ()
         case nir.Defn.Var(attrs, FieldRef(_: Class, _), _, _) if !attrs.isExtern =>
           ()
@@ -1289,7 +1290,20 @@ private[scalanative] object Lower {
           val id = let(nir.Op.Load(nir.Type.Int, idptr), unwind)
           val ge = let(nir.Op.Comp(nir.Comp.Sle, nir.Type.Int, nir.Val.Int(range.start), id), unwind)
           val le = let(nir.Op.Comp(nir.Comp.Sle, nir.Type.Int, id, nir.Val.Int(range.end)), unwind)
-          let(nir.Op.Bin(nir.Bin.And, nir.Type.Bool, ge, le), unwind)
+          val rangeCheck =
+            let(nir.Op.Bin(nir.Bin.And, nir.Type.Bool, ge, le), unwind)
+          if (meta.useCrossDsoRtti) {
+            val extraI = let(
+              nir.Op.Call(
+                crossDsoInstanceofSig,
+                crossDsoInstanceofVal,
+                Seq(typeptr, nir.Val.Int(meta.ids(cls)))
+              ),
+              unwind
+            )
+            val extra = let(nir.Op.Comp(nir.Comp.Ine, nir.Type.Int, extraI, nir.Val.Int(0)), unwind)
+            let(nir.Op.Bin(nir.Bin.Or, nir.Type.Bool, rangeCheck, extra), unwind)
+          } else rangeCheck
 
         case TraitRef(trt) =>
           v.ty match {
@@ -2330,6 +2344,13 @@ private[scalanative] object Lower {
     )
   val throwUndefinedVal =
     nir.Val.Global(throwUndefined, nir.Type.Ptr)
+
+  private val crossDsoInstanceofName =
+    nir.Global.Member(nir.Global.Top("__"), nir.Sig.Extern("scalanative_cross_dso_instanceof"))
+  val crossDsoInstanceofSig: nir.Type.Function =
+    nir.Type.Function(Seq(nir.Type.Ptr, nir.Type.Int), nir.Type.Int)
+  val crossDsoInstanceofVal: nir.Val.Global =
+    nir.Val.Global(crossDsoInstanceofName, nir.Type.Ptr)
 
   val throwOutOfBoundsTy =
     nir.Type.Function(

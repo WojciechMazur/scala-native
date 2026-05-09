@@ -31,7 +31,27 @@ jobs:
           scala-version: ${{matrix.scala}}
 
       - name: Test tools
-        run: sbt "test-tools ${{ matrix.scala }}; toolsBenchmarks${{env.project-version}}/Jmh/compile"
+        run: sbt "test-tools ${{ matrix.scala }}; toolsBenchmarks${{env.project-version}}/Jmh/compile; tools${{env.project-version}}/testOnly scala.scalanative.build.cache.*"
+
+  test-cached-lib-smoke:
+    name: Cached-lib smoke (sandbox nativeLink + junit)
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || ((github.event_name == 'schedule' || github.event_name == 'workflow_call') && github.repository == 'scala-native/scala-native')
+    runs-on: ubuntu-22.04
+    needs: tests-tools
+    env:
+      ENABLE_EXPERIMENTAL_COMPILER: true
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/linux-setup-env
+        with:
+          scala-version: 3
+
+      - name: nativeLink sandbox + junit subset (prebuilt runtime DSO)
+        timeout-minutes: 45
+        run: >
+          sbt 'sandbox3/nativeLink;
+               set junitTestOutputsNative3/nativeConfig ~= (_.withPrebuildScalaNativeRuntimeDso(true));
+               junitTestOutputsNative3/testOnly scala.scalanative.junit.Multi1Test'
 
   tests-compile-scalaPublishVersion:
     name: Compile sources with the Scala 3 version used for publishing artifacts

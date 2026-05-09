@@ -124,6 +124,7 @@ object ScalaNativePluginInternal {
         .withLTO(Discover.LTO())
         .withGC(Discover.GC())
         .withMode(Discover.mode())
+        .withUseCachedLibraries(Discover.mode() == Mode.debug)
         .withOptimize(Discover.optimize())
     },
     nativeWarnOldJVM := {
@@ -229,12 +230,14 @@ object ScalaNativePluginInternal {
     nativeLinkReleaseFull := nativeLinkCachedTask(
       testConfig,
       moduleSuffix = "-release-full",
-      configureNativeConfig = _.withMode(Mode.releaseFull)
+      configureNativeConfig =
+        _.withMode(Mode.releaseFull).withUseCachedLibraries(false)
     ).value,
     nativeLinkReleaseFast := nativeLinkCachedTask(
       testConfig,
       moduleSuffix = "-release-fast",
-      configureNativeConfig = _.withMode(Mode.releaseFast)
+      configureNativeConfig =
+        _.withMode(Mode.releaseFast).withUseCachedLibraries(false)
     ).value,
     nativeLink := nativeLinkCachedTask(
       testConfig,

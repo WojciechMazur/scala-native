@@ -728,7 +728,8 @@ object Build {
     MultiScalaProject("sandbox")
       .settings(
         noJavaReleaseSettings(Compile),
-        noJavaReleaseSettings(Test)
+        noJavaReleaseSettings(Test),
+        nativeConfig ~= (_.withPrebuildScalaNativeRuntimeDso(true))
       )
       .withJUnitPlugin
       .withNativeCompilerPlugin

@@ -71,6 +71,24 @@ sealed trait NativeConfig {
   /** Shall we use the incremental compilation? */
   def useIncrementalCompilation: Boolean
 
+  /** When true (recommended under [[Mode.debug]] on Linux/macOS), enables the
+    * cached-library pipeline: optional prebuilt runtime DSO, cache metadata, and
+    * related linker behavior (e.g. classpath ignore lists).
+    */
+  def useCachedLibraries: Boolean
+
+  /** Optional override for the Scala Native artifact cache root (defaults to `~/.cache/scala-native`). */
+  def cacheRoot: Option[Path]
+
+  /** Maximum total cache size before [[build.cache.CacheLru]] prunes oldest entries. */
+  def cacheMaxSizeBytes: Long
+
+  /** If true and [[useCachedLibraries]] is set, pre-builds `libscala-native-runtime` into the cache (expensive once). */
+  def prebuildScalaNativeRuntimeDso: Boolean
+
+  /** When true, emits cross-DSO instanceof slow-path hooks (see hybrid RTTI plan). */
+  def useCrossDsoRtti: Boolean
+
    // format: off
   /** Shall be compiled with multithreading support.
    *
@@ -317,6 +335,16 @@ sealed trait NativeConfig {
 
   /** Modify a semantics configuration */
   def withSemanticsConfig(update: Mapping[SemanticsConfig]): NativeConfig
+
+  def withUseCachedLibraries(value: Boolean): NativeConfig
+
+  def withCacheRoot(value: Option[Path]): NativeConfig
+
+  def withCacheMaxSizeBytes(value: Long): NativeConfig
+
+  def withPrebuildScalaNativeRuntimeDso(value: Boolean): NativeConfig
+
+  def withUseCrossDsoRtti(value: Boolean): NativeConfig
 }
 
 object NativeConfig {
@@ -347,6 +375,11 @@ object NativeConfig {
       linkStubs = false,
       optimize = true,
       useIncrementalCompilation = true,
+      useCachedLibraries = false,
+      cacheRoot = None,
+      cacheMaxSizeBytes = 10L * 1024 * 1024 * 1024,
+      prebuildScalaNativeRuntimeDso = false,
+      useCrossDsoRtti = false,
       multithreading = None, // detect
       linktimeProperties = Map.empty,
       embedResources = false,
@@ -379,6 +412,11 @@ object NativeConfig {
       linkStubs: Boolean,
       optimize: Boolean,
       useIncrementalCompilation: Boolean,
+      useCachedLibraries: Boolean,
+      cacheRoot: Option[Path],
+      cacheMaxSizeBytes: Long,
+      prebuildScalaNativeRuntimeDso: Boolean,
+      useCrossDsoRtti: Boolean,
       multithreading: Option[Boolean],
       linktimeProperties: LinktimeProperites,
       embedResources: Boolean,
@@ -457,6 +495,21 @@ object NativeConfig {
 
     override def withIncrementalCompilation(value: Boolean): NativeConfig =
       copy(useIncrementalCompilation = value)
+
+    def withUseCachedLibraries(value: Boolean): NativeConfig =
+      copy(useCachedLibraries = value)
+
+    def withCacheRoot(value: Option[Path]): NativeConfig =
+      copy(cacheRoot = value)
+
+    def withCacheMaxSizeBytes(value: Long): NativeConfig =
+      copy(cacheMaxSizeBytes = value)
+
+    def withPrebuildScalaNativeRuntimeDso(value: Boolean): NativeConfig =
+      copy(prebuildScalaNativeRuntimeDso = value)
+
+    def withUseCrossDsoRtti(value: Boolean): NativeConfig =
+      copy(useCrossDsoRtti = value)
 
     def withMultithreading(enabled: Boolean): NativeConfig =
       copy(multithreading = Some(enabled))
@@ -551,6 +604,11 @@ object NativeConfig {
           | - linkStubs:               $linkStubs
           | - optimize                 $optimize
           | - incrementalCompilation:  $useIncrementalCompilation
+          | - useCachedLibraries:      $useCachedLibraries
+          | - cacheRoot:               $cacheRoot
+          | - cacheMaxSizeBytes:       $cacheMaxSizeBytes
+          | - prebuildRuntimeDso:      $prebuildScalaNativeRuntimeDso
+          | - useCrossDsoRtti:         $useCrossDsoRtti
           | - multithreading           ${multithreading.getOrElse("detect")}
           | - linktimeProperties:      ${showMap(linktimeProperties)}
           | - embedResources:          $embedResources

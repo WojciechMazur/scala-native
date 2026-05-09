@@ -1,0 +1,2 @@
+# Optional: mangled Global.Member lines for definitions whose bodies should be replaced
+# with unreachable stubs when NIR is present (see IgnoredSymbols).

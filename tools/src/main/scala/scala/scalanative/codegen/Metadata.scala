@@ -26,6 +26,11 @@ private[scalanative] class Metadata(
   val ids = mutable.Map.empty[linker.ScopeInfo, Int]
   val ranges = mutable.Map.empty[linker.Class, Range]
 
+  /** Populated when split cached-library linking supplies cross-DSO RTTI; empty disables slow path. */
+  val crossDsoAncestorIds: Map[linker.Class, Seq[Int]] = Map.empty
+
+  def useCrossDsoRtti: Boolean = buildConfig.compilerConfig.useCrossDsoRtti
+
   val classes = initClassIdsAndRanges()
   val (traits, traitIdsContext) = initTraitIds()
   val moduleArray = new ModuleArray(this)

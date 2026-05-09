@@ -1,0 +1,2 @@
+# Windows-only NIO / security glue; on non-Windows hosts some peers are absent from the classpath graph.
+@owner-prefix scala.scalanative.nio.fs.windows.

@@ -38,6 +38,8 @@ sealed abstract class Defn extends Positioned {
   final def isEntryPoint = this match {
     case Define(attrs, Global.Member(_, sig), _, _, _) =>
       sig.isClinit || attrs.isExtern
+    case Defn.Declare(attrs, Global.Member(_, sig), _) =>
+      sig.isClinit || attrs.isExtern
     case _ => false
   }
 

@@ -18,7 +18,12 @@ package object serialization {
   }
 
   def serializeBinary(defns: Seq[Defn], channel: WritableByteChannel): Unit = {
-    new BinarySerializer(channel).serialize(defns)
+    new BinarySerializer(channel, stripDefineBodies = false).serialize(defns)
+  }
+
+  /** Like [[serializeBinary]] but serializes each [[Defn.Define]] as [[Defn.Declare]] on the wire (cached-library headers). */
+  def serializeBinaryStripped(defns: Seq[Defn], channel: WritableByteChannel): Unit = {
+    new BinarySerializer(channel, stripDefineBodies = true).serialize(defns)
   }
 
   def deserializeBinary(directory: VirtualDirectory, path: Path): Seq[Defn] = {

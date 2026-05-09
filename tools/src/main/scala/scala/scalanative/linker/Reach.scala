@@ -1,16 +1,21 @@
 package scala.scalanative
 package linker
 
-import java.nio.file.{Path, Paths}
+import java.nio.file.{Files, Path, Paths}
 
 import scala.annotation.tailrec
 import scala.collection.mutable
+
+import scala.scalanative.codegen.Lower
+import scala.scalanative.io.VirtualDirectory
+import scala.scalanative.util.Scope
 
 private[linker] class Reach(
     protected val config: build.Config,
     entries: Seq[nir.Global],
     protected val loader: ClassLoader
-) extends LinktimeValueResolver
+)(implicit in: Scope)
+    extends LinktimeValueResolver
     with LinktimeIntrinsicCallsResolver {
   import Reach._
 
@@ -28,6 +33,16 @@ private[linker] class Reach(
   val infos = mutable.Map.empty[nir.Global, Info]
   val from = mutable.Map.empty[nir.Global, ReferencedFrom]
   val exports = mutable.UnrolledBuffer.empty[nir.Global]
+
+  private val ignoredStubMembers: Set[nir.Global.Member] =
+    IgnoredSymbols.loadFromClasspath(
+      config.classPath ++ config.classpathForMetaScan
+    )
+
+  private val unreachableCallerIgnores: UnreachableReferenceIgnores.Bundle =
+    UnreachableReferenceIgnores.loadFromClasspath(
+      config.classPath ++ config.classpathForMetaScan
+    )
 
   val dyncandidates = mutable.Map.empty[nir.Sig, mutable.Set[nir.Global.Member]]
   val dynsigs = mutable.Set.empty[nir.Sig]
@@ -59,7 +74,43 @@ private[linker] class Reach(
     .flatMap(v => scala.util.Try(v.toBoolean).toOption)
     .forall(_ == true)
 
-  loader.classesWithEntryPoints.foreach { clsName =>
+  /** Classes whose static initializers we seed reachability from.
+    *
+    * When linking an application against a prebuilt `libscala-native-runtime`,
+    * `classPath` is `nir-headers/` followed by app jars. The header tree still
+    * marks many modules as having entry points; those `<clinit>`s already ran
+    * when the DSO was built, so re-seeding from the full merged entry-point set
+    * would pull in the entire stripped stdlib surface (unused extern decls).
+    * Only entry points discovered on the tail classpath (app + non-bundled
+    * deps) are used in that mode. [[ClassLoader.fromMemory]] keeps the merged
+    * behaviour (tests, optimizer re-link).
+    */
+  private def staticInitEntryPoints: Iterable[nir.Global.Top] =
+    loader match {
+      case _: ClassLoader.FromMemory =>
+        loader.classesWithEntryPoints
+      case _: ClassLoader.FromDisk
+          if config.linkApplicationAgainstPrebuiltRuntimeDylib &&
+            config.classPath.lengthCompare(1) > 0 =>
+        val buf = mutable.ArrayBuffer.empty[nir.Global.Top]
+        val seen = mutable.Set.empty[nir.Global.Top]
+        config.classPath.iterator.drop(1).foreach { path =>
+          val okPath =
+            (Files.isRegularFile(path) && path.toString.endsWith(".jar")) ||
+              Files.isDirectory(path)
+          if (okPath) {
+            val cp = ClassPath(VirtualDirectory.real(path), config.logger)
+            cp.classesWithEntryPoints.foreach { top =>
+              if (seen.add(top)) buf += top
+            }
+          }
+        }
+        buf
+      case _: ClassLoader.FromDisk =>
+        loader.classesWithEntryPoints
+    }
+
+  staticInitEntryPoints.foreach { clsName =>
     if (reachStaticConstructors)
       reachClinit(clsName)(nir.SourcePosition.NoPosition)
     config.compilerConfig.buildTarget match {
@@ -209,8 +260,30 @@ private[linker] class Reach(
     stack = stack.tail
   }
 
+  private def replaceIgnoredWithStub(defn: nir.Defn): nir.Defn =
+    defn.name match {
+      case m: nir.Global.Member if ignoredStubMembers.contains(m) =>
+        defn match {
+          case d: nir.Defn.Define =>
+            d.copy(
+              insts = IgnoredSymbolStub.insts(d.pos),
+              debugInfo = nir.Defn.Define.DebugInfo.empty
+            )(d.pos)
+          case d: nir.Defn.Declare =>
+            nir.Defn.Define(
+              attrs = d.attrs,
+              name = d.name,
+              ty = d.ty,
+              insts = IgnoredSymbolStub.insts(d.pos),
+              debugInfo = nir.Defn.Define.DebugInfo.empty
+            )(d.pos)
+          case other => other
+        }
+      case _ => defn
+    }
+
   def reachDefn(defninition: nir.Defn): Unit = {
-    val defn = preprocessDefn(defninition)
+    val defn = replaceIgnoredWithStub(preprocessDefn(defninition))
     implicit val srcPosition = defn.pos
     defn match {
       case defn: nir.Defn.Var =>
@@ -238,9 +311,12 @@ private[linker] class Reach(
   private def preprocessDefn(defn: nir.Defn): nir.Defn = {
     defn match {
       case defn: nir.Defn.Define =>
-        (resolveLinktimeDefine(_))
-          .andThen(resolveDefineIntrinsics)
-          .apply(defn)
+        if (defn.insts.isEmpty)
+          defn
+        else
+          (resolveLinktimeDefine(_))
+            .andThen(resolveDefineIntrinsics)
+            .apply(defn)
 
       case _ => defn
     }
@@ -367,6 +443,10 @@ private[linker] class Reach(
           case (_, defn: nir.Defn.Define) =>
             val nir.Global.Member(_, sig) = defn.name
             info.responds(sig) = defn.name
+          case (_, defn: nir.Defn.Declare)
+              if config.linkApplicationAgainstPrebuiltRuntimeDylib =>
+            val nir.Global.Member(_, sig) = defn.name
+            info.responds(sig) = defn.name
           case _ =>
             ()
         }
@@ -395,20 +475,24 @@ private[linker] class Reach(
         info.parent.foreach { parentInfo =>
           info.responds ++= parentInfo.responds
         }
+        def registerLoadedMember(name: nir.Global.Member): Unit = {
+          val memberSig = name.sig
+          def update(s: nir.Sig): Unit = {
+            info.responds(s) = lookup(info, s)
+              .getOrElse(
+                fail(s"Required method ${s} not found in ${info.name}")
+              )
+          }
+          if (
+            memberSig.isMethod || memberSig.isCtor || memberSig.isClinit || memberSig.isGenerated
+          ) {
+            update(memberSig)
+          }
+        }
         loaded(info.name).foreach {
-          case (_, defn: nir.Defn.Define) =>
-            val nir.Global.Member(_, sig) = defn.name
-            def update(sig: nir.Sig): Unit = {
-              info.responds(sig) = lookup(info, sig)
-                .getOrElse(
-                  fail(s"Required method ${sig} not found in ${info.name}")
-                )
-            }
-
-            if (sig.isMethod || sig.isCtor || sig.isClinit || sig.isGenerated) {
-              update(sig)
-            }
-          case _ => ()
+          case (_, defn: nir.Defn.Define)   => registerLoadedMember(defn.name)
+          case (_, defn: nir.Defn.Declare) => registerLoadedMember(defn.name)
+          case _                           => ()
         }
 
         // Initialize the scope of the default methods that can
@@ -679,7 +763,7 @@ private[linker] class Reach(
   }
 
   def reachAttrs(attrs: nir.Attrs): Unit = {
-    links ++= attrs.links
+    links ++= attrs.links.filter(l => build.HostNativeLinks.keepForHost(config, l.name))
     preprocessorDefinitions ++= attrs.preprocessorDefinitions
     if (attrs.linkCppRuntime) {
       linkCppRuntime = true
@@ -930,20 +1014,30 @@ private[linker] class Reach(
     }
   }
 
-  protected def addMissing(global: nir.Global): Unit =
-    global match {
-      case UnsupportedFeatureExtractor(details) =>
-        unsupported.getOrElseUpdate(global, details)
-      case _ =>
-        unreachable.getOrElseUpdate(
-          global,
-          UnreachableSymbol(
-            name = global,
-            symbol = parseSymbol(global),
-            backtrace = getBackTrace(global)
-          )
-        )
+  protected def addMissing(global: nir.Global): Unit = {
+    val suppressForCaller = stack.headOption.exists {
+      case m: nir.Global.Member =>
+        unreachableCallerIgnores.suppressesCaller(m)
+      case t: nir.Global.Top =>
+        unreachableCallerIgnores.suppressesDefiningTop(t)
+      case _ => false
     }
+    if (suppressForCaller) ()
+    else
+      global match {
+        case UnsupportedFeatureExtractor(details) =>
+          unsupported.getOrElseUpdate(global, details)
+        case _ =>
+          unreachable.getOrElseUpdate(
+            global,
+            UnreachableSymbol(
+              name = global,
+              symbol = parseSymbol(global),
+              backtrace = getBackTrace(global)
+            )
+          )
+      }
+  }
 
   private def parseSymbol(name: nir.Global): SymbolDescriptor = {
     def renderType(tpe: nir.Type): String = tpe match {
@@ -1171,6 +1265,23 @@ private[linker] class Reach(
   lazy val injects: Seq[nir.Defn] = UnsupportedFeatureExtractor.injects
 }
 
+private object IgnoredSymbolStub {
+  def insts(implicit pos: nir.SourcePosition): Seq[nir.Inst] = {
+    implicit val fresh: nir.Fresh = nir.Fresh()
+    implicit val scopeId: nir.ScopeId = nir.ScopeId.TopLevel
+    val buf = new nir.InstructionBuilder()
+    buf.label(fresh(), Nil)
+    buf.call(
+      Lower.throwUndefinedTy,
+      Lower.throwUndefinedVal,
+      Seq(nir.Val.Null),
+      nir.Next.None
+    )
+    buf.unreachable(nir.Next.None)
+    buf.toSeq
+  }
+}
+
 private[scalanative] object Reach {
   private final val ExternForwarderSig =
     nir.Sig.Generated("$extern$forwarder").mangled
@@ -1179,7 +1290,7 @@ private[scalanative] object Reach {
       config: build.Config,
       entries: Seq[nir.Global],
       loader: ClassLoader
-  ): ReachabilityAnalysis = {
+  )(implicit in: Scope): ReachabilityAnalysis = {
     val reachability = new Reach(config, entries, loader)
     reachability.process()
     reachability.processDelayed()

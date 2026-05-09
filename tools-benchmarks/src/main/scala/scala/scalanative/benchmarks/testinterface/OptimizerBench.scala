@@ -55,8 +55,10 @@ abstract class OptimizerBench(mode: build.Mode) {
 
   @Benchmark
   def optimize(): Unit = {
-    val optimize = ScalaNative.optimize(config, analysis)
-    val optimized = Await.result(optimize, Duration.Inf)
+    util.Scope { implicit scope =>
+      val optimize = ScalaNative.optimize(config, analysis)
+      val optimized = Await.result(optimize, Duration.Inf)
+    }
   }
 }
 

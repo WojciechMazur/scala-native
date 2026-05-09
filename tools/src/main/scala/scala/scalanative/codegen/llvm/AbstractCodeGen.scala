@@ -295,7 +295,7 @@ private[codegen] abstract class AbstractCodeGen(
     }
 
     defn match {
-      case _: nir.Defn.Declare   => ()
+      case _: nir.Defn.Declare => ()
       case defn: nir.Defn.Define =>
         implicit lazy val defnScopes: DefnScopes = new DefnScopes(defn, this)
         insts.foreach {

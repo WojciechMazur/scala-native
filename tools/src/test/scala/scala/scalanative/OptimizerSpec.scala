@@ -6,6 +6,7 @@ import scala.concurrent.duration._
 
 import scala.scalanative.build.{Config, Mode, NativeConfig, ScalaNative}
 import scala.scalanative.linker.ReachabilityAnalysis
+import scala.scalanative.util.Scope
 
 /** Base class to test the optimizer */
 abstract class OptimizerSpec extends LinkerSpec {
@@ -32,9 +33,11 @@ abstract class OptimizerSpec extends LinkerSpec {
   ): T =
     link(entry, sources, setupConfig) {
       case (config, linked) =>
-        val optimized = ScalaNative.optimize(config, linked)
-        val result = Await.result(optimized, Duration.Inf)
-        fn(config, result)
+        Scope { implicit scope =>
+          val optimized = ScalaNative.optimize(config, linked)
+          val result = Await.result(optimized, Duration.Inf)
+          fn(config, result)
+        }
     }
 
   protected def findEntry(linked: Seq[nir.Defn]): Option[nir.Defn.Define] = {

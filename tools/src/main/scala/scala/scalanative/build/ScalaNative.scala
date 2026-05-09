@@ -51,7 +51,8 @@ private[scalanative] object ScalaNative {
 
   /** Optimizer high-level NIR under closed-world assumption. */
   def optimize(config: Config, analysis: ReachabilityAnalysis.Result)(implicit
-      ec: ExecutionContext
+      ec: ExecutionContext,
+      scope: Scope
   ): Future[ReachabilityAnalysis.Result] = {
     import config.logger
     if (config.compilerConfig.optimize)
@@ -62,9 +63,10 @@ private[scalanative] object ScalaNative {
           dumpFile = "optimized",
           forceQuickCheck = false
         ) {
+          val linkScope = scope
           Interflow
             .optimize(config, analysis)
-            .map(Link(config, analysis.entries, _))
+            .map(defns => Link(config, analysis.entries, defns)(linkScope))
         }
       }
     else {

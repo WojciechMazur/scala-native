@@ -12,7 +12,11 @@ import scala.collection.mutable
 import serialization.{Tags => T}
 
 // scalafmt: { maxColumn = 120}
-final class BinarySerializer(channel: WritableByteChannel) {
+/** @param stripDefineBodies when true, each [[Defn.Define]] is written as [[T.DeclareDefn]] (signature only, cached-library headers). */
+final class BinarySerializer(
+    channel: WritableByteChannel,
+    stripDefineBodies: Boolean = false
+) {
   def serialize(defns: Seq[Defn]) = {
     // Write to in-memory buffers
     for (defn <- defns) {
@@ -265,10 +269,15 @@ final class BinarySerializer(channel: WritableByteChannel) {
       hasEntryPoints ||= defn.isEntryPoint
       defn match {
         case Defn.Define(_, _, ty, insts, debugInfo) =>
-          putHeader(T.DefineDefn)
-          putType(ty)
-          putInsts(insts)
-          putDebugInfo(debugInfo)
+          if (stripDefineBodies) {
+            putHeader(T.DeclareDefn)
+            putType(ty)
+          } else {
+            putHeader(T.DefineDefn)
+            putType(ty)
+            putInsts(insts)
+            putDebugInfo(debugInfo)
+          }
 
         case defn: Defn.Var =>
           putHeader(T.VarDefn)

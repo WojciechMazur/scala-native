@@ -9,6 +9,7 @@ import java.util.regex._
 import scala.concurrent._
 import scala.util.{Failure, Success}
 
+import scala.scalanative.build.cache.ClasspathPartition
 import scala.scalanative.linker.ReachabilityAnalysis
 import scala.scalanative.nir.Attr
 import scalanative.build.IO.RichPath
@@ -16,7 +17,12 @@ import scalanative.build.IO.RichPath
 /** Original jar or dir path and generated dir path for native code */
 private[scalanative] case class NativeLib(src: Path, dest: Path)
 
-/** Utilities for dealing with native library code */
+/** Utilities for dealing with native library code.
+  *
+  * When [[NativeConfig.useCachedLibraries]] is enabled, C and C++ sources under `resources/scala-native`
+  * are intended to be compiled into each dependency cached DSO (see `scala.scalanative.build.cache`);
+  * this per-build unpack path still runs for legacy whole-program and release-mode links.
+  */
 private[scalanative] object NativeLib {
 
   /** Name of directory that contains native code: "scala-native" */
@@ -192,13 +198,22 @@ private[scalanative] object NativeLib {
    */
   def findNativeLibs(config: Config): Seq[NativeLib] = {
     val workDir = config.workDir
-    val classpath = config.classPath
+    val classpath =
+      if (config.linkApplicationAgainstPrebuiltRuntimeDylib)
+        config.classPath ++ config.classpathForMetaScan
+      else config.classPath
     val nativeCodeDir = workDir.resolve("dependencies")
     if (Build.userConfigHasChanged(config))
       IO.deleteRecursive(nativeCodeDir)
 
     val nativeLibPaths = classpath.flatMap { path =>
-      if (isJar(path)) readJar(path)
+      if (
+        config.linkApplicationAgainstPrebuiltRuntimeDylib &&
+        isJar(path) &&
+        ClasspathPartition.isRuntimeJarName(path.getFileName.toString)
+      )
+        Nil
+      else if (isJar(path)) readJar(path)
       else readDir(path)
     }
 
@@ -215,7 +230,7 @@ private[scalanative] object NativeLib {
         )
       }
 
-    if (extractPaths.isEmpty)
+    if (extractPaths.isEmpty && !config.linkApplicationAgainstPrebuiltRuntimeDylib)
       throw new BuildException(
         s"No Scala Native libraries were found: $classpath"
       )

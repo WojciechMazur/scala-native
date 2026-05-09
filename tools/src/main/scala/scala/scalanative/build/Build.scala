@@ -17,6 +17,11 @@ import scala.scalanative.util.Scope
 
 import ScalaNative._
 
+import scala.scalanative.build.cache.{
+  CachedLibraryBuild,
+  RuntimeSplitClasspath
+}
+
 /** Utility methods for building code using Scala Native. */
 object Build {
 
@@ -136,6 +141,8 @@ object Build {
       // validate Config
       var config = Validator.validate(initialConfig)
       config.logger.debug(config.toString())
+      CachedLibraryBuild.preBuild(config)
+      config = RuntimeSplitClasspath.rewriteIfApplicable(config)
       def linkNIRForEntries = ScalaNative.link(config, entries(config))
 
       linkNIRForEntries
@@ -156,7 +163,10 @@ object Build {
             .map(objects => link(config, linkerResult, objects))
             .map(artifact => postProcess(config, artifact))
         }
-        .andThen { case Success(_) => dumpUserConfigHash(config) }
+        .andThen { case Success(_) =>
+          dumpUserConfigHash(config)
+          CachedLibraryBuild.postBuild(config)
+        }
     }
   }
 

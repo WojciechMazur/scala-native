@@ -107,10 +107,17 @@ private[scalanative] object LLVM {
         List("-gdwarf-4")
       } else Nil
 
+    // For LibraryDynamic, -fvisibility=hidden keeps definitions out of the DSO's
+    // export list on ELF/Mach-O, so the application link cannot resolve runtime
+    // and GC symbols that must come from libscala-native-runtime.{so,dylib}.
+    val hiddenVisibilityFlag =
+      if (config.compilerConfig.buildTarget == BuildTarget.LibraryDynamic) Nil
+      else Seq("-fvisibility=hidden")
+
     val flags: Seq[String] =
       buildTargetCompileOpts ++ flto ++ sanitizer ++ target ++
         langOptions ++ platformFlags ++ debugFlags ++
-        configFlags ++ Seq("-fvisibility=hidden", opt) ++
+        configFlags ++ hiddenVisibilityFlag ++ Seq(opt) ++
         Seq("-fomit-frame-pointer") ++
         config.compileOptions
     val compilec: Seq[String] =

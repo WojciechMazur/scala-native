@@ -1,6 +1,7 @@
 #if defined(SCALANATIVE_COMPILE_ALWAYS) || defined(__SCALANATIVE_DELIMCC)
 #include "delimcc.h"
 #include <stddef.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>
@@ -86,6 +87,34 @@
 #ifndef __noinline
 #define __noinline __attribute__((noinline))
 #endif
+
+/* Optional runtime trace, enabled when SCALANATIVE_DELIMCC_TRACE is set to a
+ * non-empty value other than "0". Cheap when disabled (one TLS load + branch).
+ * Used to diagnose where the boundary body's return value is lost on the
+ * suspend/resume round trip (e.g. on Windows x86_64). */
+__noinline static int delimcc_trace_enabled(void) {
+    static int checked = 0;
+    static int enabled = 0;
+    if (!checked) {
+        const char *e = getenv("SCALANATIVE_DELIMCC_TRACE");
+        enabled = (e != NULL && e[0] != '\0' && !(e[0] == '0' && e[1] == '\0'));
+        checked = 1;
+    }
+    return enabled;
+}
+
+__noinline static void delimcc_trace(const char *fmt, ...) {
+    if (!delimcc_trace_enabled())
+        return;
+    fprintf(stderr, "[ScalaNative delimcc] ");
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    va_end(ap);
+    fputc('\n', stderr);
+    fflush(stderr);
+}
+
 // define the lh_jmp_buf in terms of `void*` elements to have natural alignment
 typedef void *lh_jmp_buf[ASM_JMPBUF_SIZE / sizeof(void *)];
 // Non-standard setjmp.
@@ -255,12 +284,39 @@ scalanative_continuation_exception_handler() {
     return continuation_exception_handler;
 }
 
+/* Platform-safe escape jump used by eh.c / eh.cpp.
+ *
+ * On Windows MSVC, calling POSIX `longjmp` from inside a resumed continuation
+ * trips MSVC's EH-aware `setjmpex`/`RtlUnwindEx` validation (the current RSP
+ * is in a heap- or low-OS-stack fragment that lies outside the saved jmpbuf's
+ * SEH unwind frames) and the kernel raises STATUS_BAD_STACK (0xC0000028).
+ * `_lh_longjmp` is a plain register-restore that does not consult any SEH
+ * tables, so it works irrespective of whether RSP is in the OS thread stack
+ * or in a heap fragment.
+ *
+ * The handler's `env` pointer was produced by resume's `_lh_setjmp` call (see
+ * `scalanative_continuation_resume` below), so we cast it back to
+ * `lh_jmp_buf *` and dispatch through `_lh_longjmp`. */
+__attribute__((noreturn)) void scalanative_continuation_exception_jump(
+    struct ContinuationExceptionHandler handler, Exception exception) {
+    *handler.exception_slot = exception;
+    scalanative_continuation_exception_handler_clear();
+    _lh_longjmp(*(lh_jmp_buf *)handler.env, 1);
+    /* _lh_longjmp does not return; abort if the asm somehow falls through. */
+    abort();
+}
+
 extern void *scalanative_continuation_exception_to_failure(Exception exception);
 
 int scalanative_continuation_exception_escape(Exception exception) {
+    delimcc_trace("scalanative_continuation_exception_escape exception=%p",
+                  (void *)exception);
     Handler *head = handlers_load();
-    if (head == NULL)
+    if (head == NULL) {
+        delimcc_trace(
+            "scalanative_continuation_exception_escape: empty chain, return 0");
         return 0;
+    }
 
     void *failure = scalanative_continuation_exception_to_failure(exception);
 
@@ -325,8 +381,14 @@ __continuation_boundary_impl(void **btm, ContinuationBody *body, void *arg)
     // setjmp and call
     if (_lh_setjmp(h.buf) == 0) {
         h.result = body(l, (void *)body_arg);
+        delimcc_trace("boundary_impl after body label=%lu h.result=%p",
+                      (unsigned long)label, (void *)h.result);
         handler_pop(label);
+        delimcc_trace("boundary_impl after handler_pop label=%lu h.result=%p",
+                      (unsigned long)label, (void *)h.result);
     }
+    delimcc_trace("boundary_impl returning label=%lu h.result=%p",
+                  (unsigned long)label, (void *)h.result);
     return (void *)h.result;
 }
 
@@ -503,6 +565,8 @@ void *scalanative_continuation_suspend(ContinuationBoundaryLabel b,
         return _lh_longjmp(tail->buf, 1);
     } else {
         // We're back, ret_val should be populated.
+        delimcc_trace("suspend resumed via continuation->buf ret_val=%p cont=%p",
+                      (void *)ret_val, (void *)continuation);
         return (void *)ret_val;
     }
 }
@@ -755,7 +819,38 @@ void __continuation_resume_impl(void *tail, Continuation *continuation,
 extern void scalanative_continuation_exception_terminate_handler_install(void);
 #endif
 
+/* RIP-relative ferry slot used to carry the boundary body's return value
+ * (Try*) from the resumed-body exit (which jumps back to
+ * `... = _lh_resume_entry(...)` via a patched LR) to the resumer's
+ * post-`handler_head_longjmp` code.
+ *
+ * Why this exists: on Win64 the C compiler addresses the local
+ * `volatile void *result` as `[%rbp - offset]`. The patched-LR transition
+ * reaches `mov %rax, [%rbp - offset]` with %rbp still holding the
+ * SUSPEND-side body's value (the body's epilogues don't restore the
+ * resumer's callee-saved registers because we never go through them on the
+ * abnormal return path). The store therefore lands at the wrong address;
+ * the original local stays at its setjmp-time value (NULL) and is what
+ * `handler_head_longjmp(1)` -> `_lh_setjmp(h.buf)`-return sees.
+ *
+ * Stash the return value via a file-scope global first. On x86_64 the
+ * compiler emits a single RIP-relative `mov %rax, slot(%rip)` for the
+ * store, which depends only on %rip and on %rax holding the body return -
+ * no callee-saved registers and no scratch register chase (unlike
+ * `_Thread_local`'s `gs:[0x58]`-based pointer walk on Windows, which
+ * faulted in this exact spot). Read back into the local AFTER the longjmp
+ * has restored callee-saved registers.
+ *
+ * Saved+restored around the call so nested `scalanative_continuation_resume`
+ * calls (e.g. resume-inside-suspend-callback) compose correctly. The slot is
+ * touched only between the patched-LR jump and the immediately-following
+ * `handler_head_longjmp(1)` on a single OS thread, so cross-thread
+ * synchronization is not required for that hand-off. */
+static void *volatile resume_return_slot = NULL;
+
 void *scalanative_continuation_resume(Continuation *continuation, void *out) {
+    delimcc_trace("scalanative_continuation_resume cont=%p out=%p",
+                  (void *)continuation, out);
     /*
      * Why we need a setjmp/longjmp.
      *
@@ -774,46 +869,95 @@ void *scalanative_continuation_resume(Continuation *continuation, void *out) {
      * blindly clearing TLS) on both normal and exceptional paths.
      */
     volatile Exception caught = NULL;
-    jmp_buf exception_env;
+    /* Use libhandler's register-only jmpbuf (NOT MSVC's EH-aware `jmp_buf`)
+     * so that `scalanative_continuation_exception_jump` can return into us
+     * from inside a relocated continuation fragment without tripping
+     * Windows' RtlUnwindEx stack-range validation (STATUS_BAD_STACK
+     * 0xC0000028). On POSIX this is equivalent to the previous setjmp. */
+    lh_jmp_buf exception_env;
     volatile Handler *saved_handlers = handlers_load();
     volatile ContinuationBoundaryLabel label = 0;
     volatile int resume_handler_pushed = 0;
-    ContinuationExceptionHandler previous_exception_handler =
-        scalanative_continuation_exception_handler();
-    if (setjmp(exception_env) != 0) {
+    /* Both fields are `volatile` so the compiler must spill the captured
+     * previous-handler to the resumer's stack frame, where it survives the
+     * patched-LR transition. Without `volatile` the optimizer (under
+     * `_lh_setjmp` instead of MSVC `setjmp`, which no longer pins locals to
+     * memory the way the EH-aware setjmp intrinsic did) is free to keep these
+     * pointers in callee-saved registers across `_lh_setjmp(h.buf)` and read
+     * back the body-epilogue values - which makes
+     * `scalanative_continuation_exception_handler_set(previous_exception_handler)`
+     * write a garbage `env` pointer (e.g. `0xFFFFFFFFFFFFFFFF`) into TLS,
+     * causing a c0000005 access-violation reading -1 in the very next call
+     * that consults the handler. */
+    volatile void *previous_exception_handler_env = NULL;
+    volatile Exception *previous_exception_handler_slot = NULL;
+    {
+        ContinuationExceptionHandler prev =
+            scalanative_continuation_exception_handler();
+        previous_exception_handler_env = prev.env;
+        previous_exception_handler_slot = prev.exception_slot;
+    }
+    if (_lh_setjmp(exception_env) != 0) {
         if (resume_handler_pushed) {
             handlers_store((Handler *)saved_handlers);
             resume_handler_pushed = 0;
         }
-        scalanative_continuation_exception_handler_set(
-            previous_exception_handler);
+        ContinuationExceptionHandler restore = {
+            .env = (void *)previous_exception_handler_env,
+            .exception_slot = (Exception *)previous_exception_handler_slot};
+        scalanative_continuation_exception_handler_set(restore);
         return scalanative_continuation_exception_to_failure(caught);
     }
 #if defined(SCALANATIVE_USING_CPP_EXCEPTIONS)
     scalanative_continuation_exception_terminate_handler_install();
 #endif
     ContinuationExceptionHandler exception_handler = {
-        .env = &exception_env, .exception_slot = (Exception *)&caught};
+        .env = (void *)&exception_env, .exception_slot = (Exception *)&caught};
     scalanative_continuation_exception_handler_set(exception_handler);
 
     volatile void *resume_out = out;
     volatile void *result = NULL; // we need to force the compiler to re-read
     // this from stack every time.
+    /* Save and clear the TLS ferry slot so we can detect "no body return
+     * captured" and so nested resumes do not see our value. Volatile so the
+     * compiler must reload it from the resumer's stack after the patched-LR
+     * transition (which leaves callee-saved registers with body-epilogue
+     * values). */
+    volatile void *saved_resume_return_slot = resume_return_slot;
+    resume_return_slot = NULL;
     label = next_label_count();
     Handler h = {.id = label, .result = &result, .stack_btm = NULL};
     handler_push(&h);
     resume_handler_pushed = 1;
     if (_lh_setjmp(h.buf) == 0) {
-        result = _lh_resume_entry(continuation->size, continuation,
-                                  (void *)resume_out);
+        /* The body's return value (Try*) propagates back here in %rax via
+         * the patched LR. Stashing it into a TLS slot makes the store
+         * independent of callee-saved register state on the resumer's
+         * stack frame (which is corrupted at this exact point on Win64). */
+        resume_return_slot = _lh_resume_entry(
+            continuation->size, continuation, (void *)resume_out);
+        delimcc_trace(
+            "resume after _lh_resume_entry cont=%p tls_slot=%p (pre-longjmp)",
+            (void *)continuation, resume_return_slot);
         handler_head_longjmp(1); // top handler is always ours, avoid
                                  // refering to non-volatile `h`
     }
+    /* Callee-saved registers are now restored (longjmp from h.buf), so it
+     * is safe to use locals again. Pull the body return out of TLS. */
+    result = resume_return_slot;
+    resume_return_slot = (void *)saved_resume_return_slot;
     handlers_store((Handler *)saved_handlers);
     resume_handler_pushed = 0;
-    scalanative_continuation_exception_handler_set(
-        previous_exception_handler); /* normal return path */
+    {
+        ContinuationExceptionHandler restore = {
+            .env = (void *)previous_exception_handler_env,
+            .exception_slot = (Exception *)previous_exception_handler_slot};
+        scalanative_continuation_exception_handler_set(
+            restore); /* normal return path */
+    }
 
+    delimcc_trace("scalanative_continuation_resume returning cont=%p result=%p",
+                  (void *)continuation, (void *)result);
     return (void *)result;
 }
 

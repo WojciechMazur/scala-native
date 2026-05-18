@@ -293,11 +293,8 @@ __attribute__((noreturn)) void scalanative_throw(Exception obj) {
         ContinuationExceptionHandler ceh =
             scalanative_continuation_exception_handler();
         if (ceh.env != NULL && ceh.exception_slot != NULL) {
-            jmp_buf *env = ceh.env;
-            *ceh.exception_slot = obj;
-            scalanative_continuation_exception_handler_clear();
             // Do not run exception cleanup; we're transferring to the resumer.
-            longjmp(*env, 1);
+            scalanative_continuation_exception_jump(ceh, obj);
             __builtin_unreachable();
         }
         if (scalanative_continuation_exception_escape(obj)) {

@@ -448,9 +448,28 @@ jump_buf layout (compatible with msvc):
 .global __lh_resume_entry
 .global __lh_get_sp
 
+/* SEH unwind metadata is REQUIRED on Win64. Without `.pdata`/`.xdata`
+ * entries (emitted via `.seh_*` directives), `RtlVirtualUnwind` cannot
+ * compute the parent frame for these functions and treats them as leaf
+ * functions. When a C++ exception thrown by a resumed continuation body
+ * unwinds through `_lh_boundary_entry` (which allocates 40 bytes for a
+ * shadow space + alignment), the unwinder mis-reads garbage from the
+ * shadow-space slots as the next return address and aborts the process
+ * via `__fastfail` (STATUS_STACK_BUFFER_OVERRUN, exit code 0xC0000409 /
+ * -1073740791). This stops `std::terminate` (and therefore our
+ * `continuation_terminate_handler` in eh.cpp) from running and
+ * recovering the exception via the resumer's `setjmp(exception_env)`.
+ *
+ * The other Win64 helpers don't allocate any non-volatile stack and
+ * could be treated as leafs, but we still annotate them so that any
+ * future change which adds prolog/epilog operations doesn't silently
+ * regress the unwinder. */
+
 /* called with jmp_buf at sp+4 */
 __lh_setjmp:
 _lh_setjmp:                 /* input: rcx: jmp_buf, rdx: frame pointer */
+  .seh_proc _lh_setjmp
+  .seh_endprologue
   movq    (%rsp), %rax      /* return address is on the stack */
   movq    %rax, 80 (%rcx)   /* rip */
 
@@ -483,9 +502,12 @@ _lh_setjmp:                 /* input: rcx: jmp_buf, rdx: frame pointer */
 
   xor     %rax, %rax          /* return 0 */
   ret
+  .seh_endproc
 
 __lh_longjmp:
 _lh_longjmp:                  /* rcx: jmp_buf, edx: arg */
+  .seh_proc _lh_longjmp
+  .seh_endprologue
   movq  %rdx, %rax            /* return arg to rax */
 
   movq   0 (%rcx), %rdx       /* restore registers */
@@ -519,33 +541,49 @@ _lh_longjmp:                  /* rcx: jmp_buf, edx: arg */
 ok:
   movq  16 (%rcx), %rsp        /* set the stack frame */
   jmpq *80 (%rcx)              /* and jump to rip */
+  .seh_endproc
 
 _lh_boundary_entry: 
 __lh_boundary_entry: /* rcx: arg 1, rdx : arg 2, (r8: arg 3) */
+  .seh_proc _lh_boundary_entry
   movq  %rdx, %r8
   movq  %rcx, %rdx
   movq  %rsp, %rcx
   addq  $8, %rcx
   subq  $40, %rsp /* for rsp alignment 8 bytes + home 8*4 bytes */
+  .seh_stackalloc 40
+  .seh_endprologue
   call  __continuation_boundary_impl
   addq  $40, %rsp
   ret
+  .seh_endproc
 
 _lh_resume_entry: /* rcx = cont_size, rdx = cont, r8 = arg */
 __lh_resume_entry:
+  /* `_lh_resume_entry` does a dynamic `subq %rcx, %rsp` and then `jmp`s
+   * away (it never returns to its caller), so it cannot appear as a
+   * frame in any unwind walk that needs to be recovered. We still mark
+   * it as an empty-prolog SEH proc so RtlLookupFunctionEntry has an
+   * entry if some unwinder ever lands here. */
+  .seh_proc _lh_resume_entry
+  .seh_endprologue
   movq  0 (%rsp), %r9 /* store lr */
   movq  %rsp, %rax /* store sp */
   subq  %rcx, %rsp /* move sp */
   movq  %rax, %rcx /* pass old sp as arg 1 */
   addq  $8, %rcx   /* forget about lr in stack tail */
   jmp   __continuation_resume_impl /* it will just return from here */
+  .seh_endproc
 
 
 _lh_get_sp:
 __lh_get_sp:
+  .seh_proc _lh_get_sp
+  .seh_endprologue
   movq %rsp, %rax
   addq $8, %rax
   ret
+  .seh_endproc
 
 #endif // setjmp_x64.S
 #endif // SCALANATIVE_COMPILE_ALWAYS) || __SCALANATIVE_DELIMCC

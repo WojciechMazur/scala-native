@@ -69,16 +69,27 @@ typedef void *Exception;
  */
 
 /* Thread-local state for exception escape; shared by eh.c and eh.cpp to handle
- * throwing exceptions from resumed continuations */
+ * throwing exceptions from resumed continuations.
+ *
+ * `env` is treated as an opaque pointer: on POSIX it is the address of a
+ * `jmp_buf`/`lh_jmp_buf` saved by `_lh_setjmp` inside resume; on Windows it
+ * is the address of an `lh_jmp_buf` (the libhandler-style register-only
+ * jmpbuf, NOT the MSVC `jmp_buf`, because MSVC's `setjmp`/`longjmp` are
+ * EH-aware via `RtlUnwindEx` and refuse to unwind out of a relocated
+ * continuation fragment with STATUS_BAD_STACK / 0xC0000028).
+ *
+ * Callers in eh.c / eh.cpp MUST NOT call POSIX `longjmp(*env, 1)` directly;
+ * use `scalanative_continuation_exception_jump` below, which performs the
+ * register-only jump that works from both heap and OS-stack fragments. */
 typedef struct ContinuationExceptionHandler {
-    jmp_buf *env;
+    void *env;
     Exception *exception_slot;
 } ContinuationExceptionHandler;
 
-/* Set the exception escape handler for the next resume. env is the address of
- * a jmp_buf (from setjmp); exception_slot is where eh.c / eh.cpp will store the
- * exception object when it longjmps. Pass NULL for both to clear the handler.
- */
+/* Set the exception escape handler for the next resume. env is the opaque
+ * jmpbuf pointer captured by resume's `_lh_setjmp`; exception_slot is where
+ * eh.c / eh.cpp will store the exception object when it jumps. Pass NULL for
+ * both to clear the handler. */
 void scalanative_continuation_exception_handler_set(
     ContinuationExceptionHandler handler);
 ContinuationExceptionHandler scalanative_continuation_exception_handler(void);
@@ -94,6 +105,22 @@ inline static void scalanative_continuation_exception_handler_clear(void) {
     ContinuationExceptionHandler handler = {NULL, NULL};
     scalanative_continuation_exception_handler_set(handler);
 }
+
+/* Perform the exception escape jump from eh.c / eh.cpp:
+ *   *handler.exception_slot = exception;
+ *   <clear handler>;
+ *   <jump to handler.env with arg=1>;
+ *
+ * Uses libhandler's register-only `_lh_longjmp` so it works across the
+ * relocated continuation fragment on Windows MSVC (no SEH unwind, no
+ * RtlUnwindEx stack-range validation). On POSIX it behaves like `longjmp`.
+ *
+ * This function does not return. */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noreturn))
+#endif
+void scalanative_continuation_exception_jump(
+    ContinuationExceptionHandler handler, Exception exception);
 
 #ifdef SCALANATIVE_DELIMCC_DEBUG // Debug flag for delimcc
 

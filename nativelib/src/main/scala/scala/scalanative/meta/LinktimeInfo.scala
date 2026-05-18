@@ -49,7 +49,8 @@ object LinktimeInfo {
 
   @resolvedAtLinktime()
   def isContinuationsSupported: Boolean =
-    (isLinux || isMac || isFreeBSD || isOpenBSD || isNetBSD) &&
+    (isLinux || isMac || isFreeBSD || isOpenBSD || isNetBSD ||
+      (isWindows && target.arch == "x86_64")) &&
       (target.arch != "arm" && !is32BitPlatform)
 
   @resolvedAtLinktime()

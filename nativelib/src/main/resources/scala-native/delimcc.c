@@ -297,7 +297,17 @@ void scalanative_continuation_handlers_reset(void) { handlers_store(NULL); }
 
 NO_SANITIZE
 __returnstwice void *
-__continuation_boundary_impl(void **btm, ContinuationBody *body, void *arg) {
+__continuation_boundary_impl(void **btm, ContinuationBody *body, void *arg)
+#if defined(__x86_64__) && defined(_WIN64)
+    /* Win64 only: forbid the compiler from turning the post-resume return path
+     * (`return (void *)h.result;`) into a tail-optimized epilogue that fuses
+     * with the patched-LR exit through `_lh_boundary_entry`. With a tail-call
+     * shape the body's return value (`Try` pointer in %rax) was being lost
+     * before reaching the resumer. Already used by `scalanative_continuation_*
+     * boundary` and `scalanative_continuation_suspend`. */
+    __attribute__((disable_tail_calls))
+#endif
+{
     // debug_printf("Boundary btm is %p\n", btm);
     volatile void *body_arg = arg;
 

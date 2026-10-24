@@ -1,4 +1,4 @@
-name: Immix 5120 focused validation
+name: GC 5120 focused validation
 on:
   push:
     branches: [ci/immix-5120-validation]
@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   scripted:
-    name: Immix recovery (${{ matrix.os }})
+    name: Immix and Commix recovery (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -18,7 +18,7 @@ jobs:
       matrix:
         os: [ubuntu-22.04, windows-2022]
     env:
-      SCALANATIVE_GC: immix
+      SCALANATIVE_GC: commix
       SCALANATIVE_MODE: release-fast
     steps:
       - name: Preserve LF patch files on Windows
@@ -45,7 +45,7 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: >-
-          sbt "test-scripted 3 run/gc-immix-concurrent-allocation"
+          sbt "test-scripted 3 run/gc-concurrent-allocation"
           "sbtScalaNative3/scripted run/gc-out-of-memory-error run/gc-mutator-cursors"
       - name: Scripted recovery, OOM, and mutator regressions (Windows)
         if: runner.os == 'Windows'
@@ -54,5 +54,5 @@ jobs:
           SCALANATIVE_INCLUDE_DIRS: ${{ steps.windows.outputs.vcpkg-dir }}\include
           SCALANATIVE_LIB_DIRS: ${{ steps.windows.outputs.vcpkg-dir }}\lib
         run: >-
-          sbt "test-scripted 3 run/gc-immix-concurrent-allocation"
+          sbt "test-scripted 3 run/gc-concurrent-allocation"
           "sbtScalaNative3/scripted run/gc-out-of-memory-error run/gc-mutator-cursors"

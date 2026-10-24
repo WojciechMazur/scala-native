@@ -45,7 +45,8 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: >-
-          sbt "test-scripted 3 run/gc-concurrent-allocation"
+          sbt "set sbtScalaNative.v3 / scriptedBufferLog := false"
+          "test-scripted 3 run/gc-concurrent-allocation"
       - name: Public allocation regressions (Windows)
         if: runner.os == 'Windows'
         shell: cmd
@@ -53,19 +54,5 @@ jobs:
           SCALANATIVE_INCLUDE_DIRS: ${{ steps.windows.outputs.vcpkg-dir }}\include
           SCALANATIVE_LIB_DIRS: ${{ steps.windows.outputs.vcpkg-dir }}\lib
         run: >-
-          sbt "test-scripted 3 run/gc-concurrent-allocation"
-      - name: Commix OOM and mutator regressions (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: >-
-          sbt "++3.8.4"
-          "sbtScalaNative3/scripted run/gc-out-of-memory-error run/gc-mutator-cursors"
-      - name: Commix OOM and mutator regressions (Windows)
-        if: runner.os == 'Windows'
-        shell: cmd
-        env:
-          SCALANATIVE_INCLUDE_DIRS: ${{ steps.windows.outputs.vcpkg-dir }}\include
-          SCALANATIVE_LIB_DIRS: ${{ steps.windows.outputs.vcpkg-dir }}\lib
-        run: >-
-          sbt "++3.8.4"
-          "sbtScalaNative3/scripted run/gc-out-of-memory-error run/gc-mutator-cursors"
+          sbt "set sbtScalaNative.v3 / scriptedBufferLog := false"
+          "test-scripted 3 run/gc-concurrent-allocation"

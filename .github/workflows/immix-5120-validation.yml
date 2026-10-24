@@ -21,6 +21,10 @@ jobs:
       SCALANATIVE_GC: immix
       SCALANATIVE_MODE: release-fast
     steps:
+      - name: Preserve LF patch files on Windows
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v7
         with:
           persist-credentials: false

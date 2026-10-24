@@ -1,0 +1,54 @@
+name: Immix 5120 focused validation
+on:
+  push:
+    branches: [ci/immix-5120-validation]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: immix-5120-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  scripted:
+    name: Immix recovery (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022]
+    env:
+      SCALANATIVE_GC: immix
+      SCALANATIVE_MODE: release-fast
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Linux environment
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/linux-setup-env
+        with:
+          scala-version: 3
+          java-version: 25
+      - name: Windows environment
+        id: windows
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/windows-setup-env
+        with:
+          scala-version: 3
+          java-version: 25
+      - name: Scripted recovery, OOM, and mutator regressions (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: >-
+          sbt "test-scripted 3 run/gc-immix-concurrent-allocation"
+          "sbtScalaNative3/scripted run/gc-out-of-memory-error run/gc-mutator-cursors"
+      - name: Scripted recovery, OOM, and mutator regressions (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        env:
+          SCALANATIVE_INCLUDE_DIRS: ${{ steps.windows.outputs.vcpkg-dir }}\include
+          SCALANATIVE_LIB_DIRS: ${{ steps.windows.outputs.vcpkg-dir }}\lib
+        run: >-
+          sbt "test-scripted 3 run/gc-immix-concurrent-allocation"
+          "sbtScalaNative3/scripted run/gc-out-of-memory-error run/gc-mutator-cursors"

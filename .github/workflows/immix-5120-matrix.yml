@@ -1,0 +1,29 @@
+name: GC 5120 remaining allocation matrix
+on:
+  push:
+    branches: [ci/immix-5120-validation]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  matrix:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: allocation-benchmark-macos
+          run-id: 40190222452
+          github-token: ${{ github.token }}
+          path: target/hosted-binaries
+      - name: Complete medium, large and multi-block comparisons
+        run: python3 scripts/issue5120-remaining-matrix.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: allocation-remaining-matrix-macos
+          path: target/remaining-allocation-matrix

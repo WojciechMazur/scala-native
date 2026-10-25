@@ -1,0 +1,31 @@
+name: GC 5120 isolated allocation benchmark
+on:
+  push:
+    branches: [ci/immix-5120-validation]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  benchmark:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/macos-setup-env
+        with:
+          scala-version: 3
+          java-version: 25
+          llvm-version: latest
+      - name: Build shared allocation benchmark application
+        run: >-
+          sbt ";++3.8.4;set sandbox.v3 / Compile / sources := Seq(file(\"scripted-tests/run/gc-concurrent-allocation/benchmark/AllocationBenchmark.scala\"));set sandbox.v3 / Compile / mainClass := Some(\"AllocationBenchmark\");set sandbox.v3 / Compile / unmanagedResourceDirectories := Seq.empty;set sandbox.v3 / nativeConfig ~= (_.withGC(scala.scalanative.build.GC.immix).withMode(scala.scalanative.build.Mode.releaseFast).withMultithreading(true));sandbox3/Compile/nativeLink"
+      - name: Rebuild each GC and measure sequentially
+        run: python3 scripts/issue5120-isolated-benchmark.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: allocation-benchmark-macos
+          path: target/isolated-allocation-benchmark

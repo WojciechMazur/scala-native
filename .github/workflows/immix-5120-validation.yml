@@ -45,8 +45,7 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: >-
-          sbt "set sbtScalaNative.v3 / scriptedBufferLog := false"
-          "test-scripted 3 run/gc-concurrent-allocation"
+          sbt ";set sbtScalaNative.v3 / scriptedBufferLog := false;test-scripted 3 run/gc-concurrent-allocation"
       - name: Public allocation regressions (Windows)
         if: runner.os == 'Windows'
         shell: cmd
@@ -54,5 +53,4 @@ jobs:
           SCALANATIVE_INCLUDE_DIRS: ${{ steps.windows.outputs.vcpkg-dir }}\include
           SCALANATIVE_LIB_DIRS: ${{ steps.windows.outputs.vcpkg-dir }}\lib
         run: >-
-          sbt "set sbtScalaNative.v3 / scriptedBufferLog := false"
-          "test-scripted 3 run/gc-concurrent-allocation"
+          sbt ";set sbtScalaNative.v3 / scriptedBufferLog := false;test-scripted 3 run/gc-concurrent-allocation"

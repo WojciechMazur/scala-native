@@ -40,6 +40,7 @@ static void Synchronizer_diagnoseStuckThreads(MutatorThread *self,
             GC_LOG_WARN("  Thread id=%p, stackBottom=%p, state=%s, alive=%s",
                         (void *)thread->threadHandle,
 #else
+            GC_LOG_WARN("  ZZmutator=%p", (void *)thread);
             GC_LOG_WARN("  Thread id=%lu, stackBottom=%p, state=%s, alive=%s",
                         (unsigned long)thread->thread,
 #endif

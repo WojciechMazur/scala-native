@@ -20,6 +20,23 @@
 
 static mutex_t threadListsModificationLock;
 
+/* ZZ TEMPORARY CI TRACE - dropped before the PR */
+#if defined(__linux__) && !defined(_WIN32)
+#include <sys/syscall.h>
+#include <unistd.h>
+static void ZZ_trace(const char *what, MutatorThread *self) {
+    char name[32] = "?";
+    pthread_getname_np(pthread_self(), name, sizeof(name));
+    GC_LOG_WARN("ZZTRACE %s mutator=%p pthread=%lu tid=%ld name=%s", what,
+                (void *)self, (unsigned long)pthread_self(),
+                (long)syscall(SYS_gettid), name);
+}
+#else
+#define ZZ_trace(what, self)                                                   \
+    do {                                                                       \
+    } while (0)
+#endif
+
 static void MutatorThread_dispose(MutatorThread *self) {
 #ifdef _WIN32
     if (self->threadHandle != NULL)
@@ -90,6 +107,7 @@ bool MutatorThread_register(Field_t *stackbottom) {
                         heap.blockMetaStart, heap.heapStart);
     if (!MutatorThreads_add(self))
         goto failure;
+    ZZ_trace("register", self);
     return true;
 
 failure:
@@ -146,6 +164,7 @@ bool MutatorThread_rebind(word_t **stackBottom, ThreadInfo *info) {
 #endif
 
 void MutatorThread_delete(MutatorThread *self) {
+    ZZ_trace("delete", self);
     MutatorThread_switchState(self, GC_MutatorThreadState_Unmanaged);
     MutatorThreads_remove(self);
 

@@ -153,7 +153,6 @@ private[scalanative] object SignalConfig {
     // Only these select signals can work on Windows
     setHandler(SIGABRT)
     setHandler(SIGFPE)
-    setHandler(SIGILL)
     setHandler(SIGTERM)
     if (!LinktimeInfo.isMultithreadingEnabled || LinktimeInfo.isMac) {
       // Used in GC traps, MacOS uses SIGBUS instead
@@ -186,5 +185,13 @@ private[scalanative] object SignalConfig {
         setHandler(SIGXFSZ)
       }
     }
+    // After any signal() installs. signal() would replace SA_SIGINFO.
+    SigillDiag.install()
   }
+}
+
+@extern
+private object SigillDiag {
+  @name("scalanative_sigill_diag_install")
+  def install(): Unit = extern
 }

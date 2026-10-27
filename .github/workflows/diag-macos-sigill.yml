@@ -1,0 +1,55 @@
+name: Diag macOS SIGILL
+
+on:
+  push:
+    branches: [diag/macos-arm64-sigill]
+  workflow_dispatch:
+
+jobs:
+  loop-tests3:
+    name: tests3 ${{ matrix.build-mode }}
+    runs-on: macos-15
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        build-mode: [debug, release-fast]
+    env:
+      ENABLE_EXPERIMENTAL_COMPILER: true
+      SCALANATIVE_MODE: ${{ matrix.build-mode }}
+      SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/macos-setup-env
+        with:
+          scala-version: "3"
+          llvm-version: "16"
+
+      - name: Loop tests3
+        timeout-minutes: 300
+        run: |
+          set -euo pipefail
+          reps=6
+          for i in $(seq 1 "$reps"); do
+            echo "SIGILL_DIAG_REP=$i/$reps mode=${SCALANATIVE_MODE}"
+            sbt -batch "tests3/testOnly *"
+          done
+
+      - name: Show SIGILL diagnostic
+        if: failure()
+        run: |
+          echo '--- /tmp/sn-sigill-diag.txt ---'
+          cat /tmp/sn-sigill-diag.txt || true
+          echo '--- DiagnosticReports ---'
+          ls -lt "$HOME/Library/Logs/DiagnosticReports" || true
+
+      - name: Upload crash reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sigill-${{ matrix.build-mode }}-${{ github.run_id }}
+          if-no-files-found: ignore
+          path: |
+            /tmp/sn-sigill-diag.txt
+            /Users/runner/Library/Logs/DiagnosticReports/*.ips
+            /Users/runner/Library/Logs/DiagnosticReports/*.crash

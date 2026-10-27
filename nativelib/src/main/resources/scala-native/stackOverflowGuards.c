@@ -314,6 +314,8 @@ static void setupSignalHandler(int signal) {
     }
 }
 
+extern void scalanative_sigill_diag_install(void);
+
 void scalanative_StackOverflowGuards_setup(bool isMainThread) {
     setupStackOverflowGuards();
 
@@ -327,6 +329,7 @@ void scalanative_StackOverflowGuards_setup(bool isMainThread) {
 #if (defined(__APPLE__) && defined(__MACH__))
         setupSignalHandler(SIGBUS);
 #endif // Apple
+        scalanative_sigill_diag_install();
         isHandlerConfigured = true;
     }
 }

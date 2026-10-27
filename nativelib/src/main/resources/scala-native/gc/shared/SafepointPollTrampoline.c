@@ -115,8 +115,25 @@ bool scalanative_gc_safepoint_prepare_redirect(void *uap, void *mutatorThread) {
 #endif
 }
 
+uintptr_t scalanative_sigill_diag_resume_pc(void) {
+    return scalanative_gc_safepoint_load_resume_pc();
+}
+
+uintptr_t scalanative_sigill_diag_trampoline(void) {
+#if (defined(__x86_64__) || defined(__aarch64__)) &&                           \
+    (defined(__linux__) || defined(__APPLE__))
+    return (uintptr_t)(void *)scalanative_gc_safepoint_poll_trampoline;
+#else
+    return 0;
+#endif
+}
+
 #else /* !multithreading || !traps || windows */
 
-typedef int scalanative_gc_safepoint_poll_trampoline_unused_typedef;
+#include <stdint.h>
+
+uintptr_t scalanative_sigill_diag_resume_pc(void) { return 0; }
+
+uintptr_t scalanative_sigill_diag_trampoline(void) { return 0; }
 
 #endif

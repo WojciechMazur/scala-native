@@ -1,0 +1,94 @@
+# Temporary repro harness for the macOS native SIGILL (exit 132).
+# Runs on throwaway sigill-repro/** branches only. Not part of CI.
+name: SIGILL repro MacOS
+on:
+  push:
+    branches:
+      - "sigill-repro/**"
+  workflow_dispatch:
+
+jobs:
+  test-runtime:
+    name: "repeat ${{ matrix.build-mode }} #${{ matrix.shard }}"
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        build-mode: [debug, release-fast]
+        shard: [1, 2, 3]
+    env:
+      ENABLE_EXPERIMENTAL_COMPILER: true
+      SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
+      SCALANATIVE_MODE: ${{ matrix.build-mode }}
+      SCALANATIVE_GC: immix
+      REPEATS: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/macos-setup-env
+        with:
+          scala-version: "3"
+          llvm-version: "16"
+
+      - name: Enable crash capture
+        run: |
+          sudo sysctl -w kern.coredump=1 || true
+          sudo chmod 1777 /cores || true
+          defaults write com.apple.CrashReporter DialogType none || true
+          mkdir -p ~/Library/Logs/DiagnosticReports
+
+      - name: Repeat the runtime suite
+        timeout-minutes: 320
+        run: |
+          set +e
+          ulimit -c unlimited
+          mkdir -p crash-reports
+          crashes=0
+          others=0
+          for i in $(seq 1 "$REPEATS"); do
+            echo "::group::iteration $i"
+            # sbt 2 caches `test`, so a plain repeat is a no-op. `testOnly` is not.
+            sbt "tests3/testOnly *" 2>&1 | tee /tmp/run.log
+            status=${PIPESTATUS[0]}
+            echo "::endgroup::"
+            signal=$(grep -o "interrupted by fatal signal [0-9]*" /tmp/run.log | tail -1)
+            if [ -n "$signal" ]; then
+              crashes=$((crashes + 1))
+              echo "ITERATION $i CRASHED: $signal"
+            elif [ "$status" -ne 0 ]; then
+              others=$((others + 1))
+              echo "ITERATION $i FAILED without a crash (status $status)"
+            elif grep -q "Total 0, Failed 0" /tmp/run.log; then
+              echo "ITERATION $i SKIPPED: sbt served a cached result"
+            else
+              echo "ITERATION $i OK"
+            fi
+            for core in /cores/core.*; do
+              [ -e "$core" ] || continue
+              echo "::group::core $core"
+              lldb --core "$core" --batch \
+                -o "thread backtrace all" \
+                -o "register read pc" \
+                -o "disassemble --start-address \$pc-16 --count 8" 2>&1 | head -300
+              echo "::endgroup::"
+              sudo rm -f "$core"
+            done
+            cp ~/Library/Logs/DiagnosticReports/*.ips crash-reports/ 2>/dev/null
+            sudo cp /Library/Logs/DiagnosticReports/*.ips crash-reports/ 2>/dev/null
+            rm -f ~/Library/Logs/DiagnosticReports/*.ips
+            rm -f /tmp/run.log
+          done
+          echo "RESULT ${SCALANATIVE_MODE} shard ${{ matrix.shard }}: $crashes crashes, $others other failures, out of $REPEATS"
+          for report in crash-reports/*.ips; do
+            [ -e "$report" ] || continue
+            echo "::group::$report"
+            head -c 40000 "$report"
+            echo "::endgroup::"
+          done
+          exit 0
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: crash-reports-${{ matrix.build-mode }}-${{ matrix.shard }}
+          path: crash-reports
+          if-no-files-found: ignore

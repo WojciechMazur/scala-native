@@ -86,6 +86,16 @@ bool MutatorThread_isAtSafepoint(MutatorThread *thread);
 // Check if a mutator thread is still alive (useful for detecting zombie
 // threads) Returns true if thread exists, false if thread has terminated
 bool MutatorThread_isAlive(MutatorThread *thread);
+// True only when the OS thread is gone (ESRCH / exited handle), not when
+// liveness cannot be determined.
+bool MutatorThread_hasTerminated(MutatorThread *thread);
+// Unlink and free a mutator whose OS thread has already terminated.
+// The caller is a different thread, so this does not capture registers.
+void MutatorThread_reap(MutatorThread *thread);
+// Child side of fork: keep only the calling thread's mutator. Other OS
+// threads do not exist in the child. Their records are leaked on purpose
+// because the C allocator may still be locked by one of them.
+void MutatorThreads_afterForkChild(void);
 
 // =============================================================================
 // MutatorThreads List Management

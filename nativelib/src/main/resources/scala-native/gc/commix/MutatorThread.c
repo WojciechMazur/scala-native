@@ -15,6 +15,7 @@
 #include <assert.h>
 
 #ifndef _WIN32
+#include <errno.h>
 #include <signal.h>
 #endif
 
@@ -223,6 +224,59 @@ bool MutatorThread_isAlive(MutatorThread *thread) {
     int result = pthread_kill(thread->thread, 0);
     return result == 0;
 #endif
+}
+
+bool MutatorThread_hasTerminated(MutatorThread *thread) {
+    if (thread == NULL)
+        return false;
+#ifdef _WIN32
+    if (thread->threadHandle == NULL)
+        return false;
+    DWORD exitCode;
+    if (!GetExitCodeThread(thread->threadHandle, &exitCode))
+        return false;
+    return exitCode != STILL_ACTIVE;
+#else
+    /* Any other errno means liveness is unknown. Only ESRCH is a thread
+     * that is gone. A thread still inside MutatorThread_delete is alive
+     * until it returns to the runtime, and has already left Managed. */
+    return pthread_kill(thread->thread, 0) == ESRCH;
+#endif
+}
+
+void MutatorThread_reap(MutatorThread *thread) {
+    if (thread == NULL)
+        return;
+    /* Do not switchState: that captures the caller's stack, not the dead
+     * thread's. Caller must not hold the mutator-list read lock. */
+    MutatorThreads_remove(thread);
+    if (currentMutatorThread == thread)
+        currentMutatorThread = NULL;
+#ifdef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
+    if (scalanative_GC_yieldpoint_trap == thread->yieldpointTrap)
+        scalanative_GC_yieldpoint_trap = NULL;
+#endif
+    MutatorThread_dispose(thread);
+}
+
+void MutatorThreads_afterForkChild(void) {
+    /* The child has one OS thread. Locks copied from other threads are
+     * abandoned; reinit them. Do not free the other mutators: the C
+     * allocator lock may be held by a thread that no longer exists. */
+    rwlock_init(&threadListsModificationLock);
+    MutatorThreads node = mutatorThreads;
+    MutatorThreads kept = NULL;
+    while (node != NULL) {
+        MutatorThreads next = node->next;
+        if (node->value == currentMutatorThread) {
+            node->next = NULL;
+            kept = node;
+        }
+        node = next;
+    }
+    mutatorThreads = kept;
+    atomic_store_explicit(&mutatorThreadsCount, kept != NULL ? 1 : 0,
+                          memory_order_relaxed);
 }
 
 void MutatorThreads_lockRead() {

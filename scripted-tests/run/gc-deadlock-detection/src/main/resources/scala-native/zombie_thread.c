@@ -44,6 +44,16 @@ void zombie_thread_exit_no_cleanup(void) {
 }
 
 /**
+ * Stay in managed native code. No safepoint, so a forked child that still
+ * has this mutator registered cannot finish stop-the-world.
+ */
+void zombie_thread_spin_forever(void) {
+    volatile int sink = 0;
+    for (;;)
+        sink++;
+}
+
+/**
  * Sleep in native code without triggering state transitions.
  */
 void zombie_thread_native_sleep_ms(int ms) {

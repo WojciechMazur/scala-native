@@ -389,6 +389,69 @@ static void Synchronizer_ResumeThreads(void) {
 }
 #endif // !SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
 
+static void Synchronizer_terminateOnTimeout(void) {
+#ifndef _WIN32
+    /* The test runner's SIGABRT handler calls exit(), which runs shutdown
+     * hooks and can re-enter this wait while synchronizerLock is held
+     * (the mutex is recursive). Restore the default action and do not
+     * return into that handler. */
+    signal(SIGABRT, SIG_DFL);
+    raise(SIGABRT);
+    _exit(128 + SIGABRT);
+#else
+    abort();
+#endif
+}
+
+#ifndef _WIN32
+static void Synchronizer_afterForkChild(void) {
+    /* Only the forking thread exists. Reinit locks that other threads may
+     * have held. Do not allocate or log: libc locks may be abandoned. */
+    mutex_init(&synchronizerLock);
+#ifndef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
+    pthread_mutex_init(&threadSuspension.lock, NULL);
+    pthread_cond_init(&threadSuspension.resume, NULL);
+#endif
+    atomic_store_explicit(&Synchronizer_stopThreads, false,
+                          memory_order_relaxed);
+    MutatorThreads_afterForkChild();
+    mutex_init(&heap.lock);
+    mutex_init(&blockAllocator.allocationLock);
+    mutex_init(&heap.sweep.growMutex);
+    if (customRoots != NULL)
+        mutex_init(&customRoots->modificationLock);
+#ifdef SCALANATIVE_GC_USE_YIELDPOINT_TRAPS
+    YieldPointTrap_afterForkChild();
+#endif
+}
+#endif
+
+static void Synchronizer_reapTerminated(MutatorThread *self) {
+    for (;;) {
+        MutatorThread *dead = NULL;
+        MutatorThreads_foreach(mutatorThreads, node) {
+            MutatorThread *it = node->value;
+            /* Skip threads at a safepoint. MutatorThread_delete switches to
+             * Unmanaged before unlinking, so an at-safepoint thread may
+             * still be exiting. A Managed thread whose OS thread is gone
+             * never entered delete and will never reach a safepoint. */
+            if (it != self && !MutatorThread_isAtSafepoint(it) &&
+                MutatorThread_hasTerminated(it)) {
+                dead = it;
+                break;
+            }
+        }
+        if (dead == NULL)
+            return;
+        GC_LOG_WARN("Reaping terminated mutator that will not "
+                    "reach a safepoint");
+        /* remove() takes the write lock. pthread_rwlock is not recursive. */
+        MutatorThreads_unlockRead();
+        MutatorThread_reap(dead);
+        MutatorThreads_lockRead();
+    }
+}
+
 // =============================================================================
 // Synchronizer Initialization
 // =============================================================================
@@ -414,6 +477,12 @@ void Synchronizer_init(void) {
         exit(1);
     }
 #endif
+#endif
+#ifndef _WIN32
+    if (pthread_atfork(NULL, NULL, Synchronizer_afterForkChild) != 0) {
+        GC_LOG_ERROR("Failed to register GC fork handler: %s", strerror(errno));
+        exit(1);
+    }
 #endif
 }
 
@@ -459,6 +528,7 @@ bool Synchronizer_acquire(void) {
 
     do {
         atomic_thread_fence(memory_order_seq_cst);
+        Synchronizer_reapTerminated(self);
         activeThreads = 0;
         MutatorThreads_foreach(mutatorThreads, node) {
             MutatorThread *it = node->value;
@@ -497,9 +567,9 @@ bool Synchronizer_acquire(void) {
                     "Current timeout: %llu ms",
                     elapsed / 1000.0, activeThreads,
                     (unsigned long long)Settings_SyncTimeoutMs());
-                // Abort - this is the safest option as continuing could corrupt
-                // memory
-                abort();
+                // Continuing could scan a dead thread's stack. Leave without
+                // running the process SIGABRT handler.
+                Synchronizer_terminateOnTimeout();
             }
 
             thread_yield();

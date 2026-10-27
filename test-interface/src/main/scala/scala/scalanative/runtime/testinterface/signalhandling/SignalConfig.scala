@@ -137,7 +137,9 @@ private[scalanative] object SignalConfig {
      */
     val defaultHandler = CFuncPtr1.fromScalaFunction { (sig: CInt) =>
       asyncSafePrintStackTrace(sig)
-      exit(128 + sig)
+      // exit() runs shutdown hooks that can deadlock on a GC lock.
+      if (LinktimeInfo.isWindows) exit(128 + sig)
+      else _exit(128 + sig)
     }
 
     val YELLOW = "\u001b[0;33m"

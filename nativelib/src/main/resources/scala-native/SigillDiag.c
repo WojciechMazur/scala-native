@@ -301,7 +301,7 @@ static void sn_sigill_handler(int sig, siginfo_t *info, void *uap) {
     DiagBuf buf;
     buf_reset(&buf);
 
-    uintptr_t pc = 0, lr = 0, fp = 0, sp = 0, x16 = 0;
+    uintptr_t pc = 0, lr = 0, fp = 0, sp = 0, x16 = 0, x18 = 0;
     uint32_t cpsr = 0;
     uint64_t esr = 0, far = 0;
     if (uap != NULL) {
@@ -314,6 +314,7 @@ static void sn_sigill_handler(int sig, siginfo_t *info, void *uap) {
             fp = (uintptr_t)__darwin_arm_thread_state64_get_fp(ss);
             sp = (uintptr_t)__darwin_arm_thread_state64_get_sp(ss);
             x16 = (uintptr_t)ss.__x[16];
+            x18 = (uintptr_t)ss.__x[18];
             cpsr = ss.__cpsr;
             esr = mc->__es.__esr;
             far = mc->__es.__far;
@@ -347,6 +348,8 @@ static void sn_sigill_handler(int sig, siginfo_t *info, void *uap) {
     buf_hex(&buf, sp, 16);
     buf_str(&buf, " x16=0x");
     buf_hex(&buf, x16, 16);
+    buf_str(&buf, " x18=0x");
+    buf_hex(&buf, x18, 16);
     buf_str(&buf, " cpsr=0x");
     buf_hex(&buf, cpsr, 8);
     buf_str(&buf, " nzcv=");

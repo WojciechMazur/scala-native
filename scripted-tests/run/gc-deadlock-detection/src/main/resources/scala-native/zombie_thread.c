@@ -10,6 +10,9 @@
 #ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 199309L
 #endif
+#ifdef __linux__
+#define _DEFAULT_SOURCE // syscall
+#endif
 #endif
 
 #ifdef _WIN32
@@ -17,28 +20,36 @@
 #else
 #include <pthread.h>
 #include <time.h>
+#ifdef __linux__
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif
 #endif
 
 #include <stdio.h>
 #include <stdlib.h>
 
 /**
- * Exit the current thread WITHOUT calling MutatorThread_delete.
- * This creates a "zombie" - a thread that appears in GC's list but is dead.
+ * Leave the thread without returning to Scala code.
  *
- * We detach the thread first so that pthread_kill(thread, 0) will
- * return ESRCH after the thread exits, allowing liveness detection.
+ * Linux: exit only this OS thread with the raw syscall. No cleanup runs, so
+ * the GC still lists the thread. glibc's pthread_exit is not used: its forced
+ * unwind calls the libunwind bundled in the binary and crashes.
+ *
+ * Other POSIX: pthread_exit. The GC thread wrapper's cleanup handler removes
+ * the mutator.
+ *
+ * Scala Native threads are already detached; do not detach again.
  */
 void zombie_thread_exit_no_cleanup(void) {
     fprintf(stderr, "[zombie_thread] Exiting thread without cleanup...\n");
     fflush(stderr);
 
-#ifdef _WIN32
+#if defined(_WIN32)
     ExitThread(0);
+#elif defined(__linux__)
+    syscall(SYS_exit, 0);
 #else
-    // Detach so resources are reclaimed immediately
-    // Makes pthread_kill(thread, 0) return ESRCH after exit
-    pthread_detach(pthread_self());
     pthread_exit(NULL);
 #endif
 }

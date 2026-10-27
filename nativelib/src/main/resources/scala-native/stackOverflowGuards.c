@@ -99,6 +99,8 @@ static void protectStackGuardPage() {
     }
 }
 static void unprotectStackGuardPage() {
+    if (currentThreadInfo.stackGuardPage == NULL)
+        return;
     if (mprotect(currentThreadInfo.stackGuardPage, resolvePageSize(),
                  PROT_READ | PROT_WRITE) == -1) {
         perror(SN_FATAL_ERROR_MSG("StackOverflowHandler guard "
@@ -355,7 +357,12 @@ void scalanative_StackOverflowGuards_close() {
 // noop
 #else
     unprotectStackGuardPage();
+    currentThreadInfo.stackGuardPage = NULL;
     if (currentThreadInfo.signalHandlerStack) {
+        // The thread can still get signals (GC safepoint) after close.
+        // Unregister the alternate stack before freeing it.
+        stack_t disabled = {.ss_flags = SS_DISABLE};
+        sigaltstack(&disabled, NULL);
         free(currentThreadInfo.signalHandlerStack);
         currentThreadInfo.signalHandlerStack = NULL;
     }

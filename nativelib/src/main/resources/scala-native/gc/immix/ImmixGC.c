@@ -141,6 +141,18 @@ typedef struct {
     RoutineArgs args;
 } WrappedFunctionCallArgs;
 
+#ifndef _WIN32
+#include <pthread.h>
+extern void scalanative_StackOverflowGuards_close(void);
+// Also runs on pthread_exit, which does not return to the code below.
+static void ProxyThreadCleanup(void *unused) {
+    (void)unused;
+    scalanative_StackOverflowGuards_close();
+    if (currentMutatorThread != NULL)
+        MutatorThread_delete(currentMutatorThread);
+}
+#endif
+
 #ifdef _WIN32
 static ThreadRoutineReturnType WINAPI ProxyThreadStartRoutine(void *args) {
 #else
@@ -155,8 +167,14 @@ static ThreadRoutineReturnType ProxyThreadStartRoutine(void *args) {
     free(args);
     if (!MutatorThread_init((Field_t *)stackBottom))
         abort();
+#ifdef _WIN32
     originalFn(originalArgs);
     MutatorThread_delete(currentMutatorThread);
+#else
+    pthread_cleanup_push(ProxyThreadCleanup, NULL);
+    originalFn(originalArgs);
+    pthread_cleanup_pop(1);
+#endif
     return (ThreadRoutineReturnType)0;
 }
 

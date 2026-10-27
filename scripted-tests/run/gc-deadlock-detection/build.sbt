@@ -5,6 +5,7 @@ val osName = System
   .getProperty("os.name", "unknown")
   .toLowerCase(Locale.ROOT)
 val isWindows = osName.startsWith("windows")
+val isLinux = osName.startsWith("linux")
 
 scalaVersion := {
   val scalaVersion = System.getProperty("scala.version")
@@ -127,14 +128,15 @@ testZombie := {
       "Skipping zombie test on Windows - uses POSIX pthread APIs"
     )
   else
-    // Zombie test may abort or complete depending on timing
+    // Linux: raw thread exit, GC aborts on timeout. Elsewhere: pthread_exit
+    // runs the GC cleanup handler, so the scenario must exit with 0.
     runScenario(
       binary = {
         implicit val conv: xsbti.FileConverter = Keys.fileConverter.value
         nativeExecutable((Compile / nativeLink).value)
       },
       gc = (Compile / nativeConfig).value.gc
-    )("zombie", timeoutSeconds = 20, expectNonZeroExit = true)
+    )("zombie", timeoutSeconds = 20, expectNonZeroExit = isLinux)
 }
 
 /** Test: GC handles multiple stuck threads */

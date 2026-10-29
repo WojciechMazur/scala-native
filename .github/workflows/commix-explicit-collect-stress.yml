@@ -1,0 +1,125 @@
+name: Commix explicit collect stress
+
+on:
+  push:
+    branches: [ci/commix-explicit-collect-stress]
+  workflow_dispatch:
+    inputs:
+      iterations:
+        description: Executions per shard (stop after two failures)
+        default: "500"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  stress:
+    if: github.repository == 'WojciechMazur/scala-native'
+    runs-on: windows-2022
+    timeout-minutes: 100
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [baseline, diagnostic]
+        shard: [1, 2]
+    steps:
+      - name: Configure checkout
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/windows-setup-env
+        id: setup
+        with:
+          scala-version: "2.12"
+          llvm-version: "20.1.4"
+          java-version: "25"
+
+      - name: Install dump collector
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force diagnostics, diagnostic-tools | Out-Null
+          Invoke-WebRequest https://download.sysinternals.com/files/Procdump.zip -OutFile diagnostic-tools/procdump.zip
+          Expand-Archive diagnostic-tools/procdump.zip diagnostic-tools/procdump
+          "STRESS_PROCDUMP=$env:GITHUB_WORKSPACE/diagnostic-tools/procdump/procdump64.exe" >> $env:GITHUB_ENV
+
+      - name: Install Windows debugger
+        continue-on-error: true
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          $cdb = "${env:ProgramFiles(x86)}/Windows Kits/10/Debuggers/x64/cdb.exe"
+          if (-not (Test-Path $cdb)) {
+            # Debugging Tools only, from Microsoft's Windows SDK downloads page.
+            Invoke-WebRequest 'https://go.microsoft.com/fwlink/?linkid=2382321' -OutFile diagnostic-tools/winsdksetup.exe
+            $installer = Start-Process diagnostic-tools/winsdksetup.exe -ArgumentList '/features OptionId.WindowsDesktopDebuggers /quiet /norestart' -Wait -PassThru
+            if ($installer.ExitCode -notin @(0, 3010)) { throw "SDK installer exit $($installer.ExitCode)" }
+          }
+          if (-not (Test-Path $cdb)) { throw 'cdb unavailable; full dumps will still be retained' }
+          "STRESS_CDB=$cdb" >> $env:GITHUB_ENV
+
+      - name: Prepare dedicated scripted task
+        shell: pwsh
+        run: |
+          $fixture = 'scripted-tests/run/gc-commix-explicit-collect'
+          # Keep Main.scala unchanged. Compile once through the original scripted
+          # toolchain, then repeatedly launch exactly that executable.
+          @'
+          nativeConfig ~= { config =>
+            if (sys.env("STRESS_MODE") == "diagnostic")
+              config.withCompileOptions(config.compileOptions :+ "-DENABLE_GC_STATS")
+            else config
+          }
+
+          lazy val stressExplicitCollect = taskKey[Unit]("Stress the original native executable")
+          stressExplicitCollect := {
+            implicit val conv: xsbti.FileConverter = Keys.fileConverter.value
+            val binary = nativeExecutable((Compile / nativeLink).value)
+            val root = sys.env("GITHUB_WORKSPACE")
+            val command = Seq("pwsh", "-NoProfile", "-File",
+              root + "/scripts/ci/windows/stress-explicit-collect.ps1",
+              "-Binary", binary.getAbsolutePath,
+              "-OutputDirectory", root + "/diagnostics",
+              "-Iterations", sys.env("STRESS_ITERATIONS"),
+              "-Mode", sys.env("STRESS_MODE"))
+            val exitCode = scala.sys.process.Process(command).!
+            if (exitCode != 0) sys.error("Commix stress harness exited with " + exitCode)
+          }
+          '@ | Add-Content "$fixture/build.sbt"
+          (Get-Content "$fixture/test" -Raw).Replace('> runExplicitCollectGrowth', '> stressExplicitCollect') | Set-Content "$fixture/test"
+          Get-ComputerInfo | Out-File diagnostics/computer.txt
+          Get-CimInstance Win32_PageFileUsage | ConvertTo-Json | Set-Content diagnostics/pagefile.json
+          java -version 2>&1 | Out-File diagnostics/java.txt
+          clang --version | Out-File diagnostics/clang.txt
+          git rev-parse HEAD | Set-Content diagnostics/commit.txt
+
+      - name: Build and stress original fixture
+        timeout-minutes: 70
+        shell: pwsh
+        env:
+          STRESS_ITERATIONS: ${{ inputs.iterations || '500' }}
+          STRESS_MODE: ${{ matrix.mode }}
+          SCALANATIVE_INCLUDE_DIRS: ${{ steps.setup.outputs.vcpkg-dir }}\include
+          SCALANATIVE_LIB_DIRS: ${{ steps.setup.outputs.vcpkg-dir }}\lib
+        run: |
+          sbt 'set sbtScalaNative2_12 / scriptedBufferLog := false' 'test-scripted 2.12 run/gc-commix-explicit-collect' 2>&1 | Tee-Object diagnostics/build.log
+          exit $LASTEXITCODE
+
+      - name: Analyze captured dumps
+        if: always()
+        timeout-minutes: 15
+        shell: pwsh
+        run: |
+          if (-not $env:STRESS_CDB) { Write-Warning 'No cdb; download full dumps for offline analysis'; exit 0 }
+          Get-ChildItem diagnostics -Recurse -Filter '*.dmp' | ForEach-Object {
+            $log = "$($_.FullName).stacks.txt"
+            & $env:STRESS_CDB -z $_.FullName -y "$env:GITHUB_WORKSPACE/diagnostics/binary;srv*$env:RUNNER_TEMP/symbols*https://msdl.microsoft.com/download/symbols" -logo $log -c '.symfix+; .reload; !analyze -hang; ~* kp; !runaway 7; lm; q'
+          }
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: commix-explicit-${{ matrix.mode }}-${{ matrix.shard }}
+          path: diagnostics/
+          retention-days: 14
+          if-no-files-found: warn

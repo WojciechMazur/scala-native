@@ -47,17 +47,21 @@ runTestDeleteOnExit := {
 def checkThreadsJoin(cmd: String, joinInMain: Boolean): Unit = {
   val joinArg = if (joinInMain) "--join" else ""
   val outFile = Files.createTempFile("proc-out", ".log").toFile()
+  val errFile = Files.createTempFile("proc-err", ".log").toFile()
   val proc =
     new ProcessBuilder(cmd, joinArg)
       .redirectOutput(outFile)
+      .redirectError(errFile)
       .start()
   Thread.sleep(3000)
   assert(proc.isAlive())
   proc.destroy()
   assert(proc.waitFor(1, TimeUnit.SECONDS))
-  assert(proc.exitValue != 0)
   val stdout = scala.io.Source.fromFile(outFile).mkString
   println(stdout)
+  System.err.println(scala.io.Source.fromFile(errFile).mkString)
+  // 128 + SIGTERM: any other value means the process crashed during shutdown
+  assert(proc.exitValue == 143)
   val matched = raw"On shutdown:(\d)".r.findAllMatchIn(stdout).toSeq
   assert(matched.size == 8)
   assert(matched.map(_.group(1)).distinct.size == 8)

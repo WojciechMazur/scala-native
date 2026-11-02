@@ -3,11 +3,14 @@ package java.lang
 import java.io.File
 import java.util.{Comparator, Set => juSet}
 
-import scala.scalanative.libc.{signal, stdlib}
+import scala.scalanative.libc.{errno, signal, stdlib}
 import scala.scalanative.meta.LinktimeInfo
+import scala.scalanative.posix.errno.EINTR
+import scala.scalanative.posix.fcntl
 import scala.scalanative.posix.unistd._
 import scala.scalanative.runtime.javalib.Proxy
 import scala.scalanative.unsafe._
+import scala.scalanative.unsigned._
 import scala.scalanative.windows.SysInfoApi._
 import scala.scalanative.windows.SysInfoApiOps._
 
@@ -26,6 +29,7 @@ class Runtime private () {
     // Executing handler during GC might lead to deadlock
     // Make sure include any additional signals in `Synchronizer_init` and `sigset_t signalsBlockedDuringGC` in both Immix/Commix GC
     // Warning: We cannot safetly adapt Boehm GC - it can deadlock for the same reasons as above
+    startSignalDispatcher()
     signal.signal(signal.SIGINT, handleSignal(_))
     signal.signal(signal.SIGTERM, handleSignal(_))
   }
@@ -165,11 +169,61 @@ private object ShutdownHookUncaughtExceptionHandler
 object Runtime extends Runtime() {
   def getRuntime(): Runtime = this
 
-  private def handleSignal(sig: CInt): Unit = {
-    Proxy.disableGracefullShutdown()
+  @extern private object SignalPipe {
+    // unistd.write is @blocking, its GC state transition is not signal safe
+    @name("write")
+    def write(fildes: CInt, buf: CVoidPtr, nbyte: CSize): CInt = extern
+  }
+
+  private var signalPipeWriteEnd: CInt = -1
+
+  /* Hooks start and join threads, which must not happen in a signal handler:
+   * it can interrupt the thread inside of park or while holding any lock. As
+   * in the JVM, the handler only passes the signal to a dedicated thread.
+   */
+  private def startSignalDispatcher(): Unit =
+    if (LinktimeInfo.isMultithreadingEnabled && !LinktimeInfo.isWindows) {
+      val fds = stackalloc[CInt](2)
+      if (pipe(fds) == 0) {
+        val readEnd = fds(0)
+        fcntl.fcntl(readEnd, fcntl.F_SETFD, fcntl.FD_CLOEXEC)
+        fcntl.fcntl(fds(1), fcntl.F_SETFD, fcntl.FD_CLOEXEC)
+        signalPipeWriteEnd = fds(1)
+        val dispatcher = new Thread(
+          new Runnable { def run(): Unit = dispatchSignals(readEnd) },
+          "Signal Dispatcher"
+        )
+        dispatcher.setDaemon(true)
+        dispatcher.startInternal()
+      }
+    }
+
+  private def dispatchSignals(readEnd: CInt): Unit = {
+    val sig = stackalloc[scala.Byte]()
+    var bytesRead = 0
+    while ({
+      bytesRead = read(readEnd, sig, 1.toCSize)
+      bytesRead < 0 && errno.errno == EINTR
+    }) ()
+    if (bytesRead == 1) runHooksAndExit((!sig).toInt)
+  }
+
+  private def runHooksAndExit(sig: CInt): Unit = {
     Runtime.getRuntime().runHooks()
     exit(128 + sig)
   }
+
+  private def handleSignal(sig: CInt): Unit =
+    if (signalPipeWriteEnd < 0) {
+      Proxy.disableGracefullShutdown()
+      runHooksAndExit(sig)
+    } else {
+      val savedErrno = errno.errno
+      val buf = stackalloc[scala.Byte]()
+      !buf = sig.toByte
+      SignalPipe.write(signalPipeWriteEnd, buf, 1.toCSize)
+      errno.errno = savedErrno
+    }
 
   private implicit class ProcessBuilderOps(val pb: ProcessBuilder)
       extends AnyVal {

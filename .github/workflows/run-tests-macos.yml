@@ -54,6 +54,16 @@ jobs:
         run: >
           sbt "scalaPartestTests${{env.project-version}}/testOnly -- --showDiff neg/abstract.scala pos/abstract.scala run/Course-2002-01.scala"
 
+      # A failed signal delivery kills the process with a silent SIGILL, these
+      # reports are the only place naming the original fault and its stacks
+      - name: Upload crash reports
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-crash-reports-${{ github.job }}-${{ strategy.job-index }}
+          path: ~/Library/Logs/DiagnosticReports/*.ips
+          if-no-files-found: ignore
+
   test-runtime-ext:
     name: Test runtime extension
     if: ((github.event_name == 'schedule' || github.event_name == 'workflow_call')  && github.repository == 'scala-native/scala-native') || (github.event_name == 'pull_request' && !contains(github.event.pull_request.body, '[skip ci]') && contains(github.event.pull_request.body, '[test-extended]'))
@@ -115,6 +125,14 @@ jobs:
             scalaPartestJunitTests${{env.project-version}}/test
         run: sbt -J-Xmx5G "${TEST_COMMAND}"
 
+      - name: Upload crash reports
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-crash-reports-${{ github.job }}-${{ strategy.job-index }}
+          path: ~/Library/Logs/DiagnosticReports/*.ips
+          if-no-files-found: ignore
+
   run-scripted-tests:
     name: Scripted tests
     if: github.event_name == 'pull_request' || ((github.event_name == 'schedule' || github.event_name == 'workflow_call') && github.repository == 'scala-native/scala-native')
@@ -133,6 +151,14 @@ jobs:
 
       - name: Test scripted
         run: sbt "test-scripted ${{matrix.scala}}"
+
+      - name: Upload crash reports
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-crash-reports-${{ github.job }}-${{ strategy.job-index }}
+          path: ~/Library/Logs/DiagnosticReports/*.ips
+          if-no-files-found: ignore
 
   test-llvm-versions:
     if: ((github.event_name == 'schedule' || github.event_name == 'workflow_call')  && github.repository == 'scala-native/scala-native') || (github.event_name == 'pull_request' && !contains(github.event.pull_request.body, '[skip ci]') && contains(github.event.pull_request.body, '[test-extended]'))
@@ -155,3 +181,11 @@ jobs:
         #   SCALANATIVE_MODE: release-fast
         #   SCALANATIVE_LTO: thin
         run: sbt "test-runtime ${{ matrix.scala }}"
+
+      - name: Upload crash reports
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-crash-reports-${{ github.job }}-${{ strategy.job-index }}
+          path: ~/Library/Logs/DiagnosticReports/*.ips
+          if-no-files-found: ignore

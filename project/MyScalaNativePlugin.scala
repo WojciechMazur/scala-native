@@ -156,6 +156,35 @@ object MyScalaNativePlugin extends AutoPlugin {
             .orElse(nc.multithreading)
         )
     },
+    // PR 5187 measurement harness: PROBE=glibc|freestanding
+    nativeConfig ~= { nc =>
+      sys.env.get("PROBE").fold(nc) { probe =>
+        val base = nc
+          .withTargetTriple(sys.env.getOrElse("PROBE_TRIPLE", "x86_64-linux-gnu"))
+          .withMode(scala.scalanative.build.Mode.releaseFast)
+          .withLTO(scala.scalanative.build.LTO.none)
+          .withGC(scala.scalanative.build.GC.immix)
+          .withSourceLevelDebuggingConfig(c => c.disableAll)
+          .withCheckFatalWarnings(false)
+          .withMultithreading(false)
+        val extraLinkOpts = sys.env
+          .get("PROBE_LINKOPTS")
+          .toSeq
+          .flatMap(_.split(" "))
+        val linkOpts = Seq("-fuse-ld=lld") ++ extraLinkOpts
+        if (probe == "freestanding")
+          base
+            .withFreestanding(true)
+            .withCompileOptions((o: Seq[String]) =>
+              o ++ sys.env.get("PROBE_CFLAGS").toSeq.flatMap(_.split(" "))
+            )
+            .withLinkingOptions((o: Seq[String]) =>
+              o ++ linkOpts ++ Seq("-Wl,--error-limit=0")
+            )
+        else
+          base.withLinkingOptions((o: Seq[String]) => o ++ linkOpts)
+      }
+    },
     inConfig(Compile) {
       nativeLinkProfiling := nativeLinkProfilingImpl
         .tag(NativeTags.Link)

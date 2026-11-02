@@ -1,0 +1,139 @@
+FAIL /w/nativelib/src/main/resources/scala-native/platform/posix/libunwind/UnwindRegistersRestore.S fa3f85dff9
+FAIL /w/nativelib/src/main/resources/scala-native/delimcc/setjmp.S 6835c349ce
+OK /w/nativelib/src/main/resources/scala-native/nativeThreadStart.c
+FAIL /w/nativelib/src/main/resources/scala-native/platform/posix/libunwind/UnwindRegistersSave.S 2bb2b06799
+OK /w/nativelib/src/main/resources/scala-native/externalThreadStack.c
+OK /w/nativelib/src/main/resources/scala-native/itable_search.c
+OK /w/nativelib/src/main/resources/scala-native/platform/posix/unwind.c
+OK /w/nativelib/src/main/resources/scala-native/platform/posix/libunwind/Unwind-wasm.c
+FAIL /w/nativelib/src/main/resources/scala-native/delimcc.c 5bb4a0d0d8
+OK /w/nativelib/src/main/resources/scala-native/nativeThreadTLS.c
+OK /w/nativelib/src/main/resources/scala-native/platform/posix/libunwind/Unwind-sjlj.c
+OK /w/nativelib/src/main/resources/scala-native/platform/windows/unwind.c
+OK /w/nativelib/src/main/resources/scala-native/platform/posix/libunwind/UnwindLevel1-gcc-ext.c
+OK /w/nativelib/src/main/resources/scala-native/platform/posix/libunwind/UnwindLevel1.c
+OK /w/nativelib/src/main/resources/scala-native/zone/ZoneTest.c
+OK /w/nativelib/src/main/resources/scala-native/platform/posix/libunwind/Unwind-EHABI.cpp
+OK /w/nativelib/src/main/resources/scala-native/platform/posix/libunwind/Unwind_AIXExtras.cpp
+OK /w/nativelib/src/main/resources/scala-native/platform/platform.c
+OK /w/nativelib/src/main/resources/scala-native/platform/posix/libunwind/Unwind-seh.cpp
+OK /w/nativelib/src/main/resources/scala-native/dylib_init.c
+OK /w/nativelib/src/main/resources/scala-native/EmbeddedResourceReader.c
+OK /w/nativelib/src/main/resources/scala-native/zone/Util.c
+OK /w/nativelib/src/main/resources/scala-native/zone/Zone.c
+OK /w/nativelib/src/main/resources/scala-native/eh.cpp
+OK /w/nativelib/src/main/resources/scala-native/dyndispatch.c
+OK /w/nativelib/src/main/resources/scala-native/zone/MemoryPool.c
+OK /w/nativelib/src/main/resources/scala-native/zone/LargeMemoryPool.c
+OK /w/nativelib/src/main/resources/scala-native/gc/shared/Parsing.c
+FAIL /w/nativelib/src/main/resources/scala-native/gc/shared/SafepointPollTrampoline-aarch64.S e20d7eafa2
+OK /w/nativelib/src/main/resources/scala-native/externalThreads.c
+OK /w/nativelib/src/main/resources/scala-native/StackTrace.c
+FAIL /w/nativelib/src/main/resources/scala-native/gc/shared/SafepointPollTrampoline-x86_64.S 6b8113f2fc
+OK /w/nativelib/src/main/resources/scala-native/gc/shared/Log.c
+OK /w/nativelib/src/main/resources/scala-native/gc/shared/jmx.c
+OK /w/nativelib/src/main/resources/scala-native/gc/shared/ThreadUtil.c
+OK /w/nativelib/src/main/resources/scala-native/gc/shared/Time.c
+OK /w/nativelib/src/main/resources/scala-native/gc/shared/MemoryMap.c
+OK /w/nativelib/src/main/resources/scala-native/gc/shared/YieldPointTrap_mach.c
+OK /w/nativelib/src/main/resources/scala-native/gc/shared/SafepointPollTrampoline.c
+OK /w/nativelib/src/main/resources/scala-native/gc/shared/Settings.c
+OK /w/nativelib/src/main/resources/scala-native/gc/shared/MemoryInfo.c
+OK /w/nativelib/src/main/resources/scala-native/stackOverflowGuards.c
+OK /w/nativelib/src/main/resources/scala-native/gc/shared/YieldPointTrap.c
+OK /w/nativelib/src/main/resources/scala-native/gc/immix/datastructures/BlockList.c
+OK /w/nativelib/src/main/resources/scala-native/gc/immix/Block.c
+OK /w/nativelib/src/main/resources/scala-native/gc/immix/State.c
+OK /w/nativelib/src/main/resources/scala-native/gc/immix/Stats.c
+OK /w/nativelib/src/main/resources/scala-native/gc/immix/LargeAllocator.c
+OK /w/nativelib/src/main/resources/scala-native/gc/immix/Heap.c
+OK /w/nativelib/src/main/resources/scala-native/gc/immix/Allocator.c
+OK /w/nativelib/src/main/resources/scala-native/gc/immix/WeakReferences.c
+OK /w/nativelib/src/main/resources/scala-native/gc/immix_commix/datastructures/Stack.c
+OK /w/nativelib/src/main/resources/scala-native/gc/immix/ImmixGC.c
+OK /w/nativelib/src/main/resources/scala-native/platform/posix/libunwind/libunwind.cpp
+OK /w/nativelib/src/main/resources/scala-native/gc/immix_commix/Object.c
+OK /w/nativelib/src/main/resources/scala-native/gc/immix/MutatorThread.c
+OK /w/nativelib/src/main/resources/scala-native/gc/immix/Marker.c
+OK /w/nativelib/src/main/resources/scala-native/gc/immix_commix/datastructures/Bytemap.c
+OK /w/nativelib/src/main/resources/scala-native/gc/immix_commix/HeapCommon.c
+OK /w/nativelib/src/main/resources/scala-native/gc/immix_commix/Synchronizer.c
+OK /w/nativelib/src/main/resources/scala-native/gc/immix/BlockAllocator.c
+OK /w/nativelib/src/main/resources/scala-native/module_load.c
+OK /w/nativelib/src/main/resources/scala-native/gc/immix_commix/Settings.c
+OK /w/nativelib/src/main/resources/scala-native/vmoffset.c
+OK /w/clib/src/main/resources/scala-native/fenv.c
+OK /w/clib/src/main/resources/scala-native/math.c
+OK /w/nativelib/src/main/resources/scala-native/gc/immix_commix/GCRoots.c
+FAIL /w/clib/src/main/resources/scala-native/stdatomic.c 447c0ac718
+OK /w/clib/src/main/resources/scala-native/errno.c
+OK /w/clib/src/main/resources/scala-native/stdio.c
+OK /w/clib/src/main/resources/scala-native/inttypes.c
+OK /w/clib/src/main/resources/scala-native/stdlib.c
+OK /w/clib/src/main/resources/scala-native/time.c
+OK /w/clib/src/main/resources/scala-native/complex.c
+OK /w/nativelib/src/main/resources/scala-native/eh.c
+OK /w/clib/src/main/resources/scala-native/locale.c
+OK /w/nativelib/src/main/resources/scala-native/gc/immix_commix/ExternalThreads.c
+OK /w/clib/src/main/resources/scala-native/stddef.c
+OK /w/clib/src/main/resources/scala-native/float.c
+OK /w/clib/src/main/resources/scala-native/signal.c
+OK /w/posixlib/src/main/resources/scala-native/fnmatch.c
+OK /w/nativelib/src/main/resources/scala-native/gc/immix_commix/ScalaNativeGC.c
+OK /w/posixlib/src/main/resources/scala-native/dlfcn.c
+OK /w/posixlib/src/main/resources/scala-native/grp.c
+FAIL /w/nativelib/src/main/resources/scala-native/gc/immix_commix/MutatorThread.c 117eb9956d
+FAIL /w/posixlib/src/main/resources/scala-native/net/if.c 660a59ecce
+OK /w/posixlib/src/main/resources/scala-native/nl_types.c
+FAIL /w/posixlib/src/main/resources/scala-native/wordexp.c d52984e568
+OK /w/posixlib/src/main/resources/scala-native/sched.c
+FAIL /w/posixlib/src/main/resources/scala-native/pthread.c 9e7e906e8a
+OK /w/posixlib/src/main/resources/scala-native/poll.c
+OK /w/posixlib/src/main/resources/scala-native/netdb.c
+OK /w/posixlib/src/main/resources/scala-native/stdio.c
+OK /w/posixlib/src/main/resources/scala-native/bsd/kevent.c
+OK /w/posixlib/src/main/resources/scala-native/errno.c
+OK /w/posixlib/src/main/resources/scala-native/netinet/tcp.c
+OK /w/posixlib/src/main/resources/scala-native/arpa/inet.c
+FAIL /w/posixlib/src/main/resources/scala-native/glob.c d865b19e4f
+OK /w/posixlib/src/main/resources/scala-native/termios.c
+OK /w/posixlib/src/main/resources/scala-native/sys/utsname.c
+FAIL /w/posixlib/src/main/resources/scala-native/netinet/in.c f6ff2e1512
+OK /w/posixlib/src/main/resources/scala-native/statvfs.c
+OK /w/posixlib/src/main/resources/scala-native/sys/select.c
+OK /w/posixlib/src/main/resources/scala-native/sys/ioctl.c
+FAIL /w/posixlib/src/main/resources/scala-native/sys/stat.c b68901d1e6
+OK /w/posixlib/src/main/resources/scala-native/sys/resource.c
+OK /w/posixlib/src/main/resources/scala-native/sys/times.c
+OK /w/posixlib/src/main/resources/scala-native/sys/uio.c
+FAIL /w/posixlib/src/main/resources/scala-native/sys/socket.c 4f0ccfde52
+FAIL /w/posixlib/src/main/resources/scala-native/sys/wait.c 6fddd10a13
+OK /w/posixlib/src/main/resources/scala-native/pwd.c
+OK /w/posixlib/src/main/resources/scala-native/linux/pidfd.c
+OK /w/posixlib/src/main/resources/scala-native/cpio.c
+OK /w/posixlib/src/main/resources/scala-native/limits.c
+OK /w/posixlib/src/main/resources/scala-native/sys/un.c
+OK /w/posixlib/src/main/resources/scala-native/sys/mman.c
+OK /w/posixlib/src/main/resources/scala-native/langinfo.c
+OK /w/posixlib/src/main/resources/scala-native/linux/eventfd.c
+FAIL /w/posixlib/src/main/resources/scala-native/time.c e019394046
+OK /w/posixlib/src/main/resources/scala-native/linux/epoll.c
+FAIL /w/posixlib/src/main/resources/scala-native/signal.c 32bb98da35
+FAIL /w/posixlib/src/main/resources/scala-native/unistd.c 031c0c0531
+OK /w/posixlib/src/main/resources/scala-native/fcntl.c
+OK /w/posixlib/src/main/resources/scala-native/locale.c
+OK /w/posixlib/src/main/resources/scala-native/spawn.c
+FAIL /w/javalib/src/main/resources/scala-native/net/sockaddr.c aec82b2601
+FAIL /w/javalib/src/main/resources/scala-native/net/if_dl.c 8e75438f78
+OK /w/posixlib/src/main/resources/scala-native/dirent.c
+OK /w/posixlib/src/main/resources/scala-native/syslog.c
+OK /w/javalib/src/main/resources/scala-native/win_freq.c
+OK /w/javalib/src/main/resources/scala-native/sys/linux_sched.c
+FAIL /w/javalib/src/main/resources/scala-native/ifaddrs.c f464b209e6
+FAIL /w/javalib/src/main/resources/scala-native/netinet/in6.c ba44114b14
+OK /w/javalib/src/main/resources/scala-native/time_zone_offset.c
+OK /w/javalib/src/main/resources/scala-native/time_nano.c
+FAIL /w/javalib/src/main/resources/scala-native/z.c 22b2c3d62e
+OK /w/javalib/src/main/resources/scala-native/netinet/unixIf.c
+OK /w/javalib/src/main/resources/scala-native/lang/javalib_spawn.c
+OK /w/javalib/src/main/resources/scala-native/time_millis.c

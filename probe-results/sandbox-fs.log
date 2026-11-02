@@ -1,0 +1,53 @@
+[info] welcome to sbt 2.0.11 (Ubuntu Java 21.0.12.1)
+[info] loading project definition from /src/project
+Not found `ENABLE_EXPERIMENTAL_COMPILER` env var: sub-projects using Scala experimental version would not be available.
+[info] resolving key references (142531 settings) ...
+[info] Detected JDK version 21
+[info] set current project to scala-native (in build file:/src/)
+[success] elapsed time: 0 s, cache 50%, 1 disk cache hit, 1 onsite task
+[info] Wrote /src/target/out/native0.5/scala-3.10.0/scalalib/scalalib_native0.5_3-3.10.0+0.5.13-SNAPSHOT.pom
+[info] :: delivering :: org.scala-native#scalalib_native0.5_3;3.10.0+0.5.13-SNAPSHOT :: 3.10.0+0.5.13-SNAPSHOT :: integration :: Mon Nov 02 20:06:38 UTC 2026
+[info] 	delivering ivy file to /src/target/out/native0.5/scala-3.10.0/scalalib/ivy-3.10.0+0.5.13-SNAPSHOT.xml
+[info] 	published scalalib_native0.5_3 to /root/.ivy2/local/org.scala-native/scalalib_native0.5_3/3.10.0+0.5.13-SNAPSHOT/poms/scalalib_native0.5_3.pom
+[info] 	published scalalib_native0.5_3 to /root/.ivy2/local/org.scala-native/scalalib_native0.5_3/3.10.0+0.5.13-SNAPSHOT/jars/scalalib_native0.5_3.jar
+[info] 	published scalalib_native0.5_3 to /root/.ivy2/local/org.scala-native/scalalib_native0.5_3/3.10.0+0.5.13-SNAPSHOT/srcs/scalalib_native0.5_3-sources.jar
+[info] 	published scalalib_native0.5_3 to /root/.ivy2/local/org.scala-native/scalalib_native0.5_3/3.10.0+0.5.13-SNAPSHOT/docs/scalalib_native0.5_3-javadoc.jar
+[info] 	published ivy to /root/.ivy2/local/org.scala-native/scalalib_native0.5_3/3.10.0+0.5.13-SNAPSHOT/ivys/ivy.xml
+[info] Linking (multithreadingEnabled=false) (631 ms)
+[info] Dumping intermediate code (linked) (181 ms)
+[info] Discovered 827 classes and 4975 methods after classloading
+[info] Checking intermediate code (full) (221 ms)
+[info] Dumping intermediate code (optimized) (138 ms)
+[info] Discovered 655 classes and 2311 methods after optimization
+[info] Checking intermediate code (full) (154 ms)
+[info] Optimizing (release-fast mode) (1744 ms)
+[info] Dumping intermediate code (lowered) (301 ms)
+[info] Produced 46 LLVM IR files
+[info] Generating intermediate code (3513 ms)
+[info] Compiling to native code (1973 ms)
+[warn] Freestanding build ignores @link libraries: pthread
+[info] Linking with []
+[error] ld.lld: error: undefined symbol: pthread_create
+[error] >>> referenced by ScalaNativeGC.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/sandbox/native/dependencies/nativelib_native0.5_3-0.5.13-SNAPSHOT-0/scala-native/gc/immix_commix/ScalaNativeGC.c.o:(scalanative_GC_pthread_create)
+[error] >>> referenced by ThreadUtil.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/sandbox/native/dependencies/nativelib_native0.5_3-0.5.13-SNAPSHOT-0/scala-native/gc/shared/ThreadUtil.c.o:(thread_create)
+[error] >>> did you mean: thread_create
+[error] >>> defined in: /src/target/out/native0.5/scala-3.10.0/sandbox/native/dependencies/nativelib_native0.5_3-0.5.13-SNAPSHOT-0/scala-native/gc/shared/ThreadUtil.c.o
+[error] ld.lld: error: undefined symbol: sem_open
+[error] >>> referenced by ThreadUtil.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/sandbox/native/dependencies/nativelib_native0.5_3-0.5.13-SNAPSHOT-0/scala-native/gc/shared/ThreadUtil.c.o:(semaphore_open)
+[error] ld.lld: error: undefined symbol: sem_wait
+[error] >>> referenced by ThreadUtil.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/sandbox/native/dependencies/nativelib_native0.5_3-0.5.13-SNAPSHOT-0/scala-native/gc/shared/ThreadUtil.c.o:(semaphore_wait)
+[error] ld.lld: error: undefined symbol: sem_post
+[error] >>> referenced by ThreadUtil.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/sandbox/native/dependencies/nativelib_native0.5_3-0.5.13-SNAPSHOT-0/scala-native/gc/shared/ThreadUtil.c.o:(semaphore_unlock)
+[error] ld.lld: error: undefined symbol: pthread_rwlock_tryrdlock
+[error] >>> referenced by ThreadUtil.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/sandbox/native/dependencies/nativelib_native0.5_3-0.5.13-SNAPSHOT-0/scala-native/gc/shared/ThreadUtil.c.o:(rwlock_tryLockRead)
+[error] clang: error: linker command failed with exit code 1 (use -v to see invocation)
+[info] Total (6642 ms)
+[error] Failed to link /src/target/out/native0.5/scala-3.10.0/sandbox/native/Test
+[error] (sandbox3 / Compile / nativeLink) Failed to link /src/target/out/native0.5/scala-3.10.0/sandbox/native/Test
+[error] elapsed time: 10 s, cache 99%, 315 disk cache hits, 1 onsite task

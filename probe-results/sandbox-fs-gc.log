@@ -1,0 +1,35 @@
+[info] welcome to sbt 2.0.11 (Ubuntu Java 21.0.12.1)
+[info] loading project definition from /src/project
+[info] compiling 1 Scala source to /src/target/out/jvm/scala-3.8.4/src-build/classes ...
+[info] done compiling
+Not found `ENABLE_EXPERIMENTAL_COMPILER` env var: sub-projects using Scala experimental version would not be available.
+[info] resolving key references (142531 settings) ...
+[info] Detected JDK version 21
+[info] set current project to scala-native (in build file:/src/)
+[success] elapsed time: 0 s, cache 100%, 2 disk cache hits
+[info] Wrote /src/target/out/native0.5/scala-3.10.0/scalalib/scalalib_native0.5_3-3.10.0+0.5.13-SNAPSHOT.pom
+[info] :: delivering :: org.scala-native#scalalib_native0.5_3;3.10.0+0.5.13-SNAPSHOT :: 3.10.0+0.5.13-SNAPSHOT :: integration :: Mon Nov 02 20:08:34 UTC 2026
+[info] 	delivering ivy file to /src/target/out/native0.5/scala-3.10.0/scalalib/ivy-3.10.0+0.5.13-SNAPSHOT.xml
+[info] 	published scalalib_native0.5_3 to /root/.ivy2/local/org.scala-native/scalalib_native0.5_3/3.10.0+0.5.13-SNAPSHOT/poms/scalalib_native0.5_3.pom
+[info] 	published scalalib_native0.5_3 to /root/.ivy2/local/org.scala-native/scalalib_native0.5_3/3.10.0+0.5.13-SNAPSHOT/jars/scalalib_native0.5_3.jar
+[info] 	published scalalib_native0.5_3 to /root/.ivy2/local/org.scala-native/scalalib_native0.5_3/3.10.0+0.5.13-SNAPSHOT/srcs/scalalib_native0.5_3-sources.jar
+[info] 	published scalalib_native0.5_3 to /root/.ivy2/local/org.scala-native/scalalib_native0.5_3/3.10.0+0.5.13-SNAPSHOT/docs/scalalib_native0.5_3-javadoc.jar
+[info] 	published ivy to /root/.ivy2/local/org.scala-native/scalalib_native0.5_3/3.10.0+0.5.13-SNAPSHOT/ivys/ivy.xml
+[info] Linking (multithreadingEnabled=false) (1023 ms)
+[info] Dumping intermediate code (linked) (789 ms)
+[info] Discovered 827 classes and 4975 methods after classloading
+[info] Checking intermediate code (full) (353 ms)
+[info] Dumping intermediate code (optimized) (469 ms)
+[info] Discovered 655 classes and 2311 methods after optimization
+[info] Checking intermediate code (full) (136 ms)
+[info] Optimizing (release-fast mode) (5139 ms)
+[info] Dumping intermediate code (lowered) (1852 ms)
+[info] Produced 46 LLVM IR files
+[info] Generating intermediate code (9343 ms)
+[info] Compiling to native code (7197 ms)
+[warn] Freestanding build ignores @link libraries: pthread
+[info] Linking with []
+[info] Linking native code (immix gc, none lto) (318 ms)
+[info] Postprocessing (0 ms)
+[info] Total (19453 ms)
+[success] elapsed time: 28 s, cache 99%, 315 disk cache hits, 2 onsite tasks

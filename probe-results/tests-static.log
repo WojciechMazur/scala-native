@@ -1,0 +1,68 @@
+[info] welcome to sbt 2.0.11 (Ubuntu Java 21.0.12.1)
+[info] loading project definition from /src/project
+Not found `ENABLE_EXPERIMENTAL_COMPILER` env var: sub-projects using Scala experimental version would not be available.
+[info] resolving key references (142531 settings) ...
+[info] Detected JDK version 21
+[info] set current project to scala-native (in build file:/src/)
+[success] elapsed time: 0 s, cache 100%, 1 disk cache hit
+[success] elapsed time: 1 s, cache 100%, 2 disk cache hits
+Adapting shared/src/test/scala/org/scalanative/testsuite/javalib/nio/BufferAdapter.scala.template to JDK 21
+Adapting shared/src/test/scala/org/scalanative/testsuite/javalib/nio/ByteBufferTest.scala.template to JDK 21
+[info] Wrote /src/target/out/native0.5/scala-3.10.0/scalalib/scalalib_native0.5_3-3.10.0+0.5.13-SNAPSHOT.pom
+[info] :: delivering :: org.scala-native#scalalib_native0.5_3;3.10.0+0.5.13-SNAPSHOT :: 3.10.0+0.5.13-SNAPSHOT :: integration :: Mon Nov 02 20:32:11 UTC 2026
+[info] 	delivering ivy file to /src/target/out/native0.5/scala-3.10.0/scalalib/ivy-3.10.0+0.5.13-SNAPSHOT.xml
+[info] 	published scalalib_native0.5_3 to /root/.ivy2/local/org.scala-native/scalalib_native0.5_3/3.10.0+0.5.13-SNAPSHOT/poms/scalalib_native0.5_3.pom
+[info] 	published scalalib_native0.5_3 to /root/.ivy2/local/org.scala-native/scalalib_native0.5_3/3.10.0+0.5.13-SNAPSHOT/jars/scalalib_native0.5_3.jar
+[info] 	published scalalib_native0.5_3 to /root/.ivy2/local/org.scala-native/scalalib_native0.5_3/3.10.0+0.5.13-SNAPSHOT/srcs/scalalib_native0.5_3-sources.jar
+[info] 	published scalalib_native0.5_3 to /root/.ivy2/local/org.scala-native/scalalib_native0.5_3/3.10.0+0.5.13-SNAPSHOT/docs/scalalib_native0.5_3-javadoc.jar
+[info] 	published ivy to /root/.ivy2/local/org.scala-native/scalalib_native0.5_3/3.10.0+0.5.13-SNAPSHOT/ivys/ivy.xml
+[info] Linking (multithreadingEnabled=false) (6225 ms)
+[info] Dumping intermediate code (linked) (3905 ms)
+[info] Discovered 20074 classes and 111806 methods after classloading
+[info] Loaded 2 service provider(s) for 5 referenced service(s):
+[info] |------------------------------------------------------------------------------------------------------------------------|
+[info] |                     Service                      |                   Service Provider                    |   Status    |
+[info] |------------------------------------------------------------------------------------------------------------------------|
+[info] |          java.lang.System$LoggerFinder           |                          ---                          | NoProviders |
+[info] |                                                  |                                                       |             |
+[info] |       java.nio.charset.spi.CharsetProvider       |                          ---                          | NoProviders |
+[info] |                                                  |                                                       |             |
+[info] | org.scalanative.testsuite.javalib.util.MyService | org.scalanative.testsuite.javalib.util.MyServiceImpl1 |   Loaded    |
+[info] |                                                  | org.scalanative.testsuite.javalib.util.MyServiceImpl2 |   Loaded    |
+[info] |                                                  | org.scalanative.testsuite.javalib.util.MyServiceImpl3 |  Available  |
+[info] |                                                  |                                                       |             |
+[info] |     scala.scalanative.IssuesTest$SomeClass$1     |                          ---                          | NoProviders |
+[info] |                                                  |                                                       |             |
+[info] |     scala.scalanative.IssuesTest$SomeClass$4     |                          ---                          | NoProviders |
+[info] |------------------------------------------------------------------------------------------------------------------------|
+[info] Checking intermediate code (full) (1840 ms)
+[info] Dumping intermediate code (optimized) (15458 ms)
+[info] Discovered 18865 classes and 67453 methods after optimization
+[info] Checking intermediate code (full) (1640 ms)
+[info] Optimizing (release-fast mode) (63865 ms)
+[info] Embedded resource: /embedded-resources-tests/basic-file.txt
+[info] Embedded resource: /embedded-resources-tests/no_extension_utf8
+[info] Embedded resource: /process/unix/echo.sh
+[info] Embedded resource: /process/unix/err.sh
+[info] Embedded resource: /process/unix/hello.sh
+[info] Embedded resource: /process/unix/ls
+[info] Embedded resource: /process/windows/dir
+[info] Embedded resource: /process/windows/echo.bat
+[info] Embedded resource: /process/windows/err.bat
+[info] Embedded resource: /process/windows/hello.bat
+[info] Embedded resource: /testsuite/javalib/java/util/zip/zipCharsetUtf8TestData.zip
+[info] Embedded resource: /testsuite/javalib/java/util/zip/zipEntryReadCommentTestData.zip
+[info] Embedded resource: /basic.dat
+[info] Embedded resource: /nullsubexpr.dat
+[info] Embedded resource: /re2-exhaustive.txt.gz
+[info] Embedded resource: /re2-search.txt
+[info] Embedded resource: /repetition.dat
+[info] Dumping intermediate code (lowered) (26667 ms)
+[info] Produced 166 LLVM IR files
+[info] Generating intermediate code (103569 ms)
+[info] Compiling to native code (89149 ms)
+[info] Linking with [pthread, dl, m, z]
+[info] Linking native code (immix gc, none lto) (297 ms)
+[info] Postprocessing (0 ms)
+[info] Total (239092 ms)
+[success] elapsed time: 247 s (0:04:07.0), cache 99%, 394 disk cache hits, 2 onsite tasks

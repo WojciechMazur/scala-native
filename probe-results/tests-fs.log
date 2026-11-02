@@ -1,0 +1,1052 @@
+[info] welcome to sbt 2.0.11 (Ubuntu Java 21.0.12.1)
+[info] loading project definition from /src/project
+Not found `ENABLE_EXPERIMENTAL_COMPILER` env var: sub-projects using Scala experimental version would not be available.
+[info] resolving key references (142531 settings) ...
+[info] Detected JDK version 21
+[info] set current project to scala-native (in build file:/src/)
+[success] elapsed time: 0 s, cache 0%, 1 onsite task
+[success] elapsed time: 1 s, cache 100%, 2 disk cache hits
+Adapting shared/src/test/scala/org/scalanative/testsuite/javalib/nio/BufferAdapter.scala.template to JDK 21
+Adapting shared/src/test/scala/org/scalanative/testsuite/javalib/nio/ByteBufferTest.scala.template to JDK 21
+[info] Wrote /src/target/out/native0.5/scala-3.10.0/scalalib/scalalib_native0.5_3-3.10.0+0.5.13-SNAPSHOT.pom
+[info] :: delivering :: org.scala-native#scalalib_native0.5_3;3.10.0+0.5.13-SNAPSHOT :: 3.10.0+0.5.13-SNAPSHOT :: integration :: Mon Nov 02 20:18:23 UTC 2026
+[info] 	delivering ivy file to /src/target/out/native0.5/scala-3.10.0/scalalib/ivy-3.10.0+0.5.13-SNAPSHOT.xml
+[info] 	published scalalib_native0.5_3 to /root/.ivy2/local/org.scala-native/scalalib_native0.5_3/3.10.0+0.5.13-SNAPSHOT/poms/scalalib_native0.5_3.pom
+[info] 	published scalalib_native0.5_3 to /root/.ivy2/local/org.scala-native/scalalib_native0.5_3/3.10.0+0.5.13-SNAPSHOT/jars/scalalib_native0.5_3.jar
+[info] 	published scalalib_native0.5_3 to /root/.ivy2/local/org.scala-native/scalalib_native0.5_3/3.10.0+0.5.13-SNAPSHOT/srcs/scalalib_native0.5_3-sources.jar
+[info] 	published scalalib_native0.5_3 to /root/.ivy2/local/org.scala-native/scalalib_native0.5_3/3.10.0+0.5.13-SNAPSHOT/docs/scalalib_native0.5_3-javadoc.jar
+[info] 	published ivy to /root/.ivy2/local/org.scala-native/scalalib_native0.5_3/3.10.0+0.5.13-SNAPSHOT/ivys/ivy.xml
+[info] Linking (multithreadingEnabled=false) (5515 ms)
+[info] Dumping intermediate code (linked) (3262 ms)
+[info] Discovered 20074 classes and 111806 methods after classloading
+[info] Loaded 2 service provider(s) for 5 referenced service(s):
+[info] |------------------------------------------------------------------------------------------------------------------------|
+[info] |                     Service                      |                   Service Provider                    |   Status    |
+[info] |------------------------------------------------------------------------------------------------------------------------|
+[info] |          java.lang.System$LoggerFinder           |                          ---                          | NoProviders |
+[info] |                                                  |                                                       |             |
+[info] |       java.nio.charset.spi.CharsetProvider       |                          ---                          | NoProviders |
+[info] |                                                  |                                                       |             |
+[info] | org.scalanative.testsuite.javalib.util.MyService | org.scalanative.testsuite.javalib.util.MyServiceImpl1 |   Loaded    |
+[info] |                                                  | org.scalanative.testsuite.javalib.util.MyServiceImpl2 |   Loaded    |
+[info] |                                                  | org.scalanative.testsuite.javalib.util.MyServiceImpl3 |  Available  |
+[info] |                                                  |                                                       |             |
+[info] |     scala.scalanative.IssuesTest$SomeClass$1     |                          ---                          | NoProviders |
+[info] |                                                  |                                                       |             |
+[info] |     scala.scalanative.IssuesTest$SomeClass$4     |                          ---                          | NoProviders |
+[info] |------------------------------------------------------------------------------------------------------------------------|
+[info] Checking intermediate code (full) (1425 ms)
+[info] Dumping intermediate code (optimized) (13021 ms)
+[info] Discovered 18865 classes and 67453 methods after optimization
+[info] Checking intermediate code (full) (1652 ms)
+[info] Optimizing (release-fast mode) (96681 ms)
+[info] Embedded resource: /embedded-resources-tests/basic-file.txt
+[info] Embedded resource: /embedded-resources-tests/no_extension_utf8
+[info] Embedded resource: /process/unix/echo.sh
+[info] Embedded resource: /process/unix/err.sh
+[info] Embedded resource: /process/unix/hello.sh
+[info] Embedded resource: /process/unix/ls
+[info] Embedded resource: /process/windows/dir
+[info] Embedded resource: /process/windows/echo.bat
+[info] Embedded resource: /process/windows/err.bat
+[info] Embedded resource: /process/windows/hello.bat
+[info] Embedded resource: /testsuite/javalib/java/util/zip/zipCharsetUtf8TestData.zip
+[info] Embedded resource: /testsuite/javalib/java/util/zip/zipEntryReadCommentTestData.zip
+[info] Embedded resource: /basic.dat
+[info] Embedded resource: /nullsubexpr.dat
+[info] Embedded resource: /re2-exhaustive.txt.gz
+[info] Embedded resource: /re2-search.txt
+[info] Embedded resource: /repetition.dat
+[info] Dumping intermediate code (lowered) (23914 ms)
+[info] Produced 166 LLVM IR files
+[info] Generating intermediate code (68619 ms)
+[info] Compiling to native code (93259 ms)
+[warn] Freestanding build ignores @link libraries: dl, z, pthread
+[info] Linking with []
+[error] ld.lld: error: undefined symbol: memccpy
+[error] >>> referenced by utsname.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/sys/utsname.c.o:(scalanative_uname)
+[error] >>> referenced by utsname.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/sys/utsname.c.o:(scalanative_uname)
+[error] >>> referenced by utsname.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/sys/utsname.c.o:(scalanative_uname)
+[error] >>> referenced 2 more times
+[error] >>> did you mean: memcpy
+[error] >>> defined in: /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/nativelib_native0.5_3-0.5.13-SNAPSHOT-1/scala-native/platform/freestanding/string.c.o
+[error] ld.lld: error: undefined symbol: getrusage
+[error] >>> referenced by resource.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/sys/resource.c.o:(scalanative_getrusage)
+[error] ld.lld: error: undefined symbol: setsockopt
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM54org.scalanative.testsuite.posixlib.sys.MsgIoSocketTestD33linux64ControlMessages$$anonfun$1L29scala.scalanative.unsafe.ZoneuEPT54org.scalanative.testsuite.posixlib.sys.MsgIoSocketTest)
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM40java.net.AbstractPlainDatagramSocketImplD9setOptioniL16java.lang.ObjectuEO)
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM32java.net.AbstractPlainSocketImplD9setOptioniL16java.lang.ObjectuEO)
+[error] >>> referenced 1 more times
+[error] ld.lld: error: undefined symbol: getpriority
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM51org.scalanative.testsuite.posixlib.sys.ResourceTestD24getpriorityInvalidArgWhouEO)
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM51org.scalanative.testsuite.posixlib.sys.ResourceTestD26getpriorityInvalidArgWhichuEO)
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM51org.scalanative.testsuite.posixlib.sys.ResourceTestD26testGetpriority$$anonfun$1L60org.scalanative.testsuite.posixlib.sys.ResourceTest$TestInfouEpT51org.scalanative.testsuite.posixlib.sys.ResourceTest)
+[error] ld.lld: error: undefined symbol: tcgetattr
+[error] >>> referenced by termios.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/termios.c.o:(scalanative_termios_tcgetattr)
+[error] ld.lld: error: undefined symbol: cfgetispeed
+[error] >>> referenced by termios.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/termios.c.o:(scalanative_termios_tcgetattr)
+[error] >>> referenced by termios.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/termios.c.o:(scalanative_termios_tcsetattr)
+[error] ld.lld: error: undefined symbol: cfgetospeed
+[error] >>> referenced by termios.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/termios.c.o:(scalanative_termios_tcgetattr)
+[error] >>> referenced by termios.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/termios.c.o:(scalanative_termios_tcsetattr)
+[error] ld.lld: error: undefined symbol: cfsetispeed
+[error] >>> referenced by termios.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/termios.c.o:(scalanative_termios_tcsetattr)
+[error] ld.lld: error: undefined symbol: cfsetospeed
+[error] >>> referenced by termios.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/termios.c.o:(scalanative_termios_tcsetattr)
+[error] ld.lld: error: undefined symbol: tcsetattr
+[error] >>> referenced by termios.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/termios.c.o:(scalanative_termios_tcsetattr)
+[error] ld.lld: error: undefined symbol: setlocale
+[error] >>> referenced by locale.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/locale.c.o:(scalanative_setlocale)
+[error] ld.lld: error: undefined symbol: poll
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM57org.scalanative.testsuite.posixlib.sys.SocketTestHelpers$D15pollReadyToRecviiuEO)
+[error] >>> referenced by c29d1f4.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/c29d1f4.ll.o:(_SM26java.lang.impl.PosixThreadD29sleepInterruptible$$anonfun$2L21scala.runtime.LongRefL28scala.scalanative.unsafe.PtrjuEpT26java.lang.impl.PosixThread)
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM36java.net.UnixPlainDatagramSocketImplD7tryPollL16java.lang.StringuEO)
+[error] >>> referenced 2 more times
+[error] ld.lld: error: undefined symbol: gai_strerror
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM57org.scalanative.testsuite.posixlib.sys.SocketTestHelpers$D18hasLoopbackAddressiiizEO)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM44org.scalanative.testsuite.posixlib.NetdbTestD15callGetaddrinfoL28scala.scalanative.unsafe.PtrL28scala.scalanative.unsafe.PtrL29scala.scalanative.unsafe.ZoneL28scala.scalanative.unsafe.PtrEPT44org.scalanative.testsuite.posixlib.NetdbTest)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM44org.scalanative.testsuite.posixlib.NetdbTestD46gai_strerrorMustTranslateErrorCodes$$anonfun$1L29scala.scalanative.unsafe.ZoneuEpT44org.scalanative.testsuite.posixlib.NetdbTest)
+[error] >>> referenced 1 more times
+[error] ld.lld: error: undefined symbol: freeaddrinfo
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM57org.scalanative.testsuite.posixlib.sys.SocketTestHelpers$D18hasLoopbackAddressiiizEO)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM44org.scalanative.testsuite.posixlib.NetdbTestD56getaddrinfoWithNullHintsShouldFollowPosixSpec$$anonfun$1L29scala.scalanative.unsafe.ZoneuEPT44org.scalanative.testsuite.posixlib.NetdbTest)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM44org.scalanative.testsuite.posixlib.NetdbTestD56getaddrinfoWithNullHintsShouldFollowPosixSpec$$anonfun$1L29scala.scalanative.unsafe.ZoneuEPT44org.scalanative.testsuite.posixlib.NetdbTest)
+[error] >>> referenced 10 more times
+[error] ld.lld: error: undefined symbol: open
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM44org.scalanative.testsuite.posixlib.FcntlTestD29openPathnameFlagsExistingFileuEO)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM53org.scalanative.testsuite.posixlib.PseudoTerminalTestD17testPt$$anonfun$1L29scala.scalanative.unsafe.ZoneuEPT53org.scalanative.testsuite.posixlib.PseudoTerminalTest)
+[error] >>> referenced by fcntl.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/fcntl.c.o:(scalanative_open_m)
+[error] ld.lld: error: undefined symbol: inet_addr
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM57org.scalanative.testsuite.posixlib.sys.SocketTestHelpers$D22getUdp4LoopbackSocketsL29scala.scalanative.unsafe.ZoneL12scala.Tuple3EO)
+[error] ld.lld: error: undefined symbol: bind
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM57org.scalanative.testsuite.posixlib.sys.SocketTestHelpers$D22getUdp4LoopbackSocketsL29scala.scalanative.unsafe.ZoneL12scala.Tuple3EO)
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM57org.scalanative.testsuite.posixlib.sys.SocketTestHelpers$D22getUdp6LoopbackSocketsL29scala.scalanative.unsafe.ZoneL12scala.Tuple3EO)
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM40java.net.AbstractPlainDatagramSocketImplD5bind4L20java.net.InetAddressiuEPT40java.net.AbstractPlainDatagramSocketImpl)
+[error] >>> referenced 3 more times
+[error] ld.lld: error: undefined symbol: getsockname
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM57org.scalanative.testsuite.posixlib.sys.SocketTestHelpers$D22getUdp4LoopbackSocketsL29scala.scalanative.unsafe.ZoneL12scala.Tuple3EO)
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM57org.scalanative.testsuite.posixlib.sys.SocketTestHelpers$D22getUdp6LoopbackSocketsL29scala.scalanative.unsafe.ZoneL12scala.Tuple3EO)
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM40java.net.AbstractPlainDatagramSocketImplD14fetchLocalPortiL12scala.OptionEPT40java.net.AbstractPlainDatagramSocketImpl)
+[error] >>> referenced 4 more times
+[error] ld.lld: error: undefined symbol: inet_pton
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM57org.scalanative.testsuite.posixlib.sys.SocketTestHelpers$D22getUdp6LoopbackSocketsL29scala.scalanative.unsafe.ZoneL12scala.Tuple3EO)
+[error] ld.lld: error: undefined symbol: glob
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM43org.scalanative.testsuite.posixlib.GlobTestD26globExpectFound$$anonfun$1L29scala.scalanative.unsafe.ZoneuEPT43org.scalanative.testsuite.posixlib.GlobTest)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM43org.scalanative.testsuite.posixlib.GlobTestD29globExpectNotFound$$anonfun$1L29scala.scalanative.unsafe.ZoneiEPT43org.scalanative.testsuite.posixlib.GlobTest)
+[error] ld.lld: error: undefined symbol: globfree
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM43org.scalanative.testsuite.posixlib.GlobTestD26globExpectFound$$anonfun$1L29scala.scalanative.unsafe.ZoneuEPT43org.scalanative.testsuite.posixlib.GlobTest)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM43org.scalanative.testsuite.posixlib.GlobTestD26globExpectFound$$anonfun$1L29scala.scalanative.unsafe.ZoneuEPT43org.scalanative.testsuite.posixlib.GlobTest)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM43org.scalanative.testsuite.posixlib.GlobTestD29globExpectNotFound$$anonfun$1L29scala.scalanative.unsafe.ZoneiEPT43org.scalanative.testsuite.posixlib.GlobTest)
+[error] ld.lld: error: undefined symbol: mkstemp
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM47org.scalanative.testsuite.posixlib.sys.StatTestD23fileStatTest$$anonfun$1L29scala.scalanative.unsafe.ZoneuEpT47org.scalanative.testsuite.posixlib.sys.StatTest)
+[error] ld.lld: error: undefined symbol: mkdir
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM47org.scalanative.testsuite.posixlib.sys.StatTestD23fileStatTest$$anonfun$1L29scala.scalanative.unsafe.ZoneuEpT47org.scalanative.testsuite.posixlib.sys.StatTest)
+[error] >>> referenced by 2bbec5e4.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/2bbec5e4.ll.o:(_SM20java.nio.file.Files$D19tryMkdir$$anonfun$1L18java.nio.file.PathL29scala.scalanative.unsafe.ZoneL12scala.OptionEpT20java.nio.file.Files$)
+[error] >>> referenced by 93864833.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/93864833.ll.o:(_SM12java.io.FileD16mkdir$$anonfun$1L29scala.scalanative.unsafe.ZonezEPT12java.io.File)
+[error] ld.lld: error: undefined symbol: times
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM48org.scalanative.testsuite.posixlib.sys.TimesTestD13timesSucceedsuEO)
+[error] ld.lld: error: undefined symbol: nl_langinfo
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM47org.scalanative.testsuite.posixlib.LanginfoTestD6verifyL60org.scalanative.testsuite.posixlib.LanginfoTest$LanginfoItemuEO)
+[error] ld.lld: error: undefined symbol: strdup
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM48org.scalanative.testsuite.posixlib.LanginfoTest$D11beforeClassuEO)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM46org.scalanative.testsuite.posixlib.LocaleTest$D11beforeClassuEO)
+[error] ld.lld: error: undefined symbol: inet_ntop
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM53org.scalanative.testsuite.posixlib.sys.Udp6SocketTestD24formatIn6addr$$anonfun$1L33scala.scalanative.unsafe.CStruct1L29scala.scalanative.unsafe.ZoneL16java.lang.StringEpT53org.scalanative.testsuite.posixlib.sys.Udp6SocketTest)
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM21java.net.InetAddress$D36java$net$InetAddress$$$formatIn4AddrL28scala.scalanative.unsafe.PtrL16java.lang.StringEO)
+[error] ld.lld: error: undefined symbol: sendto
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM53org.scalanative.testsuite.posixlib.sys.Udp6SocketTestD25sendtoRecvfrom$$anonfun$1L29scala.scalanative.unsafe.ZoneuEPT53org.scalanative.testsuite.posixlib.sys.Udp6SocketTest)
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM52org.scalanative.testsuite.posixlib.sys.UdpSocketTestD25sendtoRecvfrom$$anonfun$1L29scala.scalanative.unsafe.ZoneuEpT52org.scalanative.testsuite.posixlib.sys.UdpSocketTest)
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM40java.net.AbstractPlainDatagramSocketImplD5send4L23java.net.DatagramPacketuEPT40java.net.AbstractPlainDatagramSocketImpl)
+[error] >>> referenced 1 more times
+[error] ld.lld: error: undefined symbol: recvfrom
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM53org.scalanative.testsuite.posixlib.sys.Udp6SocketTestD25sendtoRecvfrom$$anonfun$1L29scala.scalanative.unsafe.ZoneuEPT53org.scalanative.testsuite.posixlib.sys.Udp6SocketTest)
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM53org.scalanative.testsuite.posixlib.sys.Udp6SocketTestD25sendtoRecvfrom$$anonfun$1L29scala.scalanative.unsafe.ZoneuEPT53org.scalanative.testsuite.posixlib.sys.Udp6SocketTest)
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM52org.scalanative.testsuite.posixlib.sys.UdpSocketTestD25sendtoRecvfrom$$anonfun$1L29scala.scalanative.unsafe.ZoneuEpT52org.scalanative.testsuite.posixlib.sys.UdpSocketTest)
+[error] >>> referenced 2 more times
+[error] ld.lld: error: undefined symbol: localeconv
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM45org.scalanative.testsuite.posixlib.LocaleTestD22localeconv_Using_en_USuEO)
+[error] ld.lld: error: undefined symbol: newlocale
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM47org.scalanative.testsuite.posixlib.MonetaryTestD21strfmon_l_Using_en_USuEO)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM47org.scalanative.testsuite.posixlib.MonetaryTestD21strfmon_l_Using_en_USuEO)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM47org.scalanative.testsuite.posixlib.MonetaryTestD21strfmon_l_Using_en_USuEO)
+[error] ld.lld: error: undefined symbol: strfmon_l
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM47org.scalanative.testsuite.posixlib.MonetaryTestD21strfmon_l_Using_en_USuEO)
+[error] ld.lld: error: undefined symbol: freelocale
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM47org.scalanative.testsuite.posixlib.MonetaryTestD21strfmon_l_Using_en_USuEO)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM47org.scalanative.testsuite.posixlib.MonetaryTestD21strfmon_l_Using_en_USuEO)
+[error] ld.lld: error: undefined symbol: connect
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM46org.scalanative.testsuite.posixlib.sys.UioTestD31getConnectedUdp4LoopbackSocketsL29scala.scalanative.unsafe.ZoneL12scala.Tuple2EPT46org.scalanative.testsuite.posixlib.sys.UioTest)
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM40java.net.AbstractPlainDatagramSocketImplD8connect4L20java.net.InetAddressiuEPT40java.net.AbstractPlainDatagramSocketImpl)
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM40java.net.AbstractPlainDatagramSocketImplD8connect6L20java.net.InetAddressiuEPT40java.net.AbstractPlainDatagramSocketImpl)
+[error] >>> referenced 2 more times
+[error] ld.lld: error: undefined symbol: writev
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM46org.scalanative.testsuite.posixlib.sys.UioTestD38writevReadvShouldPlayNicely$$anonfun$1L29scala.scalanative.unsafe.ZoneuEPT46org.scalanative.testsuite.posixlib.sys.UioTest)
+[error] ld.lld: error: undefined symbol: readv
+[error] >>> referenced by cbe34aa6.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cbe34aa6.ll.o:(_SM46org.scalanative.testsuite.posixlib.sys.UioTestD38writevReadvShouldPlayNicely$$anonfun$1L29scala.scalanative.unsafe.ZoneuEPT46org.scalanative.testsuite.posixlib.sys.UioTest)
+[error] ld.lld: error: undefined symbol: posix_openpt
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM53org.scalanative.testsuite.posixlib.PseudoTerminalTestD17testPt$$anonfun$1L29scala.scalanative.unsafe.ZoneuEPT53org.scalanative.testsuite.posixlib.PseudoTerminalTest)
+[error] ld.lld: error: undefined symbol: grantpt
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM53org.scalanative.testsuite.posixlib.PseudoTerminalTestD17testPt$$anonfun$1L29scala.scalanative.unsafe.ZoneuEPT53org.scalanative.testsuite.posixlib.PseudoTerminalTest)
+[error] ld.lld: error: undefined symbol: unlockpt
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM53org.scalanative.testsuite.posixlib.PseudoTerminalTestD17testPt$$anonfun$1L29scala.scalanative.unsafe.ZoneuEPT53org.scalanative.testsuite.posixlib.PseudoTerminalTest)
+[error] ld.lld: error: undefined symbol: ptsname
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM53org.scalanative.testsuite.posixlib.PseudoTerminalTestD17testPt$$anonfun$1L29scala.scalanative.unsafe.ZoneuEPT53org.scalanative.testsuite.posixlib.PseudoTerminalTest)
+[error] ld.lld: error: undefined symbol: getsubopt
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM45org.scalanative.testsuite.posixlib.StdlibTestD24testGetsubopt$$anonfun$1L29scala.scalanative.unsafe.ZoneuEpT45org.scalanative.testsuite.posixlib.StdlibTest)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM45org.scalanative.testsuite.posixlib.StdlibTestD24testGetsubopt$$anonfun$1L29scala.scalanative.unsafe.ZoneuEpT45org.scalanative.testsuite.posixlib.StdlibTest)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM45org.scalanative.testsuite.posixlib.StdlibTestD24testGetsubopt$$anonfun$1L29scala.scalanative.unsafe.ZoneuEpT45org.scalanative.testsuite.posixlib.StdlibTest)
+[error] ld.lld: error: undefined symbol: strtok_r
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM45org.scalanative.testsuite.posixlib.StringTestD26strtok_rShouldNotFindTokenuEO)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM45org.scalanative.testsuite.posixlib.StringTestD26strtok_rShouldNotFindTokenuEO)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM45org.scalanative.testsuite.posixlib.StringTestD35strtok_rShouldFindTokens$$anonfun$1L29scala.scalanative.unsafe.ZoneuEpT45org.scalanative.testsuite.posixlib.StringTest)
+[error] >>> referenced 4 more times
+[error] ld.lld: error: undefined symbol: mktime
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM43org.scalanative.testsuite.posixlib.TimeTestD11localTime$1iiijEpT43org.scalanative.testsuite.posixlib.TimeTest)
+[error] ld.lld: error: undefined symbol: clock_settime
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM43org.scalanative.testsuite.posixlib.TimeTestD25clockSettimeShouldExecuteuEO)
+[error] ld.lld: error: undefined symbol: clock_getres
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM43org.scalanative.testsuite.posixlib.TimeTestD35clockGetresReturnsBelievableResultsuEO)
+[error] ld.lld: error: undefined symbol: strptime
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM43org.scalanative.testsuite.posixlib.TimeTestD35strptimeFor31December2016Time235960uEO)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM43org.scalanative.testsuite.posixlib.TimeTestD36strptimeExtraTextAfterDateStringIsOKuEO)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM75org.scalanative.testsuite.posixlib.TimeTest$scalanative$junit$bootstrapper$D10invokeTestL16java.lang.ObjectL16java.lang.StringL23scala.concurrent.FutureEO)
+[error] ld.lld: error: undefined symbol: asctime
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM43org.scalanative.testsuite.posixlib.TimeTestD38localtimeShouldHandleEpochPlusTimezoneuEO)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM43org.scalanative.testsuite.posixlib.TimeTestD54asctimeWithGivenKnownStateShouldMatchItsRepresentationuEO)
+[error] ld.lld: error: undefined symbol: strftime
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM43org.scalanative.testsuite.posixlib.TimeTestD40strftimeForJanOne1900ZeroZulu$$anonfun$1L29scala.scalanative.unsafe.ZoneuEpT43org.scalanative.testsuite.posixlib.TimeTest)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM43org.scalanative.testsuite.posixlib.TimeTestD46strftimeForMondayJanOne1990ZeroTime$$anonfun$1L29scala.scalanative.unsafe.ZoneuEpT43org.scalanative.testsuite.posixlib.TimeTest)
+[error] >>> referenced by c29d1f4.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/c29d1f4.ll.o:(_SM27java.lang.impl.SimpleLoggerD11currentDateL16java.lang.StringEPT27java.lang.impl.SimpleLogger)
+[error] >>> referenced 1 more times
+[error] ld.lld: error: undefined symbol: asctime_r
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM43org.scalanative.testsuite.posixlib.TimeTestD51localtime_rShouldHandleEpochPlusTimezone$$anonfun$1L29scala.scalanative.unsafe.ZoneuEPT43org.scalanative.testsuite.posixlib.TimeTest)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM43org.scalanative.testsuite.posixlib.TimeTestD56asctime_rWithGivenKnownStateShouldMatchItsRepresentationuEO)
+[error] ld.lld: error: undefined symbol: difftime
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM75org.scalanative.testsuite.posixlib.TimeTest$scalanative$junit$bootstrapper$D10invokeTestL16java.lang.ObjectL16java.lang.StringL23scala.concurrent.FutureEO)
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM20java.net.InetAddressD20getCanonicalHostNameL16java.lang.StringEO)
+[error] ld.lld: error: undefined symbol: tzset
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM75org.scalanative.testsuite.posixlib.TimeTest$scalanative$junit$bootstrapper$D11beforeClassuEO)
+[error] >>> referenced by cb1a9bcf.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cb1a9bcf.ll.o:(_SM15java.util.Date$G4load)
+[error] ld.lld: error: undefined symbol: wordexp
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM46org.scalanative.testsuite.posixlib.WordexpTestD32wordexpTildeExpansion$$anonfun$1L29scala.scalanative.unsafe.ZoneuEPT46org.scalanative.testsuite.posixlib.WordexpTest)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM46org.scalanative.testsuite.posixlib.WordexpTestD36wordexpExpectBadcharError$$anonfun$1L29scala.scalanative.unsafe.ZoneuEpT46org.scalanative.testsuite.posixlib.WordexpTest)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM46org.scalanative.testsuite.posixlib.WordexpTestD38wordexpVariableSubstitution$$anonfun$1L29scala.scalanative.unsafe.ZoneuEPT46org.scalanative.testsuite.posixlib.WordexpTest)
+[error] ld.lld: error: undefined symbol: wordfree
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM46org.scalanative.testsuite.posixlib.WordexpTestD32wordexpTildeExpansion$$anonfun$1L29scala.scalanative.unsafe.ZoneuEPT46org.scalanative.testsuite.posixlib.WordexpTest)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM46org.scalanative.testsuite.posixlib.WordexpTestD32wordexpTildeExpansion$$anonfun$1L29scala.scalanative.unsafe.ZoneuEPT46org.scalanative.testsuite.posixlib.WordexpTest)
+[error] >>> referenced by 6cb3a268.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/6cb3a268.ll.o:(_SM46org.scalanative.testsuite.posixlib.WordexpTestD36wordexpExpectBadcharError$$anonfun$1L29scala.scalanative.unsafe.ZoneuEpT46org.scalanative.testsuite.posixlib.WordexpTest)
+[error] >>> referenced 3 more times
+[error] ld.lld: error: undefined symbol: fmod
+[error] >>> referenced by 7caa850b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/7caa850b.ll.o:(_SM77org.scalanative.testsuite.javalib.util.function.DoublePredicateTest$$Lambda$2D13apply$mcZD$spdzEO)
+[error] ld.lld: error: undefined symbol: sched_getaffinity
+[error] >>> referenced by linux_sched.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/javalib_native0.5_3-0.5.13-SNAPSHOT-3/scala-native/sys/linux_sched.c.o:(scalanative_sched_cpuset_cardinality)
+[error] ld.lld: error: undefined symbol: __sched_cpucount
+[error] >>> referenced by linux_sched.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/javalib_native0.5_3-0.5.13-SNAPSHOT-3/scala-native/sys/linux_sched.c.o:(scalanative_sched_cpuset_cardinality)
+[error] ld.lld: error: undefined symbol: clock_nanosleep
+[error] >>> referenced by time.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/time.c.o:(scalanative_clock_nanosleep)
+[error] ld.lld: error: undefined symbol: timezone
+[error] >>> referenced by time.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/time.c.o:(scalanative_timezone)
+[error] ld.lld: error: undefined symbol: pipe
+[error] >>> referenced by c29d1f4.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/c29d1f4.ll.o:(_SM26java.lang.impl.PosixThreadD18sleepInterruptiblejuEPT26java.lang.impl.PosixThread)
+[error] >>> referenced by f16aae1b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/f16aae1b.ll.o:(_SM37java.lang.process.UnixProcessFactory$D10createPipeL16java.lang.StringL33java.lang.ProcessBuilder$RedirectL29scala.scalanative.unsafe.ZoneL28scala.scalanative.unsafe.PtrEPT37java.lang.process.UnixProcessFactory$)
+[error] ld.lld: error: undefined symbol: dup
+[error] >>> referenced by 280a8da0.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/280a8da0.ll.o:(_SM57org.scalanative.testsuite.javalib.lang.ProcessInheritTestD10unixImpl$1L12scala.Tuple2EpT57org.scalanative.testsuite.javalib.lang.ProcessInheritTest)
+[error] ld.lld: error: undefined symbol: dup2
+[error] >>> referenced by 280a8da0.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/280a8da0.ll.o:(_SM57org.scalanative.testsuite.javalib.lang.ProcessInheritTestD10unixImpl$1L12scala.Tuple2EpT57org.scalanative.testsuite.javalib.lang.ProcessInheritTest)
+[error] >>> referenced by 280a8da0.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/280a8da0.ll.o:(_SM57org.scalanative.testsuite.javalib.lang.ProcessInheritTestD10unixImpl$1L12scala.Tuple2EpT57org.scalanative.testsuite.javalib.lang.ProcessInheritTest)
+[error] >>> referenced by 280a8da0.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/280a8da0.ll.o:(_SM57org.scalanative.testsuite.javalib.lang.ProcessInheritTestD10unixImpl$1L12scala.Tuple2EpT57org.scalanative.testsuite.javalib.lang.ProcessInheritTest)
+[error] >>> referenced 1 more times
+[error] ld.lld: error: undefined symbol: ceil
+[error] >>> referenced by 8bd0723b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/8bd0723b.ll.o:(_SM74org.scalanative.testsuite.javalib.util.stream.StreamTestOnJDK16$$Lambda$13D13apply$mcVI$spiuEO)
+[error] >>> referenced by 8bd0723b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/8bd0723b.ll.o:(_SM74org.scalanative.testsuite.javalib.util.stream.StreamTestOnJDK16$$Lambda$14D13apply$mcVI$spiuEO)
+[error] >>> referenced by cb1a9bcf.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cb1a9bcf.ll.o:(_SM21java.util.Properties$D36java$util$Properties$$$tableCapacityiiEO)
+[error] >>> referenced 1 more times
+[error] ld.lld: error: undefined symbol: posix_spawn_file_actions_addchdir_np
+[error] >>> referenced by javalib_spawn.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/javalib_native0.5_3-0.5.13-SNAPSHOT-3/scala-native/lang/javalib_spawn.c.o:(fileActionsAddChdir)
+[error] ld.lld: error: undefined symbol: kill
+[error] >>> referenced by f16aae1b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/f16aae1b.ll.o:(_SM32java.lang.process.GenericProcessD15destroyForciblyL17java.lang.ProcessEO)
+[error] >>> referenced by f16aae1b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/f16aae1b.ll.o:(_SM32java.lang.process.GenericProcessD7destroyuEO)
+[error] >>> referenced by f16aae1b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/f16aae1b.ll.o:(_SM35java.lang.process.UnixProcessHandleD11destroyImplzzEO)
+[error] ld.lld: error: undefined symbol: ppoll
+[error] >>> referenced by f16aae1b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/f16aae1b.ll.o:(_SM58java.lang.process.ProcessExitCheckerLinux$Single$$Lambda$3D5applyL16java.lang.ObjectEO)
+[error] ld.lld: error: undefined symbol: waitpid
+[error] >>> referenced by f16aae1b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/f16aae1b.ll.o:(_SM40java.lang.process.UnixProcess$$$Lambda$2D5applyL16java.lang.ObjectEO)
+[error] ld.lld: error: undefined symbol: chdir
+[error] >>> referenced by f16aae1b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/f16aae1b.ll.o:(_SM37java.lang.process.UnixProcessFactory$D10runChild$1L24java.lang.ProcessBuilderL29scala.scalanative.unsafe.ZoneL28scala.scalanative.unsafe.PtrL28scala.scalanative.unsafe.PtrL28scala.scalanative.unsafe.PtrnEPT37java.lang.process.UnixProcessFactory$)
+[error] ld.lld: error: undefined symbol: posix_spawn_file_actions_init
+[error] >>> referenced by f16aae1b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/f16aae1b.ll.o:(_SM37java.lang.process.UnixProcessFactory$D10spawnChildL24java.lang.ProcessBuilderL29scala.scalanative.unsafe.ZoneL32java.lang.process.GenericProcessEPT37java.lang.process.UnixProcessFactory$)
+[error] ld.lld: error: undefined symbol: posix_spawn_file_actions_destroy
+[error] >>> referenced by f16aae1b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/f16aae1b.ll.o:(_SM37java.lang.process.UnixProcessFactory$D10spawnChildL24java.lang.ProcessBuilderL29scala.scalanative.unsafe.ZoneL32java.lang.process.GenericProcessEPT37java.lang.process.UnixProcessFactory$)
+[error] >>> referenced by f16aae1b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/f16aae1b.ll.o:(_SM37java.lang.process.UnixProcessFactory$D10spawnChildL24java.lang.ProcessBuilderL29scala.scalanative.unsafe.ZoneL32java.lang.process.GenericProcessEPT37java.lang.process.UnixProcessFactory$)
+[error] ld.lld: error: undefined symbol: posix_spawn_file_actions_addclose
+[error] >>> referenced by f16aae1b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/f16aae1b.ll.o:(_SM37java.lang.process.UnixProcessFactory$D12closeSpawn$1L28scala.scalanative.unsafe.PtriuEPT37java.lang.process.UnixProcessFactory$)
+[error] ld.lld: error: undefined symbol: posix_spawn_file_actions_addopen
+[error] >>> referenced by f16aae1b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/f16aae1b.ll.o:(_SM37java.lang.process.UnixProcessFactory$D13setupSpawnFDSL28scala.scalanative.unsafe.PtrL15scala.Function0L33java.lang.ProcessBuilder$RedirectiL29scala.scalanative.unsafe.ZoneuEPT37java.lang.process.UnixProcessFactory$)
+[error] >>> referenced by f16aae1b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/f16aae1b.ll.o:(_SM37java.lang.process.UnixProcessFactory$D13setupSpawnFDSL28scala.scalanative.unsafe.PtrL15scala.Function0L33java.lang.ProcessBuilder$RedirectiL29scala.scalanative.unsafe.ZoneuEPT37java.lang.process.UnixProcessFactory$)
+[error] >>> referenced by f16aae1b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/f16aae1b.ll.o:(_SM37java.lang.process.UnixProcessFactory$D13setupSpawnFDSL28scala.scalanative.unsafe.PtrL15scala.Function0L33java.lang.ProcessBuilder$RedirectiL29scala.scalanative.unsafe.ZoneuEPT37java.lang.process.UnixProcessFactory$)
+[error] ld.lld: error: undefined symbol: execve
+[error] >>> referenced by f16aae1b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/f16aae1b.ll.o:(_SM37java.lang.process.UnixProcessFactory$D21runChild$1$$anonfun$5L29scala.scalanative.unsafe.ZoneL28scala.scalanative.unsafe.PtrL28scala.scalanative.unsafe.PtrL14java.util.ListL16java.lang.StringuEpT37java.lang.process.UnixProcessFactory$)
+[error] >>> referenced by f16aae1b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/f16aae1b.ll.o:(_SM37java.lang.process.UnixProcessFactory$D21runChild$1$$anonfun$5L29scala.scalanative.unsafe.ZoneL28scala.scalanative.unsafe.PtrL28scala.scalanative.unsafe.PtrL14java.util.ListL16java.lang.StringuEpT37java.lang.process.UnixProcessFactory$)
+[error] ld.lld: error: undefined symbol: posix_spawn
+[error] >>> referenced by f16aae1b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/f16aae1b.ll.o:(_SM37java.lang.process.UnixProcessFactory$D7spawn$1L24java.lang.ProcessBuilderL28scala.scalanative.unsafe.PtrL29scala.scalanative.unsafe.ZoneL28scala.scalanative.unsafe.PtrL28scala.scalanative.unsafe.PtrL16java.lang.StringL28scala.scalanative.unsafe.PtriiEPT37java.lang.process.UnixProcessFactory$)
+[error] ld.lld: error: undefined symbol: posix_spawn_file_actions_adddup2
+[error] >>> referenced by f16aae1b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/f16aae1b.ll.o:(_SM37java.lang.process.UnixProcessFactory$D9dup2SpawnL28scala.scalanative.unsafe.PtriiL16java.lang.StringuEPT37java.lang.process.UnixProcessFactory$)
+[error] ld.lld: error: undefined symbol: fork
+[error] >>> referenced by f16aae1b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/f16aae1b.ll.o:(_SM37java.lang.process.UnixProcessFactory$D9forkChildL24java.lang.ProcessBuilderL29scala.scalanative.unsafe.ZoneL32java.lang.process.GenericProcessEO)
+[error] >>> referenced by f16aae1b.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/f16aae1b.ll.o:(_SM37java.lang.process.UnixProcessFactory$D9forkChildL24java.lang.ProcessBuilderL29scala.scalanative.unsafe.ZoneL32java.lang.process.GenericProcessEO)
+[error] ld.lld: error: undefined symbol: deflate
+[error] >>> referenced by z.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/javalib_native0.5_3-0.5.13-SNAPSHOT-3/scala-native/z.c.o:(scalanative_deflate)
+[error] ld.lld: error: undefined symbol: deflateEnd
+[error] >>> referenced by z.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/javalib_native0.5_3-0.5.13-SNAPSHOT-3/scala-native/z.c.o:(scalanative_deflateEnd)
+[error] ld.lld: error: undefined symbol: inflate
+[error] >>> referenced by z.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/javalib_native0.5_3-0.5.13-SNAPSHOT-3/scala-native/z.c.o:(scalanative_inflate)
+[error] ld.lld: error: undefined symbol: inflateEnd
+[error] >>> referenced by z.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/javalib_native0.5_3-0.5.13-SNAPSHOT-3/scala-native/z.c.o:(scalanative_inflateEnd)
+[error] ld.lld: error: undefined symbol: deflateInit2_
+[error] >>> referenced by z.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/javalib_native0.5_3-0.5.13-SNAPSHOT-3/scala-native/z.c.o:(scalanative_deflateInit2)
+[error] ld.lld: error: undefined symbol: deflateSetDictionary
+[error] >>> referenced by z.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/javalib_native0.5_3-0.5.13-SNAPSHOT-3/scala-native/z.c.o:(scalanative_deflateSetDictionary)
+[error] ld.lld: error: undefined symbol: deflateReset
+[error] >>> referenced by z.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/javalib_native0.5_3-0.5.13-SNAPSHOT-3/scala-native/z.c.o:(scalanative_deflateReset)
+[error] ld.lld: error: undefined symbol: deflateParams
+[error] >>> referenced by z.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/javalib_native0.5_3-0.5.13-SNAPSHOT-3/scala-native/z.c.o:(scalanative_deflateParams)
+[error] ld.lld: error: undefined symbol: inflateInit2_
+[error] >>> referenced by z.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/javalib_native0.5_3-0.5.13-SNAPSHOT-3/scala-native/z.c.o:(scalanative_inflateInit2)
+[error] ld.lld: error: undefined symbol: inflateSetDictionary
+[error] >>> referenced by z.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/javalib_native0.5_3-0.5.13-SNAPSHOT-3/scala-native/z.c.o:(scalanative_inflateSetDictionary)
+[error] ld.lld: error: undefined symbol: inflateReset
+[error] >>> referenced by z.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/javalib_native0.5_3-0.5.13-SNAPSHOT-3/scala-native/z.c.o:(scalanative_inflateReset)
+[error] ld.lld: error: undefined symbol: adler32
+[error] >>> referenced by z.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/javalib_native0.5_3-0.5.13-SNAPSHOT-3/scala-native/z.c.o:(scalanative_adler32)
+[error] ld.lld: error: undefined symbol: crc32
+[error] >>> referenced by z.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/javalib_native0.5_3-0.5.13-SNAPSHOT-3/scala-native/z.c.o:(scalanative_crc32)
+[error] ld.lld: error: undefined symbol: getgrgid
+[error] >>> referenced by grp.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/grp.c.o:(scalanative_getgrgid)
+[error] ld.lld: error: undefined symbol: getgrnam
+[error] >>> referenced by grp.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/grp.c.o:(scalanative_getgrnam)
+[error] ld.lld: error: undefined symbol: mkdtemp
+[error] >>> referenced by 67b2383.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/67b2383.ll.o:(_SM37scala.scalanative.nio.fs.FileHelpers$D38createTempDirectoryUnixImpl$$anonfun$1L18java.nio.file.PathL16java.lang.StringL29scala.scalanative.unsafe.ZoneL18java.nio.file.PathEpT37scala.scalanative.nio.fs.FileHelpers$)
+[error] ld.lld: error: undefined symbol: access
+[error] >>> referenced by 67b2383.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/67b2383.ll.o:(_SM47scala.scalanative.nio.fs.FileHelpers$$$Lambda$7D5applyL16java.lang.ObjectL16java.lang.ObjectEO)
+[error] >>> referenced by 93864833.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/93864833.ll.o:(_SM22java.io.File$$Lambda$1D5applyL16java.lang.ObjectL16java.lang.ObjectEO)
+[error] >>> referenced by 93864833.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/93864833.ll.o:(_SM22java.io.File$$Lambda$2D5applyL16java.lang.ObjectL16java.lang.ObjectEO)
+[error] >>> referenced 1 more times
+[error] ld.lld: error: undefined symbol: stat
+[error] >>> referenced by stat.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/sys/stat.c.o:(scalanative_stat)
+[error] ld.lld: error: undefined symbol: fstat
+[error] >>> referenced by stat.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/sys/stat.c.o:(scalanative_fstat)
+[error] ld.lld: error: undefined symbol: lstat
+[error] >>> referenced by stat.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/sys/stat.c.o:(scalanative_lstat)
+[error] ld.lld: error: undefined symbol: signal
+[error] >>> referenced by e798cc27.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/e798cc27.ll.o:(_SM68scala.scalanative.runtime.testinterface.signalhandling.SignalConfig$D12setHandler$1L34scala.scalanative.unsafe.CFuncPtr1L16java.lang.StringL16java.lang.StringiuEPT68scala.scalanative.runtime.testinterface.signalhandling.SignalConfig$)
+[error] >>> referenced by cb163dbb.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cb163dbb.ll.o:(_SM17java.lang.RuntimeD27setupSignalHandler$lzyINIT1L16java.lang.ObjectEPT17java.lang.Runtime)
+[error] >>> referenced by cb163dbb.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cb163dbb.ll.o:(_SM17java.lang.RuntimeD27setupSignalHandler$lzyINIT1L16java.lang.ObjectEPT17java.lang.Runtime)
+[error] ld.lld: error: undefined symbol: strsignal
+[error] >>> referenced by e798cc27.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/e798cc27.ll.o:(_SM68scala.scalanative.runtime.testinterface.signalhandling.SignalConfig$D24asyncSafePrintStackTraceiuEPT68scala.scalanative.runtime.testinterface.signalhandling.SignalConfig$)
+[error] ld.lld: error: undefined symbol: strcat
+[error] >>> referenced by e798cc27.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/e798cc27.ll.o:(_SM68scala.scalanative.runtime.testinterface.signalhandling.SignalConfig$D24asyncSafePrintStackTraceiuEPT68scala.scalanative.runtime.testinterface.signalhandling.SignalConfig$)
+[error] >>> referenced by e798cc27.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/e798cc27.ll.o:(_SM68scala.scalanative.runtime.testinterface.signalhandling.SignalConfig$D24asyncSafePrintStackTraceiuEPT68scala.scalanative.runtime.testinterface.signalhandling.SignalConfig$)
+[error] >>> referenced by e798cc27.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/e798cc27.ll.o:(_SM68scala.scalanative.runtime.testinterface.signalhandling.SignalConfig$D24asyncSafePrintStackTraceiuEPT68scala.scalanative.runtime.testinterface.signalhandling.SignalConfig$)
+[error] >>> referenced 2 more times
+[error] ld.lld: error: undefined symbol: fcntl
+[error] >>> referenced by fcntl.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/fcntl.c.o:(scalanative_fcntl)
+[error] >>> referenced by fcntl.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/fcntl.c.o:(scalanative_fcntl_i)
+[error] ld.lld: error: undefined symbol: getaddrinfo
+[error] >>> referenced by netdb.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/netdb.c.o:(scalanative_getaddrinfo)
+[error] ld.lld: error: undefined symbol: exp
+[error] >>> referenced by 373c1303.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/373c1303.ll.o:(_SM36java.util.random.ExponentialZigguratD14sampleOverhangijdEPT36java.util.random.ExponentialZiggurat)
+[error] >>> referenced by 373c1303.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/373c1303.ll.o:(_SM33java.util.random.GaussianZigguratD10edgeSamplejdEPT33java.util.random.GaussianZiggurat)
+[error] >>> referenced by 373c1303.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/373c1303.ll.o:(_SM33java.util.random.GaussianZigguratD10edgeSamplejdEPT33java.util.random.GaussianZiggurat)
+[error] >>> referenced 1 more times
+[error] ld.lld: error: undefined symbol: srand
+[error] >>> referenced by bf3d7994.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/bf3d7994.ll.o:(_SM60scala.scalanative.IssuesTest$scalanative$junit$bootstrapper$D10invokeTestL16java.lang.ObjectL16java.lang.StringL23scala.concurrent.FutureEO)
+[error] ld.lld: error: undefined symbol: imaxdiv
+[error] >>> referenced by inttypes.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/inttypes.c.o:(scalanative_inttypes_imaxdiv)
+[error] ld.lld: error: undefined symbol: cacosf
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_cacosf)
+[error] ld.lld: error: undefined symbol: cacos
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_cacos)
+[error] ld.lld: error: undefined symbol: casinf
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_casinf)
+[error] ld.lld: error: undefined symbol: casin
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_casin)
+[error] ld.lld: error: undefined symbol: catanf
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_catanf)
+[error] ld.lld: error: undefined symbol: ccosf
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_ccosf)
+[error] ld.lld: error: undefined symbol: ccos
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_ccos)
+[error] ld.lld: error: undefined symbol: csinf
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_csinf)
+[error] ld.lld: error: undefined symbol: csin
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_csin)
+[error] ld.lld: error: undefined symbol: ctanf
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_ctanf)
+[error] ld.lld: error: undefined symbol: ctan
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_ctan)
+[error] ld.lld: error: undefined symbol: cacoshf
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_cacoshf)
+[error] ld.lld: error: undefined symbol: cacosh
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_cacosh)
+[error] ld.lld: error: undefined symbol: casinhf
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_casinhf)
+[error] ld.lld: error: undefined symbol: casinh
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_casinh)
+[error] ld.lld: error: undefined symbol: catanhf
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_catanhf)
+[error] ld.lld: error: undefined symbol: catanh
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_catanh)
+[error] ld.lld: error: undefined symbol: ccoshf
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_ccoshf)
+[error] ld.lld: error: undefined symbol: ccosh
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_ccosh)
+[error] ld.lld: error: undefined symbol: csinhf
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_csinhf)
+[error] ld.lld: error: undefined symbol: csinh
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_csinh)
+[error] ld.lld: error: undefined symbol: ctanhf
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_ctanhf)
+[error] ld.lld: error: undefined symbol: ctanh
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_ctanh)
+[error] ld.lld: error: undefined symbol: cexpf
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_cexpf)
+[error] ld.lld: error: undefined symbol: cexp
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_cexp)
+[error] ld.lld: error: undefined symbol: clogf
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_clogf)
+[error] ld.lld: error: undefined symbol: clog
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_clog)
+[error] ld.lld: error: undefined symbol: cabsf
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_cabsf)
+[error] ld.lld: error: undefined symbol: cabs
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_cabs)
+[error] ld.lld: error: undefined symbol: cpowf
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_cpowf)
+[error] ld.lld: error: undefined symbol: cpow
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_cpow)
+[error] ld.lld: error: undefined symbol: csqrtf
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_csqrtf)
+[error] ld.lld: error: undefined symbol: csqrt
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_csqrt)
+[error] ld.lld: error: undefined symbol: cargf
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_cargf)
+[error] ld.lld: error: undefined symbol: carg
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_carg)
+[error] ld.lld: error: undefined symbol: cprojf
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_cprojf)
+[error] ld.lld: error: undefined symbol: cproj
+[error] >>> referenced by complex.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/clib_native0.5_3-0.5.13-SNAPSHOT-2/scala-native/complex.c.o:(scalanative_cproj)
+[error] ld.lld: error: undefined symbol: recvmsg
+[error] >>> referenced by socket.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/sys/socket.c.o:(scalanative_recvmsg)
+[error] ld.lld: error: undefined symbol: sendmsg
+[error] >>> referenced by socket.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/sys/socket.c.o:(scalanative_sendmsg)
+[error] ld.lld: error: undefined symbol: sockatmark
+[error] >>> referenced by socket.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/sys/socket.c.o:(scalanative_sockatmark)
+[error] ld.lld: error: undefined symbol: socket
+[error] >>> referenced by socket.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/sys/socket.c.o:(scalanative_socket)
+[error] ld.lld: error: undefined symbol: ioctl
+[error] >>> referenced by ioctl.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/sys/ioctl.c.o:(scalanative_ioctl)
+[error] ld.lld: error: undefined symbol: getsockopt
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM40java.net.AbstractPlainDatagramSocketImplD9getOptioniL16java.lang.ObjectEO)
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM32java.net.AbstractPlainSocketImplD9getOptioniL16java.lang.ObjectEO)
+[error] ld.lld: error: undefined symbol: getentropy
+[error] >>> referenced by 373c1303.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/373c1303.ll.o:(_SM31java.util.random.RandomSupport$D15getEntropyLongsiLAj_EPT31java.util.random.RandomSupport$)
+[error] ld.lld: error: undefined symbol: recv
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM32java.net.AbstractPlainSocketImplD4readLAb_iiiEO)
+[error] ld.lld: error: undefined symbol: send
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM32java.net.AbstractPlainSocketImplD5writeLAb_iiiEO)
+[error] ld.lld: error: undefined symbol: accept
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM32java.net.AbstractPlainSocketImplD6acceptL19java.net.SocketImpluEO)
+[error] ld.lld: error: undefined symbol: listen
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM32java.net.AbstractPlainSocketImplD6listeniuEO)
+[error] ld.lld: error: undefined symbol: shutdown
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM32java.net.AbstractPlainSocketImplD8shutdowniL15scala.Function0uEPT32java.net.AbstractPlainSocketImpl)
+[error] ld.lld: error: undefined symbol: gethostname
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM21java.net.InetAddress$D12getLocalHostL20java.net.InetAddressEO)
+[error] ld.lld: error: undefined symbol: getnameinfo
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM21java.net.InetAddress$D21ipToHost$1$$anonfun$1L31scala.scalanative.unsigned.UIntLAb_L29scala.scalanative.unsafe.ZoneL12scala.OptionEPT21java.net.InetAddress$)
+[error] ld.lld: error: undefined symbol: if_indextoname
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM26java.net.NetworkInterface$D14unixGetByIndexiL25java.net.NetworkInterfaceEPT26java.net.NetworkInterface$)
+[error] ld.lld: error: undefined symbol: getifaddrs
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM26java.net.NetworkInterface$D20unixGetByInetAddressL20java.net.InetAddressL25java.net.NetworkInterfaceEPT26java.net.NetworkInterface$)
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM26java.net.NetworkInterface$D24unixGetByName$$anonfun$1L16java.lang.StringL29scala.scalanative.unsafe.ZoneL25java.net.NetworkInterfaceEPT26java.net.NetworkInterface$)
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM26java.net.NetworkInterface$D38unixAccumulateInetAddresses$$anonfun$1L16java.lang.StringL15scala.Function1L29scala.scalanative.unsafe.ZoneuEPT26java.net.NetworkInterface$)
+[error] >>> referenced 1 more times
+[error] ld.lld: error: undefined symbol: freeifaddrs
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM26java.net.NetworkInterface$D20unixGetByInetAddressL20java.net.InetAddressL25java.net.NetworkInterfaceEPT26java.net.NetworkInterface$)
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM26java.net.NetworkInterface$D20unixGetByInetAddressL20java.net.InetAddressL25java.net.NetworkInterfaceEPT26java.net.NetworkInterface$)
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM26java.net.NetworkInterface$D24unixGetByName$$anonfun$1L16java.lang.StringL29scala.scalanative.unsafe.ZoneL25java.net.NetworkInterfaceEPT26java.net.NetworkInterface$)
+[error] >>> referenced 5 more times
+[error] ld.lld: error: undefined symbol: if_nameindex
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM26java.net.NetworkInterface$D31unixAccumulateNetworkInterfacesL15scala.Function1uEPT26java.net.NetworkInterface$)
+[error] ld.lld: error: undefined symbol: if_freenameindex
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM26java.net.NetworkInterface$D31unixAccumulateNetworkInterfacesL15scala.Function1uEPT26java.net.NetworkInterface$)
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM26java.net.NetworkInterface$D31unixAccumulateNetworkInterfacesL15scala.Function1uEPT26java.net.NetworkInterface$)
+[error] ld.lld: error: undefined symbol: if_nametoindex
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM26java.net.NetworkInterface$D38unixAccumulateInetAddresses$$anonfun$1L16java.lang.StringL15scala.Function1L29scala.scalanative.unsafe.ZoneuEPT26java.net.NetworkInterface$)
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM26java.net.NetworkInterface$D43unixAccumulateInterfaceAddresses$$anonfun$1L16java.lang.StringL15scala.Function1L29scala.scalanative.unsafe.ZoneuEPT26java.net.NetworkInterface$)
+[error] >>> referenced by dd42d030.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d030.ll.o:(_SM36java.net.NetworkInterface$$$Lambda$5D5applyL16java.lang.ObjectL16java.lang.ObjectEO)
+[error] ld.lld: error: undefined symbol: fegetround
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM31scala.scalanative.libc.FEnvTestD21setAndGetRoundingFlaguEO)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM41scala.scalanative.libc.FEnvTest$$Lambda$2D13apply$mcVI$spiuEO)
+[error] ld.lld: error: undefined symbol: fesetround
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM31scala.scalanative.libc.FEnvTestD21setAndGetRoundingFlaguEO)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM41scala.scalanative.libc.FEnvTest$$Lambda$2D13apply$mcVI$spiuEO)
+[error] ld.lld: error: undefined symbol: feclearexcept
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM31scala.scalanative.libc.FEnvTestD46raiseCheckClearException$$anonfun$1$$anonfun$1L31scala.collection.immutable.ListuEpT31scala.scalanative.libc.FEnvTest)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM31scala.scalanative.libc.FEnvTestD46raiseCheckClearException$$anonfun$1$$anonfun$1L31scala.collection.immutable.ListuEpT31scala.scalanative.libc.FEnvTest)
+[error] ld.lld: error: undefined symbol: feraiseexcept
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM31scala.scalanative.libc.FEnvTestD46raiseCheckClearException$$anonfun$1$$anonfun$1L31scala.collection.immutable.ListuEpT31scala.scalanative.libc.FEnvTest)
+[error] ld.lld: error: undefined symbol: fetestexcept
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM31scala.scalanative.libc.FEnvTestD46raiseCheckClearException$$anonfun$1$$anonfun$1L31scala.collection.immutable.ListuEpT31scala.scalanative.libc.FEnvTest)
+[error] ld.lld: error: undefined symbol: imaxabs
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM35scala.scalanative.libc.IntTypesTestD22testImaxabs$$anonfun$1iuEpT35scala.scalanative.libc.IntTypesTest)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM35scala.scalanative.libc.IntTypesTestD22testImaxabs$$anonfun$1iuEpT35scala.scalanative.libc.IntTypesTest)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM35scala.scalanative.libc.IntTypesTestD22testImaxabs$$anonfun$1iuEpT35scala.scalanative.libc.IntTypesTest)
+[error] >>> referenced 3 more times
+[error] ld.lld: error: undefined symbol: strtoimax
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM45scala.scalanative.libc.IntTypesTest$$Lambda$3D9applyVoidL16java.lang.ObjectuEO)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM45scala.scalanative.libc.IntTypesTest$$Lambda$4D9applyVoidL16java.lang.ObjectuEO)
+[error] ld.lld: error: undefined symbol: log1p
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD18wellKnownLogValuesuEO)
+[error] ld.lld: error: undefined symbol: log10
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD20changeLogBaseFormulauEO)
+[error] >>> referenced by cb16b2d5.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cb16b2d5.ll.o:(_SM20java.math.BigDecimalD10smallRoundL21java.math.MathContextiuEPT20java.math.BigDecimal)
+[error] >>> referenced by cb16b2d5.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cb16b2d5.ll.o:(_SM20java.math.BigDecimalD3powiL21java.math.MathContextL20java.math.BigDecimalEO)
+[error] ld.lld: error: undefined symbol: log2
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD20changeLogBaseFormulauEO)
+[error] ld.lld: error: undefined symbol: log10f
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD20changeLogBaseFormulauEO)
+[error] ld.lld: error: undefined symbol: log2f
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD20changeLogBaseFormulauEO)
+[error] ld.lld: error: undefined symbol: cosh
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD22hyperbolics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD22hyperbolics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD22hyperbolics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] ld.lld: error: undefined symbol: sinh
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD22hyperbolics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD22hyperbolics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD22hyperbolics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] ld.lld: error: undefined symbol: tanh
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD22hyperbolics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] ld.lld: error: undefined symbol: pow
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD23cbrtOfNCubedIsEqualsToNuEO)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD23cbrtOfNCubedIsEqualsToNuEO)
+[error] ld.lld: error: undefined symbol: cbrt
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD23cbrtOfNCubedIsEqualsToNuEO)
+[error] >>> referenced by cb163dbb.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cb163dbb.ll.o:(_SM14java.lang.MathD4cbrtddEo)
+[error] ld.lld: error: undefined symbol: cbrtf
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD23cbrtOfNCubedIsEqualsToNuEO)
+[error] ld.lld: error: undefined symbol: sin
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD25trigonometrics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD25trigonometrics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD25trigonometrics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] >>> referenced 7 more times
+[error] ld.lld: error: undefined symbol: sinf
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD25trigonometrics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD25trigonometrics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD25trigonometrics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] ld.lld: error: undefined symbol: cos
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD25trigonometrics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD25trigonometrics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD29wellKnownTrigonometricsValuesuEO)
+[error] >>> referenced 4 more times
+[error] ld.lld: error: undefined symbol: tan
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD25trigonometrics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD33inversedTrigonometrics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] ld.lld: error: undefined symbol: cosf
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD25trigonometrics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] ld.lld: error: undefined symbol: tanf
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD25trigonometrics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] ld.lld: error: undefined symbol: hypot
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD27hypot$$anonfun$1$$anonfun$1dduEpT33scala.scalanative.libc.TGMathTest)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD27hypot$$anonfun$1$$anonfun$1dduEpT33scala.scalanative.libc.TGMathTest)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD27hypot$$anonfun$1$$anonfun$1dduEpT33scala.scalanative.libc.TGMathTest)
+[error] >>> referenced 3 more times
+[error] ld.lld: error: undefined symbol: hypotf
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD27hypot$$anonfun$1$$anonfun$1dduEpT33scala.scalanative.libc.TGMathTest)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD27hypot$$anonfun$1$$anonfun$1dduEpT33scala.scalanative.libc.TGMathTest)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD27hypot$$anonfun$1$$anonfun$1dduEpT33scala.scalanative.libc.TGMathTest)
+[error] >>> referenced 2 more times
+[error] ld.lld: error: undefined symbol: scalbn
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD28scalbn$$anonfun$1$$anonfun$1diuEpT33scala.scalanative.libc.TGMathTest)
+[error] ld.lld: error: undefined symbol: scalbnf
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD28scalbn$$anonfun$1$$anonfun$1diuEpT33scala.scalanative.libc.TGMathTest)
+[error] ld.lld: error: undefined symbol: scalbln
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD28scalbn$$anonfun$1$$anonfun$1diuEpT33scala.scalanative.libc.TGMathTest)
+[error] ld.lld: error: undefined symbol: scalblnf
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD28scalbn$$anonfun$1$$anonfun$1diuEpT33scala.scalanative.libc.TGMathTest)
+[error] ld.lld: error: undefined symbol: ldexp
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD29wellKnownTrigonometricsValuesuEO)
+[error] ld.lld: error: undefined symbol: asin
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD33inversedTrigonometrics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] ld.lld: error: undefined symbol: acos
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD33inversedTrigonometrics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] ld.lld: error: undefined symbol: atan
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD33inversedTrigonometrics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD33inversedTrigonometrics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD33inversedTrigonometrics$$anonfun$1duEpT33scala.scalanative.libc.TGMathTest)
+[error] ld.lld: error: undefined symbol: lgamma
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD5gammauEO)
+[error] ld.lld: error: undefined symbol: tgamma
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD5gammauEO)
+[error] ld.lld: error: undefined symbol: log
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD5gammauEO)
+[error] >>> referenced by cb16b2d5.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cb16b2d5.ll.o:(_SM21java.math.Conversion$D17bigInteger2StringL20java.math.BigIntegeriL16java.lang.StringEO)
+[error] >>> referenced by cb1a9bcf.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cb1a9bcf.ll.o:(_SM16java.util.RandomD12nextGaussiandEO)
+[error] ld.lld: error: undefined symbol: copysign
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD8copysignuEO)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD8copysignuEO)
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM33scala.scalanative.libc.TGMathTestD8copysignuEO)
+[error] ld.lld: error: undefined symbol: fma
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM44scala.scalanative.libc.TGMathTest$$Lambda$35D13apply$mcVD$spduEO)
+[error] ld.lld: error: undefined symbol: fmaf
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM44scala.scalanative.libc.TGMathTest$$Lambda$35D13apply$mcVD$spduEO)
+[error] ld.lld: error: undefined symbol: fdim
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM44scala.scalanative.libc.TGMathTest$$Lambda$38D13apply$mcVD$spduEO)
+[error] ld.lld: error: undefined symbol: fdimf
+[error] >>> referenced by b89c6219.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b89c6219.ll.o:(_SM44scala.scalanative.libc.TGMathTest$$Lambda$38D13apply$mcVD$spduEO)
+[error] ld.lld: error: undefined symbol: opendir
+[error] >>> referenced by dirent.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/dirent.c.o:(scalanative_opendir)
+[error] ld.lld: error: undefined symbol: readdir
+[error] >>> referenced by dirent.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/dirent.c.o:(scalanative_readdirImpl)
+[error] ld.lld: error: undefined symbol: closedir
+[error] >>> referenced by dirent.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/posixlib_native0.5_3-0.5.13-SNAPSHOT-4/scala-native/dirent.c.o:(scalanative_closedir)
+[error] ld.lld: error: undefined symbol: chown
+[error] >>> referenced by 89bf2831.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/89bf2831.ll.o:(_SM50java.nio.file.attribute.PosixFileAttributeViewImplD19setGroup$$anonfun$1L38java.nio.file.attribute.GroupPrincipalL29scala.scalanative.unsafe.ZoneuEPT50java.nio.file.attribute.PosixFileAttributeViewImpl)
+[error] >>> referenced by 89bf2831.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/89bf2831.ll.o:(_SM50java.nio.file.attribute.PosixFileAttributeViewImplD19setOwner$$anonfun$1L37java.nio.file.attribute.UserPrincipalL29scala.scalanative.unsafe.ZoneuEPT50java.nio.file.attribute.PosixFileAttributeViewImpl)
+[error] ld.lld: error: undefined symbol: utimensat
+[error] >>> referenced by 89bf2831.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/89bf2831.ll.o:(_SM50java.nio.file.attribute.PosixFileAttributeViewImplD19setTimes$$anonfun$1L32java.nio.file.attribute.FileTimeL32java.nio.file.attribute.FileTimeL29scala.scalanative.unsafe.ZoneuEPT50java.nio.file.attribute.PosixFileAttributeViewImpl)
+[error] ld.lld: error: undefined symbol: chmod
+[error] >>> referenced by 89bf2831.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/89bf2831.ll.o:(_SM50java.nio.file.attribute.PosixFileAttributeViewImplD25setPermissions$$anonfun$1L13java.util.SetL29scala.scalanative.unsafe.ZoneuEPT50java.nio.file.attribute.PosixFileAttributeViewImpl)
+[error] >>> referenced by 93864833.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/93864833.ll.o:(_SM12java.io.FileD22setReadOnly$$anonfun$1L29scala.scalanative.unsafe.ZonezEPT12java.io.File)
+[error] >>> referenced by 93864833.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/93864833.ll.o:(_SM12java.io.FileD32updatePermissionsUnix$$anonfun$1zL31scala.scalanative.unsigned.UIntL29scala.scalanative.unsafe.ZonezEPT12java.io.File)
+[error] ld.lld: error: undefined symbol: unlink
+[error] >>> referenced by 2bbec5e4.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/2bbec5e4.ll.o:(_SM20java.nio.file.Files$D12openTarget$1L28scala.scalanative.unsafe.PtrzL31scala.scalanative.unsigned.UIntiEPT20java.nio.file.Files$)
+[error] >>> referenced by 2bbec5e4.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/2bbec5e4.ll.o:(_SM20java.nio.file.Files$D23unixCopyFile$$anonfun$1L18java.nio.file.PathL18java.nio.file.PathL13java.util.SetLAL24java.nio.file.CopyOption_L29scala.scalanative.unsafe.ZoneL16java.lang.ObjectEPT20java.nio.file.Files$)
+[error] >>> referenced by 93864833.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/93864833.ll.o:(_SM22java.io.File$$Lambda$8D5applyL16java.lang.ObjectL16java.lang.ObjectEO)
+[error] ld.lld: error: undefined symbol: lseek
+[error] >>> referenced by 82c48038.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/82c48038.ll.o:(_SM33java.nio.channels.FileChannelImplD14compelPositionjL29java.nio.channels.FileChannelEPT33java.nio.channels.FileChannelImpl)
+[error] >>> referenced by 82c48038.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/82c48038.ll.o:(_SM33java.nio.channels.FileChannelImplD7seekEOFuEPT33java.nio.channels.FileChannelImpl)
+[error] >>> referenced by 82c48038.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/82c48038.ll.o:(_SM33java.nio.channels.FileChannelImplD8positionjEO)
+[error] >>> referenced 1 more times
+[error] ld.lld: error: undefined symbol: rename
+[error] >>> referenced by 2bbec5e4.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/2bbec5e4.ll.o:(_SM20java.nio.file.Files$D19moveImpl$$anonfun$1L18java.nio.file.PathL18java.nio.file.PathzL15scala.Function0L29scala.scalanative.unsafe.ZoneuEpT20java.nio.file.Files$)
+[error] ld.lld: error: undefined symbol: link
+[error] >>> referenced by 2bbec5e4.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/2bbec5e4.ll.o:(_SM20java.nio.file.Files$D21createLink$$anonfun$1L18java.nio.file.PathL18java.nio.file.PathL29scala.scalanative.unsafe.ZoneL18java.nio.file.PathEpT20java.nio.file.Files$)
+[error] ld.lld: error: undefined symbol: ftruncate
+[error] >>> referenced by 82c48038.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/82c48038.ll.o:(_SM33java.nio.channels.FileChannelImplD8lengthenjuEPT33java.nio.channels.FileChannelImpl)
+[error] >>> referenced by 82c48038.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/82c48038.ll.o:(_SM33java.nio.channels.FileChannelImplD8truncatejL29java.nio.channels.FileChannelEO)
+[error] ld.lld: error: undefined symbol: remove
+[error] >>> referenced by 2bbec5e4.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/2bbec5e4.ll.o:(_SM20java.nio.file.Files$D25unixDeletePath$$anonfun$1L18java.nio.file.PathL29scala.scalanative.unsafe.ZoneuEpT20java.nio.file.Files$)
+[error] >>> referenced by 93864833.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/93864833.ll.o:(_SM22java.io.File$$Lambda$7D5applyL16java.lang.ObjectL16java.lang.ObjectEO)
+[error] >>> referenced by b10db25d.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/b10db25d.ll.o:(_SM49scala.scalanative.runtime.DeleteOnExit$$$Lambda$2D5applyL16java.lang.ObjectL16java.lang.ObjectEO)
+[error] ld.lld: error: undefined symbol: readlink
+[error] >>> referenced by 2bbec5e4.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/2bbec5e4.ll.o:(_SM20java.nio.file.Files$D27readSymbolicLink$$anonfun$1L18java.nio.file.PathL29scala.scalanative.unsafe.ZoneL18java.nio.file.PathEpT20java.nio.file.Files$)
+[error] >>> referenced by 93864833.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/93864833.ll.o:(_SM13java.io.File$D8readLinkL28scala.scalanative.unsafe.PtrL29scala.scalanative.unsafe.ZoneL28scala.scalanative.unsafe.PtrEPT13java.io.File$)
+[error] ld.lld: error: undefined symbol: symlink
+[error] >>> referenced by 2bbec5e4.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/2bbec5e4.ll.o:(_SM31java.nio.file.Files$$$Lambda$21D5applyL16java.lang.ObjectL16java.lang.ObjectEO)
+[error] ld.lld: error: undefined symbol: floor
+[error] >>> referenced by 69372a31.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/69372a31.ll.o:(_SM19scala.math.package$D5rounddjEO)
+[error] ld.lld: error: undefined symbol: floorf
+[error] >>> referenced by 69372a31.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/69372a31.ll.o:(_SM19scala.math.package$D5roundfiEO)
+[error] ld.lld: error: undefined symbol: rand
+[error] >>> referenced by 12b61281.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/12b61281.ll.o:(_SM50scala.scalanative.unsafe.CFuncPtrOpsTest$$Lambda$1G17$extern$forwarder)
+[error] ld.lld: error: undefined symbol: msync
+[error] >>> referenced by dd42d0a7.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/dd42d0a7.ll.o:(_SM29java.nio.MappedByteBufferDataD5forceuEO)
+[error] ld.lld: error: undefined symbol: realpath
+[error] >>> referenced by 93864833.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/93864833.ll.o:(_SM12java.io.FileD20simplifyExistingPathL16java.lang.StringL29scala.scalanative.unsafe.ZoneL16java.lang.StringEPT12java.io.File)
+[error] ld.lld: error: undefined symbol: strncat
+[error] >>> referenced by 93864833.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/93864833.ll.o:(_SM13java.io.File$D11resolveLinkL28scala.scalanative.unsafe.PtrzzL29scala.scalanative.unsafe.ZoneL28scala.scalanative.unsafe.PtrEPT13java.io.File$)
+[error] ld.lld: error: undefined symbol: fsync
+[error] >>> referenced by 93864833.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/93864833.ll.o:(_SM22java.io.FileDescriptorD4syncuEO)
+[error] ld.lld: error: undefined symbol: _setjmp
+[error] >>> referenced by delimcc.c
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/dependencies/nativelib_native0.5_3-0.5.13-SNAPSHOT-1/scala-native/delimcc.c.o:(scalanative_continuation_resume)
+[error] ld.lld: error: undefined symbol: optind
+[error] >>> referenced by 12b61281.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/12b61281.ll.o:(_SM35scala.scalanative.unsafe.ExternTestD42externVariableReadAndAssignUnix$$anonfun$1L30scala.collection.immutable.SeqL29scala.scalanative.unsafe.ZoneuEpT35scala.scalanative.unsafe.ExternTest)
+[error] ld.lld: error: undefined symbol: getopt
+[error] >>> referenced by 12b61281.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/12b61281.ll.o:(_SM35scala.scalanative.unsafe.ExternTestD42externVariableReadAndAssignUnix$$anonfun$1L30scala.collection.immutable.SeqL29scala.scalanative.unsafe.ZoneuEpT35scala.scalanative.unsafe.ExternTest)
+[error] >>> referenced by 12b61281.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/12b61281.ll.o:(_SM35scala.scalanative.unsafe.ExternTestD42externVariableReadAndAssignUnix$$anonfun$1L30scala.collection.immutable.SeqL29scala.scalanative.unsafe.ZoneuEpT35scala.scalanative.unsafe.ExternTest)
+[error] ld.lld: error: undefined symbol: optarg
+[error] >>> referenced by 12b61281.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/12b61281.ll.o:(_SM35scala.scalanative.unsafe.ExternTestD42externVariableReadAndAssignUnix$$anonfun$1L30scala.collection.immutable.SeqL29scala.scalanative.unsafe.ZoneuEpT35scala.scalanative.unsafe.ExternTest)
+[error] ld.lld: error: undefined symbol: strtod
+[error] >>> referenced by cb163dbb.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cb163dbb.ll.o:(_SM27java.lang.Double$$$Lambda$1D5applyL16java.lang.ObjectL16java.lang.ObjectL16java.lang.ObjectEO)
+[error] ld.lld: error: undefined symbol: strtof
+[error] >>> referenced by cb163dbb.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cb163dbb.ll.o:(_SM26java.lang.Float$$$Lambda$1D5applyL16java.lang.ObjectL16java.lang.ObjectL16java.lang.ObjectEO)
+[error] ld.lld: error: undefined symbol: nextafter
+[error] >>> referenced by cb163dbb.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cb163dbb.ll.o:(_SM15java.lang.Math$D3ulpddEO)
+[error] >>> referenced by cb163dbb.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cb163dbb.ll.o:(_SM15java.lang.Math$D9nextAfterdddEO)
+[error] >>> referenced by cb163dbb.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cb163dbb.ll.o:(_SM15java.lang.Math$D9nextAfterdddEO)
+[error] ld.lld: error: undefined symbol: nextafterf
+[error] >>> referenced by cb163dbb.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cb163dbb.ll.o:(_SM15java.lang.Math$D3ulpffEO)
+[error] >>> referenced by cb163dbb.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cb163dbb.ll.o:(_SM15java.lang.Math$D9nextAfterfdfEO)
+[error] >>> referenced by cb163dbb.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cb163dbb.ll.o:(_SM15java.lang.Math$D9nextAfterfdfEO)
+[error] ld.lld: error: undefined symbol: ceilf
+[error] >>> referenced by cb1a9bcf.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cb1a9bcf.ll.o:(_SM18java.util.HashMap$D10newHashMapiL17java.util.HashMapEO)
+[error] >>> referenced by cb1a9bcf.ll
+[error] >>>               /src/target/out/native0.5/scala-3.10.0/tests/native-test/generated/cb1a9bcf.ll.o:(_SM18java.util.HashSet$D10newHashSetiL17java.util.HashSetEO)
+[error] clang: error: linker command failed with exit code 1 (use -v to see invocation)
+[info] Total (245624 ms)
+[error] Failed to link /src/target/out/native0.5/scala-3.10.0/tests/native-test/scala.scalanative.testinterface.TestMain-test
+[error] (tests3 / Test / nativeLink) Failed to link /src/target/out/native0.5/scala-3.10.0/tests/native-test/scala.scalanative.testinterface.TestMain-test
+[error] elapsed time: 256 s (0:04:16.0), cache 99%, 394 disk cache hits, 1 onsite task

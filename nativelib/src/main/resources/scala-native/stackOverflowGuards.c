@@ -360,9 +360,14 @@ void scalanative_StackOverflowGuards_close() {
 #else
     unprotectStackGuardPage();
     currentThreadInfo.stackGuardPage = NULL;
-    if (currentThreadInfo.signalHandlerStack) {
-        free(currentThreadInfo.signalHandlerStack);
+    void *signalHandlerStack = currentThreadInfo.signalHandlerStack;
+    if (signalHandlerStack) {
         currentThreadInfo.signalHandlerStack = NULL;
+        // The kernel would keep delivering signals to the freed memory
+        stack_t disabled = {};
+        disabled.ss_flags = SS_DISABLE;
+        if (sigaltstack(&disabled, NULL) == 0)
+            free(signalHandlerStack);
     }
 #endif
 }

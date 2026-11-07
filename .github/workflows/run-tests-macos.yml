@@ -45,7 +45,17 @@ jobs:
         env:
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
           SCALANATIVE_MODE: ${{ matrix.build-mode }}
-        run: sbt "test-runtime ${{matrix.scala}}"
+        run: |
+          scripts/ci/hang-watchdog.sh "$RUNNER_TEMP/hang-dumps" &
+          sbt "test-runtime ${{matrix.scala}}"
+
+      - name: Upload hang diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: hang-dumps-runtime-${{ matrix.scala }}-${{ matrix.build-mode }}
+          path: ${{ runner.temp }}/hang-dumps
+          if-no-files-found: ignore
 
       - name: Test partests infrastructure
         # No partests support for Scala 3
@@ -113,7 +123,17 @@ jobs:
             junitTestOutputsJVM${{env.project-version}}/test;
             junitTestOutputsNative${{env.project-version}}/test;
             scalaPartestJunitTests${{env.project-version}}/test
-        run: sbt -J-Xmx5G "${TEST_COMMAND}"
+        run: |
+          scripts/ci/hang-watchdog.sh "$RUNNER_TEMP/hang-dumps" &
+          sbt -J-Xmx5G "${TEST_COMMAND}"
+
+      - name: Upload hang diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: hang-dumps-runtime-ext-${{ matrix.scala }}-${{ matrix.build-mode }}-${{ matrix.lto }}-${{ matrix.gc }}
+          path: ${{ runner.temp }}/hang-dumps
+          if-no-files-found: ignore
 
   run-scripted-tests:
     name: Scripted tests
@@ -154,4 +174,14 @@ jobs:
         # env:
         #   SCALANATIVE_MODE: release-fast
         #   SCALANATIVE_LTO: thin
-        run: sbt "test-runtime ${{ matrix.scala }}"
+        run: |
+          scripts/ci/hang-watchdog.sh "$RUNNER_TEMP/hang-dumps" &
+          sbt "test-runtime ${{ matrix.scala }}"
+
+      - name: Upload hang diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: hang-dumps-llvm-${{ matrix.scala }}-${{ matrix.llvm }}
+          path: ${{ runner.temp }}/hang-dumps
+          if-no-files-found: ignore

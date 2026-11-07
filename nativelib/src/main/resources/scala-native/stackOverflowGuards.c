@@ -461,7 +461,55 @@ void scalanative_StackOverflowGuards_reset() {
     protectStackGuardPage();
 }
 
+// Repro-only: report a signal state that would make a guard fault fatal.
+extern int scalanative_diag_page_protection(void *addr);
+void scalanative_StackOverflowGuards_diag(const char *where) {
+    ThreadInfo *ti = &currentThreadInfo;
+    if (ti->stackGuardPage == NULL && ti->signalHandlerStack == NULL)
+        return; // not a Scala Native managed thread
+    int dummy;
+    stack_t ss;
+    if (sigaltstack(NULL, &ss) == 0) {
+        if ((ss.ss_flags & (SS_ONSTACK | SS_DISABLE)) ||
+            ss.ss_sp != ti->signalHandlerStack)
+            fprintf(stderr,
+                    "[SN-DIAG] %s: bad altstack sp=%p size=%zu flags=0x%x "
+                    "expected=%p sp_now=%p\n",
+                    where, ss.ss_sp, (size_t)ss.ss_size, ss.ss_flags,
+                    ti->signalHandlerStack, (void *)&dummy);
+    }
+    int sigs[2] = {SIGSEGV, SIGBUS};
+    for (int i = 0; i < 2; i++) {
+        struct sigaction sa;
+        if (sigaction(sigs[i], NULL, &sa) == 0 &&
+            (!(sa.sa_flags & SA_ONSTACK) ||
+             (void *)sa.sa_sigaction != (void *)stackOverflowHandler))
+            fprintf(stderr,
+                    "[SN-DIAG] %s: signal %d handler=%p flags=0x%x "
+                    "(expected %p with SA_ONSTACK)\n",
+                    where, sigs[i], (void *)sa.sa_sigaction, sa.sa_flags,
+                    (void *)stackOverflowHandler);
+    }
+    if (ti->pendingStackOverflowException)
+        fprintf(stderr, "[SN-DIAG] %s: pending StackOverflowError\n", where);
+    if (ti->stackGuardPage == NULL) {
+        fprintf(stderr, "[SN-DIAG] %s: no guard page\n", where);
+    } else {
+        int prot = scalanative_diag_page_protection(ti->stackGuardPage);
+        if (prot != 0)
+            fprintf(stderr,
+                    "[SN-DIAG] %s: guard page %p prot=%d stack=[%p, %p] "
+                    "sp_now=%p\n",
+                    where, ti->stackGuardPage, prot, ti->stackTop,
+                    ti->stackBottom, (void *)&dummy);
+    }
+}
+
 #endif // Unix
+
+#ifdef _WIN32
+void scalanative_StackOverflowGuards_diag(const char *where) { (void)where; }
+#endif
 
 void scalanative_StackOverflowGuards_check() {
     if (currentThreadInfo.pendingStackOverflowException) {

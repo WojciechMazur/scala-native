@@ -121,7 +121,9 @@ object ScalaNativePluginInternal {
       checkJVMVersion(sLog.value)
       onLoad.value
     },
-    nativeConfig := {
+    // Discover reads the environment (SCALANATIVE_GC, SCALANATIVE_MODE, ...),
+    // which sbt 2 does not track: a cached result would ignore changed env vars.
+    nativeConfig := Def.uncached {
       build.NativeConfig.empty
         .withClang(interceptBuildException(Discover.clang()))
         .withClangPP(interceptBuildException(Discover.clangpp()))

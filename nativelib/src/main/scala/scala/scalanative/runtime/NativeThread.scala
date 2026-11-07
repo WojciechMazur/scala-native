@@ -206,6 +206,14 @@ object NativeThread {
   }
   @alwaysinline def currentNativeThread: NativeThread = TLS.currentNativeThread
 
+  /** True while the current OS thread runs Scala code entered from native code
+   *  through a guarded entry (an exported function or a `CFuncPtr` callback).
+   *  The managed scope and the native frames below it belong to this carrier,
+   *  so a virtual thread must not unmount until the callback returns.
+   */
+  @alwaysinline def isInsideNativeCallback: Boolean =
+    isMultithreadingEnabled && TLS.inManagedScope() != 0
+
   // Adoption is called only after the C attachment layer has admitted the
   // current OS thread. It creates no OS worker and installs no stack guards.
   def bindExternalThread(nativeThread: NativeThread): Unit = {
@@ -355,6 +363,9 @@ object NativeThread {
         stackSize: Int, // ignored if main thread
         isMainThread: Boolean
     ): Unit = extern
+
+    @name("scalanative_in_managed_scope")
+    def inManagedScope(): Int = extern
 
     @name("scalanative_currentThreadInfo")
     private[runtime] def currentThreadInfo(): Ptr[ThreadInfo] = extern

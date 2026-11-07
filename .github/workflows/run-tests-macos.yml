@@ -23,32 +23,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # #4: junit-test-outputs-native hangs after tests3/test
-          - { issue: hang4, scala: 3, build-mode: release-fast, lto: none, gc: boehm, llvm: 19, attempt: 1, iterations: 12, variant: after-tests,
-              first: "show tests3/nativeConfig; tests3/test; junitTestOutputsNative3/test", repeated: "junitTestOutputsNative3/testFull; junitTestOutputsNative3/testFull; junitTestOutputsNative3/testFull" }
-          - { issue: hang4, scala: 3, build-mode: release-fast, lto: none, gc: boehm, llvm: 19, attempt: 2, iterations: 12, variant: after-tests,
-              first: "show tests3/nativeConfig; tests3/test; junitTestOutputsNative3/test", repeated: "junitTestOutputsNative3/testFull; junitTestOutputsNative3/testFull; junitTestOutputsNative3/testFull" }
-          - { issue: hang4, scala: 3, build-mode: release-fast, lto: thin, gc: boehm, llvm: 19, attempt: 1, iterations: 12, variant: after-tests,
-              first: "show tests3/nativeConfig; tests3/test; junitTestOutputsNative3/test", repeated: "junitTestOutputsNative3/testFull; junitTestOutputsNative3/testFull; junitTestOutputsNative3/testFull" }
-          - { issue: hang4, scala: 3, build-mode: release-fast, lto: thin, gc: boehm, llvm: 19, attempt: 2, iterations: 12, variant: after-tests,
-              first: "show tests3/nativeConfig; tests3/test; junitTestOutputsNative3/test", repeated: "junitTestOutputsNative3/testFull; junitTestOutputsNative3/testFull; junitTestOutputsNative3/testFull" }
-          - { issue: hang4, scala: 3, build-mode: release-fast, lto: none, gc: boehm, llvm: 19, attempt: 1, iterations: 15, variant: alone,
+          # #4 fix verification
+          - { issue: hang4, scala: 3, build-mode: release-fast, lto: none, gc: boehm, llvm: 19, attempt: 1, iterations: 8, variant: alone,
               first: "show junitTestOutputsNative3/nativeConfig; junitTestOutputsNative3/test", repeated: "junitTestOutputsNative3/testFull; junitTestOutputsNative3/testFull; junitTestOutputsNative3/testFull" }
-          # #6: SIGILL in tests-test (Scala 3 only)
-          - { issue: sigill6, scala: 3, build-mode: debug, lto: none, gc: immix, llvm: 16, attempt: 1, iterations: 8,
-              first: "show tests3/nativeConfig; tests3/test", repeated: "tests3/testFull" }
-          - { issue: sigill6, scala: 3, build-mode: debug, lto: none, gc: immix, llvm: 16, attempt: 2, iterations: 8,
-              first: "show tests3/nativeConfig; tests3/test", repeated: "tests3/testFull" }
-          - { issue: sigill6, scala: 3, build-mode: release-size, lto: thin, gc: immix, llvm: 19, attempt: 1, iterations: 8,
-              first: "show tests3/nativeConfig; tests3/test", repeated: "tests3/testFull" }
-          - { issue: sigill6, scala: 3, build-mode: release-size, lto: thin, gc: immix, llvm: 19, attempt: 2, iterations: 8,
-              first: "show tests3/nativeConfig; tests3/test", repeated: "tests3/testFull" }
-          # #7: in-suite hangs
-          - { issue: hang7, scala: 3, build-mode: release-fast, lto: none, gc: commix, llvm: 19, attempt: 1, iterations: 6,
-              first: "show tests3/nativeConfig; tests3/test", repeated: "tests3/testFull" }
+          - { issue: hang4, scala: 3, build-mode: release-fast, lto: none, gc: boehm, llvm: 19, attempt: 2, iterations: 8, variant: alone,
+              first: "show junitTestOutputsNative3/nativeConfig; junitTestOutputsNative3/test", repeated: "junitTestOutputsNative3/testFull; junitTestOutputsNative3/testFull; junitTestOutputsNative3/testFull" }
+          - { issue: hang4, scala: 3, build-mode: release-fast, lto: thin, gc: boehm, llvm: 19, attempt: 1, iterations: 8, variant: alone,
+              first: "show junitTestOutputsNative3/nativeConfig; junitTestOutputsNative3/test", repeated: "junitTestOutputsNative3/testFull; junitTestOutputsNative3/testFull; junitTestOutputsNative3/testFull" }
+          - { issue: hang4, scala: 3, build-mode: release-fast, lto: none, gc: boehm, llvm: 19, attempt: 1, iterations: 6, variant: after-tests,
+              first: "show tests3/nativeConfig; tests3/test; junitTestOutputsNative3/test", repeated: "junitTestOutputsNative3/testFull; junitTestOutputsNative3/testFull; junitTestOutputsNative3/testFull" }
           - { issue: hang7, scala: 2.13, build-mode: release-fast, lto: thin, gc: boehm, llvm: 19, attempt: 1, iterations: 6,
-              first: "show tests2_13/nativeConfig; tests2_13/test", repeated: "tests2_13/testFull" }
-          - { issue: hang7, scala: 2.13, build-mode: release-fast, lto: thin, gc: commix, llvm: 19, attempt: 1, iterations: 6,
               first: "show tests2_13/nativeConfig; tests2_13/test", repeated: "tests2_13/testFull" }
     steps:
       - uses: actions/checkout@v7

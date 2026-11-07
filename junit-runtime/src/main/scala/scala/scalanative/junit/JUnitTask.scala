@@ -76,7 +76,6 @@ private[junit] final class JUnitTask(
     } { _ => catchAll(bootstrapper.afterClass()) }
 
     val (errors, timeInSeconds) = result
-    SignalStateDiag.check(s"after ${taskDef().fullyQualifiedName()}.${test.name}")
 
     errors match {
       case e :: Nil if isAssumptionViolation(e) =>
@@ -116,6 +115,7 @@ private[junit] final class JUnitTask(
     } { instance => catchAll(bootstrapper.after(instance)) }
 
     val (errors, timeInSeconds) = result
+    SignalStateDiag.check(s"after ${taskDef().fullyQualifiedName()}.${test.name}")
 
     val failed = errors match {
       case e :: Nil if isAssumptionViolation(e) =>

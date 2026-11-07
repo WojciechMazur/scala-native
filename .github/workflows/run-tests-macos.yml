@@ -57,6 +57,11 @@ jobs:
           path: ${{ runner.temp }}/hang-dumps
           if-no-files-found: ignore
 
+      - uses: ./.github/actions/macos-upload-crash-reports
+        if: failure()
+        with:
+          name: test-runtime-${{ matrix.scala }}-${{ matrix.build-mode }}
+
       - name: Test partests infrastructure
         # No partests support for Scala 3
         if: ${{ !startsWith(matrix.scala, '3') }}
@@ -135,6 +140,11 @@ jobs:
           path: ${{ runner.temp }}/hang-dumps
           if-no-files-found: ignore
 
+      - uses: ./.github/actions/macos-upload-crash-reports
+        if: failure()
+        with:
+          name: test-runtime-ext-${{ matrix.scala }}-${{ matrix.build-mode }}-${{ matrix.lto }}-${{ matrix.gc }}
+
   run-scripted-tests:
     name: Scripted tests
     if: github.event_name == 'pull_request' || ((github.event_name == 'schedule' || github.event_name == 'workflow_call') && github.repository == 'scala-native/scala-native')
@@ -185,3 +195,8 @@ jobs:
           name: hang-dumps-llvm-${{ matrix.scala }}-${{ matrix.llvm }}
           path: ${{ runner.temp }}/hang-dumps
           if-no-files-found: ignore
+
+      - uses: ./.github/actions/macos-upload-crash-reports
+        if: failure()
+        with:
+          name: test-llvm-versions-${{ matrix.scala }}-${{ matrix.llvm }}

@@ -3,7 +3,12 @@
 #include <windows.h>
 #include <malloc.h>
 #else // Unix
+// _GNU_SOURCE exposes REG_RSP/REG_RIP on Linux (must be before any includes)
+#if defined(__linux__) && !defined(_GNU_SOURCE)
+#define _GNU_SOURCE
+#endif
 #include <sys/resource.h>
+#include <sys/ucontext.h>
 #include <sys/mman.h>
 #include <signal.h>
 #include <unistd.h>
@@ -301,6 +306,115 @@ static void setupSignalHandlerAltstack() {
     currentThreadInfo.signalHandlerStack = handlerStack.ss_sp;
     currentThreadInfo.signalHandlerStackSize = handlerStack.ss_size;
 }
+static struct sigaction previousFatalSignalHandlers[2];
+static struct sigaction *resolvePreviousFatalSignalHandler(int sig) {
+    switch (sig) {
+    case SIGILL:
+        return &previousFatalSignalHandlers[0];
+    case SIGTRAP:
+        return &previousFatalSignalHandlers[1];
+    default:
+        return NULL;
+    }
+}
+
+static void *contextStackPointer(void *context) {
+    if (context == NULL)
+        return NULL;
+    ucontext_t *uc = (ucontext_t *)context;
+#if defined(__APPLE__) && defined(__aarch64__)
+    return (void *)uc->uc_mcontext->__ss.__sp;
+#elif defined(__APPLE__) && defined(__x86_64__)
+    return (void *)uc->uc_mcontext->__ss.__rsp;
+#elif defined(__linux__) && defined(__aarch64__)
+    return (void *)uc->uc_mcontext.sp;
+#elif defined(__linux__) && defined(__x86_64__)
+    return (void *)uc->uc_mcontext.gregs[REG_RSP];
+#else
+    (void)uc;
+    return NULL;
+#endif
+}
+
+static void *contextProgramCounter(void *context, void *fallback) {
+    if (context == NULL)
+        return fallback;
+    ucontext_t *uc = (ucontext_t *)context;
+#if defined(__APPLE__) && defined(__aarch64__)
+    return (void *)uc->uc_mcontext->__ss.__pc;
+#elif defined(__APPLE__) && defined(__x86_64__)
+    return (void *)uc->uc_mcontext->__ss.__rip;
+#elif defined(__linux__) && defined(__aarch64__)
+    return (void *)uc->uc_mcontext.pc;
+#elif defined(__linux__) && defined(__x86_64__)
+    return (void *)uc->uc_mcontext.gregs[REG_RIP];
+#else
+    (void)uc;
+    return fallback;
+#endif
+}
+
+/* SIGILL and SIGTRAP are not recoverable, but without a handler the process
+ * dies with no hint where it happened. Report the faulting location, then
+ * re-raise with the default action so the exit status and OS crash reports
+ * stay unchanged. */
+static void fatalSignalHandler(int sig, siginfo_t *info, void *context) {
+    struct sigaction *previous = resolvePreviousFatalSignalHandler(sig);
+    if (previous != NULL) {
+        bool isSigAction = previous->sa_flags & SA_SIGINFO;
+        void *handler = isSigAction ? (void *)previous->sa_sigaction
+                                    : (void *)previous->sa_handler;
+        if (handler != SIG_DFL && handler != SIG_IGN && handler != SIG_ERR &&
+            handler != fatalSignalHandler) {
+            if (isSigAction)
+                return previous->sa_sigaction(sig, info, context);
+            else
+                return previous->sa_handler(sig);
+        }
+    }
+    ThreadInfo threadInfo = currentThreadInfo;
+    void *pc = contextProgramCounter(context, info->si_addr);
+    void *sp = contextStackPointer(context);
+    bool spInThreadStack =
+        sp != NULL && threadInfo.stackBottom != NULL &&
+        threadInfo.stackTop != NULL &&
+        isInRange(sp, threadInfo.stackBottom, threadInfo.stackTop);
+    fprintf(stderr,
+            "%s Fatal signal %d (%s) in %s thread: si_addr=%p, si_code=%d, "
+            "pc=%p, sp=%p, thread stack=[%p, %p] (sp %s thread stack)\n",
+            SN_ERROR_PREFIX, sig, sig == SIGILL ? "SIGILL" : "SIGTRAP",
+            threadInfo.isMainThread ? "main" : "user", info->si_addr,
+            info->si_code, pc, sp, threadInfo.stackBottom, threadInfo.stackTop,
+            spInThreadStack ? "inside" : "outside");
+#if defined(__aarch64__)
+    // An all-zero word decodes as `udf #0`: execution reached zeroed memory.
+    if (sig == SIGILL && pc != NULL && ((uintptr_t)pc & 3) == 0)
+        fprintf(stderr, "%s Instruction word at pc: 0x%08x\n", SN_ERROR_PREFIX,
+                *(volatile uint32_t *)pc);
+#endif
+    StackTrace_PrintStackTrace();
+    // The stack trace goes to stdout; flush it before the default action
+    // terminates the process.
+    fflush(stdout);
+    fflush(stderr);
+    struct sigaction dfl = {};
+    dfl.sa_handler = SIG_DFL;
+    sigemptyset(&dfl.sa_mask);
+    sigaction(sig, &dfl, NULL);
+    raise(sig);
+}
+
+static void setupFatalSignalHandler(int signal) {
+    struct sigaction sa = {};
+    sa.sa_sigaction = fatalSignalHandler;
+    sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+    sigemptyset(&sa.sa_mask);
+    if (sigaction(signal, &sa, resolvePreviousFatalSignalHandler(signal)) ==
+        -1) {
+        perror(SN_ERROR_MSG("Failed to set fatal signal handler"));
+    }
+}
+
 static void setupSignalHandler(int signal) {
     struct sigaction sa = {};
     sa.sa_sigaction = stackOverflowHandler;
@@ -331,6 +445,8 @@ void scalanative_StackOverflowGuards_setup(bool isMainThread) {
 #if (defined(__APPLE__) && defined(__MACH__))
         setupSignalHandler(SIGBUS);
 #endif // Apple
+        setupFatalSignalHandler(SIGILL);
+        setupFatalSignalHandler(SIGTRAP);
         isHandlerConfigured = true;
     }
 }

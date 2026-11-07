@@ -43,6 +43,11 @@ dump_process() {
     case "$(uname -s)" in
       Darwin)
         sample "$pid" 3 -mayDie -file /dev/stdout 2>&1
+        if [ -n "${HANG_WATCHDOG_LLDB:-}" ]; then
+          echo "# lldb"
+          sudo -n lldb -p "$pid" --batch -o "thread backtrace all" \
+            -o "register read --all" -o "detach" 2>&1 | head -4000
+        fi
         ;;
       Linux)
         if command -v gdb >/dev/null 2>&1; then
@@ -61,6 +66,12 @@ dump_process() {
   echo "::group::Hang watchdog: stacks of pid $pid ($reason)"
   cat "$file"
   echo "::endgroup::"
+  if [ -n "${HANG_WATCHDOG_KILL:-}" ]; then
+    # SIGABRT leaves an .ips report and lets the remaining sbt commands run.
+    kill -ABRT "$pid" 2>/dev/null
+    sleep 5
+    kill -KILL "$pid" 2>/dev/null
+  fi
 }
 
 dumped=" "

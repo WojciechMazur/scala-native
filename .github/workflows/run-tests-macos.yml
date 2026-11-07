@@ -44,6 +44,7 @@ jobs:
         timeout-minutes: 45
         env:
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
+          SCALANATIVE_TEST_DEBUG_SIGNALS: 1
           SCALANATIVE_MODE: ${{ matrix.build-mode }}
         run: |
           scripts/ci/hang-watchdog.sh "$RUNNER_TEMP/hang-dumps" &
@@ -119,6 +120,7 @@ jobs:
           SCALANATIVE_LTO: ${{ matrix.lto }}
           SCALANATIVE_OPTIMIZE: true
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
+          SCALANATIVE_TEST_DEBUG_SIGNALS: 1
           TEST_COMMAND: >
             show tests${{env.project-version}}/nativeConfig;
 
@@ -181,7 +183,8 @@ jobs:
 
       - name: Run tests
         timeout-minutes: 45
-        # env:
+        env:
+          SCALANATIVE_TEST_DEBUG_SIGNALS: 1
         #   SCALANATIVE_MODE: release-fast
         #   SCALANATIVE_LTO: thin
         run: |

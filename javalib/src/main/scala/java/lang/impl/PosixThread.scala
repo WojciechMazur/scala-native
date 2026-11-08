@@ -53,6 +53,10 @@ private[java] class PosixThread(
   // index of currently used condition
   @volatile private var conditionIdx = ConditionUnset
   @volatile private var terminated = false
+  // UnparkClosed bit plus the number of unpark calls using the park mutex.
+  // Unpark must not take this thread's monitor: monitor exit unparks its
+  // successor, so a monitor here recurses through every contended successor.
+  @volatile private[impl] var unparkGuard: Int = 0
 
   if (isMultithreadingEnabled) {
     // Init locks/conditions before starting the thread
@@ -116,12 +120,11 @@ private[java] class PosixThread(
 
   override def onTermination(): Unit = {
     if (isMultithreadingEnabled) {
-      this.synchronized {
-        terminated = true
-        pthread_cond_destroy(condition(0))
-        pthread_cond_destroy(condition(1))
-        pthread_mutex_destroy(lock)
-      }
+      terminated = true
+      closeUnpark()
+      pthread_cond_destroy(condition(0))
+      pthread_cond_destroy(condition(1))
+      pthread_mutex_destroy(lock)
     }
     super.onTermination()
   }
@@ -229,30 +232,43 @@ private[java] class PosixThread(
   }
 
   override def unpark(): Unit = if (isMultithreadingEnabled) {
-    if (terminated) return
-    withoutCarrierCompensation[Unit] {
-      this.synchronized[Unit] {
-        if (!terminated) {
-          var index = ConditionUnset
-          pthread_mutex_lock(lock)
-          try {
-            val s = counter
-            counter = 1
-            index = conditionIdx
-            if (s < 1 && index >= ConditionRelativeIdx && index <= ConditionAbsoluteIdx) {
-              val waitCondition =
-                if (index == ConditionRelativeIdx) relativeCondition
-                else absoluteCondition
-              // Keep this branch returning Unit; Scala 2 otherwise boxes the result.
-              val _ = pthread_cond_signal(waitCondition)
-            }
-          } finally {
-            pthread_mutex_unlock(lock)
-          }
-          checkConditionIndex(index, waitingAllowed = true)
+    if (terminated || !tryEnterUnpark()) return
+    var index = ConditionUnset
+    try {
+      pthread_mutex_lock(lock)
+      try {
+        val s = counter
+        counter = 1
+        index = conditionIdx
+        if (s < 1 && index >= ConditionRelativeIdx && index <= ConditionAbsoluteIdx) {
+          val waitCondition =
+            if (index == ConditionRelativeIdx) relativeCondition
+            else absoluteCondition
+          // Keep this branch returning Unit; Scala 2 otherwise boxes the result.
+          val _ = pthread_cond_signal(waitCondition)
         }
+      } finally {
+        pthread_mutex_unlock(lock)
       }
+    } finally unparkGuardAtomic.fetchSub(1)
+    checkConditionIndex(index, waitingAllowed = true)
+  }
+
+  private def tryEnterUnpark(): Boolean = {
+    val guard = unparkGuardAtomic
+    var current = guard.load()
+    while ((current & UnparkClosed) == 0) {
+      if (guard.compareExchangeWeak(current, current + 1)) return true
+      current = guard.load()
     }
+    false
+  }
+
+  // Wait for in-flight unpark calls before the park mutex is destroyed.
+  private def closeUnpark(): Unit = {
+    val guard = unparkGuardAtomic
+    guard.fetchOr(UnparkClosed)
+    while (guard.load() != UnparkClosed) yieldThread()
   }
 
   // Strict arguments and deferred checks keep both closure creation and error
@@ -349,6 +365,10 @@ private[java] class PosixThread(
 
   @alwaysinline private def counterAtomic = new AtomicInt(
     fromRawPtr(classFieldRawPtr(this, "counter"))
+  )
+
+  @alwaysinline private def unparkGuardAtomic = new AtomicInt(
+    fromRawPtr(classFieldRawPtr(this, "unparkGuard"))
   )
 
   @inline private def priorityMapping(
@@ -494,6 +514,7 @@ private[lang] object PosixThread extends NativeThread.Companion {
     }
 
   @alwaysinline private def UnsetEvent = -1
+  @alwaysinline private def UnparkClosed = Int.MinValue
 
   @alwaysinline def create(thread: Thread, stackSize: Long): PosixThread =
     new PosixThread(thread, stackSize)

@@ -3,7 +3,9 @@ package java.lang.impl
 import scala.annotation.{switch, tailrec}
 
 import scala.scalanative.annotation._
+import scala.scalanative.libc.stdatomic._
 import scala.scalanative.meta.LinktimeInfo.isMultithreadingEnabled
+import scala.scalanative.runtime.Intrinsics.classFieldRawPtr
 import scala.scalanative.runtime._
 import scala.scalanative.unsafe._
 import scala.scalanative.unsigned._
@@ -56,6 +58,10 @@ private[java] class WindowsThread(
     }
 
   @volatile private var terminated = false
+  // UnparkClosed bit plus the number of unpark calls using parkEvent.
+  // Unpark must not take this thread's monitor: monitor exit unparks its
+  // successor, so a monitor here recurses through every contended successor.
+  @volatile private[impl] var unparkGuard: Int = 0
 
   private val handle: Handle = try {
     if (isMainThread) 0.toPtr // main thread
@@ -98,6 +104,7 @@ private[java] class WindowsThread(
     if (if (isMultithreadingEnabled) true else isExternalThread) {
       this.synchronized {
         terminated = true
+        closeUnpark()
         CloseHandle(parkEvent)
         CloseHandle(sleepEvent)
         if (!isMainThread) CloseHandle(handle)
@@ -172,13 +179,31 @@ private[java] class WindowsThread(
   }
 
   @inline override def unpark(): Unit = if (isMultithreadingEnabled) {
-    if (terminated) return
-    withoutCarrierCompensation[Unit] {
-      this.synchronized[Unit] {
-        if (!terminated) SetEvent(parkEvent)
-      }
-    }
+    if (terminated || !tryEnterUnpark()) return
+    try SetEvent(parkEvent)
+    finally unparkGuardAtomic.fetchSub(1)
   }
+
+  private def tryEnterUnpark(): Boolean = {
+    val guard = unparkGuardAtomic
+    var current = guard.load()
+    while ((current & UnparkClosed) == 0) {
+      if (guard.compareExchangeWeak(current, current + 1)) return true
+      current = guard.load()
+    }
+    false
+  }
+
+  // Wait for in-flight unpark calls before parkEvent is closed.
+  private def closeUnpark(): Unit = {
+    val guard = unparkGuardAtomic
+    guard.fetchOr(UnparkClosed)
+    while (guard.load() != UnparkClosed) SwitchToThread()
+  }
+
+  @alwaysinline private def unparkGuardAtomic = new AtomicInt(
+    fromRawPtr(classFieldRawPtr(this, "unparkGuard"))
+  )
 
   override def sleep(millis: scala.Long): Unit = {
     val deadline = System.currentTimeMillis() + millis
@@ -233,6 +258,7 @@ object WindowsThread extends NativeThread.Companion {
   private final val DuplicateSameAccess = 0x00000002
 
   @alwaysinline private def NanosInMillisecond = 1000000
+  @alwaysinline private def UnparkClosed = Int.MinValue
 
   private def checkedHandle(label: => String)(handle: Handle): Handle = {
     if (handle == null)

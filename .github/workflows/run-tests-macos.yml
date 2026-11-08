@@ -1,157 +1,68 @@
 name: Run tests MacOs
+# Repro-only workflow for macOS hangs (#4/#7) and arm64 SIGILL (#6).
 on:
-  workflow_call:
   pull_request:
-  schedule:
-    # Every day at 2 AM UTC
-    - cron: "0 2 * * *"
   workflow_dispatch:
 concurrency:
   group: macOS-${{ github.head_ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
+env:
+  ENABLE_EXPERIMENTAL_COMPILER: true
+  SCALANATIVE_OPTIMIZE: true
+  SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
+  SCALANATIVE_TEST_DEBUG_SIGNALS: 1
+  HANG_WATCHDOG_KILL: 1
+  HANG_WATCHDOG_LLDB: 1
+
 jobs:
-  test-runtime:
-    name: Test runtime
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || ((github.event_name == 'schedule' || github.event_name == 'workflow_call') && github.repository == 'scala-native/scala-native')
+  repro:
+    name: ${{ matrix.issue }} (${{ matrix.scala }}, ${{ matrix.build-mode }}, ${{ matrix.lto }}, ${{ matrix.gc }}, llvm ${{ matrix.llvm }}) ${{ matrix.variant }} [${{ matrix.attempt }}]
     runs-on: macos-15
-    env:
-      ENABLE_EXPERIMENTAL_COMPILER: true
     strategy:
       fail-fast: false
       matrix:
-        scala: [3, 2.13, 2.12]
-        build-mode: [debug]
         include:
-          - scala: 3
-            build-mode: release-fast
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/macos-setup-env
-        id: setup
-        with:
-          scala-version: ${{matrix.scala}}
-      
-      - name: Prepare for GC tests
-        run: brew install bdw-gc
-      - name: Test GC compilation
-        timeout-minutes: 45
-        env:
-          SCALANATIVE_MODE: ${{ matrix.build-mode }}
-        run: sbt "test-gc ${{ matrix.scala }}"
-    
-      - name: Run tests
-        timeout-minutes: 45
-        env:
-          SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
-          SCALANATIVE_MODE: ${{ matrix.build-mode }}
-        run: sbt "test-runtime ${{matrix.scala}}"
-
-      - name: Test partests infrastructure
-        # No partests support for Scala 3
-        if: ${{ !startsWith(matrix.scala, '3') }}
-        timeout-minutes: 45
-        run: >
-          sbt "scalaPartestTests${{env.project-version}}/testOnly -- --showDiff neg/abstract.scala pos/abstract.scala run/Course-2002-01.scala"
-
-  test-runtime-ext:
-    name: Test runtime extension
-    if: ((github.event_name == 'schedule' || github.event_name == 'workflow_call')  && github.repository == 'scala-native/scala-native') || (github.event_name == 'pull_request' && !contains(github.event.pull_request.body, '[skip ci]') && contains(github.event.pull_request.body, '[test-extended]'))
-    runs-on: macos-15
-    needs: [test-runtime]
-    env:
-      ENABLE_EXPERIMENTAL_COMPILER: true
-    strategy:
-      fail-fast: false
-      matrix:
-        scala: [2.13, 3]
-        build-mode: [debug, release-fast]
-        lto: [none, thin]
-        gc: [boehm, immix, commix]
-        exclude:
-          # Covered in basic test-runtime
-          - scala: 3
-            build-mode: debug
-          - lto: thin
-            build-mode: debug
-        include:
-          - scala: 3
-            build-mode: release-size
-            lto: thin
-            gc: immix
-          # ReleaseFull is flaky
-          # - scala: 3
-          #   build-mode: release-full
-          #   lto: thin
-          #   gc: commix
-          # - scala: 2
-          #   build-mode: release-full
-          #   lto: full
-          #   gc: commix
+          # #6: SIGILL in tests-test (Scala 3 only)
+          - { issue: sigill6, scala: 3, build-mode: debug, lto: none, gc: immix, llvm: 16, attempt: 1, iterations: 10,
+              first: "show tests3/nativeConfig; tests3/test", repeated: "tests3/testFull" }
+          - { issue: sigill6, scala: 3, build-mode: debug, lto: none, gc: immix, llvm: 16, attempt: 2, iterations: 10,
+              first: "show tests3/nativeConfig; tests3/test", repeated: "tests3/testFull" }
+          - { issue: sigill6, scala: 3, build-mode: debug, lto: none, gc: immix, llvm: 16, attempt: 3, iterations: 10,
+              first: "show tests3/nativeConfig; tests3/test", repeated: "tests3/testFull" }
+          - { issue: sigill6, scala: 3, build-mode: release-size, lto: thin, gc: immix, llvm: 19, attempt: 1, iterations: 10,
+              first: "show tests3/nativeConfig; tests3/test", repeated: "tests3/testFull" }
+          - { issue: sigill6, scala: 3, build-mode: release-size, lto: thin, gc: immix, llvm: 19, attempt: 2, iterations: 10,
+              first: "show tests3/nativeConfig; tests3/test", repeated: "tests3/testFull" }
+          - { issue: sigill6, scala: 3, build-mode: release-size, lto: thin, gc: immix, llvm: 19, attempt: 3, iterations: 10,
+              first: "show tests3/nativeConfig; tests3/test", repeated: "tests3/testFull" }
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/macos-setup-env
         with:
-          scala-version: ${{matrix.scala}}
+          scala-version: ${{ matrix.scala }}
           gc: ${{ matrix.gc }}
-          llvm-version: 19
+          llvm-version: ${{ matrix.llvm }}
 
-      - name: Run tests
-        timeout-minutes: 45
+      - name: Run repro loop
+        timeout-minutes: 300
         env:
           SCALANATIVE_MODE: ${{ matrix.build-mode }}
           SCALANATIVE_GC: ${{ matrix.gc }}
           SCALANATIVE_LTO: ${{ matrix.lto }}
-          SCALANATIVE_OPTIMIZE: true
-          SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
-          TEST_COMMAND: >
-            show tests${{env.project-version}}/nativeConfig;
+        run: |
+          scripts/ci/hang-watchdog.sh "$RUNNER_TEMP/hang-dumps" 900 17400 &
+          scripts/ci/repro-loop.sh ${{ matrix.iterations }} "${{ matrix.first }}" "${{ matrix.repeated }}"
 
-            sandbox${{env.project-version}}/run;
-            testsJVM${{env.project-version}}/test;
-            tests${{env.project-version}}/test;
-            junitTestOutputsJVM${{env.project-version}}/test;
-            junitTestOutputsNative${{env.project-version}}/test;
-            scalaPartestJunitTests${{env.project-version}}/test
-        run: sbt -J-Xmx5G "${TEST_COMMAND}"
-
-  run-scripted-tests:
-    name: Scripted tests
-    if: github.event_name == 'pull_request' || ((github.event_name == 'schedule' || github.event_name == 'workflow_call') && github.repository == 'scala-native/scala-native')
-    runs-on: macos-15
-    strategy:
-      fail-fast: false
-      matrix:
-        scala: [3]
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/macos-setup-env
+      - name: Upload hang diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
         with:
-          scala-version: ${{matrix.scala}}
-          llvm-version: latest
-          gc: boehm
+          name: hang-dumps-${{ matrix.issue }}-${{ matrix.scala }}-${{ matrix.build-mode }}-${{ matrix.lto }}-${{ matrix.gc }}-${{ matrix.llvm }}-${{ matrix.variant }}-${{ matrix.attempt }}
+          path: ${{ runner.temp }}/hang-dumps
+          if-no-files-found: ignore
 
-      - name: Test scripted
-        run: sbt "test-scripted ${{matrix.scala}}"
-
-  test-llvm-versions:
-    if: ((github.event_name == 'schedule' || github.event_name == 'workflow_call')  && github.repository == 'scala-native/scala-native') || (github.event_name == 'pull_request' && !contains(github.event.pull_request.body, '[skip ci]') && contains(github.event.pull_request.body, '[test-extended]'))
-    runs-on: macos-15
-    strategy:
-      fail-fast: false
-      matrix:
-        scala: [3]
-        llvm: [17, 18, 19, 20, 21, latest] # Latest version == 22
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/macos-setup-env
+      - uses: ./.github/actions/macos-upload-crash-reports
+        if: always()
         with:
-          scala-version: ${{matrix.scala}}
-          llvm-version: ${{ matrix.llvm }}
-
-      - name: Run tests
-        timeout-minutes: 45
-        # env:
-        #   SCALANATIVE_MODE: release-fast
-        #   SCALANATIVE_LTO: thin
-        run: sbt "test-runtime ${{ matrix.scala }}"
+          name: ${{ matrix.issue }}-${{ matrix.scala }}-${{ matrix.build-mode }}-${{ matrix.lto }}-${{ matrix.gc }}-${{ matrix.llvm }}-${{ matrix.variant }}-${{ matrix.attempt }}

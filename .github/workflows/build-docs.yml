@@ -1,6 +1,6 @@
 name: Build docs
 on:
-  pull_request:
+  workflow_dispatch:
 jobs:
   build-docs:
     runs-on: ubuntu-latest

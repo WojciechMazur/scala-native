@@ -101,6 +101,7 @@ private[junit] final class JUnitTask(
       reporter: Reporter
   ): Int = {
     reporter.reportTestStarted(test.name)
+    SignalStateDiag.check(s"before ${taskDef().fullyQualifiedName()}.${test.name}")
 
     val result = runTestLifecycle {
       catchAll(bootstrapper.newInstance())
@@ -114,6 +115,7 @@ private[junit] final class JUnitTask(
     } { instance => catchAll(bootstrapper.after(instance)) }
 
     val (errors, timeInSeconds) = result
+    SignalStateDiag.check(s"after ${taskDef().fullyQualifiedName()}.${test.name}")
 
     val failed = errors match {
       case e :: Nil if isAssumptionViolation(e) =>
@@ -239,5 +241,17 @@ private[junit] final class JUnitTask(
     } catch {
       case t: Throwable => Failure(t)
     }
+  }
+}
+
+// Repro-only signal state diagnostics.
+private[junit] object SignalStateDiag {
+  import scala.scalanative.unsafe._
+  @extern private object Native {
+    @name("scalanative_StackOverflowGuards_diag")
+    def diag(where: CString): Unit = extern
+  }
+  def check(where: String): Unit = Zone.acquire { implicit z =>
+    Native.diag(toCString(where))
   }
 }

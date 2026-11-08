@@ -78,11 +78,14 @@ private[java] object WeakReferenceRegistry {
 
   // The GC callback runs inside an allocation, so it must not start a thread.
   // It handles references inline and requests the handler, started by `add`.
-  private final val HandlerIdle = 0
-  private final val HandlerRequested = 1
-  private final val HandlerStarting = 2
-  private final val HandlerStarted = 3
-  private val handlerState = new AtomicInteger(HandlerIdle)
+  private object HandlerState {
+    final val Idle = 0
+    final val Requested = 1
+    final val Starting = 2
+    final val Started = 3
+  }
+  import HandlerState._
+  private val handlerState = new AtomicInteger(Idle)
 
   private lazy val referenceHandlerThread: Thread = Thread
     .ofPlatform()
@@ -97,18 +100,18 @@ private[java] object WeakReferenceRegistry {
     )
 
   private def startRequestedHandler(): Unit =
-    if (handlerState.compareAndSet(HandlerRequested, HandlerStarting)) {
+    if (handlerState.compareAndSet(Requested, Starting)) {
       referenceHandlerThread
-      handlerState.set(HandlerStarted)
+      handlerState.set(Started)
     }
 
   if (LinktimeInfo.isWeakReferenceSupported) {
     Proxy.GC_setWeakReferencesCollectedCallback { () =>
       if (LinktimeInfo.isMultithreadingEnabled) {
-        if (handlerState.get() == HandlerStarted)
+        if (handlerState.get() == Started)
           LockSupport.unpark(referenceHandlerThread)
         else {
-          handlerState.compareAndSet(HandlerIdle, HandlerRequested)
+          handlerState.compareAndSet(Idle, Requested)
           handleCollectedReferences()
         }
       } else handleCollectedReferences()

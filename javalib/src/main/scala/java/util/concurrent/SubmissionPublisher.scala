@@ -882,10 +882,14 @@ object SubmissionPublisher {
     def retryOffer(item: T): Int = {
       var stat = 0
       val mask = buffer.length - 1
-      val idx = mask & tail
+      val _tail = tail
+      // Read head before publishing the item: once it is in the buffer the
+      // consumer may take it and advance head past _tail, making the lag 0.
+      val _head = head
+      val idx = mask & _tail
 
       if (arrayCompareAndSet(buffer, idx, null, item.asInstanceOf[AnyRef]))
-        stat = tailIncrementAndGet() - head
+        stat = tailIncrementAndGet() - _head
 
       startOnOffer(stat);
     }

@@ -380,6 +380,19 @@ scalanative_thread_scope_t scalanative_enter_managed_automatic(void) {
     return (record->depth << 1) | (uintptr_t)previous;
 }
 
+int scalanative_in_managed_scope(void) {
+#ifdef _WIN32
+    if (storageKey == FLS_OUT_OF_INDEXES)
+        return 0;
+#else
+    // Before the key exists no thread has a record; key 0 may belong to others.
+    if (!storageAvailable)
+        return 0;
+#endif
+    ExternalThread *record = currentRecord();
+    return record != NULL && record->depth != 0;
+}
+
 void scalanative_leave_managed(scalanative_thread_scope_t scope) {
     ExternalThread *record = currentRecord();
     if (record == NULL || record->depth == 0 || (scope >> 1) != record->depth)

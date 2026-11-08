@@ -13,6 +13,7 @@
 #if defined(__SCALANATIVE_DELIMCC)
 #include "delimcc.h"
 #include <setjmp.h>
+#include <signal.h>
 #endif
 
 #if defined(__SCALANATIVE_DELIMCC)
@@ -372,6 +373,17 @@ __attribute__((noreturn)) void scalanative_throw(Exception obj) {
             scalanative_continuation_exception_handler();
         if (ceh.env != NULL && ceh.exception_slot != NULL) {
             jmp_buf *env = ceh.env;
+            {
+                // Repro-only diagnostics
+                stack_t ss;
+                sigaltstack(NULL, &ss);
+                int dummy;
+                fprintf(stderr,
+                        "[SN-DIAG] continuation escape longjmp: env=%p "
+                        "env_onstack=%d flags_now=0x%x sp_now=%p\n",
+                        (void *)env, ((int *)(*env))[0xbc / 4], ss.ss_flags,
+                        (void *)&dummy);
+            }
             *ceh.exception_slot = obj;
             scalanative_continuation_exception_handler_clear();
             // Do not run exception cleanup; we're transferring to the resumer.

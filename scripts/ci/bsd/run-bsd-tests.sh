@@ -14,11 +14,6 @@ uname -a
 java -version
 clang --version
 # --server avoids the native thin client, which is not available for BSD.
+# DEBUG(bsd-spurious-so): loop only the tests that hit spurious StackOverflowError.
 sbt --server --batch --sbt-version "$SBT_VERSION" \
-  'set sandbox.forBinaryVersion("3") / nativeConfig ~= (_.withMultithreading(true))' \
-  "test-gc 3"
-# test-runtime also includes testsExt; keep the BSD runtime matrix explicit.
-sbt --server --batch --sbt-version "$SBT_VERSION" \
-  "testsJVM3/test" \
-  "tests3/test" "junitTestOutputsNative3/test" \
-  "scalaPartestJunitTests3/test"
+  "tests3/testOnly org.scalanative.testsuite.javalib.nio.file.FilesCreateDirectoryTest org.scalanative.testsuite.javalib.lang.ObjectMonitorTest" "tests3/testOnly org.scalanative.testsuite.javalib.nio.file.FilesCreateDirectoryTest org.scalanative.testsuite.javalib.lang.ObjectMonitorTest" "tests3/testOnly org.scalanative.testsuite.javalib.nio.file.FilesCreateDirectoryTest org.scalanative.testsuite.javalib.lang.ObjectMonitorTest" "tests3/testOnly org.scalanative.testsuite.javalib.nio.file.FilesCreateDirectoryTest org.scalanative.testsuite.javalib.lang.ObjectMonitorTest" "tests3/testOnly org.scalanative.testsuite.javalib.nio.file.FilesCreateDirectoryTest org.scalanative.testsuite.javalib.lang.ObjectMonitorTest" "tests3/testOnly org.scalanative.testsuite.javalib.nio.file.FilesCreateDirectoryTest org.scalanative.testsuite.javalib.lang.ObjectMonitorTest" "tests3/testOnly org.scalanative.testsuite.javalib.nio.file.FilesCreateDirectoryTest org.scalanative.testsuite.javalib.lang.ObjectMonitorTest" "tests3/testOnly org.scalanative.testsuite.javalib.nio.file.FilesCreateDirectoryTest org.scalanative.testsuite.javalib.lang.ObjectMonitorTest" "tests3/testOnly org.scalanative.testsuite.javalib.nio.file.FilesCreateDirectoryTest org.scalanative.testsuite.javalib.lang.ObjectMonitorTest" "tests3/testOnly org.scalanative.testsuite.javalib.nio.file.FilesCreateDirectoryTest org.scalanative.testsuite.javalib.lang.ObjectMonitorTest" "tests3/testOnly org.scalanative.testsuite.javalib.nio.file.FilesCreateDirectoryTest org.scalanative.testsuite.javalib.lang.ObjectMonitorTest" "tests3/testOnly org.scalanative.testsuite.javalib.nio.file.FilesCreateDirectoryTest org.scalanative.testsuite.javalib.lang.ObjectMonitorTest" "tests3/testOnly org.scalanative.testsuite.javalib.nio.file.FilesCreateDirectoryTest org.scalanative.testsuite.javalib.lang.ObjectMonitorTest" "tests3/testOnly org.scalanative.testsuite.javalib.nio.file.FilesCreateDirectoryTest org.scalanative.testsuite.javalib.lang.ObjectMonitorTest" "tests3/testOnly org.scalanative.testsuite.javalib.nio.file.FilesCreateDirectoryTest org.scalanative.testsuite.javalib.lang.ObjectMonitorTest" "tests3/test" "tests3/test"

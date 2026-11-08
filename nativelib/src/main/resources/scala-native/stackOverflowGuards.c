@@ -73,6 +73,94 @@ void scalanative_StackOverflowGuards_reset() {
 }
 
 #else // Unix
+// DEBUG(bsd-spurious-so): async-signal-safe tracing of guard hits.
+#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__linux__)
+#include <ucontext.h>
+#endif
+#if defined(__FreeBSD__) && defined(__x86_64__)
+#define SN_DBG_UC_SP(uc) ((void *)((ucontext_t *)(uc))->uc_mcontext.mc_rsp)
+#define SN_DBG_UC_PC(uc) ((void *)((ucontext_t *)(uc))->uc_mcontext.mc_rip)
+#elif defined(__NetBSD__)
+#define SN_DBG_UC_SP(uc) ((void *)_UC_MACHINE_SP((ucontext_t *)(uc)))
+#define SN_DBG_UC_PC(uc) ((void *)_UC_MACHINE_PC((ucontext_t *)(uc)))
+#elif defined(__linux__) && defined(__x86_64__)
+#define SN_DBG_UC_SP(uc)                                                       \
+    ((void *)((ucontext_t *)(uc))->uc_mcontext.gregs[REG_RSP])
+#define SN_DBG_UC_PC(uc)                                                       \
+    ((void *)((ucontext_t *)(uc))->uc_mcontext.gregs[REG_RIP])
+#else
+#define SN_DBG_UC_SP(uc) ((void *)0)
+#define SN_DBG_UC_PC(uc) ((void *)0)
+#endif
+
+static SN_ThreadLocal char dbgLastEvent[1024];
+
+static size_t dbgAppend(char *buf, size_t pos, size_t cap, const char *s) {
+    while (*s && pos + 1 < cap)
+        buf[pos++] = *s++;
+    buf[pos] = 0;
+    return pos;
+}
+static size_t dbgAppendHex(char *buf, size_t pos, size_t cap, uintptr_t v) {
+    char tmp[2 + 2 * sizeof(uintptr_t) + 1];
+    const char *digits = "0123456789abcdef";
+    int n = 0;
+    char rev[2 * sizeof(uintptr_t)];
+    do {
+        rev[n++] = digits[v & 0xf];
+        v >>= 4;
+    } while (v != 0);
+    int i = 0;
+    tmp[i++] = '0';
+    tmp[i++] = 'x';
+    while (n > 0)
+        tmp[i++] = rev[--n];
+    tmp[i] = 0;
+    return dbgAppend(buf, pos, cap, tmp);
+}
+static size_t dbgField(char *buf, size_t pos, size_t cap, const char *name,
+                       uintptr_t v) {
+    pos = dbgAppend(buf, pos, cap, " ");
+    pos = dbgAppend(buf, pos, cap, name);
+    pos = dbgAppend(buf, pos, cap, "=");
+    return dbgAppendHex(buf, pos, cap, v);
+}
+
+static void dbgTrace(const char *what, int sig, siginfo_t *info, void *context,
+                     ThreadInfo *ti) {
+    char *buf = dbgLastEvent;
+    size_t cap = sizeof(dbgLastEvent);
+    size_t pos = 0;
+    int dummy;
+    stack_t ss;
+    sigaltstack(NULL, &ss);
+    pos = dbgAppend(buf, pos, cap, "[SO-DEBUG] ");
+    pos = dbgAppend(buf, pos, cap, what);
+    pos = dbgField(buf, pos, cap, "pid", (uintptr_t)getpid());
+    pos = dbgField(buf, pos, cap, "self", (uintptr_t)pthread_self());
+    pos = dbgField(buf, pos, cap, "sig", (uintptr_t)sig);
+    pos = dbgField(buf, pos, cap, "code", (uintptr_t)info->si_code);
+    pos = dbgField(buf, pos, cap, "addr", (uintptr_t)info->si_addr);
+    pos = dbgField(buf, pos, cap, "uc_sp", (uintptr_t)SN_DBG_UC_SP(context));
+    pos = dbgField(buf, pos, cap, "uc_pc", (uintptr_t)SN_DBG_UC_PC(context));
+    pos = dbgField(buf, pos, cap, "handler_sp", (uintptr_t)&dummy);
+    pos = dbgField(buf, pos, cap, "altstack", (uintptr_t)ss.ss_sp);
+    pos = dbgField(buf, pos, cap, "altsize", (uintptr_t)ss.ss_size);
+    pos = dbgField(buf, pos, cap, "altflags", (uintptr_t)ss.ss_flags);
+    pos = dbgField(buf, pos, cap, "ti_altstack",
+                   (uintptr_t)ti->signalHandlerStack);
+    pos = dbgField(buf, pos, cap, "guard", (uintptr_t)ti->stackGuardPage);
+    pos = dbgField(buf, pos, cap, "top", (uintptr_t)ti->stackTop);
+    pos = dbgField(buf, pos, cap, "bottom", (uintptr_t)ti->stackBottom);
+    pos = dbgField(buf, pos, cap, "size", (uintptr_t)ti->stackSize);
+    pos = dbgField(buf, pos, cap, "max", (uintptr_t)ti->maxStackSize);
+    pos = dbgField(buf, pos, cap, "init", (uintptr_t)ti->isInitialized);
+    pos = dbgField(buf, pos, cap, "pending",
+                   (uintptr_t)ti->pendingStackOverflowException);
+    pos = dbgAppend(buf, pos, cap, "\n");
+    write(STDERR_FILENO, buf, pos);
+}
+
 static struct sigaction *resolvePreviousSignalHandler(int sig) {
     static struct sigaction previousSignalHandlers[2];
     switch (sig) {
@@ -209,11 +297,13 @@ static void stackOverflowHandler(int sig, siginfo_t *info, void *context) {
         if (inStackPageBound(threadInfo.stackGuardPage, faultAddr)) {
             unprotectStackGuardPage();
             if (threadInfo.stackSize < threadInfo.maxStackSize) {
+                dbgTrace("grow", sig, info, context, &threadInfo);
                 if (tryGrowStack()) {
                     setupStackOverflowGuards();
                     return;
                 }
             }
+            dbgTrace("pending", sig, info, context, &threadInfo);
             // Let the exception be thrown after polling
             currentThreadInfo.pendingStackOverflowException = true;
             return;
@@ -349,6 +439,31 @@ void scalanative_StackOverflowGuards_reset() {
 
 void scalanative_StackOverflowGuards_check() {
     if (currentThreadInfo.pendingStackOverflowException) {
+#ifndef _WIN32
+        {
+            int dummy;
+            char buf[256];
+            snprintf(buf, sizeof(buf),
+                     "[SO-DEBUG] throwing self=%p sp=%p guard=%p top=%p "
+                     "bottom=%p\n",
+                     (void *)pthread_self(), (void *)&dummy,
+                     currentThreadInfo.stackGuardPage,
+                     currentThreadInfo.stackTop, currentThreadInfo.stackBottom);
+            fputs(buf, stderr);
+            fputs(dbgLastEvent, stderr);
+            StackTrace_PrintStackTrace();
+            char cmd[128];
+#if defined(__FreeBSD__)
+            snprintf(cmd, sizeof(cmd), "procstat -v %d 1>&2", (int)getpid());
+#elif defined(__NetBSD__)
+            snprintf(cmd, sizeof(cmd), "pmap -l -p %d 1>&2", (int)getpid());
+#else
+            snprintf(cmd, sizeof(cmd), "cat /proc/%d/maps 1>&2", (int)getpid());
+#endif
+            fflush(stderr);
+            system(cmd);
+        }
+#endif
         currentThreadInfo.pendingStackOverflowException = false;
         scalanative_throwStackOverflowError();
     }

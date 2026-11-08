@@ -5,6 +5,8 @@ on:
   schedule:
     - cron: "0 3 * * *"
   workflow_dispatch:
+  push:
+    branches: ["debug/**"] # DEBUG(bsd-spurious-so)
 
 permissions:
   contents: read
@@ -18,7 +20,7 @@ jobs:
     name: Test runtime (FreeBSD x86_64, Scala 3)
     env:
       SBT_VERSION: "2.0.9"
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.repository == 'scala-native/scala-native'
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.repository == 'scala-native/scala-native'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -47,7 +49,7 @@ jobs:
     name: Test runtime (NetBSD x86_64, Scala 3)
     env:
       SBT_VERSION: "2.0.9"
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.repository == 'scala-native/scala-native'
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.repository == 'scala-native/scala-native'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:

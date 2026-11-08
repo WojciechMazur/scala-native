@@ -23,19 +23,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # #6: SIGILL in tests-test (Scala 3 only)
-          - { issue: sigill6, scala: 3, build-mode: debug, lto: none, gc: immix, llvm: 16, attempt: 1, iterations: 10,
-              first: "show tests3/nativeConfig; tests3/test", repeated: "tests3/testFull" }
-          - { issue: sigill6, scala: 3, build-mode: debug, lto: none, gc: immix, llvm: 16, attempt: 2, iterations: 10,
-              first: "show tests3/nativeConfig; tests3/test", repeated: "tests3/testFull" }
-          - { issue: sigill6, scala: 3, build-mode: debug, lto: none, gc: immix, llvm: 16, attempt: 3, iterations: 10,
-              first: "show tests3/nativeConfig; tests3/test", repeated: "tests3/testFull" }
-          - { issue: sigill6, scala: 3, build-mode: release-size, lto: thin, gc: immix, llvm: 19, attempt: 1, iterations: 10,
-              first: "show tests3/nativeConfig; tests3/test", repeated: "tests3/testFull" }
-          - { issue: sigill6, scala: 3, build-mode: release-size, lto: thin, gc: immix, llvm: 19, attempt: 2, iterations: 10,
-              first: "show tests3/nativeConfig; tests3/test", repeated: "tests3/testFull" }
-          - { issue: sigill6, scala: 3, build-mode: release-size, lto: thin, gc: immix, llvm: 19, attempt: 3, iterations: 10,
-              first: "show tests3/nativeConfig; tests3/test", repeated: "tests3/testFull" }
+          - { issue: sigill6, scala: 3, build-mode: debug, lto: none, gc: immix, llvm: 16, attempt: 1, iterations: 3,
+              first: "show tests3/nativeConfig; tests3/testOnly scala.scalanative.runtime.ContinuationsTest", repeated: "tests3/testOnly scala.scalanative.runtime.ContinuationsTest" }
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/macos-setup-env

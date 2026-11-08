@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdatomic.h>
 #include <setjmp.h>
+#include <signal.h>
 #include <stdint.h>
 #include "gc/shared/ThreadUtil.h"
 #include "nativeThreadTLS.h"
@@ -783,7 +784,23 @@ void *scalanative_continuation_resume(Continuation *continuation, void *out) {
     volatile int resume_handler_pushed = 0;
     ContinuationExceptionHandler previous_exception_handler =
         scalanative_continuation_exception_handler();
+    {
+        stack_t ss;
+        sigaltstack(NULL, &ss);
+        if (ss.ss_flags & SS_ONSTACK)
+            fprintf(stderr, "[SN-DIAG] resume entered with SS_ONSTACK\n");
+    }
     if (setjmp(exception_env) != 0) {
+        {
+            // Repro-only diagnostics
+            stack_t ss;
+            sigaltstack(NULL, &ss);
+            fprintf(stderr,
+                    "[SN-DIAG] resume landed from escape: env=%p "
+                    "env_onstack=%d flags_now=0x%x\n",
+                    (void *)&exception_env, ((int *)exception_env)[0xbc / 4],
+                    ss.ss_flags);
+        }
         if (resume_handler_pushed) {
             handlers_store((Handler *)saved_handlers);
             resume_handler_pushed = 0;

@@ -1,0 +1,46 @@
+name: "Upload macOS crash reports"
+description: "Collects macOS crash reports (.ips) of Scala Native test binaries, together with the crashed binaries, and uploads them as an artifact"
+inputs:
+  name:
+    description: "Unique artifact name suffix, e.g. derived from the job matrix"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Collect crash reports
+      id: collect
+      shell: bash
+      run: |
+        out="$RUNNER_TEMP/crash-reports"
+        mkdir -p "$out"
+        found=0
+        for dir in "$HOME/Library/Logs/DiagnosticReports" /Library/Logs/DiagnosticReports; do
+          [ -d "$dir" ] || continue
+          # Runners are fresh VMs; reports anonymize paths under $HOME, so
+          # take all of them.
+          for report in "$dir"/*.ips; do
+            [ -f "$report" ] || continue
+            cp "$report" "$out/"
+            found=1
+          done
+        done
+        if [ "$found" = 1 ]; then
+          # Keep the crashed binaries, so the faulting pc can be disassembled.
+          for report in "$out"/*.ips; do
+            name=$(basename "$report" | sed -E 's/-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]+(\.[0-9]+)?\.ips$//')
+            find "$GITHUB_WORKSPACE" -type f -perm -u+x -name "$name" -path "*/target/*" \
+              -exec sh -c 'gzip -c "$1" > "$2/$(echo "$1" | sed "s|^$GITHUB_WORKSPACE/||; s|/|_|g").gz"' _ {} "$out" \;
+          done
+          ls -la "$out"
+        else
+          echo "No crash reports found"
+        fi
+        echo "found=$found" >> "$GITHUB_OUTPUT"
+
+    - uses: actions/upload-artifact@v7
+      if: steps.collect.outputs.found == '1'
+      with:
+        name: crash-reports-${{ inputs.name }}
+        path: ${{ runner.temp }}/crash-reports
+        if-no-files-found: ignore
+        retention-days: 14

@@ -155,7 +155,9 @@ private[scalanative] object SignalConfig {
     // Only these select signals can work on Windows
     setHandler(SIGABRT)
     setHandler(SIGFPE)
-    setHandler(SIGILL)
+    // On Unix the runtime reports SIGILL and SIGTRAP itself, with the faulting
+    // pc and stack bounds; signal() would replace that handler.
+    if (LinktimeInfo.isWindows) setHandler(SIGILL)
     setHandler(SIGTERM)
     if (!LinktimeInfo.isMultithreadingEnabled && !LinktimeInfo.isMac) {
       // Not on macOS: GC traps and stack guards there use SIGSEGV too, and
@@ -177,7 +179,6 @@ private[scalanative] object SignalConfig {
       setHandler(SIGTTOU)
       setHandler(SIGPROF)
       setHandler(SIGSYS)
-      setHandler(SIGTRAP)
       setHandler(SIGVTALRM)
       if (!LinktimeInfo.gc.isBoehm) {
         // Boehm uses SIGUSR1/SIGUSR2 on FreeBSD and SIGXCPU/SIGXFSZ on other platforms.

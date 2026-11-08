@@ -464,8 +464,8 @@ private[java] final class VirtualThread(
     if (nanos <= 0) return
 
     state match {
-      case State.Running if pinnedForSubmit =>
-        // Pinned during submit: park on carrier instead of yielding
+      case State.Running if pinnedForSubmit || NativeThread.isInsideNativeCallback =>
+        // Pinned during submit or inside a native callback: park on carrier instead of yielding
         state = State.TimedPinned
         NativeThread.currentNativeThread.parkNanos(nanos)
         state = State.Running
@@ -509,8 +509,8 @@ private[java] final class VirtualThread(
     if (interruptedState) return
 
     state match {
-      case State.Running if pinnedForSubmit =>
-        // Pinned during submit: park on carrier instead of yielding
+      case State.Running if pinnedForSubmit || NativeThread.isInsideNativeCallback =>
+        // Pinned during submit or inside a native callback: park on carrier instead of yielding
         state = State.Pinned
         NativeThread.currentNativeThread.park()
         setParkPermit(false)

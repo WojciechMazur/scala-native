@@ -1,7 +1,6 @@
 name: Run tests Termux
 on:
   workflow_call:
-  pull_request:
   schedule:
     - cron: "0 2 * * *"
   workflow_dispatch:

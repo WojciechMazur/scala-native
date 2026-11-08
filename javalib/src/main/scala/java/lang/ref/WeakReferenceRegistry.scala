@@ -1,5 +1,6 @@
 package java.lang.ref
 
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.LockSupport
 
 import scala.annotation.tailrec
@@ -75,54 +76,39 @@ private[java] object WeakReferenceRegistry {
     }
   }
 
-  /* The collected-references callback runs inside an allocation (Boehm
-   * invokes it from GC_malloc), possibly in the middle of e.g. a
-   * ConcurrentHashMap initialization. Starting a thread there re-enters such
-   * code and can spin forever. Until the handler thread runs, the callback
-   * handles references inline, as without multithreading, and requests the
-   * thread, which the next `add` starts.
-   */
-  @volatile private var referenceHandlerThread: Thread = _
-  // 0 - not needed yet, 1 - requested, 2 - started
-  @volatile private var referenceHandlerState: Int = 0
+  // The GC callback runs inside an allocation, so it must not start a thread.
+  // It handles references inline and requests the handler, started by `add`.
+  private final val HandlerIdle = 0
+  private final val HandlerRequested = 1
+  private final val HandlerStarting = 2
+  private final val HandlerStarted = 3
+  private val handlerState = new AtomicInteger(HandlerIdle)
 
-  @alwaysinline private def referenceHandlerStatePtr = fromRawPtr[Int](
-    classFieldRawPtr(this, "referenceHandlerState")
-  )
-
-  private def ensureReferenceHandler(): Unit =
-    if (LinktimeInfo.isWeakReferenceSupported) {
-      if (LinktimeInfo.isMultithreadingEnabled) {
-        if (referenceHandlerState == 1) startReferenceHandler()
+  private lazy val referenceHandlerThread: Thread = Thread
+    .ofPlatform()
+    .daemon()
+    .group(ThreadGroup.System)
+    .name("GC-WeakReferenceHandler")
+    .startInternal(() =>
+      while (true) {
+        handleCollectedReferences()
+        LockSupport.park()
       }
-    }
+    )
 
-  private def startReferenceHandler(): Unit = {
-    val expected = stackalloc[Int]()
-    !expected = 1
-    // Also skips calls nested in the start below, which may create WeakReferences
-    if (atomic_compare_exchange_strong(referenceHandlerStatePtr, expected, 2)) {
-      referenceHandlerThread = Thread
-        .ofPlatform()
-        .daemon()
-        .group(ThreadGroup.System)
-        .name("GC-WeakReferenceHandler")
-        .startInternal(() =>
-          while (true) {
-            handleCollectedReferences()
-            LockSupport.park()
-          }
-        )
+  private def startRequestedHandler(): Unit =
+    if (handlerState.compareAndSet(HandlerRequested, HandlerStarting)) {
+      referenceHandlerThread
+      handlerState.set(HandlerStarted)
     }
-  }
 
   if (LinktimeInfo.isWeakReferenceSupported) {
     Proxy.GC_setWeakReferencesCollectedCallback { () =>
       if (LinktimeInfo.isMultithreadingEnabled) {
-        val handler = referenceHandlerThread
-        if (handler != null) LockSupport.unpark(handler)
+        if (handlerState.get() == HandlerStarted)
+          LockSupport.unpark(referenceHandlerThread)
         else {
-          if (referenceHandlerState == 0) referenceHandlerState = 1
+          handlerState.compareAndSet(HandlerIdle, HandlerRequested)
           handleCollectedReferences()
         }
       } else handleCollectedReferences()
@@ -131,7 +117,7 @@ private[java] object WeakReferenceRegistry {
 
   private[ref] def add(weakRef: WeakReference[_]): Unit =
     if (LinktimeInfo.isWeakReferenceSupported) {
-      ensureReferenceHandler()
+      if (LinktimeInfo.isMultithreadingEnabled) startRequestedHandler()
       assert(weakRef.nextReference == null)
       val prevHeadPtr = stackalloc[WeakReference[_]]()
       !prevHeadPtr = null

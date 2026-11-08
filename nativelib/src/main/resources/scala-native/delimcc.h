@@ -3,6 +3,19 @@
 #include <stdlib.h>
 #include <setjmp.h>
 
+/* Jumps used for exception escapes from resumed continuations. They must not
+ * save or restore signal state: Darwin's longjmp also restores the
+ * sigaltstack on-stack flag, and a stale flag makes the kernel deliver every
+ * later signal of the thread, including stack overflow faults, on the
+ * current stack. */
+#ifdef _WIN32
+#define SN_CONTINUATION_SETJMP(env) setjmp(env)
+#define SN_CONTINUATION_LONGJMP(env, val) longjmp(env, val)
+#else
+#define SN_CONTINUATION_SETJMP(env) _setjmp(env)
+#define SN_CONTINUATION_LONGJMP(env, val) _longjmp(env, val)
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

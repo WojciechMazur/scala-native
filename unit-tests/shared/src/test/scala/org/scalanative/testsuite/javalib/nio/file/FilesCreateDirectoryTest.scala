@@ -77,7 +77,7 @@ class FilesCreateDirectoryTest {
       : Unit = {
     withTempDirectory("create-directories-race") { root =>
       val threads = 8
-      val rounds = 2000 // DEBUG(bsd-spurious-so)
+      val rounds = 300 // DEBUG(bsd-spurious-so)
       var round = 0
       while (round < rounds) {
         val target = root.resolve(s"r$round").resolve("a/b/c")

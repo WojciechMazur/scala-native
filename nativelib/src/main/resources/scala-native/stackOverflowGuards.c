@@ -247,6 +247,13 @@ static void setupStackOverflowGuards() {
 
 static void stackOverflowHandler(int sig, siginfo_t *info, void *context) {
     ThreadInfo threadInfo = currentThreadInfo;
+    {
+        stack_t dbgSs;
+        if (sigaltstack(NULL, &dbgSs) == 0 && (dbgSs.ss_flags & SS_ONSTACK) &&
+            currentThreadInfo.signalHandlerStack == NULL) {
+            dbgTrace("freed-altstack", sig, info, context, &threadInfo);
+        }
+    }
     bool threadInfoInitialized = threadInfo.stackSize != 0 &&
                                  threadInfo.stackBottom && threadInfo.stackTop;
     if (!threadInfoInitialized) {

@@ -1,5 +1,5 @@
 name: repro-5086
-# Temporary: tries to reproduce scala-native#5086 (zio/interop-cats ZStreamSpec heap corruption) on Linux x86_64.
+# Temporary: narrows down scala-native#5086 (zio/interop-cats ZStreamSpec SIGSEGV) on Linux.
 on:
   push:
     branches: [triage/5086-repro-ci]
@@ -34,11 +34,17 @@ jobs:
 
   build-binary:
     needs: publish-main
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        sn: ["0.5.12", "0.5.13-20261107-69432d9-SNAPSHOT", "main"]
+        include:
+          - { variant: immix-debug-x64, runner: ubuntu-24.04, gc: immix, mode: debug }
+          - { variant: immix-debug-arm64, runner: ubuntu-24.04-arm, gc: immix, mode: debug }
+          - { variant: commix-debug-x64, runner: ubuntu-24.04, gc: commix, mode: debug }
+          - { variant: boehm-debug-x64, runner: ubuntu-24.04, gc: boehm, mode: debug }
+          - { variant: none-debug-x64, runner: ubuntu-24.04, gc: none, mode: debug }
+          - { variant: immix-release-x64, runner: ubuntu-24.04, gc: immix, mode: releaseFast }
     steps:
       - uses: actions/checkout@v4
         with:
@@ -47,39 +53,45 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
       - uses: sbt/setup-sbt@v1
+      - if: matrix.gc == 'boehm'
+        run: sudo apt-get update && sudo apt-get install -y libgc-dev
       - uses: actions/download-artifact@v4
-        if: matrix.sn == 'main'
         with: { name: ivy-sn-main, path: ~/.ivy2/local/org.scala-native }
-      - name: Select Scala Native version
+      - name: Use local Scala Native main
         run: |
-          v='${{ matrix.sn }}'
-          if [ "$v" = main ]; then v=0.5.13-SNAPSHOT; fi
-          sed -i -E "s/(\"sbt-scala-native\" *% *)\"[^\"]+\"/\1\"$v\"/" project/plugins.sbt
-          if [[ "$v" == *-SNAPSHOT ]]; then
-            echo 'resolvers += "central-snapshots" at "https://central.sonatype.com/repository/maven-snapshots/"' >> project/plugins.sbt
-            echo 'ThisBuild / resolvers += "central-snapshots" at "https://central.sonatype.com/repository/maven-snapshots/"' > nightly.sbt
-          fi
-          grep sbt-scala-native project/plugins.sbt
-      - run: sbt "++3.3.7 zioInteropCatsTestsNative/Test/nativeLink"
+          sed -i -E 's/("sbt-scala-native" *% *)"[^"]+"/\1"0.5.13-SNAPSHOT"/' project/plugins.sbt
+          cat > native-variant.sbt <<'EOF'
+          LocalProject("zioInteropCatsTestsNative") / nativeConfig ~= (_.withGC(scala.scalanative.build.GC.${{ matrix.gc }}).withMode(scala.scalanative.build.Mode.${{ matrix.mode }}))
+          EOF
+          cat native-variant.sbt
+      - run: sbt "++3.3.7 zioInteropCatsTestsNative/Test/nativeLink" | tee link.log
       - run: |
+          grep -E "Linking native code|Optimizing" link.log
           mkdir out && cp zio-interop-cats-tests/native/target/scala-3.3.7/zio-interop-cats-tests-test out/test-bin
-          grep -h "native" project/plugins.sbt > out/version.txt
       - uses: actions/upload-artifact@v4
-        with: { name: "bin-${{ matrix.sn }}", path: out, retention-days: 3 }
+        with: { name: "bin-${{ matrix.variant }}", path: out, retention-days: 3 }
 
   campaign:
     needs: [build-binary, driver]
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        sn: ["0.5.12", "0.5.13-20261107-69432d9-SNAPSHOT", "main"]
+        variant: [immix-debug-x64, commix-debug-x64, boehm-debug-x64, none-debug-x64, immix-release-x64]
         shard: [1, 2, 3, 4]
+        runner: [ubuntu-24.04]
+        include:
+          - { variant: immix-debug-arm64, runner: ubuntu-24.04-arm, shard: 1 }
+          - { variant: immix-debug-arm64, runner: ubuntu-24.04-arm, shard: 2 }
+          - { variant: immix-debug-arm64, runner: ubuntu-24.04-arm, shard: 3 }
+          - { variant: immix-debug-arm64, runner: ubuntu-24.04-arm, shard: 4 }
     steps:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
+      - if: startsWith(matrix.variant, 'boehm')
+        run: sudo apt-get update && sudo apt-get install -y libgc1
       - uses: actions/download-artifact@v4
-        with: { name: "bin-${{ matrix.sn }}", path: bin }
+        with: { name: "bin-${{ matrix.variant }}", path: bin }
       - uses: actions/download-artifact@v4
         with: { name: driver, path: drv }
       - name: Run ZStreamSpec campaign (3 drivers x 60 fresh processes)
@@ -91,11 +103,10 @@ jobs:
           done
           wait
           {
-            echo "### ${{ matrix.sn }} shard ${{ matrix.shard }}"
-            cat bin/version.txt
+            echo "### ${{ matrix.variant }} shard ${{ matrix.shard }}"
             grep -h SUMMARY camp-*.log
-            grep -h -E "Unhandled signal|ClassCastException|ArrayIndexOutOfBounds|NullPointerException|StackOverflow|non-zero value" camp-*.log | cut -c1-200 | sort | uniq -c | sort -rn | head -20
+            grep -h -E "Unhandled signal|ClassCastException|ArrayIndexOutOfBounds|NullPointerException|StackOverflow|OutOfMemory|non-zero value" camp-*.log | cut -c1-200 | sort | uniq -c | sort -rn | head -20
           } | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
-        with: { name: "logs-${{ matrix.sn }}-${{ matrix.shard }}", path: "camp-*.log", retention-days: 7 }
+        with: { name: "logs-${{ matrix.variant }}-${{ matrix.shard }}", path: "camp-*.log", retention-days: 7 }

@@ -229,14 +229,14 @@ static void stackOverflowHandler(int sig, siginfo_t *info, void *context) {
                     SN_ERROR_PREFIX, threadInfo.isMainThread ? "main" : "user",
                     threadInfo.stackSize / 1024);
             StackTrace_PrintStackTrace();
-            _exit(sig);
+            { signal(sig, SIG_DFL); return; } /* triage-5086: re-fault for core */
         } else if (faultAddr == NULL) {
             fprintf(stderr,
                     "%s Unrecoverable NullPointerException in %s "
                     "thread\n",
                     SN_ERROR_PREFIX, threadInfo.isMainThread ? "main" : "user");
             StackTrace_PrintStackTrace();
-            _exit(sig);
+            { signal(sig, SIG_DFL); return; } /* triage-5086: re-fault for core */
         }
     default:
     dispatchDefaultSignal:;
@@ -263,7 +263,7 @@ static void stackOverflowHandler(int sig, siginfo_t *info, void *context) {
         // _exit rather than exit: exit() is not async-signal-safe, and would
         // run shutdown hooks on a spawned thread that can deadlock on a GC lock
         // the faulting thread holds.
-        _exit(sig);
+        { signal(sig, SIG_DFL); return; } /* triage-5086: re-fault for core */
     }
 }
 

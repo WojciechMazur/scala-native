@@ -1,5 +1,5 @@
 name: repro-5086
-# Temporary: narrows down scala-native#5086 (zio/interop-cats ZStreamSpec SIGSEGV) on Linux.
+# Temporary: narrows down scala-native#5086 (zio/interop-cats ZStreamSpec SIGSEGV, Immix debug, x86_64).
 on:
   push:
     branches: [triage/5086-repro-ci]
@@ -34,17 +34,14 @@ jobs:
 
   build-binary:
     needs: publish-main
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { variant: immix-debug-x64, runner: ubuntu-24.04, gc: immix, mode: debug }
-          - { variant: immix-debug-arm64, runner: ubuntu-24.04-arm, gc: immix, mode: debug }
-          - { variant: commix-debug-x64, runner: ubuntu-24.04, gc: commix, mode: debug }
-          - { variant: boehm-debug-x64, runner: ubuntu-24.04, gc: boehm, mode: debug }
-          - { variant: none-debug-x64, runner: ubuntu-24.04, gc: none, mode: debug }
-          - { variant: immix-release-x64, runner: ubuntu-24.04, gc: immix, mode: releaseFast }
+          - { variant: immix-debug, config: "_.withGC(scala.scalanative.build.GC.immix)" }
+          - { variant: immix-debug-nomt, config: "_.withGC(scala.scalanative.build.GC.immix).withMultithreading(false)" }
+          - { variant: immix-debug-asserts, config: "_.withGC(scala.scalanative.build.GC.immix).withCompileOptions((o: Seq[String]) => o :+ \"-DGC_ASSERTIONS\")" }
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,43 +50,43 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
       - uses: sbt/setup-sbt@v1
-      - if: matrix.gc == 'boehm'
-        run: sudo apt-get update && sudo apt-get install -y libgc-dev
       - uses: actions/download-artifact@v4
         with: { name: ivy-sn-main, path: ~/.ivy2/local/org.scala-native }
       - name: Use local Scala Native main
         run: |
           sed -i -E 's/("sbt-scala-native" *% *)"[^"]+"/\1"0.5.13-SNAPSHOT"/' project/plugins.sbt
-          cat > native-variant.sbt <<'EOF'
-          LocalProject("zioInteropCatsTestsNative") / nativeConfig ~= (_.withGC(scala.scalanative.build.GC.${{ matrix.gc }}).withMode(scala.scalanative.build.Mode.${{ matrix.mode }}))
-          EOF
+          echo 'LocalProject("zioInteropCatsTestsNative") / nativeConfig ~= (${{ matrix.config }})' > native-variant.sbt
           cat native-variant.sbt
       - run: sbt "++3.3.7 zioInteropCatsTestsNative/Test/nativeLink" | tee link.log
       - run: |
-          grep -E "Linking native code|Optimizing" link.log
+          grep -E "Linking native code|Optimizing|multithreading" link.log
           mkdir out && cp zio-interop-cats-tests/native/target/scala-3.3.7/zio-interop-cats-tests-test out/test-bin
       - uses: actions/upload-artifact@v4
         with: { name: "bin-${{ matrix.variant }}", path: out, retention-days: 3 }
 
   campaign:
     needs: [build-binary, driver]
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        variant: [immix-debug-x64, commix-debug-x64, boehm-debug-x64, none-debug-x64, immix-release-x64]
-        shard: [1, 2, 3, 4]
-        runner: [ubuntu-24.04]
         include:
-          - { variant: immix-debug-arm64, runner: ubuntu-24.04-arm, shard: 1 }
-          - { variant: immix-debug-arm64, runner: ubuntu-24.04-arm, shard: 2 }
-          - { variant: immix-debug-arm64, runner: ubuntu-24.04-arm, shard: 3 }
-          - { variant: immix-debug-arm64, runner: ubuntu-24.04-arm, shard: 4 }
+          - { name: base-1, variant: immix-debug, env: "" }
+          - { name: base-2, variant: immix-debug, env: "" }
+          - { name: base-3, variant: immix-debug, env: "" }
+          - { name: base-4, variant: immix-debug, env: "" }
+          - { name: heap1m-1, variant: immix-debug, env: "GC_INITIAL_HEAP_SIZE=1M" }
+          - { name: heap1m-2, variant: immix-debug, env: "GC_INITIAL_HEAP_SIZE=1M" }
+          - { name: heap64m-1, variant: immix-debug, env: "GC_INITIAL_HEAP_SIZE=64M" }
+          - { name: heap64m-2, variant: immix-debug, env: "GC_INITIAL_HEAP_SIZE=64M" }
+          - { name: nomt-1, variant: immix-debug-nomt, env: "" }
+          - { name: nomt-2, variant: immix-debug-nomt, env: "" }
+          - { name: asserts-1, variant: immix-debug-asserts, env: "" }
+          - { name: asserts-2, variant: immix-debug-asserts, env: "" }
     steps:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
-      - if: startsWith(matrix.variant, 'boehm')
-        run: sudo apt-get update && sudo apt-get install -y libgc1
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq gdb > /dev/null
       - uses: actions/download-artifact@v4
         with: { name: "bin-${{ matrix.variant }}", path: bin }
       - uses: actions/download-artifact@v4
@@ -97,16 +94,30 @@ jobs:
       - name: Run ZStreamSpec campaign (3 drivers x 60 fresh processes)
         run: |
           chmod +x bin/test-bin
-          nproc; uname -m
+          mkdir -p cores && sudo sysctl -w kernel.core_pattern="$PWD/cores/core.%p" && ulimit -c unlimited
           for k in 1 2 3; do
-            timeout 40m java -Xmx512m -cp drv/driver.jar Driver "$PWD/bin/test-bin" 60 1 ZStreamSpec > camp-$k.log 2>&1 &
+            timeout 40m java -Xmx512m -cp drv/driver.jar Driver "$PWD/bin/test-bin" 60 1 ZStreamSpec ${{ matrix.env }} > camp-$k.log 2>&1 &
           done
           wait
           {
-            echo "### ${{ matrix.variant }} shard ${{ matrix.shard }}"
+            echo "### ${{ matrix.name }} (${{ matrix.variant }} ${{ matrix.env }})"
             grep -h SUMMARY camp-*.log
-            grep -h -E "Unhandled signal|ClassCastException|ArrayIndexOutOfBounds|NullPointerException|StackOverflow|OutOfMemory|non-zero value" camp-*.log | cut -c1-200 | sort | uniq -c | sort -rn | head -20
+            grep -h -E "Unhandled signal|ClassCastException|ArrayIndexOutOfBounds|NullPointerException|StackOverflow|OutOfMemory|Assertion|assert|non-zero value" camp-*.log | cut -c1-200 | sort | uniq -c | sort -rn | head -20
+            echo "cores: $(ls cores | wc -l)"
           } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Analyze cores
+        if: always()
+        run: |
+          n=0
+          for c in cores/core.*; do
+            [ -f "$c" ] || continue
+            n=$((n+1)); [ $n -gt 4 ] && break
+            echo "===== $c" >> gdb.txt
+            gdb -q -batch bin/test-bin "$c" \
+              -ex "info threads" -ex "bt 25" -ex "info registers" -ex "x/24i \$pc-64" \
+              -ex "x/16gx \$sp" -ex "thread apply all bt 6" >> gdb.txt 2>&1 || true
+          done
+          ls -la cores | head
       - uses: actions/upload-artifact@v4
         if: always()
-        with: { name: "logs-${{ matrix.variant }}-${{ matrix.shard }}", path: "camp-*.log", retention-days: 7 }
+        with: { name: "logs-${{ matrix.name }}", path: "camp-*.log\ngdb.txt", retention-days: 7 }

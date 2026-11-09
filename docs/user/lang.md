@@ -43,6 +43,28 @@ guarantee.
  This behaviour can be changed by enabling `NativeConfig.strictExternCallSemantics`. Under this mode every invocation of foreign function would notify the GC about the thread state which guarantees no deadlocks introduced by waiting for threads executing foreign code, but might reduce overall performance.
 
 
+### Virtual threads and continuations
+
+Virtual threads (`Thread.ofVirtual()`) and the delimited continuations
+in `scala.scalanative.runtime.Continuations` require Scala 3,
+multithreading, and a 64-bit x86_64 or aarch64 target. They are
+supported on Linux, macOS, FreeBSD, OpenBSD, NetBSD and Windows. Use
+`LinktimeInfo.isVirtualThreadsSupported` and
+`LinktimeInfo.isContinuationsSupported` to check support at link time.
+
+On Windows each `boundary` runs on its own OS fiber, which differs from
+the other platforms in a few ways:
+
+- A continuation can be resumed only once. Resuming it again throws
+  `IllegalStateException`.
+- A continuation that is suspended and never resumed keeps its fiber
+  stack, and the objects referenced from it, alive until the program
+  exits.
+- The Boehm GC is not supported.
+- Each fiber reserves 1 MB of stack address space by default. Set the
+  `SCALANATIVE_CONTINUATION_STACK_SIZE` environment variable to change
+  it, for example `SCALANATIVE_CONTINUATION_STACK_SIZE=4m`.
+
 ## Finalization
 
 Finalize method from `java.lang.Object` is never called in Scala Native.

@@ -53,9 +53,13 @@ object LinktimeInfo {
   )
   def isWeakReferenceSupported: Boolean = resolved
 
+  /** Windows runs continuations on OS fibers, whose stacks Boehm GC cannot
+   *  track, so Boehm is excluded there.
+   */
   @resolvedAtLinktime()
   def isContinuationsSupported: Boolean =
-    (isLinux || isMac || isFreeBSD || isOpenBSD || isNetBSD) &&
+    (isLinux || isMac || isFreeBSD || isOpenBSD || isNetBSD ||
+      (isWindows && garbageCollector != "boehm")) &&
       !is32BitPlatform &&
       (target.arch == "x86_64" || target.arch == "aarch64")
 

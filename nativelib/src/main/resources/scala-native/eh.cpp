@@ -60,7 +60,9 @@ class ExceptionWrapper : public std::exception {
 } // namespace scalanative
 
 extern "C" {
-#if defined(__SCALANATIVE_DELIMCC)
+// Windows runs continuations on fibers (delimcc_fibers.c), where exceptions
+// never escape a continuation, so no terminate handler is needed there.
+#if defined(__SCALANATIVE_DELIMCC) && !defined(_WIN32)
 /*
  * Continuation exception escape (C++): when a resumed body throws
  * scalanative::ExceptionWrapper and no handler in the continuation catches it,

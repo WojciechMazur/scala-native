@@ -97,7 +97,15 @@ object Continuations:
     private val allocas = mutable.ArrayBuffer[BlobArray]()
 
     def apply(x: R): T =
-      try resume(inner, x).get
+      try
+        val result = resume(inner, x)
+        // Only the Windows (fiber) implementation is one-shot; it returns
+        // null when a continuation is resumed a second time.
+        if result == null then
+          throw new IllegalStateException(
+            "This continuation was already resumed; continuations are one-shot on this platform"
+          )
+        result.get
       finally reachabilityFence(this)
 
     private[Continuations] def alloc(size: CUnsignedLong): Ptr[?] =
@@ -129,11 +137,22 @@ object Continuations:
    *      object, cast to a pointer)
    *
    *  Returns Ptr[?] / void*.
+   *
+   *  `Try` keeps fatal throwables, so they are caught here too: no exception
+   *  may unwind out of the body into the native boundary code. `boundary` and
+   *  resuming a continuation rethrow them from `Try.get`.
    */
   inline def boundaryBodyFn[T] =
     boundaryBodyFnAny.asInstanceOf[ContinuationBodyPtr[T]]
   private val boundaryBodyFnAny: ContinuationBodyPtr[Any] =
-    CFuncPtr2.fromScalaFunction((label, arg) => arg(label))
+    CFuncPtr2.fromScalaFunction((label, arg) => runBoundaryBody(label, arg))
+
+  private def runBoundaryBody(
+      label: Impl.BoundaryLabel,
+      body: Impl.ContinuationBody[Any]
+  ): Try[Any] =
+    try body(label)
+    catch { case ex: java.lang.Throwable => Failure(ex) }
 
   /** Allocate a blob of memory of `size` bytes, from `continuation`'s
    *  implementation of `Continuation.alloc`.

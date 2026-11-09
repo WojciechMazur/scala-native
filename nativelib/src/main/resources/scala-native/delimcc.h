@@ -1,6 +1,8 @@
 #ifndef DELIMCC_H
 #define DELIMCC_H
 #include <stdlib.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <setjmp.h>
 
 /* Exception escapes from resumed continuations. setjmp/longjmp also save and
@@ -20,7 +22,9 @@
 extern "C" {
 #endif
 
-typedef unsigned long ContinuationBoundaryLabel;
+// Pointer-sized on every platform: the Scala side passes CUnsignedLong, which
+// is word-sized, while C `unsigned long` is 32-bit on Windows.
+typedef uintptr_t ContinuationBoundaryLabel;
 
 typedef struct Continuation Continuation;
 
@@ -35,7 +39,7 @@ typedef void *SuspendFn(Continuation *, void *);
 // without calling this, malloc is the default allocation function.
 // The allocation function may take another parameter, as given in
 // `scalanative_continuation_suspend`.
-void scalanative_continuation_init(void *(*alloc_f)(unsigned long, void *));
+void scalanative_continuation_init(void *(*alloc_f)(size_t, void *));
 
 // cont_boundary : ContinuationBody -> any -> any
 // Installs a boundary handler and passes the boundary label associated with

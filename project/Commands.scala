@@ -14,6 +14,7 @@ object Commands {
     testGC,
     testTools,
     testRuntime,
+    testContinuations,
     testMima,
     testScripted,
     disableActionCache,
@@ -81,6 +82,24 @@ object Commands {
         .map(id => s"$id/test")
       runs :::
         tests :::
+        state
+  }
+
+  // Focused suite for continuations and virtual threads, used by the dedicated
+  // Windows CI loop. GC, mode and LTO come from SCALANATIVE_* env variables.
+  lazy val testContinuations = projectVersionCommand("test-continuations") {
+    case (version, state) =>
+      val sandboxId = sandbox.forBinaryVersion(version).id
+      val testsId = Build.tests.forBinaryVersion(version).id
+      val suites = List(
+        "scala.scalanative.runtime.Continuations*",
+        "scala.scalanative.runtime.VirtualThread*",
+        "scala.scalanative.meta.LinktimeInfoTest",
+        "org.scalanative.testsuite.javalib.lang.VirtualThread*",
+        "org.scalanative.testsuite.javalib.lang.ThreadBuilderTestOnJDK19"
+      ).mkString(" ")
+      s"$sandboxId/run" ::
+        s"$testsId/testOnly $suites" ::
         state
   }
 

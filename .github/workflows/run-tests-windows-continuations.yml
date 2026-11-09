@@ -1,0 +1,94 @@
+# Focused CI loop for continuations and virtual threads on Windows (x64 and ARM64).
+# Runs only the relevant suites so a push gives feedback quickly.
+name: Run tests Windows continuations
+on:
+  push:
+    branches:
+      - "claude/windows-*"
+  workflow_dispatch:
+    inputs:
+      os:
+        description: "Runner(s): all, windows-2022 or windows-11-arm"
+        default: all
+      gc:
+        description: "GC(s): all, immix, commix or none"
+        default: all
+      build-mode:
+        description: "Mode(s): all, debug or release-fast"
+        default: all
+concurrency:
+  group: windows-continuations-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-continuations:
+    name: Continuations${{ matrix.os == 'windows-11-arm' && ' (ARM64)' || ' (x64)' }} (${{ matrix.build-mode }}, ${{ matrix.gc }})
+    runs-on: ${{ matrix.os }}
+    env:
+      VCPKG_DEFAULT_HOST_TRIPLET: ${{ matrix.os == 'windows-11-arm' && 'arm64-windows' || 'x64-windows' }}
+    strategy:
+      fail-fast: false
+      # Push runs everything; workflow_dispatch inputs narrow the matrix.
+      matrix:
+        os: ${{ fromJSON((inputs.os == '' || inputs.os == 'all') && '["windows-2022","windows-11-arm"]' || format('["{0}"]', inputs.os)) }}
+        build-mode: ${{ fromJSON((inputs.build-mode == '' || inputs.build-mode == 'all') && '["debug","release-fast"]' || format('["{0}"]', inputs.build-mode)) }}
+        gc: ${{ fromJSON((inputs.gc == '' || inputs.gc == 'all') && '["immix","commix"]' || format('["{0}"]', inputs.gc)) }}
+        include: ${{ fromJSON((inputs.gc == '' || inputs.gc == 'all') && (inputs.os == '' || inputs.os == 'all' || inputs.os == 'windows-2022') && '[{"os":"windows-2022","build-mode":"debug","gc":"none"}]' || '[]') }}
+    steps:
+      # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
+      - name: Setup git config
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/windows-setup-env
+        if: matrix.os == 'windows-2022'
+        id: setup
+        with:
+          scala-version: "3"
+      - uses: ./.github/actions/windows-arm-setup-env
+        if: matrix.os == 'windows-11-arm'
+        id: setup-arm
+        with:
+          scala-version: "3"
+
+      # Keep crash dumps of test binaries so failures can be inspected offline.
+      - name: Enable local crash dumps
+        shell: pwsh
+        run: |
+          $dumps = Join-Path $env:GITHUB_WORKSPACE "crash-dumps"
+          New-Item -ItemType Directory -Force -Path $dumps | Out-Null
+          $key = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps'
+          New-Item -Path $key -Force | Out-Null
+          New-ItemProperty -Path $key -Name DumpFolder -Value $dumps -PropertyType ExpandString -Force | Out-Null
+          New-ItemProperty -Path $key -Name DumpType -Value 1 -PropertyType DWord -Force | Out-Null
+          New-ItemProperty -Path $key -Name DumpCount -Value 5 -PropertyType DWord -Force | Out-Null
+
+      - name: Test continuations and virtual threads
+        timeout-minutes: 45
+        env:
+          SCALANATIVE_GC: ${{ matrix.gc }}
+          SCALANATIVE_MODE: ${{ matrix.build-mode }}
+          SCALANATIVE_INCLUDE_DIRS: ${{ steps.setup.outputs.vcpkg-dir || steps.setup-arm.outputs.vcpkg-dir }}\include
+          SCALANATIVE_LIB_DIRS: ${{ steps.setup.outputs.vcpkg-dir || steps.setup-arm.outputs.vcpkg-dir }}\lib
+          SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
+          # Cover both safepoint kinds against fiber stacks: polling in
+          # debug/commix, trap-based everywhere else (the release default).
+          SCALANATIVE_GC_TRAP_BASED_YIELDPOINTS: ${{ matrix.build-mode == 'debug' && matrix.gc == 'commix' && '0' || '1' }}
+        run: sbt "test-continuations 3"
+        shell: cmd
+
+      - name: Shutdown sbt server
+        if: always()
+        continue-on-error: true
+        run: sbt shutdown
+        shell: cmd
+
+      - name: Upload crash dumps
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-dumps-${{ matrix.os }}-${{ matrix.build-mode }}-${{ matrix.gc }}
+          path: |
+            crash-dumps/
+            **/target/**/test-reports/*.xml
+          if-no-files-found: ignore
+          retention-days: 7

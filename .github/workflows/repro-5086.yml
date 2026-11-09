@@ -1,0 +1,101 @@
+name: repro-5086
+# Temporary: tries to reproduce scala-native#5086 (zio/interop-cats ZStreamSpec heap corruption) on Linux x86_64.
+on:
+  push:
+    branches: [triage/5086-repro-ci]
+  workflow_dispatch:
+
+jobs:
+  publish-main:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: sbt/setup-sbt@v1
+      - name: Publish this branch locally as 0.5.13-SNAPSHOT
+        run: env -u CI sbt -Dsbt.server.forcestart=false "publish-local-dev 3.3.7"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ivy-sn-main
+          path: ~/.ivy2/local/org.scala-native
+          retention-days: 3
+
+  driver:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: VirtusLab/scala-cli-setup@v1
+      - run: scala-cli --power package --server=false --assembly -f -o driver.jar .github/repro-5086
+      - uses: actions/upload-artifact@v4
+        with: { name: driver, path: driver.jar, retention-days: 3 }
+
+  build-binary:
+    needs: publish-main
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        sn: ["0.5.12", "0.5.13-20261107-69432d9-SNAPSHOT", "main"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: zio/interop-cats
+          ref: refs/pull/763/head
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: sbt/setup-sbt@v1
+      - uses: actions/download-artifact@v4
+        if: matrix.sn == 'main'
+        with: { name: ivy-sn-main, path: ~/.ivy2/local/org.scala-native }
+      - name: Select Scala Native version
+        run: |
+          v='${{ matrix.sn }}'
+          if [ "$v" = main ]; then v=0.5.13-SNAPSHOT; fi
+          sed -i -E "s/(\"sbt-scala-native\" *% *)\"[^\"]+\"/\1\"$v\"/" project/plugins.sbt
+          if [[ "$v" == *-SNAPSHOT ]]; then
+            echo 'resolvers += "central-snapshots" at "https://central.sonatype.com/repository/maven-snapshots/"' >> project/plugins.sbt
+            echo 'ThisBuild / resolvers += "central-snapshots" at "https://central.sonatype.com/repository/maven-snapshots/"' > nightly.sbt
+          fi
+          grep sbt-scala-native project/plugins.sbt
+      - run: sbt "++3.3.7 zioInteropCatsTestsNative/Test/nativeLink"
+      - run: |
+          mkdir out && cp zio-interop-cats-tests/native/target/scala-3.3.7/zio-interop-cats-tests-test out/test-bin
+          grep -h "native" project/plugins.sbt > out/version.txt
+      - uses: actions/upload-artifact@v4
+        with: { name: "bin-${{ matrix.sn }}", path: out, retention-days: 3 }
+
+  campaign:
+    needs: [build-binary, driver]
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        sn: ["0.5.12", "0.5.13-20261107-69432d9-SNAPSHOT", "main"]
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: actions/download-artifact@v4
+        with: { name: "bin-${{ matrix.sn }}", path: bin }
+      - uses: actions/download-artifact@v4
+        with: { name: driver, path: drv }
+      - name: Run ZStreamSpec campaign (3 drivers x 60 fresh processes)
+        run: |
+          chmod +x bin/test-bin
+          nproc; uname -m
+          for k in 1 2 3; do
+            timeout 40m java -Xmx512m -cp drv/driver.jar Driver "$PWD/bin/test-bin" 60 1 ZStreamSpec > camp-$k.log 2>&1 &
+          done
+          wait
+          {
+            echo "### ${{ matrix.sn }} shard ${{ matrix.shard }}"
+            cat bin/version.txt
+            grep -h SUMMARY camp-*.log
+            grep -h -E "Unhandled signal|ClassCastException|ArrayIndexOutOfBounds|NullPointerException|StackOverflow|non-zero value" camp-*.log | cut -c1-200 | sort | uniq -c | sort -rn | head -20
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: "logs-${{ matrix.sn }}-${{ matrix.shard }}", path: "camp-*.log", retention-days: 7 }

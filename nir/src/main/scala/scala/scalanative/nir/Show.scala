@@ -119,6 +119,8 @@ object Show {
         str("volatile")
       case Attr.Final =>
         str("final")
+      case Attr.Sealed =>
+        str("sealed")
       case Attr.SafePublish      => str("safe-publish")
       case Attr.LinktimeResolved =>
         str("linktime")

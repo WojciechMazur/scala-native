@@ -1,0 +1,25 @@
+> app/run initial
+> tool/run initial
+
+# The application adds subclasses and implementors of library types
+$ copy-file changes/Extra.scala app/src/main/scala/Extra.scala
+$ copy-file changes/Main.scala.2 app/src/main/scala/Main.scala
+> app/run app-subclasses
+
+# A method body in a middle library changes, its signatures do not
+$ copy-file changes/Geometry.scala.3 geometry/src/main/scala/geometry/Geometry.scala
+$ copy-file changes/Main.scala.3 app/src/main/scala/Main.scala
+> app/run library-body
+> tool/run library-body
+
+# The base library adds virtual methods, which every layer above inherits
+$ copy-file changes/Core.scala.4 core/src/main/scala/core/Core.scala
+$ copy-file changes/Main.scala.4 app/src/main/scala/Main.scala
+$ copy-file changes/Tool.scala.4 tool/src/main/scala/Tool.scala
+> app/run library-interface
+> tool/run library-interface
+
+# Classes are removed from the application
+$ delete app/src/main/scala/Extra.scala
+$ copy-file changes/Main.scala.5 app/src/main/scala/Main.scala
+> app/run removed-classes

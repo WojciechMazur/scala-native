@@ -171,9 +171,28 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
       }
       val abstractAttr =
         if (sym.isAbstract) Seq(nir.Attr.Abstract) else Seq.empty
+      val finalAttr =
+        if (isFinalClass(sym)) Seq(nir.Attr.Final) else Seq.empty
+      val sealedAttr =
+        if (sym.isSealed) Seq(nir.Attr.Sealed) else Seq.empty
 
-      nir.Attrs.fromSeq(annotationAttrs ++ abstractAttr)
+      nir.Attrs.fromSeq(
+        annotationAttrs ++ abstractAttr ++ finalAttr ++ sealedAttr
+      )
     }
+
+    /* A class without subclasses in any compilation unit: final, module and
+     * anonymous classes, and local classes without known subclasses. The
+     * toolchain relies on it to devirtualize calls without whole-program
+     * knowledge, so it must never be set for a class that can be extended.
+     */
+    private def isFinalClass(sym: Symbol): Boolean =
+      sym.isClass && !sym.isTraitOrInterface &&
+        (sym.isEffectivelyFinal || sym.isAnonymousClass)
+
+    /* A method that no subclass, in any compilation unit, can override. */
+    private def isFinalMethod(sym: Symbol): Boolean =
+      sym.isEffectivelyFinal || isFinalClass(sym.owner)
 
     def genClassInterfaces(sym: Symbol) = {
       val isExtern = sym.isExternType
@@ -1092,6 +1111,8 @@ trait NirGenStat[G <: nsc.Global with Singleton] { self: NirGenPhase[G] =>
         attrs += nir.Attr.AlwaysInline
       if (isExtern)
         attrs += nir.Attr.Extern(sym.isBlocking || sym.owner.isBlocking)
+      if (isFinalMethod(sym))
+        attrs += nir.Attr.Final
 
       def requireLiteralStringAnnotation(
           annotation: Annotation

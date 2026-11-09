@@ -98,7 +98,7 @@ object Continuations:
 
     def apply(x: R): T =
       try
-        val result = resume(inner, x)
+        val result: Try[T] = resume[R, T](inner, x)
         // Only the Windows (fiber) implementation is one-shot; it returns
         // null when a continuation is resumed a second time.
         if result == null then

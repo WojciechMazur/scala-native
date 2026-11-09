@@ -85,8 +85,24 @@ trait NirGenStat(using Context) {
         nir.Attr.Define(name)
     }
     val isAbstract = Option.when(sym.is(Abstract))(nir.Attr.Abstract)
-    nir.Attrs.fromSeq(annotationAttrs ++ isAbstract)
+    val isFinal = Option.when(isFinalClass(sym))(nir.Attr.Final)
+    val isSealed = Option.when(sym.is(Sealed))(nir.Attr.Sealed)
+    nir.Attrs.fromSeq(annotationAttrs ++ isAbstract ++ isFinal ++ isSealed)
   }
+
+  /* A class without subclasses in any compilation unit: final, module and
+   * anonymous classes. The toolchain relies on it to devirtualize calls without
+   * whole-program knowledge, so it must never be set for a class that can be
+   * extended. `isEffectivelyFinal` is not used for classes: it treats a class
+   * nested in a final class as final, while it can still be extended there.
+   */
+  private def isFinalClass(sym: Symbol): Boolean =
+    sym.isClass && !sym.is(Trait) &&
+      (sym.is(Final) || sym.is(ModuleClass) || sym.isAnonymousClass)
+
+  /* A method that no subclass, in any compilation unit, can override. */
+  private def isFinalMethod(sym: Symbol): Boolean =
+    sym.isEffectivelyFinal || isFinalClass(sym.owner)
 
   private def genClassParent(sym: ClassSymbol): Option[nir.Global.Top] = {
     if sym.isExternType && sym.superClass != defn.ObjectClass then
@@ -335,6 +351,8 @@ trait NirGenStat(using Context) {
       attrs += nir.Attr.AlwaysInline
     if (isExtern)
       attrs += nir.Attr.Extern(sym.isBlocking || sym.owner.isBlocking)
+    if (isFinalMethod(sym))
+      attrs += nir.Attr.Final
 
     def requireLiteralStringAnnotation(annotation: Annotation): Option[String] =
       annotation.tree match {

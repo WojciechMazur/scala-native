@@ -207,6 +207,7 @@ final class BinaryDeserializer(buffer: ByteBuffer, nirSource: NIRSource) {
     case T.AbstractAttr    => Attr.Abstract
     case T.VolatileAttr    => Attr.Volatile
     case T.FinalAttr       => Attr.Final
+    case T.SealedAttr      => Attr.Sealed
     case T.SafePublishAttr => Attr.SafePublish
 
     case T.LinkCppRuntimeAttr   => Attr.LinkCppRuntime

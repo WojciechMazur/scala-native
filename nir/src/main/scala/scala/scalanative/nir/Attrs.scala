@@ -33,6 +33,7 @@ object Attr {
   case object Abstract extends Attr
   case object Volatile extends Attr
   case object Final extends Attr
+  case object Sealed extends Attr
   case object SafePublish extends Attr
   case object LinktimeResolved extends Attr
   case object UsesIntrinsic extends Attr
@@ -60,7 +61,8 @@ final class Attrs private (
     val isUsingIntrinsics: Boolean,
     val links: Seq[Attr.Link],
     val preprocessorDefinitions: Seq[Attr.Define],
-    val linkCppRuntime: Boolean
+    val linkCppRuntime: Boolean,
+    val isSealed: Boolean
     // update equals, hashCode, toString, productArity and producteElement when adding new fields
 ) extends scala.Product
     with scala.Serializable {
@@ -79,6 +81,7 @@ final class Attrs private (
     if (isAbstract) out += Abstract
     if (isVolatile) out += Volatile
     if (isFinal) out += Final
+    if (isSealed) out += Sealed
     if (isSafePublish) out += SafePublish
     if (isLinktimeResolved) out += LinktimeResolved
     if (isUsingIntrinsics) out += UsesIntrinsic
@@ -106,7 +109,8 @@ final class Attrs private (
       isUsingIntrinsics: Boolean = isUsingIntrinsics,
       links: Seq[Attr.Link] = links,
       preprocessorDefinitions: Seq[Attr.Define] = preprocessorDefinitions,
-      linkCppRuntime: Boolean = linkCppRuntime
+      linkCppRuntime: Boolean = linkCppRuntime,
+      isSealed: Boolean = isSealed
   ): Attrs =
     new Attrs(
       inlineHint = inlineHint,
@@ -125,7 +129,8 @@ final class Attrs private (
       isUsingIntrinsics = isUsingIntrinsics,
       links = links,
       preprocessorDefinitions = preprocessorDefinitions,
-      linkCppRuntime = linkCppRuntime
+      linkCppRuntime = linkCppRuntime,
+      isSealed = isSealed
     )
 
   def withInlineHint(value: Inline): Attrs =
@@ -162,6 +167,8 @@ final class Attrs private (
     myCopy(preprocessorDefinitions = value)
   def withLinkCppRuntime(value: Boolean): Attrs =
     myCopy(linkCppRuntime = value)
+  def withIsSealed(value: Boolean): Attrs =
+    myCopy(isSealed = value)
 
   override def equals(that: Any): Boolean = that match {
     case that: Attrs =>
@@ -181,7 +188,8 @@ final class Attrs private (
         this.isUsingIntrinsics == that.isUsingIntrinsics &&
         this.links == that.links &&
         this.preprocessorDefinitions == that.preprocessorDefinitions &&
-        this.linkCppRuntime == that.linkCppRuntime
+        this.linkCppRuntime == that.linkCppRuntime &&
+        this.isSealed == that.isSealed
     case _ => false
   }
 
@@ -203,7 +211,8 @@ final class Attrs private (
         |  isUsingIntrinsics = $isUsingIntrinsics,
         |  links = $links,
         |  preprocessorDefinitions = $preprocessorDefinitions,
-        |  linkCppRuntime = $linkCppRuntime
+        |  linkCppRuntime = $linkCppRuntime,
+        |  isSealed = $isSealed
         |)""".stripMargin
 
   override def hashCode(): Int = {
@@ -225,8 +234,9 @@ final class Attrs private (
     acc = mix(acc, isUsingIntrinsics.##)
     acc = mix(acc, links.##)
     acc = mix(acc, preprocessorDefinitions.##)
-    acc = mixLast(acc, linkCppRuntime.##)
-    finalizeHash(acc, 17)
+    acc = mix(acc, linkCppRuntime.##)
+    acc = mixLast(acc, isSealed.##)
+    finalizeHash(acc, 18)
   }
 
   @deprecated("Use nir.Attrs.None.withXYZ() instead", since = "0.5.7")
@@ -264,7 +274,8 @@ final class Attrs private (
     isUsingIntrinsics = isUsingIntrinsics,
     links = links,
     preprocessorDefinitions = preprocessorDefinitions,
-    linkCppRuntime = false
+    linkCppRuntime = false,
+    isSealed = false
   )
 
   @deprecated("Use .withXYZ methods instead", since = "0.5.7")
@@ -303,14 +314,15 @@ final class Attrs private (
       isUsingIntrinsics = isUsingIntrinsics,
       links = links,
       preprocessorDefinitions = preprocessorDefinitions,
-      linkCppRuntime = linkCppRuntime
+      linkCppRuntime = linkCppRuntime,
+      isSealed = isSealed
     )
 
   @deprecated("To be removed", since = "0.5.7")
   def canEqual(that: Any): Boolean = equals(that)
 
   @deprecated("To be removed", since = "0.5.7")
-  def productArity: Int = 17
+  def productArity: Int = 18
 
   @deprecated("To be removed", since = "0.5.7")
   def productElement(n: Int): Any = n match {
@@ -331,6 +343,7 @@ final class Attrs private (
     case 14 => links
     case 15 => preprocessorDefinitions
     case 16 => linkCppRuntime
+    case 17 => isSealed
     case i  => throw new java.lang.IndexOutOfBoundsException(i.toString())
   }
 
@@ -356,7 +369,8 @@ object Attrs {
     isUsingIntrinsics = false,
     links = Seq.empty,
     preprocessorDefinitions = Seq.empty,
-    linkCppRuntime = false
+    linkCppRuntime = false,
+    isSealed = false
   )
 
   def fromSeq(attrs: Seq[Attr]): Attrs = {
@@ -372,6 +386,7 @@ object Attrs {
     var isBlocking = false
     var isVolatile = false
     var isFinal = false
+    var isSealed = false
     var isSafePublish = false
     var isLinktimeResolved = false
     var isUsingIntrinsics = false
@@ -399,6 +414,7 @@ object Attrs {
         case Abstract            => isAbstract = true
         case Volatile            => isVolatile = true
         case Final               => isFinal = true
+        case Sealed              => isSealed = true
         case SafePublish         => isSafePublish = true
 
         case LinktimeResolved => isLinktimeResolved = true
@@ -423,7 +439,8 @@ object Attrs {
       isUsingIntrinsics = isUsingIntrinsics,
       links = links.result(),
       preprocessorDefinitions = preprocessorDefinitions.result(),
-      linkCppRuntime = linkCppRuntime
+      linkCppRuntime = linkCppRuntime,
+      isSealed = isSealed
     )
   }
 
@@ -465,6 +482,7 @@ object Attrs {
     isUsingIntrinsics = isUsingIntrinsics,
     links = links,
     preprocessorDefinitions = preprocessorDefinitions,
-    linkCppRuntime = false
+    linkCppRuntime = false,
+    isSealed = false
   )
 }

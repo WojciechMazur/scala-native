@@ -162,16 +162,22 @@ private[java] class WindowsThread(
         millis.max(1).toUInt
       }
 
+    // Polling the event does not block, so it must not start carrier
+    // compensation; the wait below starts it once, like PosixThread.park.
     if (thread.isInterrupted() ||
-        WaitForSingleObject(parkEvent, 0.toUInt) == WAIT_OBJECT_0)
+        withoutCarrierCompensation(
+          WaitForSingleObject(parkEvent, 0.toUInt)
+        ) == WAIT_OBJECT_0)
       ResetEvent(parkEvent)
     else {
       val parkedState =
         if (parkTime == Infinite) State.ParkedWaiting
         else State.ParkedWaitingTimed
-      withState[Unit](parkedState) {
-        WaitForSingleObject(parkEvent, parkTime)
-        ResetEvent(parkEvent)
+      withCarrierCompensation[Unit] {
+        withState[Unit](parkedState) {
+          WaitForSingleObject(parkEvent, parkTime)
+          ResetEvent(parkEvent)
+        }
       }
     }
   }

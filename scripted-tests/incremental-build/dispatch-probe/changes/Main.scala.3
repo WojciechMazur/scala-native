@@ -1,0 +1,63 @@
+import core._
+import geometry._
+import text._
+
+class Badge(label: String) extends Derived with Right with Named {
+  def right: Int = 30
+  def name: String = label
+  override def greeting: String = "badge " + label
+}
+
+class Doubler extends Visitor {
+  def visit(b: Base): Int = b.value * 2
+}
+
+object Main {
+  def check(cond: Boolean, what: String): Unit =
+    if (!cond) throw new AssertionError(what)
+
+  def main(args: Array[String]): Unit = {
+    // Initializes the library modules in a fixed order
+    check(Geometry.isScalable(new Square(1)), "geometry initialized")
+    check(Text.isNamed(new Labelled("x")), "text initialized")
+    check(Core.value(new Base) == 1, "base dispatch")
+    check(Core.value(new Derived) == 42, "override in a middle library")
+    check(Core.value(new Labelled("abc")) == 3, "override in a sibling library")
+    check(Core.left(new Derived) == 10, "trait from core, implemented in geometry")
+    check(Core.right(new Labelled("x")) == 20, "trait from core, implemented in text")
+    val badge = new Badge("b")
+    check(Core.value(badge) == 42, "override inherited from a middle library")
+    check(Core.left(badge) == 10 && Core.right(badge) == 30, "traits mixed in the application")
+    check(Text.greet(badge) == "badge b", "trait default method overridden in the application")
+    check(Text.greet(new Labelled("x")) == "hello x", "trait default method")
+    check(Core.isLeft(badge) && Core.isRight(badge) && Text.isNamed(badge), "trait type tests")
+    check(!Geometry.isScalable(badge), "negative trait type test")
+    check(!Core.isLeft(new Labelled("x")), "negative trait type test across siblings")
+    check(scala.util.Try(Core.asLeft(new Labelled("x"))).isFailure, "failing cast")
+    check(Core.asLeft(badge).left == 10, "cast to trait")
+    check(Core.area(new Square(3)) == 9, "abstract method implemented in geometry")
+    check(Geometry.scaledArea(new Square(2), 3) == 36, "dispatch through two libraries")
+    check(Core.isFigure(new Square(1)) && !Core.isBase(new Square(1)), "class type tests")
+    check(Core.accept(new Doubler, new Derived) == 84, "callback from core into the application")
+    check(Geometry.describeAll(Seq(new Base, new Derived, new Labelled("ab"))) == "base:1|base:42|base:2", "library method calling overrides from other libraries")
+    check(Core.tokens(Seq(new Word("a"), new Numeral(2))) == "a,2", "sealed hierarchy")
+    check(
+      try { Text.parse("x"); false }
+      catch { case e: CoreException => e.isInstanceOf[TextException] && e.getMessage == "text: x" },
+      "exception subclass from a sibling library caught as a core exception"
+    )
+    check(Registry.registered == List("geometry", "text"), "module initialization order")
+    check(Core.area(new BigSquare(2)) == 40, "application subclass of a geometry class")
+    check(Geometry.scaledArea(new BigSquare(1), 2) == 4, "inherited method returning a library type")
+    check(Geometry.isScalable(new BigSquare(1)), "inherited trait type test")
+    check(Core.left(new OnlyLeft) == 7 && !Core.isBase(new OnlyLeft), "new trait implementor")
+    var fromThread = 0
+    val thread = new Thread(new Runnable {
+      def run(): Unit = fromThread = Core.value(badge)
+    })
+    thread.start()
+    thread.join()
+    check(fromThread == 42, "dispatch on another thread")
+    println("DISPATCH_PROBE_OK " + args.mkString(" "))
+  }
+}

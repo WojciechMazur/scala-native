@@ -10,8 +10,11 @@ import scala.util.control.ControlThrowable
 import org.junit.Assert._
 import org.junit.Test
 
+import org.scalanative.testsuite.utils.Platform
+
+import scala.scalanative.meta.LinktimeInfo
 import scala.scalanative.meta.LinktimeInfo.{
-  is32BitPlatform, isContinuationsSupported
+  is32BitPlatform, isContinuationsSupported, isWindows
 }
 
 import Continuations._
@@ -661,5 +664,157 @@ class ContinuationsTest:
       )
       assertEquals("deep stack local corruption", 0, errors.get())
     }
+
+  @Test def suspendedStacksKeepObjectsAlive(): Unit =
+    if isContinuationsSupported then
+      val count = 64
+      val size = 1024
+      val resumes = new scala.Array[Int => Long](count)
+
+      // `data` is only referenced from the suspended stack.
+      @noinline def body(i: Int)(using BoundaryLabel[Long]): Long =
+        val data = scala.Array.tabulate(size)(j => (i * 31 + j).toLong)
+        val x = suspend[Int, Long] { k =>
+          resumes(i) = k
+          -1L
+        }
+        data.sum + x
+
+      var i = 0
+      while i < count do
+        assertEquals(-1L, boundary[Long](body(i)))
+        i += 1
+
+      var round = 0
+      while round < 10 do
+        val garbage = scala.Array.fill(10000)(new scala.Array[Byte](64))
+        assertEquals(10000, garbage.length)
+        System.gc()
+        round += 1
+
+      i = 0
+      while i < count do
+        val expected = (0 until size).map(j => (i * 31 + j).toLong).sum + i
+        assertEquals(s"continuation $i", expected, resumes(i)(i))
+        i += 1
+
+  /** Boehm scans conservatively and may keep a few objects alive. */
+  private def collectsAbandonedContinuations: Boolean =
+    isContinuationsSupported && LinktimeInfo.isWeakReferenceSupported &&
+      !LinktimeInfo.gc.isBoehm
+
+  private def collectGarbage(): Unit =
+    var round = 0
+    while round < 10 do
+      val garbage = scala.Array.fill(10000)(new scala.Array[Byte](64))
+      assertEquals(10000, garbage.length)
+      System.gc()
+      round += 1
+
+  @Test def abandonedContinuationsAreCollected(): Unit =
+    if collectsAbandonedContinuations then
+      val count = 64
+      val refs =
+        new scala.Array[java.lang.ref.WeakReference[scala.Array[Long]]](count)
+
+      // `data` is only referenced from the suspended stack, and the
+      // continuation is dropped right away.
+      @noinline def body(i: Int)(using BoundaryLabel[Long]): Long =
+        val data = new scala.Array[Long](1024)
+        data(0) = i
+        refs(i) = new java.lang.ref.WeakReference(data)
+        val x = suspend[Int, Long](_ => -1L)
+        data(0) + x
+
+      var i = 0
+      while i < count do
+        val result =
+          if i % 2 == 0 then boundary[Long](body(i))
+          else
+            // Suspends two boundaries at once.
+            boundary[Long] {
+              val outer = summon[BoundaryLabel[Long]]
+              boundary[Long](body(i)(using outer)) + 1000L
+            }
+        assertEquals(-1L, result)
+        i += 1
+
+      collectGarbage()
+      val cleared = refs.count(_.get() == null)
+      assertTrue(
+        s"only $cleared of $count abandoned stacks were collected",
+        cleared >= count * 3 / 4
+      )
+
+      // Releases the fibers of the collected continuations, then checks that
+      // continuations still work.
+      var resume: Int => Long = null
+      assertEquals(
+        -1L,
+        boundary[Long] {
+          val x = suspend[Int, Long] { k =>
+            resume = k
+            -1L
+          }
+          x * 2
+        }
+      )
+      assertEquals(42L, resume(21))
+
+  @Test def manyAbandonedContinuations(): Unit =
+    if collectsAbandonedContinuations then
+      var i = 0
+      var sum = 0L
+      while i < 2000 do
+        sum += boundary[Long] {
+          val data = new scala.Array[Long](256)
+          data(0) = i
+          val x = suspend[Int, Long](_ => 1L)
+          data(0) + x
+        }
+        if i % 200 == 0 then System.gc()
+        i += 1
+      assertEquals(2000L, sum)
+
+  @Test def resumingTwiceThrowsOnWindows(): Unit =
+    if isContinuationsSupported && isWindows then
+      var resume: Int => Int = null
+      val first = boundary[Int] {
+        val x = suspend[Int, Int] { k =>
+          resume = k
+          -1
+        }
+        x + 1
+      }
+      assertEquals(-1, first)
+      assertEquals(2, resume(1))
+      assertThrows(classOf[IllegalStateException], () => resume(1))
+
+  @noinline
+  @Platform.nooptimize
+  private def overflowStack(): Int = 1 + overflowStack()
+
+  // Windows runs each boundary on its own fiber stack.
+  @Test def stackOverflowInsideFiberBoundary(): Unit =
+    if isContinuationsSupported && isWindows then
+      assertThrows(
+        classOf[StackOverflowError],
+        () => boundary[Int](overflowStack())
+      )
+      var resume: Unit => Int = null
+      val first = boundary[Int] {
+        suspend[Unit, Int] { k =>
+          resume = k
+          -1
+        }
+        overflowStack()
+      }
+      assertEquals(-1, first)
+      assertThrows(classOf[StackOverflowError], () => resume(()))
+      // The guard is restored after the first overflow.
+      assertThrows(
+        classOf[StackOverflowError],
+        () => boundary[Int](overflowStack())
+      )
 
 end ContinuationsTest

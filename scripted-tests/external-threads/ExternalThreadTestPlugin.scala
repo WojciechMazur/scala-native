@@ -46,7 +46,10 @@ object ExternalThreadTestPlugin extends AutoPlugin {
     ),
     Compile / unmanagedSources := {
       val enabled =
-        ExternalThreadScenarios.virtualThreadsAvailable(scalaVersion.value)
+        ExternalThreadScenarios.virtualThreadsAvailable(
+          scalaVersion.value,
+          nativeConfig.value.gc
+        )
       (Compile / unmanagedSources).value.filter(source =>
         enabled || !source.getName.endsWith("VirtualCallbacks.scala")
       )
@@ -60,7 +63,10 @@ object ExternalThreadTestPlugin extends AutoPlugin {
       (Compile / nativeLink / nativeConfig).value,
       asFile((Compile / nativeLink).value, scenarioFileConverter.value),
       scenarioConfiguration.value,
-      ExternalThreadScenarios.virtualThreadsAvailable(scalaVersion.value)
+      ExternalThreadScenarios.virtualThreadsAvailable(
+        scalaVersion.value,
+        (Compile / nativeLink / nativeConfig).value.gc
+      )
     ),
     runScenarios := {
       prepareScenarios.value
@@ -69,7 +75,10 @@ object ExternalThreadTestPlugin extends AutoPlugin {
         target.value / "external-scenarios",
         (Compile / nativeLink / nativeConfig).value,
         scenarioConfiguration.value,
-        ExternalThreadScenarios.virtualThreadsAvailable(scalaVersion.value),
+        ExternalThreadScenarios.virtualThreadsAvailable(
+          scalaVersion.value,
+          (Compile / nativeLink / nativeConfig).value.gc
+        ),
         sLog.value
       )
     },

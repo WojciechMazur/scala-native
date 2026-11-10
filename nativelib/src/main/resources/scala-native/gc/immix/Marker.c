@@ -159,6 +159,16 @@ NO_SANITIZE void Marker_markProgramStack(MutatorThread *thread, Heap *heap,
         // Can spuriously fail, very rare, yet deadly
         stackTop = MutatorThread_getStackTop(thread, false);
     } while (stackTop == NULL);
+#ifdef _WIN32
+    // Continuations run on fibers (delimcc_fibers.c), whose stacks lie
+    // anywhere in memory. ThreadInfo always describes the running stack.
+    if (thread->threadInfo != NULL && thread->threadInfo->stackTop != NULL &&
+        thread->threadInfo->stackBottom != NULL &&
+        isInRange(stackTop, thread->threadInfo->stackTop,
+                  thread->threadInfo->stackBottom)) {
+        stackBottom = (word_t **)thread->threadInfo->stackBottom;
+    }
+#endif
 #ifdef SCALANATIVE_THREAD_ALT_STACK
     // Keep the captured SP until stack bounds are known.
     if (thread->threadInfo != NULL && thread->threadInfo->stackTop != NULL &&

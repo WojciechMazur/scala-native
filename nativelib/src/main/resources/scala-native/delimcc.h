@@ -1,6 +1,8 @@
 #ifndef DELIMCC_H
 #define DELIMCC_H
 #include <stdlib.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <setjmp.h>
 
 /* Exception escapes from resumed continuations. setjmp/longjmp also save and
@@ -20,7 +22,9 @@
 extern "C" {
 #endif
 
-typedef unsigned long ContinuationBoundaryLabel;
+// Pointer-sized on every platform: the Scala side passes CUnsignedLong, which
+// is word-sized, while C `unsigned long` is 32-bit on Windows.
+typedef uintptr_t ContinuationBoundaryLabel;
 
 typedef struct Continuation Continuation;
 
@@ -35,7 +39,7 @@ typedef void *SuspendFn(Continuation *, void *);
 // without calling this, malloc is the default allocation function.
 // The allocation function may take another parameter, as given in
 // `scalanative_continuation_suspend`.
-void scalanative_continuation_init(void *(*alloc_f)(unsigned long, void *));
+void scalanative_continuation_init(void *(*alloc_f)(size_t, void *));
 
 // cont_boundary : ContinuationBody -> any -> any
 // Installs a boundary handler and passes the boundary label associated with
@@ -60,6 +64,16 @@ void *scalanative_continuation_suspend(ContinuationBoundaryLabel b,
 // Resumes the given Continuation under the resume call, passing back the
 // argument into the suspended computation and returns its result.
 void *scalanative_continuation_resume(Continuation *continuation, void *arg);
+
+#ifdef _WIN32
+/* Windows only (delimcc_fibers.c). Returns a token for releasing the fibers
+ * of `continuation` once its owner is collected; created on the first call.
+ * The token stays valid until passed to scalanative_continuation_release. */
+void *scalanative_continuation_release_token(Continuation *continuation);
+/* Deletes the fibers of a continuation that was never resumed and frees the
+ * token. Call only after the owner of the continuation was collected. */
+void scalanative_continuation_release(void *token);
+#endif
 
 // Reset the thread-local handler chain to NULL. Call before entering a new
 // boundary (e.g. before dispatching a virtual thread) so the carrier does not

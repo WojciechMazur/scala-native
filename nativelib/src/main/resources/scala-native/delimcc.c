@@ -1,4 +1,6 @@
-#if defined(SCALANATIVE_COMPILE_ALWAYS) || defined(__SCALANATIVE_DELIMCC)
+// Windows uses delimcc_fibers.c instead.
+#if !defined(_WIN32) &&                                                        \
+    (defined(SCALANATIVE_COMPILE_ALWAYS) || defined(__SCALANATIVE_DELIMCC))
 #include "delimcc.h"
 #include <stddef.h>
 #include <stdio.h>
@@ -31,10 +33,6 @@
 #define ASM_JMPBUF_SIZE 32
 #define JMPBUF_STACK_POINTER_OFFSET (16 / 4)
 #define JMPBUF_FRAME_POINTER_OFFSET (0 / 4)
-#elif defined(__x86_64__) && defined(_WIN64) // x86-64 Windows
-#define ASM_JMPBUF_SIZE 256
-#define JMPBUF_STACK_POINTER_OFFSET (16 / 8)
-#define JMPBUF_FRAME_POINTER_OFFSET (24 / 8)
 #else
 #error "Unsupported platform"
 #endif
@@ -293,13 +291,13 @@ int scalanative_continuation_exception_escape(Exception exception) {
 // =============================
 
 // Assigned allocation function. Should not be modified after `init`.
-static void *(*continuation_alloc_fn)(unsigned long, void *);
+static void *(*continuation_alloc_fn)(size_t, void *);
 
 #if defined(SCALANATIVE_USING_CPP_EXCEPTIONS)
 extern void scalanative_continuation_exception_terminate_handler_install(void);
 #endif
 
-void scalanative_continuation_init(void *(*alloc_f)(unsigned long, void *)) {
+void scalanative_continuation_init(void *(*alloc_f)(size_t, void *)) {
     if (alloc_f == NULL)
         DELIMCC_ERROR_ABORT("scalanative_continuation_init: alloc_f is NULL\n");
 
@@ -676,18 +674,6 @@ void __continuation_resume_impl(void *tail, Continuation *continuation,
         jmpbuf_fix_slot_if_stack_addr((buf), 1); /* ebx */                     \
         jmpbuf_fix_slot_if_stack_addr((buf), 2); /* edi */                     \
         jmpbuf_fix_slot_if_stack_addr((buf), 3); /* esi */                     \
-    } while (0)
-#elif defined(__x86_64__) && defined(_WIN64)
-#define jmpbuf_fix_general_registers(buf)                                      \
-    do {                                                                       \
-        jmpbuf_fix_slot_if_stack_addr((buf), 0); /* rdx */                     \
-        jmpbuf_fix_slot_if_stack_addr((buf), 1); /* rbx */                     \
-        jmpbuf_fix_slot_if_stack_addr((buf), 4); /* rsi */                     \
-        jmpbuf_fix_slot_if_stack_addr((buf), 5); /* rdi */                     \
-        jmpbuf_fix_slot_if_stack_addr((buf), 6); /* r12 */                     \
-        jmpbuf_fix_slot_if_stack_addr((buf), 7); /* r13 */                     \
-        jmpbuf_fix_slot_if_stack_addr((buf), 8); /* r14 */                     \
-        jmpbuf_fix_slot_if_stack_addr((buf), 9); /* r15 */                     \
     } while (0)
 #else
 #define jmpbuf_fix_general_registers(buf) ((void)0)

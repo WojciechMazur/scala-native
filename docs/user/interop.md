@@ -383,6 +383,16 @@ unmanaged memory.
     zone-allocated memory after the end of the zone is undefined
     behavior.
 
+    Zone memory is not managed by the garbage collector and is never
+    scanned for references. Storing a reference to a Scala/Java object
+    in it (for example `alloc[BigInt](n)` or a `CStruct` with an
+    object-typed field) does not keep that object alive: once no other
+    reachable reference exists, the GC may reclaim or reuse the object
+    and later reads through the pointer will observe corrupted data or
+    crash. Keep such objects reachable from managed memory (a field, an
+    `Array[T]`, a local variable) for as long as the zone holds them, or
+    prefer regular Scala collections for managed objects.
+
 2.  **Stack allocation.**
 
     > Scala Native provides a built-in way to perform stack allocations
@@ -412,7 +422,8 @@ unmanaged memory.
     > Calling those will let you allocate memory using system's
     > standard dynamic memory allocator. Every single manual allocation
     > must also be freed manually as soon as it's not needed any
-    > longer.
+    > longer. As with zones, this memory is not scanned by the
+    > garbage collector, so it cannot keep managed objects alive.
     >
     > Apart from the standard system allocator one might also bind to
     > plethora of 3-rd party allocators such as

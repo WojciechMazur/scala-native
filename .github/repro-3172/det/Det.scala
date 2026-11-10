@@ -42,10 +42,14 @@ object Main {
     for (t <- 0 until trials) {
       fresh(slot)
       H.sn3172_hold_in_callee_saved(slot)
-      churn()
+      // Root the object on the Scala stack again: the malloc'ed slot is not
+      // scanned by the GC. If it was freed while held only in the register,
+      // churn() reuses its memory.
       val a = Intrinsics
         .castRawPtrToObject(toRawPtr(!slot))
         .asInstanceOf[Array[Long]]
+      !slot = null
+      churn()
       val ok = a.length == 32 && a.forall(_ == Magic)
       if (!ok) failures += 1
       println(s"trial $t: ${if (ok) "alive" else "COLLECTED/CORRUPTED"}")

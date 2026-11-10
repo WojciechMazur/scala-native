@@ -6,87 +6,99 @@ on:
 
 jobs:
   det:
-    name: "det SN ${{ matrix.sn }} gc=${{ matrix.gc }} mode=${{ matrix.mode }} lto=${{ matrix.lto }}"
-    runs-on: ubuntu-22.04
+    name: "det SN ${{ matrix.sn }} gc=${{ matrix.gc }} ${{ matrix.os }}"
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        sn: ["0.4.10", "0.4.17", "0.5.12"]
+        sn: ["0.5.12"]
         gc: [immix, commix]
-        mode: [debug]
-        lto: [none]
+        os: [ubuntu-24.04]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
       - uses: VirtusLab/scala-cli-setup@v1
       - name: Deps
-        run: sudo apt-get update && sudo apt-get -y install libunwind-dev libgc-dev
+        run: sudo apt-get update && sudo apt-get -y install libunwind-dev libgc-dev && clang --version
       - name: Run
         working-directory: .github/repro-3172/det
         run: |
-          case "${{ matrix.sn }}" in
-            0.4.10) extra="--scala 2.13.10 --native-compile -DSN_COLLECT=scalanative_collect";;
-            0.4.*)  extra="--scala 2.13.12 --native-compile -DSN_COLLECT=scalanative_collect";;
-            *)      extra="";;
-          esac
-          scala-cli --power package --server=false Det.scala -o det --force $extra \
-            --native-version ${{ matrix.sn }} --native-lto ${{ matrix.lto }} \
-            --native-mode ${{ matrix.mode }} --native-gc ${{ matrix.gc }}
+          scala-cli --power package --server=false Det.scala -o det --force \
+            --native-version ${{ matrix.sn }} --native-mode debug --native-gc ${{ matrix.gc }}
           ./det
 
-  stochastic:
-    name: "minimized SN ${{ matrix.sn }} lto=${{ matrix.lto }} gc=${{ matrix.gc }}"
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        sn: ["0.4.10"]
-        lto: [thin, none]
-        gc: [immix]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: 17 }
-      - uses: VirtusLab/scala-cli-setup@v1
-      - name: Deps
-        run: sudo apt-get update && sudo apt-get -y install libunwind-dev libgc-dev
-      - name: Run
-        run: |
-          scala-cli --power package --server=false .github/repro-3172/Repro.scala -o repro --force \
-            --scala 2.13.10 --native-version ${{ matrix.sn }} --native-lto ${{ matrix.lto }} \
-            --native-mode debug --native-gc ${{ matrix.gc }}
-          ok=0
-          for k in 1 2 3; do ./repro 300000 3 || { echo "FAILED rc=$? on try $k"; ok=1; }; done
-          exit $ok
-
-  main:
-    name: "main det gc=${{ matrix.gc }} lto=${{ matrix.lto }}"
-    runs-on: ubuntu-22.04
+  main-sandbox:
+    name: "main sandbox ${{ matrix.prog }} gc=${{ matrix.gc }} lto=${{ matrix.lto }}"
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        gc: [immix, commix]
-        lto: [none]
+        include:
+          - { prog: det, gc: immix, lto: none }
+          - { prog: det, gc: commix, lto: none }
+          - { prog: minimized, gc: immix, lto: thin }
+          - { prog: minimized, gc: commix, lto: thin }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
       - uses: sbt/setup-sbt@v1
       - name: Deps
-        run: sudo apt-get update && sudo apt-get -y install libunwind-dev
+        run: sudo apt-get update && sudo apt-get -y install libunwind-dev && clang --version
       - name: Prepare sandbox
         run: |
-          sed -n '/^import /,$p' .github/repro-3172/det/Det.scala > sandbox/src/main/scala/Test.scala
+          if [ "${{ matrix.prog }}" = det ]; then
+            sed -n '/^import /,$p' .github/repro-3172/det/Det.scala > sandbox/src/main/scala/Test.scala
+            mkdir -p sandbox/src/main/resources/scala-native
+            cp .github/repro-3172/det/res/scala-native/hold.c sandbox/src/main/resources/scala-native/
+          else
+            sed -n '/^import /,$p' .github/repro-3172/Repro.scala > sandbox/src/main/scala/Test.scala
+          fi
           cp sandbox/src/main/scala/Test.scala sandbox/src/main/scala-next/Test.scala
-          mkdir -p sandbox/src/main/resources/scala-native
-          cp .github/repro-3172/det/res/scala-native/hold.c sandbox/src/main/resources/scala-native/
       - name: Run
         env:
           SCALANATIVE_MODE: debug
           SCALANATIVE_GC: ${{ matrix.gc }}
           SCALANATIVE_LTO: ${{ matrix.lto }}
-        run: sbt -Dsbt.color=false 'sandbox2_13/run'
+        run: |
+          if [ "${{ matrix.prog }}" = det ]; then
+            sbt -Dsbt.color=false 'sandbox2_13/run'
+          else
+            sbt -Dsbt.color=false 'sandbox2_13/run 300000 3' 'sandbox2_13/run 300000 3'
+          fi
+
+  unit-test:
+    name: "unit test on ${{ matrix.name }} gc=${{ matrix.gc }}"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        name: [main, pre-5159]
+        gc: [immix, commix]
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Checkout pre-#5159 sources with the new test
+        if: matrix.name == 'pre-5159'
+        run: |
+          mkdir /tmp/t
+          cp unit-tests/native/src/test/resources/scala-native/callee-saved-registers-roots.c /tmp/t/
+          cp unit-tests/native/src/test/scala/scala/scalanative/runtime/gc/CalleeSavedRegistersRootsTest.scala /tmp/t/
+          git checkout -q 684a4c4bba150f3b3a557fb8108fe5edf4e995f5
+          cp /tmp/t/callee-saved-registers-roots.c unit-tests/native/src/test/resources/scala-native/
+          cp /tmp/t/CalleeSavedRegistersRootsTest.scala unit-tests/native/src/test/scala/scala/scalanative/runtime/gc/
+          git log --oneline -1
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: sbt/setup-sbt@v1
+      - name: Deps
+        run: sudo apt-get update && sudo apt-get -y install libunwind-dev && clang --version
+      - name: Test
+        env:
+          SCALANATIVE_MODE: debug
+          SCALANATIVE_GC: ${{ matrix.gc }}
+        run: sbt -Dsbt.color=false "tests2_13/testOnly scala.scalanative.runtime.gc.CalleeSavedRegistersRootsTest -- -v"

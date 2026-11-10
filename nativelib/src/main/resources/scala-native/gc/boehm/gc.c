@@ -4,7 +4,7 @@
 
 #include <gc/gc.h>
 #include <gc/gc_mark.h>
-#include "staticSections.h"
+#include "staticRoots.h"
 #include "shared/ScalaNativeGC.h"
 #include <stdlib.h>
 #include <string.h>
@@ -30,11 +30,12 @@ static void pushLockWord(void **lockWord, void *context) {
     GC_push_all(lockWord, lockWord + 1);
 }
 
-// Monitors of classes are reachable only from their lock words
+// Monitors of static classes and strings are reachable only from their
+// lock words
 static void GC_CALLBACK pushOtherRoots(void) {
     if (previousPushOtherRoots != NULL)
         previousPushOtherRoots();
-    scalanative_foreach_class_lock_word(pushLockWord, NULL);
+    scalanative_foreach_static_lock_word(pushLockWord, NULL);
 }
 
 void scalanative_GC_init() {

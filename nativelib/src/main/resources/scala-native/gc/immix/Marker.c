@@ -12,7 +12,7 @@
 #include <stdatomic.h>
 #include "shared/ThreadUtil.h"
 #include "stackOverflowGuards.h"
-#include "staticSections.h"
+#include "staticRoots.h"
 
 #define LAST_FIELD_OFFSET -1
 
@@ -234,7 +234,7 @@ void Marker_MarkRoots(Heap *heap, Stack *stack) {
     }
     Marker_markCustomRoots(heap, stack, customRoots);
     MarkerContext context = {heap, stack};
-    scalanative_foreach_class_lock_word(Marker_markLockWord, &context);
+    scalanative_foreach_static_lock_word(Marker_markLockWord, &context);
     Marker_Mark(heap, stack);
 }
 

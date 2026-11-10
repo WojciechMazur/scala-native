@@ -12,7 +12,7 @@
 #include "shared/ThreadUtil.h"
 #include "SyncGreyLists.h"
 #include "stackOverflowGuards.h"
-#include "staticSections.h"
+#include "staticRoots.h"
 
 #define LAST_FIELD_OFFSET -1
 
@@ -568,7 +568,7 @@ void Marker_MarkRoots(Heap *heap, Stats *stats) {
     }
     Marker_markCustomRoots(heap, stats, &out, &weakRefOut, customRoots);
     MarkerContext context = {heap, stats, &out, &weakRefOut};
-    scalanative_foreach_class_lock_word(Marker_markLockWord, &context);
+    scalanative_foreach_static_lock_word(Marker_markLockWord, &context);
     Marker_giveFullPacket(heap, stats, out);
     Marker_giveWeakRefPacket(heap, stats, weakRefOut);
 }

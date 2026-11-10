@@ -44,8 +44,8 @@ jobs:
           sbt -J-Xmx3G -Dsbt.color=false \
             'set ThisBuild / scalafixOnCompile := false' 'set ThisBuild / scalafmtOnCompile := false' \
             ++${{ matrix.scala }} \
-            'set soundNative / Test / nativeLTO := "${{ matrix.lto }}"' \
-            'set soundNative / Test / nativeMode := "${{ matrix.mode }}"' \
+            'set LocalProject("soundNative") / Test / nativeLTO := "${{ matrix.lto }}"' \
+            'set LocalProject("soundNative") / Test / nativeMode := "${{ matrix.mode }}"' \
             'show soundNative/Test/nativeConfig' soundNative/test 2>&1 | tee ../out.log
           echo "sbt exit: ${PIPESTATUS[0]}"
           ls -la /tmp/core.* 2>/dev/null || echo "no core"

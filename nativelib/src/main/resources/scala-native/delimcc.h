@@ -65,6 +65,16 @@ void *scalanative_continuation_suspend(ContinuationBoundaryLabel b,
 // argument into the suspended computation and returns its result.
 void *scalanative_continuation_resume(Continuation *continuation, void *arg);
 
+#ifdef _WIN32
+/* Windows only (delimcc_fibers.c). Returns a token for releasing the fibers
+ * of `continuation` once its owner is collected; created on the first call.
+ * The token stays valid until passed to scalanative_continuation_release. */
+void *scalanative_continuation_release_token(Continuation *continuation);
+/* Deletes the fibers of a continuation that was never resumed and frees the
+ * token. Call only after the owner of the continuation was collected. */
+void scalanative_continuation_release(void *token);
+#endif
+
 // Reset the thread-local handler chain to NULL. Call before entering a new
 // boundary (e.g. before dispatching a virtual thread) so the carrier does not
 // inherit stale handlers from a previous VT that ran on the same carrier.

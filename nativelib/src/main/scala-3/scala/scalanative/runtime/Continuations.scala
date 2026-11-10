@@ -3,7 +3,9 @@ package scala.scalanative.runtime
 import scala.collection.mutable
 import scala.util.{Failure, Try}
 
-import scala.scalanative.meta.LinktimeInfo.isContinuationsSupported
+import scala.scalanative.meta.LinktimeInfo.{
+  isContinuationsSupported, isWeakReferenceSupported, isWindows
+}
 import scala.scalanative.runtime.Intrinsics.*
 import scala.scalanative.runtime.ffi.{free, malloc}
 import scala.scalanative.unsafe.*
@@ -80,6 +82,8 @@ object Continuations:
     // while creating the full continuation object.
     val call: SuspendFn[R, T] = innerContinuation =>
       continuation.inner = innerContinuation
+      if isWindows && isWeakReferenceSupported then
+        FiberRelease.track(continuation)
       Try(onSuspend(continuation))
     try Impl.suspend(label, suspendFn, call, continuation)
     finally reachabilityFence(continuation)
@@ -164,6 +168,52 @@ object Continuations:
 
   @noinline private def reachabilityFence(target: Any): Unit = ()
 
+  /** Windows only: releases the OS fibers of continuations that were collected
+   *  without being resumed.
+   *
+   *  A suspended continuation keeps its stacks only in its own blobs, so the GC
+   *  collects it once nothing references it. Each tracked continuation has a
+   *  weak reference holding the release token of its fibers. When the GC clears
+   *  that reference, `enqueue` (called by the weak reference registry, possibly
+   *  inside the GC callback) only pushes it to a lock-free list. The next
+   *  `track` call, on a normal mutator stack, releases the fibers.
+   */
+  private object FiberRelease:
+    private val pending =
+      new java.util.concurrent.atomic.AtomicReference[Ref](null)
+
+    // `owner` is not kept in a field, so the reference stays weak. Until it
+    // is cleared, the weak reference registry keeps this object alive.
+    private final class Ref(owner: Continuation[?, ?], val token: Ptr[Byte])
+        extends java.lang.ref.WeakReference[AnyRef](owner):
+      @volatile var next: Ref = null
+      @volatile private var queued = false
+
+      override def enqueue(): Boolean =
+        clear()
+        if queued then false
+        else
+          queued = true
+          var head = pending.get()
+          next = head
+          while !pending.compareAndSet(head, this) do
+            head = pending.get()
+            next = head
+          true
+    end Ref
+
+    def track(continuation: Continuation[?, ?]): Unit =
+      releaseCollected()
+      new Ref(continuation, Impl.releaseToken(continuation.inner))
+
+    private def releaseCollected(): Unit =
+      if pending.get() != null then
+        var ref = pending.getAndSet(null)
+        while ref != null do
+          Impl.release(ref.token)
+          ref = ref.next
+  end FiberRelease
+
   /** Continuations implementation imported from C (see `delimcc.h`) */
   @extern @define("__SCALANATIVE_DELIMCC") private object Impl:
     private type ContinuationLabel = CUnsignedLong
@@ -198,6 +248,13 @@ object Continuations:
 
     @name("scalanative_continuation_resume")
     def resume[R, T](continuation: Continuation, arg: R): Try[T] = extern
+
+    // Windows only, see `FiberRelease`.
+    @name("scalanative_continuation_release_token")
+    def releaseToken(continuation: Continuation): Ptr[Byte] = extern
+
+    @name("scalanative_continuation_release")
+    def release(token: Ptr[Byte]): Unit = extern
 
     @name("scalanative_continuation_init") def init(
         continuation_alloc_fn: CFuncPtr2[

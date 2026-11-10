@@ -19,8 +19,11 @@
  *   control (the boundary caller or the resumer), after the suspending fiber
  *   has fully switched out. Running it on the suspending fiber would let
  *   another thread resume that fiber while it still runs.
- * - A suspended continuation that is never resumed keeps its fiber, and the
- *   stack of that fiber stays a GC root.
+ * - The stacks of a suspended continuation are not GC roots. On suspend they
+ *   are copied into a blob owned by the Scala Continuation, which the GC
+ *   scans conservatively. A continuation that is never resumed is collected
+ *   like any other object, and the Scala side then releases its fibers
+ *   through a release token (see `scalanative_continuation_release`).
  *
  * The chain of enclosing boundaries is followed through `returnTo`. A fiber's
  * `returnTo` is the context that receives control when that fiber finishes
@@ -32,6 +35,13 @@
  * root range, and switching back removes it. The thread's ThreadInfo bounds
  * always describe the stack that currently runs, so the GC scans the right
  * range for the running stack.
+ *
+ * When a fiber suspends, the context that receives control copies every
+ * stack of the suspended segment (from the suspending fiber up to the label
+ * fiber) into one GC blob, and only then drops their root ranges. The parked
+ * stacks do not change until a resume, and Immix and Commix never move
+ * objects, so the copy holds exactly the references of the real stacks.
+ * Resuming registers the root ranges again before switching.
  */
 
 #define WIN32_LEAN_AND_MEAN
@@ -107,6 +117,12 @@ struct Fiber {
     void *stackGuardPage;
     size_t stackSize;
 
+    // Lowest address of the parked part of the stack, valid while the fiber
+    // does not run. `rooted` is set while [parkedSp, stackHi) is registered
+    // as a GC root range.
+    void *parkedSp;
+    bool rooted;
+
     // Values handed over on a switch. They hold GC references only while no
     // safepoint can run: from the store until the receiver passes them on.
     ContinuationBody *body;
@@ -114,15 +130,26 @@ struct Fiber {
     void *result;
     SuspendFn *suspendFn;
     void *suspendArg;
+    void *allocArg;
     Continuation *pending;
     void *resumeArg;
 };
+
+/* Lets the Scala side release the fibers of a continuation after the GC
+ * collected it. Allocated with malloc on request, freed only by
+ * scalanative_continuation_release. */
+typedef struct ReleaseToken {
+    volatile LONG claimed; // set by resume or release, whichever comes first
+    Fiber *top;
+    Fiber *label;
+} ReleaseToken;
 
 // Allocated through continuation_alloc_fn, owned by the Scala Continuation.
 struct Continuation {
     Fiber *top;   // fiber that called suspend
     Fiber *label; // boundary fiber suspended to
     volatile LONG resumed;
+    ReleaseToken *token; // NULL until requested
 };
 
 static void *(*continuation_alloc_fn)(size_t, void *) = NULL;
@@ -193,18 +220,32 @@ static Fiber *current_fiber(void) {
     return self;
 }
 
+static void fiber_root(Fiber *fiber) {
+    if (!fiber->rooted) {
+        scalanative_GC_add_roots(fiber->parkedSp, fiber->stackHi);
+        fiber->rooted = true;
+    }
+}
+
+static void fiber_unroot(Fiber *fiber) {
+    if (fiber->rooted) {
+        fiber->rooted = false;
+        scalanative_GC_remove_roots(fiber->parkedSp, fiber->stackHi);
+    }
+}
+
 /* Switches from `self` (the running fiber) to `target`. Returns when some
  * fiber switches back to `self`, possibly on another thread. When
- * `keepSelfRooted` is set, the parked part of the stack of `self` stays a GC
- * root while `self` does not run. */
+ * `keepSelfRooted` is set, the parked part of the stack of `self` is a GC
+ * root while `self` does not run, until a suspend moves it into a blob. */
 SN_FIBER_NOINLINE static void fiber_switch(Fiber *self, Fiber *target,
                                            bool keepSelfRooted) {
     SN_FIBER_SPILL_CALLEE_SAVED();
-    void *parkedSp = NULL;
-    if (keepSelfRooted) {
-        parkedSp = approximate_stack_pointer();
-        scalanative_GC_add_roots(parkedSp, self->stackHi);
-    }
+    // Word aligned, so the copies in a snapshot keep pointers aligned.
+    self->parkedSp =
+        (void *)((uintptr_t)approximate_stack_pointer() & ~(uintptr_t)15);
+    if (keepSelfRooted)
+        fiber_root(self);
     if (target->state == FIBER_PRIMARY &&
         target->ownerThreadId != GetCurrentThreadId())
         SN_FIBER_ABORT("switch to the thread fiber of thread %lu from "
@@ -220,8 +261,7 @@ SN_FIBER_NOINLINE static void fiber_switch(Fiber *self, Fiber *target,
     // Running `self` again, possibly on another thread.
     current_fiber_store(self);
     thread_info_apply(self);
-    if (keepSelfRooted)
-        scalanative_GC_remove_roots(parkedSp, self->stackHi);
+    fiber_unroot(self);
 }
 
 static void fiber_destroy(Fiber *fiber) {
@@ -271,6 +311,35 @@ static VOID CALLBACK fiber_main(LPVOID param) {
     SN_FIBER_ABORT("finished fiber %p was resumed\n", (void *)self);
 }
 
+#define SEGMENT_FOREACH(fiber, top, label)                                     \
+    for (Fiber *fiber = (top), *fiber##End = NULL; fiber##End != (label);      \
+         fiber##End = fiber, fiber = fiber->returnTo)
+
+/* Moves the stacks of a suspended segment out of the GC roots: copies them
+ * into one blob owned by the Scala Continuation `allocArg`, then drops their
+ * root ranges. The fibers of the segment are parked, so their stacks do not
+ * change until the continuation is resumed. */
+static void segment_snapshot(Fiber *top, Fiber *label, void *allocArg) {
+    size_t total = 0;
+    SEGMENT_FOREACH(fiber, top, label) {
+        total += (size_t)((char *)fiber->stackHi - (char *)fiber->parkedSp);
+    }
+    // May run the GC: the stacks are still rooted.
+    char *blob = (char *)continuation_alloc_fn(total, allocArg);
+    if (blob == NULL)
+        SN_FIBER_ABORT("suspend: stack snapshot allocation failed\n");
+    char *out = blob;
+    SEGMENT_FOREACH(fiber, top, label) {
+        size_t size =
+            (size_t)((char *)fiber->stackHi - (char *)fiber->parkedSp);
+        memcpy(out, fiber->parkedSp, size);
+        out += size;
+    }
+    SEGMENT_FOREACH(fiber, top, label) { fiber_unroot(fiber); }
+    SN_FIBER_TRACE("snapshot %p..%p: %zu bytes\n", (void *)top, (void *)label,
+                   total);
+}
+
 /* Runs in the context that just received control in boundary or resume. */
 static void *fiber_dispatch(Fiber *self) {
     Fiber *source = self->from;
@@ -286,9 +355,12 @@ static void *fiber_dispatch(Fiber *self) {
         Continuation *continuation = source->pending;
         SuspendFn *fn = source->suspendFn;
         void *arg = source->suspendArg;
+        void *allocArg = source->allocArg;
         source->pending = NULL;
         source->suspendFn = NULL;
         source->suspendArg = NULL;
+        source->allocArg = NULL;
+        segment_snapshot(continuation->top, continuation->label, allocArg);
         return fn(continuation, arg);
     }
     default:
@@ -381,10 +453,12 @@ void *scalanative_continuation_suspend(ContinuationBoundaryLabel label,
     continuation->top = self;
     continuation->label = target;
     continuation->resumed = 0;
+    continuation->token = NULL;
 
     self->pending = continuation;
     self->suspendFn = f;
     self->suspendArg = arg;
+    self->allocArg = alloc_arg;
     self->state = FIBER_SUSPENDED;
     fiber_switch(self, target->returnTo, true);
 
@@ -398,11 +472,55 @@ void *scalanative_continuation_suspend(ContinuationBoundaryLabel label,
 void *scalanative_continuation_resume(Continuation *continuation, void *arg) {
     if (InterlockedExchange(&continuation->resumed, 1) != 0)
         return NULL; // resumed twice: reported by the Scala side
+    if (continuation->token != NULL)
+        InterlockedExchange(&continuation->token->claimed, 1);
     Fiber *self = current_fiber();
+    // The stacks become roots again before anything can change them. The
+    // snapshot stays in the Scala Continuation until it is collected.
+    SEGMENT_FOREACH(fiber, continuation->top, continuation->label) {
+        fiber_root(fiber);
+    }
     continuation->label->returnTo = self;
     continuation->top->resumeArg = arg;
     fiber_switch(self, continuation->top, true);
     return fiber_dispatch(self);
+}
+
+void *scalanative_continuation_release_token(Continuation *continuation) {
+    if (continuation->token == NULL) {
+        ReleaseToken *token = (ReleaseToken *)malloc(sizeof(ReleaseToken));
+        if (token == NULL)
+            SN_FIBER_ABORT("out of memory allocating a release token\n");
+        token->claimed = continuation->resumed;
+        token->top = continuation->top;
+        token->label = continuation->label;
+        continuation->token = token;
+    }
+    return continuation->token;
+}
+
+/* Called once the GC collected the Scala Continuation that owns `token`. A
+ * continuation that was never resumed can no longer be resumed, so its fibers
+ * are deleted. A resumed one gave its fibers back to the resumer, which
+ * deletes them when they finish. */
+void scalanative_continuation_release(void *opaque) {
+    ReleaseToken *token = (ReleaseToken *)opaque;
+    if (InterlockedExchange(&token->claimed, 1) == 0) {
+        Fiber *fiber = token->top;
+        for (;;) {
+            Fiber *next = fiber->returnTo;
+            bool last = fiber == token->label;
+            if (fiber->rooted || fiber->state == FIBER_PRIMARY)
+                SN_FIBER_ABORT("release: fiber %p is still in use\n",
+                               (void *)fiber);
+            SN_FIBER_TRACE("release %p\n", (void *)fiber);
+            fiber_destroy(fiber);
+            if (last)
+                break;
+            fiber = next;
+        }
+    }
+    free(token);
 }
 
 /* Exception escape helpers used by the POSIX implementation. Exceptions never

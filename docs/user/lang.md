@@ -57,9 +57,12 @@ the other platforms in a few ways:
 
 - A continuation can be resumed only once. Resuming it again throws
   `IllegalStateException`.
-- A continuation that is suspended and never resumed keeps its fiber
-  stack, and the objects referenced from it, alive until the program
-  exits.
+- A suspended continuation that is no longer referenced is collected by
+  the GC, together with the objects referenced only from its stack. Its
+  fibers are released at a later suspend. Without a GC (`GC.none`) the
+  fibers are never released.
+- Each suspend copies the suspended stacks into a heap object owned by the
+  continuation, so the GC can trace them.
 - The Boehm GC is not supported.
 - Each fiber reserves 1 MB of stack address space by default. Set the
   `SCALANATIVE_CONTINUATION_STACK_SIZE` environment variable to change

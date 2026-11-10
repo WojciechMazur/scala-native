@@ -1,0 +1,68 @@
+name: repro-3172
+on:
+  push:
+    branches: [triage/3172-repro-ci]
+  workflow_dispatch:
+
+jobs:
+  old:
+    name: "minart@${{ matrix.rev }} SN0.4.10 ${{ matrix.os }} ${{ matrix.scala }} lto=${{ matrix.lto }} mode=${{ matrix.mode }}"
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04]
+        rev: [05a8a8d9]
+        scala: ["2.12", "2.13", "3.2"]
+        lto: [thin]
+        mode: [debug]
+        include:
+          - { os: ubuntu-22.04, rev: 05a8a8d9, scala: "2.13", lto: none, mode: debug }
+          - { os: ubuntu-22.04, rev: 05a8a8d9, scala: "2.13", lto: thin, mode: release }
+          - { os: ubuntu-22.04, rev: 05a8a8d9, scala: "2.13", lto: full, mode: debug }
+          - { os: ubuntu-22.04, rev: 4e27ae84, scala: "2.13", lto: thin, mode: debug }
+          - { os: ubuntu-24.04, rev: 05a8a8d9, scala: "2.13", lto: thin, mode: debug }
+    steps:
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 8 }
+      - uses: sbt/setup-sbt@v1
+      - name: Deps
+        run: |
+          sudo apt-get update && sudo apt-get -y install libunwind-dev libre2-dev libsdl2-dev gdb
+          clang --version; which clang; ld --version | head -1
+          ls /usr/lib/llvm-*/lib/LLVMgold.so || true
+      - name: Fetch minart
+        run: curl -fsSL https://codeload.github.com/JD557/minart/tar.gz/${{ matrix.rev }} | tar xz && mv minart-* minart
+      - name: Test
+        working-directory: minart
+        env: { CI: "true" }
+        run: |
+          ulimit -c unlimited
+          sudo sysctl -w kernel.core_pattern=/tmp/core.%e.%p
+          set +e
+          sbt -J-Xmx3G -Dsbt.color=false \
+            'set ThisBuild / scalafixOnCompile := false' 'set ThisBuild / scalafmtOnCompile := false' \
+            ++${{ matrix.scala }} \
+            'set soundNative / Test / nativeLTO := "${{ matrix.lto }}"' \
+            'set soundNative / Test / nativeMode := "${{ matrix.mode }}"' \
+            'show soundNative/Test/nativeConfig' soundNative/test 2>&1 | tee ../out.log
+          echo "sbt exit: ${PIPESTATUS[0]}"
+          ls -la /tmp/core.* 2>/dev/null || echo "no core"
+      - name: Backtrace
+        if: always()
+        run: |
+          for c in /tmp/core.*; do
+            [ -f "$c" ] || continue
+            bin=$(ls minart/sound/native/target/scala-*/minart-sound-test-out | head -1)
+            gdb -batch -ex 'bt 40' -ex 'info registers' -ex 'x/6i $pc-12' "$bin" "$c" || true
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: out-${{ matrix.os }}-${{ matrix.rev }}-${{ matrix.scala }}-${{ matrix.lto }}-${{ matrix.mode }}
+          path: |
+            out.log
+            minart/sound/native/target/scala-*/minart-sound-test-out
+            minart/sound/native/target/scala-*/native/*.ll
+          retention-days: 5

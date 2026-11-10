@@ -5,68 +5,66 @@ on:
   workflow_dispatch:
 
 jobs:
-  old:
-    name: "${{ matrix.variant }} lto=${{ matrix.lto }} gc=${{ matrix.gc }}"
+  scala-cli:
+    name: "SN ${{ matrix.sn }} lto=${{ matrix.lto }} mode=${{ matrix.mode }} gc=${{ matrix.gc }}"
     runs-on: ubuntu-22.04
-    timeout-minutes: 40
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
+        sn: ["0.4.10", "0.4.17", "0.5.12"]
+        lto: [thin, none]
+        mode: [debug]
+        gc: [immix]
         include:
-          - { variant: gdb, lto: thin, stack: "8192", gc: immix }
-          - { variant: plain, lto: thin, stack: "8192", gc: none }
-          - { variant: plain, lto: thin, stack: "8192", gc: boehm }
-          - { variant: plain, lto: thin, stack: "8192", gc: commix }
+          - { sn: "0.4.17", lto: thin, mode: debug, gc: commix }
+          - { sn: "0.4.17", lto: thin, mode: debug, gc: boehm }
+          - { sn: "0.4.17", lto: thin, mode: release-fast, gc: immix }
+          - { sn: "0.5.12", lto: thin, mode: debug, gc: commix }
+          - { sn: "0.5.12", lto: thin, mode: release-fast, gc: immix }
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: 8 }
+        with: { distribution: temurin, java-version: 17 }
+      - uses: VirtusLab/scala-cli-setup@v1
+      - name: Deps
+        run: sudo apt-get update && sudo apt-get -y install libunwind-dev libgc-dev && clang --version
+      - name: Run
+        run: |
+          scala-cli --power package --server=false .github/repro-3172/Repro.scala -o repro --force \
+            --native-version ${{ matrix.sn }} --native-lto ${{ matrix.lto }} \
+            --native-mode ${{ matrix.mode }} --native-gc ${{ matrix.gc }}
+          ok=0
+          for k in 1 2 3; do ./repro 300000 3 || { echo "FAILED rc=$? on try $k"; ok=1; }; done
+          exit $ok
+
+  main:
+    name: "main sandbox lto=${{ matrix.lto }} gc=${{ matrix.gc }}"
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        lto: [thin, full]
+        gc: [immix, commix]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
       - uses: sbt/setup-sbt@v1
       - name: Deps
+        run: sudo apt-get update && sudo apt-get -y install libunwind-dev && clang --version
+      - name: Prepare sandbox
         run: |
-          sudo apt-get update && sudo apt-get -y install libunwind-dev libre2-dev libsdl2-dev libgc-dev gdb
-          sudo sysctl -w kernel.yama.ptrace_scope=0
-      - name: Fetch minart
-        run: curl -fsSL https://codeload.github.com/JD557/minart/tar.gz/05a8a8d9 | tar xz && mv minart-* minart
-      - name: Test
-        working-directory: minart
-        env: { CI: "true" }
+          sed -n '/^import scala.annotation.tailrec/,$p' .github/repro-3172/Repro.scala > sandbox/src/main/scala/Test.scala
+          cp sandbox/src/main/scala/Test.scala sandbox/src/main/scala-next/Test.scala
+      - name: Run
         run: |
-          if [ "${{ matrix.variant }}" = gdb ]; then
-            (
-              seen=""
-              while true; do
-                for pid in $(pgrep -f minart-sound-test-out); do
-                  case " $seen " in *" $pid "*) continue;; esac
-                  seen="$seen $pid"
-                  sudo gdb -p $pid -batch -ex 'handle SIGPIPE nostop noprint' -ex 'continue' \
-                    -ex 'bt 60' -ex 'info registers' -ex 'x/4gx $rbp' -ex 'x/4gx *(long*)$rbp' -ex 'info symbol *(long*)$rbp' \
-                    -ex 'x/4gx $rbx' -ex 'info symbol *(long*)$rbx' -ex 'x/4gx $r15' -ex 'info symbol *(long*)$r15' -ex 'x/4gx $r14' -ex 'info symbol *(long*)$r14' -ex 'x/4gx $r13' \
-                    -ex 'p/x *(int*)(*(long*)$rbp+0xc)' -ex 'p/x *(int*)(*(long*)$rbp+0x8)' -ex 'frame 1' -ex 'x/12i $pc-40' > ../gdb-$pid.log 2>&1 &
-                done
-                sleep 0.05
-              done
-            ) &
-          fi
-          ulimit -s ${{ matrix.stack }}
-          ulimit -s
-          set +e
-          sbt -J-Xmx3G -Dsbt.color=false \
-            'set ThisBuild / scalafixOnCompile := false' 'set ThisBuild / scalafmtOnCompile := false' \
-            ++2.13 \
-            'set LocalProject("soundNative") / Test / nativeLTO := "${{ matrix.lto }}"' \
-            'set LocalProject("soundNative") / Test / nativeGC := "${{ matrix.gc }}"' \
-            'show soundNative/Test/nativeConfig' soundNative/test 2>&1 | tee ../out.log
-          rc=${PIPESTATUS[0]}; echo "sbt exit: $rc"
-          sleep 3
-          for f in ../gdb-*.log; do [ -f "$f" ] && { echo "=== $f"; head -150 "$f"; }; done
-          exit $rc
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: out-${{ matrix.variant }}-${{ matrix.lto }}-${{ matrix.gc }}
-          path: |
-            out.log
-            gdb-*.log
-            minart/sound/native/target/scala-*/minart-sound-test-out
-            minart/sound/native/target/scala-*/native/*.ll
-          retention-days: 5
+          sbt -Dsbt.color=false \
+            'set LocalProject("sandbox2_13") / nativeConfig ~= (_.withLTO(scala.scalanative.build.LTO.${{ matrix.lto }}).withMode(scala.scalanative.build.Mode.debug).withGC(scala.scalanative.build.GC.${{ matrix.gc }}))' \
+            'show sandbox2_13/nativeLink' 2>&1 | tee link.log
+          bin=$(grep -o '/home/runner[^ ]*sandbox[^ ]*' link.log | tail -1)
+          echo "binary: $bin"; ls -la "$bin"
+          ok=0
+          for k in 1 2 3; do "$bin" 300000 3 || { echo "FAILED rc=$? on try $k"; ok=1; }; done
+          exit $ok

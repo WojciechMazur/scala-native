@@ -1,9 +1,9 @@
 //> using platform native
 //> using resourceDir res
 
-import scala.scalanative.unsafe._
 import scala.scalanative.libc.stdlib
 import scala.scalanative.runtime.{Intrinsics, fromRawPtr, toRawPtr}
+import scala.scalanative.unsafe._
 
 @extern object H {
   def sn3172_supported(): CInt = extern
@@ -51,7 +51,9 @@ object Main {
       println(s"trial $t: ${if (ok) "alive" else "COLLECTED/CORRUPTED"}")
     }
     if (failures > 0) {
-      println(s"FAIL: $failures/$trials objects held in a callee-saved register were freed by GC")
+      println(
+        s"FAIL: $failures/$trials objects held in a callee-saved register were freed by GC"
+      )
       sys.exit(1)
     } else println("PASS")
   }

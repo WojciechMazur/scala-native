@@ -1,0 +1,76 @@
+name: DIAG Windows test hang
+on:
+  pull_request:
+    branches: [ci-base/windows-test-hang]
+  workflow_dispatch:
+
+jobs:
+  hunt:
+    name: Hunt (${{ matrix.os }}, ${{ matrix.build-mode }}, ${{ matrix.replica }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    env:
+      ENABLE_EXPERIMENTAL_COMPILER: true
+      VCPKG_DEFAULT_HOST_TRIPLET: ${{ matrix.os == 'windows-11-arm' && 'arm64-windows' || 'x64-windows' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-11-arm]
+        build-mode: [debug, release-fast]
+        replica: [1, 2, 3]
+    steps:
+      - name: Setup git config
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/windows-setup-env
+        if: matrix.os == 'windows-2022'
+        id: setup
+        with:
+          scala-version: 3
+      - uses: ./.github/actions/windows-arm-setup-env
+        if: matrix.os == 'windows-11-arm'
+        id: setup-arm
+        with:
+          scala-version: 3
+
+      - name: Start watchdog
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'hang'
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          Start-Process pwsh -WindowStyle Hidden -ArgumentList @(
+            '-NoProfile', '-File', "${{ github.workspace }}\scripts\ci\windows\hang-watchdog.ps1",
+            '-LogFile', (Join-Path $out 'sbt-out.log'), '-OutDir', $out, '-StallSeconds', '180')
+
+      - name: Test runtime (repeated)
+        timeout-minutes: 55
+        shell: pwsh
+        env:
+          SCALANATIVE_MODE: ${{ matrix.build-mode }}
+          SCALANATIVE_INCLUDE_DIRS: ${{ steps.setup.outputs.vcpkg-dir || steps.setup-arm.outputs.vcpkg-dir }}\include
+          SCALANATIVE_LIB_DIRS: ${{ steps.setup.outputs.vcpkg-dir || steps.setup-arm.outputs.vcpkg-dir }}\lib
+          SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'hang\sbt-out.log'
+          $deadline = (Get-Date).AddMinutes(44)
+          for ($i = 1; (Get-Date) -lt $deadline; $i++) {
+            "=== iteration $i $(Get-Date -Format o)" | Tee-Object -FilePath $log -Append
+            sbt "tests3/testOnly -- -v" 2>&1 | Tee-Object -FilePath $log -Append
+            "=== iteration $i exit $LASTEXITCODE $(Get-Date -Format o)" | Tee-Object -FilePath $log -Append
+          }
+
+      - name: Print stack dumps
+        if: always()
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'hang'
+          Get-ChildItem $out | Where-Object { $_.Name -ne 'sbt-out.log' } | ForEach-Object {
+            "##### $($_.Name)"
+            Get-Content $_.FullName
+          }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hang-${{ matrix.os }}-${{ matrix.build-mode }}-${{ matrix.replica }}
+          path: ${{ runner.temp }}/hang

@@ -40,7 +40,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $out | Out-Null
           Start-Process pwsh -WindowStyle Hidden -ArgumentList @(
             '-NoProfile', '-File', "${{ github.workspace }}\scripts\ci\windows\hang-watchdog.ps1",
-            '-LogFile', (Join-Path $out 'sbt-out.log'), '-OutDir', $out)
+            '-LogFile', (Join-Path $out 'sbt-out.log'), '-OutDir', $out, '-StallSeconds', '180')
 
       - name: Test runtime (repeated)
         timeout-minutes: 55
@@ -52,7 +52,8 @@ jobs:
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
         run: |
           $log = Join-Path $env:RUNNER_TEMP 'hang\sbt-out.log'
-          for ($i = 1; $i -le 8; $i++) {
+          $deadline = (Get-Date).AddMinutes(44)
+          for ($i = 1; (Get-Date) -lt $deadline; $i++) {
             "=== iteration $i $(Get-Date -Format o)" | Tee-Object -FilePath $log -Append
             sbt "tests3/testOnly -- -v" 2>&1 | Tee-Object -FilePath $log -Append
             "=== iteration $i exit $LASTEXITCODE $(Get-Date -Format o)" | Tee-Object -FilePath $log -Append

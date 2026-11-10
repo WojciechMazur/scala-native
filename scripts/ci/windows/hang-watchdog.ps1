@@ -31,13 +31,9 @@ while ($true) {
     # Tail of the sbt output: shows the test that was running.
     Get-Content $LogFile -Tail 40 | Out-File "$base-sbt-tail.txt"
     if (Test-Path $cdb) {
-      $cmds = '.symfix+ C:\symcache; .sympath+ ' + (Split-Path $p.Path) + '; .reload; ~*kn 100; q'
-      $job = Start-Job -ScriptBlock { param($c, $id, $cm) & $c -pv -p $id -c $cm 2>&1 } -ArgumentList $cdb, $p.Id, $cmds
+      $sym = (Split-Path $p.Path) + ';srv*C:\symcache*https://msdl.microsoft.com/download/symbols'
+      $job = Start-Job -ScriptBlock { param($c, $id, $sp) & $c -pv -p $id -y $sp -c '.lines -d; ~*kn 100; q' 2>&1 } -ArgumentList $cdb, $p.Id, $sym
       if (Wait-Job $job -Timeout 300) { Receive-Job $job | Out-File "$base-cdb.txt" } else { Stop-Job $job; "cdb timed out" | Out-File "$base-cdb.txt" }
-    }
-    if ($lldb -and (Test-Path $lldb)) {
-      $job = Start-Job -ScriptBlock { param($l, $id) & $l -p $id --batch -o 'thread backtrace all' -o 'detach' 2>&1 } -ArgumentList $lldb, $p.Id
-      if (Wait-Job $job -Timeout 300) { Receive-Job $job | Out-File "$base-lldb.txt" } else { Stop-Job $job; "lldb timed out" | Out-File "$base-lldb.txt" }
     }
   }
 }

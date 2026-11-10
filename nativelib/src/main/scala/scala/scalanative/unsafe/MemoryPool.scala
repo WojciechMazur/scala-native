@@ -1,73 +1,28 @@
 package scala.scalanative.unsafe
 
 import scala.scalanative.meta.LinktimeInfo.asanEnabled
-import scala.scalanative.runtime.{Intrinsics, RawPtr, ffi, fromRawPtr}
 import scala.scalanative.unsafe._
 import scala.scalanative.unsigned._
 
-/** Efficient pool of fixed-size memory pages. Allocations from underlying
- *  allocator are performed in big chunks of memory that are sliced into pages
- *  of requested size.
+/** Pool of fixed-size memory pages backing [[MemoryPoolZone]].
  *
- *  Pages and chunks are organized in an intrusive linked list way to minimise
- *  memory overhead and re-use the same nodes for the whole lifetime of the
- *  pool.
+ *  Page bookkeeping lives in native code (`zone/UnsafeZonePool.c`) so that the
+ *  garbage collector can find the memory of all open zones: the used prefix of
+ *  every page claimed by an open zone, as well as its large allocations, is
+ *  scanned conservatively for references to GC-managed objects. Free pages and
+ *  the unused remainder of pages are never scanned.
  *
- *  Memory is reclaimed back to underlying allocator once the pool is finalized.
+ *  There is a single, process-wide pool. Memory is reclaimed back to the
+ *  underlying allocator only at exit when running with AddressSanitizer.
  */
 private[unsafe] final class MemoryPool private {
-  private var chunkPageCount: USize = MemoryPool.MIN_PAGE_COUNT
-  private var chunk: MemoryPool.Chunk = null
-  private var page: MemoryPool.Page = null
-  allocateChunk()
-
-  /** Allocate a chunk of memory from system allocator. */
-  private def allocateChunk(): Unit = {
-    if (chunkPageCount < MemoryPool.MAX_PAGE_COUNT) {
-      chunkPageCount *= 2.toUSize
-    }
-    val chunkSize = MemoryPool.PAGE_SIZE * chunkPageCount
-    val start = ffi.malloc(chunkSize)
-    chunk = new MemoryPool.Chunk(start, 0.toUSize, chunkSize, chunk)
-  }
 
   /** Released all claimed memory chunks */
-  private[scalanative] def freeChunks(): Unit = synchronized {
-    while (chunk != null) {
-      ffi.free(chunk.start)
-      chunk = chunk.next
-    }
-  }
-
-  /** Allocate a single page as a fraction of a larger chunk allocation. */
-  private def allocatePage(): Unit = {
-    if (chunk.offset >= chunk.size) allocateChunk()
-    val start = Intrinsics.elemRawPtr(chunk.start, chunk.offset.rawSize)
-    page = new MemoryPool.Page(start, 0.toUSize, page)
-    chunk.offset += MemoryPool.PAGE_SIZE
-  }
-
-  /** Borrow a single unused page, to be reclaimed later. */
-  def claim(): MemoryPool.Page = synchronized {
-    if (page == null) allocatePage()
-    val result = page
-    page = result.next
-    result.next = null
-    result.offset = 0.toUSize
-    result
-  }
-
-  /** Reclaimed a list of previously borrowed pages. */
-  def reclaim(head: MemoryPool.Page, tail: MemoryPool.Page): Unit =
-    synchronized {
-      tail.next = page
-      page = head
-    }
+  private[scalanative] def freeChunks(): Unit =
+    MemoryPool.native.scalanative_unsafe_zone_free_pool()
 }
 private[unsafe] object MemoryPool {
   final val PAGE_SIZE = 4096.toUSize
-  final val MIN_PAGE_COUNT = 4.toUSize
-  final val MAX_PAGE_COUNT = 256.toUSize
 
   lazy val defaultMemoryPool: MemoryPool = {
     // Release allocated chunks satisfy AdressSanitizer
@@ -83,14 +38,31 @@ private[unsafe] object MemoryPool {
     new MemoryPool()
   }
 
-  private final class Chunk(
-      val start: RawPtr,
-      var offset: CSize,
-      var size: CSize,
-      var next: Chunk
-  )
+  /** Mirrors `UnsafeZonePage` from `zone/UnsafeZonePool.h`: start, offset,
+   *  next, head, large, prevZone, nextZone. The first page of a zone is also
+   *  its zone record (`head` = page currently allocated from).
+   */
+  type Page = CStruct7[
+    Ptr[Byte],
+    CSize,
+    Ptr[Byte],
+    Ptr[Byte],
+    Ptr[Byte],
+    Ptr[Byte],
+    Ptr[Byte]
+  ]
 
-  final class Page(val start: RawPtr, var offset: CSize, var next: Page)
+  @extern
+  private[unsafe] object native {
+    def scalanative_unsafe_zone_open(): Ptr[Page] = extern
+    def scalanative_unsafe_zone_add_page(zone: Ptr[Page]): Ptr[Page] = extern
+    def scalanative_unsafe_zone_alloc_large(
+        zone: Ptr[Page],
+        size: CSize
+    ): Ptr[Byte] = extern
+    def scalanative_unsafe_zone_close(zone: Ptr[Page]): Unit = extern
+    def scalanative_unsafe_zone_free_pool(): Unit = extern
+  }
 }
 
 /** An optimized implementation of a zone that performs all allocations
@@ -98,10 +70,12 @@ private[unsafe] object MemoryPool {
  *  are allocated using the system allocator and persisted in an array buffer.
  */
 final class MemoryPoolZone(private val pool: MemoryPool) extends Zone {
-  private var tailPage = pool.claim()
-  private var headPage = tailPage
-  private var largeAllocations: scala.Array[CVoidPtr] = null
-  private var largeOffset = 0
+  import MemoryPool.native._
+
+  // Zone record, registered as a GC root until the zone is closed.
+  private var zone: Ptr[MemoryPool.Page] = scalanative_unsafe_zone_open()
+  // Page currently used for small allocations.
+  private var headPage: Ptr[MemoryPool.Page] = zone
 
   private def checkOpen(): Unit =
     if (!isOpen)
@@ -115,27 +89,16 @@ final class MemoryPoolZone(private val pool: MemoryPool) extends Zone {
     addr + padding
   }
 
-  override def isOpen = headPage != null
+  override def isOpen = zone != null
 
   override def isClosed = !isOpen
 
   override def close(): Unit = {
     checkOpen()
-
-    // Reclaim borrowed pages to the memory pool.
-    pool.reclaim(headPage, tailPage)
+    // Return borrowed pages to the pool and free large allocations.
+    scalanative_unsafe_zone_close(zone)
+    zone = null
     headPage = null
-    tailPage = null
-
-    // Free all large allocations which were allocated with malloc.
-    if (largeAllocations != null) {
-      var i = 0
-      while (i < largeOffset) {
-        ffi.free(largeAllocations(i))
-        i += 1
-      }
-      largeAllocations = null
-    }
   }
 
   override def alloc(usize: CSize): Ptr[Byte] = {
@@ -161,45 +124,24 @@ final class MemoryPoolZone(private val pool: MemoryPool) extends Zone {
   }
 
   private def allocSmall(size: CSize, alignment: CSize): Ptr[Byte] = {
-    val currentOffset = headPage.offset
-    val paddedOffset = pad(currentOffset, alignment)
+    var page = headPage
+    val paddedOffset = pad(page._2, alignment)
     val resOffset: CSize =
       if (paddedOffset + size <= MemoryPool.PAGE_SIZE) {
-        headPage.offset = paddedOffset + size
+        page._2 = paddedOffset + size
         paddedOffset
       } else {
-        val newPage = pool.claim()
-        newPage.next = headPage
-        newPage.offset = size
-        headPage = newPage
+        page = scalanative_unsafe_zone_add_page(zone)
+        page._2 = size
+        headPage = page
         0L.toUSize
       }
 
-    fromRawPtr[Byte](Intrinsics.elemRawPtr(headPage.start, resOffset.rawSize))
+    page._1 + resOffset
   }
 
-  private def allocLarge(size: CSize): Ptr[Byte] = {
-    if (largeAllocations == null) {
-      largeAllocations = new scala.Array[CVoidPtr](16)
-    }
-    if (largeOffset == largeAllocations.length) {
-      val newLargeAllocations =
-        new scala.Array[CVoidPtr](largeAllocations.length * 2)
-      Array.copy(
-        largeAllocations,
-        0,
-        newLargeAllocations,
-        0,
-        largeAllocations.length
-      )
-      largeAllocations = newLargeAllocations
-    }
-    val result = fromRawPtr[Byte](ffi.malloc(size))
-    largeAllocations(largeOffset) = result
-    largeOffset += 1
-
-    result
-  }
+  private def allocLarge(size: CSize): Ptr[Byte] =
+    scalanative_unsafe_zone_alloc_large(zone, size)
 }
 
 private[unsafe] object MemoryPoolZone {

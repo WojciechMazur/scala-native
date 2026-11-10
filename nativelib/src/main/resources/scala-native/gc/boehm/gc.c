@@ -3,6 +3,7 @@
 #define GC_THREADS
 
 #include <gc/gc.h>
+#include <gc/gc_mark.h>
 #include "shared/ScalaNativeGC.h"
 #include <stdlib.h>
 #include <string.h>
@@ -11,6 +12,7 @@
 #include "shared/jmx.h"
 #include "nativeThreadTLS.h"
 #include "externalThreadGC.h"
+#include "zone/UnsafeZonePool.h"
 
 static SN_ThreadLocal GC_MutatorThreadState executionState =
     GC_MutatorThreadState_Managed;
@@ -21,8 +23,23 @@ static WeakReferencesCollectedCallback weakReferencesCollectedCallback = NULL;
 static void GC_CALLBACK handleOnCollectionEvent(GC_EventType event);
 static void GC_CALLBACK weakRefFinalizer(void *obj, void *client_data);
 
+static GC_push_other_roots_proc defaultPushOtherRoots = NULL;
+
+static void pushZoneRange(void *ctx, void *low, void *high) {
+    GC_push_all_eager(low, high);
+}
+
+// Scan memory of open `unsafe.Zone`s (MemoryPoolZone) conservatively.
+static void GC_CALLBACK pushOtherRoots(void) {
+    if (defaultPushOtherRoots != NULL)
+        defaultPushOtherRoots();
+    scalanative_unsafe_zone_foreach_root(pushZoneRange, NULL);
+}
+
 void scalanative_GC_init() {
     GC_INIT();
+    defaultPushOtherRoots = GC_get_push_other_roots();
+    GC_set_push_other_roots(pushOtherRoots);
     GC_allow_register_threads();
     // Keep this hook enabled at all times to collect Boehm GC statistics.
     GC_set_on_collection_event(handleOnCollectionEvent);

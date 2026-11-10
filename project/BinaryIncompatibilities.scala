@@ -73,6 +73,8 @@ object BinaryIncompatibilities {
     exclude[IncompatibleMethTypeProblem]("scala.scalanative.runtime.GC.pthread_create(scala.scalanative.unsafe.Ptr,scala.scalanative.unsafe.Ptr,scala.scalanative.unsafe.CFuncPtr1,scala.scalanative.unsafe.Ptr)Int"),
     exclude[IncompatibleMethTypeProblem]("scala.scalanative.runtime.GC.CreateThread(scala.scalanative.unsafe.Ptr,scala.scalanative.unsigned.USize,scala.scalanative.unsafe.CFuncPtr1,scala.scalanative.unsafe.Ptr,scala.scalanative.unsigned.UInt,scala.scalanative.unsafe.Ptr)scala.scalanative.unsafe.Ptr"),
     exclude[IncompatibleResultTypeProblem]("scala.scalanative.runtime.NativeThread.threadRoutineArgs(scala.scalanative.runtime.NativeThread)scala.scalanative.unsafe.Ptr"),
+    // Internal Zone page pool moved to native code (#2491).
+    exclude[Problem]("scala.scalanative.unsafe.MemoryPool*"),
   )
   final val CLib: Filters = Nil
 

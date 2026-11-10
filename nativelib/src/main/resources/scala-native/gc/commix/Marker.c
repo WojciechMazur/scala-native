@@ -12,6 +12,7 @@
 #include "shared/ThreadUtil.h"
 #include "SyncGreyLists.h"
 #include "stackOverflowGuards.h"
+#include "zone/UnsafeZonePool.h"
 
 extern word_t *__modules;
 extern int __modules_size;
@@ -553,6 +554,28 @@ void Marker_markCustomRoots(Heap *heap, Stats *stats, GreyPacket **outHolder,
     mutex_unlock(&roots->modificationLock);
 }
 
+typedef struct ZoneRootsCtx {
+    Heap *heap;
+    Stats *stats;
+    GreyPacket **outHolder;
+    GreyPacket **outWeakRefHolder;
+} ZoneRootsCtx;
+
+static void Marker_markZoneRange(void *ctx, void *low, void *high) {
+    ZoneRootsCtx *c = (ZoneRootsCtx *)ctx;
+    size_t words = ((uintptr_t)high - (uintptr_t)low) / sizeof(word_t);
+    Marker_markRange(c->heap, c->stats, c->outHolder, c->outWeakRefHolder,
+                     (word_t **)low, words, sizeof(word_t));
+}
+
+// Memory of open `unsafe.Zone`s (MemoryPoolZone), scanned conservatively.
+static void Marker_markZoneRoots(Heap *heap, Stats *stats,
+                                 GreyPacket **outHolder,
+                                 GreyPacket **outWeakRefHolder) {
+    ZoneRootsCtx ctx = {heap, stats, outHolder, outWeakRefHolder};
+    scalanative_unsafe_zone_foreach_root(Marker_markZoneRange, &ctx);
+}
+
 void Marker_MarkRoots(Heap *heap, Stats *stats) {
     atomic_thread_fence(memory_order_seq_cst);
 
@@ -564,6 +587,7 @@ void Marker_MarkRoots(Heap *heap, Stats *stats) {
     }
     Marker_markModules(heap, stats, &out, &weakRefOut);
     Marker_markCustomRoots(heap, stats, &out, &weakRefOut, customRoots);
+    Marker_markZoneRoots(heap, stats, &out, &weakRefOut);
     Marker_giveFullPacket(heap, stats, out);
     Marker_giveWeakRefPacket(heap, stats, weakRefOut);
 }

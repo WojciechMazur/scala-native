@@ -12,6 +12,7 @@
 #include <stdatomic.h>
 #include "shared/ThreadUtil.h"
 #include "stackOverflowGuards.h"
+#include "zone/UnsafeZonePool.h"
 
 extern word_t *__modules;
 extern int __modules_size;
@@ -221,6 +222,23 @@ void Marker_markCustomRoots(Heap *heap, Stack *stack, GC_Roots *roots) {
     mutex_unlock(&roots->modificationLock);
 }
 
+typedef struct ZoneRootsCtx {
+    Heap *heap;
+    Stack *stack;
+} ZoneRootsCtx;
+
+static void Marker_markZoneRange(void *ctx, void *low, void *high) {
+    ZoneRootsCtx *c = (ZoneRootsCtx *)ctx;
+    Marker_markRange(c->heap, c->stack, (word_t **)low, (word_t **)high,
+                     sizeof(word_t));
+}
+
+// Memory of open `unsafe.Zone`s (MemoryPoolZone), scanned conservatively.
+static void Marker_markZoneRoots(Heap *heap, Stack *stack) {
+    ZoneRootsCtx ctx = {heap, stack};
+    scalanative_unsafe_zone_foreach_root(Marker_markZoneRange, &ctx);
+}
+
 void Marker_MarkRoots(Heap *heap, Stack *stack) {
     atomic_thread_fence(memory_order_seq_cst);
 
@@ -231,6 +249,7 @@ void Marker_MarkRoots(Heap *heap, Stack *stack) {
     }
     Marker_markModules(heap, stack);
     Marker_markCustomRoots(heap, stack, customRoots);
+    Marker_markZoneRoots(heap, stack);
     Marker_Mark(heap, stack);
 }
 

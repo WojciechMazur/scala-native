@@ -13,9 +13,6 @@
 #include "shared/ThreadUtil.h"
 #include "stackOverflowGuards.h"
 
-extern word_t *__modules;
-extern int __modules_size;
-
 #define LAST_FIELD_OFFSET -1
 
 static inline void Marker_markLockWords(Heap *heap, Stack *stack,
@@ -86,16 +83,16 @@ void Marker_Mark(Heap *heap, Stack *stack) {
     Bytemap *bytemap = heap->bytemap;
     while (!Stack_IsEmpty(stack)) {
         Object *object = Stack_Pop(stack);
-        const int objectId = object->rtti->rt.id;
+        const Rtti *rtti = object->rtti;
         if (Object_IsArray(object)) {
             ArrayHeader *arrayHeader = (ArrayHeader *)object;
-            if (objectId == __object_array_id) {
+            if (Rtti_HasFlag(rtti, RTTI_FLAG_IS_OBJECT_ARRAY)) {
                 const size_t length = arrayHeader->length;
                 word_t **fields = (word_t **)(arrayHeader + 1);
                 for (int i = 0; i < length; i++) {
                     Marker_markField(heap, stack, fields[i]);
                 }
-            } else if (objectId == __blob_array_id) {
+            } else if (Rtti_HasFlag(rtti, RTTI_FLAG_IS_BLOB_ARRAY)) {
                 int8_t *start = (int8_t *)(arrayHeader + 1);
                 size_t bytesLength = BlobArray_ScannableLimit(arrayHeader);
                 size_t wordsLength =
@@ -114,7 +111,7 @@ void Marker_Mark(Heap *heap, Stack *stack) {
                     continue;
                 Marker_markField(heap, stack, *fieldRef);
             }
-            if (objectId == __boxed_ptr_id) {
+            if (Rtti_HasFlag(rtti, RTTI_FLAG_IS_BOXED_PTR)) {
                 // Boxed ptr always has a single field
                 word_t *rawPtr = object->fields[0];
                 if (Heap_IsWordInHeap(heap, rawPtr)) {
@@ -202,16 +199,6 @@ NO_SANITIZE void Marker_markProgramStack(MutatorThread *thread, Heap *heap,
                      registerBufferStride);
 }
 
-void Marker_markModules(Heap *heap, Stack *stack) {
-    word_t **modules = &__modules;
-    int nb_modules = __modules_size;
-    Bytemap *bytemap = heap->bytemap;
-    for (int i = 0; i < nb_modules; i++) {
-        Object *object = (Object *)modules[i];
-        Marker_markField(heap, stack, (Field_t)object);
-    }
-}
-
 void Marker_markCustomRoots(Heap *heap, Stack *stack, GC_Roots *roots) {
     mutex_lock(&roots->modificationLock);
     for (GC_Root *it = roots->head; it != NULL; it = it->next) {
@@ -229,7 +216,6 @@ void Marker_MarkRoots(Heap *heap, Stack *stack) {
         MutatorThread *thread = node->value;
         Marker_markProgramStack(thread, heap, stack);
     }
-    Marker_markModules(heap, stack);
     Marker_markCustomRoots(heap, stack, customRoots);
     Marker_Mark(heap, stack);
 }

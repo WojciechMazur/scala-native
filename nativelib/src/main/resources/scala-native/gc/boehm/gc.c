@@ -3,6 +3,8 @@
 #define GC_THREADS
 
 #include <gc/gc.h>
+#include <gc/gc_mark.h>
+#include "staticRoots.h"
 #include "shared/ScalaNativeGC.h"
 #include <stdlib.h>
 #include <string.h>
@@ -21,8 +23,25 @@ static WeakReferencesCollectedCallback weakReferencesCollectedCallback = NULL;
 static void GC_CALLBACK handleOnCollectionEvent(GC_EventType event);
 static void GC_CALLBACK weakRefFinalizer(void *obj, void *client_data);
 
+static GC_push_other_roots_proc previousPushOtherRoots;
+
+static void pushLockWord(void **lockWord, void *context) {
+    (void)context;
+    GC_push_all(lockWord, lockWord + 1);
+}
+
+// Monitors of static classes and strings are reachable only from their
+// lock words
+static void GC_CALLBACK pushOtherRoots(void) {
+    if (previousPushOtherRoots != NULL)
+        previousPushOtherRoots();
+    scalanative_foreach_static_lock_word(pushLockWord, NULL);
+}
+
 void scalanative_GC_init() {
     GC_INIT();
+    previousPushOtherRoots = GC_get_push_other_roots();
+    GC_set_push_other_roots(pushOtherRoots);
     GC_allow_register_threads();
     // Keep this hook enabled at all times to collect Boehm GC statistics.
     GC_set_on_collection_event(handleOnCollectionEvent);
@@ -51,8 +70,7 @@ void *scalanative_GC_alloc_large(Rtti *info, size_t size) {
 void *scalanative_GC_alloc_array(Rtti *info, size_t length, size_t stride) {
     size_t size = info->size + length * stride;
     ArrayHeader *alloc;
-    int32_t classId = info->rt.id;
-    if (classId == __object_array_id || classId == __blob_array_id)
+    if ((info->rt.flags & RTTI_ARRAY_SCAN_MASK) != RTTI_ARRAY_SCAN_NONE)
         alloc = (ArrayHeader *)GC_malloc(size);
     else
         alloc = (ArrayHeader *)GC_malloc_atomic(size);

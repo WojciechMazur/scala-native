@@ -21,37 +21,34 @@ private[runtime] final class _Class[A] {
 
   // var rtti: _Class[_Class[?]] = _ // implicitly
   // var lockWord: Object | Long = _ // implicitly, optional
-  var id: Int = _
-  var interfacesCount: Int = _ // can be used in the future
-  var interfaces: RawPtr = _
+  // Layout defined by codegen.CommonMemoryLayouts.{Rtti, ClassRtti}
+  var flags: Int = _ // see _Class.Flags
+  var interfacesCount: Int = _
+  var interfaces: RawPtr = _ // Ptr[_Class[_]], all implemented traits
   var name: String = _
 
   // Warning! Fields below are populated if !isInterface()
   var size: Int = _
-  var idRangeUntil: Int = _
-  var refFieldOffsets: RawPtr = _ // Ptr[Int]
-  var itablesCount: Int = _ // actually size - 1 - stores ready to use mask
-  var itables: RawPtr = _ // Ptr[CArray[ITableEntry, up to 32]]
+  var superclassCount: Int = _
+  // Classes: Ptr[Int], the reference map used by the GC
+  // Arrays: the _Class of the element type, see getComponentType
+  var refFieldOffsets: RawPtr = _
+  var itablesMask: Int = _
+  var itablesShift: Int = _
+  var itables: RawPtr = _ // Ptr[{trait: _Class[_], vtable: Ptr[_]}]
   var superClass: Class[_ >: A] = _
-
-  type ITableEntry = CStruct2[Int, Ptr[_]] // {id: Int, vtable: void*}
+  // First entry of the inline lineage: superclasses from the root, then the
+  // class itself, see codegen.RuntimeTypeInformation
+  var lineage: RawPtr = _
 
   def cast(obj: Object): A =
     obj.asInstanceOf[A]
 
-  def getComponentType(): _Class[_] = if (isArray()) {
-    if (is(classOf[ObjectArray])) classOf[java.lang.Object] // hot path
-    else if (is(classOf[ByteArray])) classOf[scala.Byte]
-    else if (is(classOf[CharArray])) classOf[scala.Char]
-    else if (is(classOf[IntArray])) classOf[scala.Int]
-    else if (is(classOf[LongArray])) classOf[scala.Long]
-    else if (is(classOf[FloatArray])) classOf[scala.Float]
-    else if (is(classOf[DoubleArray])) classOf[scala.Double]
-    else if (is(classOf[BooleanArray])) classOf[scala.Boolean]
-    else if (is(classOf[ShortArray])) classOf[scala.Short]
-    else if (is(classOf[BlobArray])) classOf[scala.Byte]
+  def getComponentType(): _Class[_] =
+    if (isArray())
+      // Array RTTI stores the element type in place of the reference map
+      Intrinsics.castRawPtrToObject(refFieldOffsets).asInstanceOf[_Class[_]]
     else null // JVM compliance
-  } else null // JVM compliance
 
   def getName(): String = name
 
@@ -89,14 +86,11 @@ private[runtime] final class _Class[A] {
     }
   }
 
-  // Based on fixed ordering in scala.scalanative.codegen.Metadata.initClassIdsAndRanges
-  def isInterface(): scala.Boolean = id < 0
-  // The exact ids would match order defined in nir.Rt.PrimitiveTypes
-  def isPrimitive(): scala.Boolean = id >= 0 && id <= 10
-  // id == 11 is java.lang.Object
-  // id == 12 runtime.Array
-  // ids 13-22 runtime.Array implementations
-  def isArray(): scala.Boolean = id >= 12 && id <= 22
+  def isInterface(): scala.Boolean = (flags & _Class.Flags.IsInterface) != 0
+
+  def isPrimitive(): scala.Boolean = (flags & _Class.Flags.IsPrimitive) != 0
+
+  def isArray(): scala.Boolean = (flags & _Class.Flags.IsArray) != 0
 
   def isAssignableFrom(that: Class[_]): scala.Boolean =
     is(that.asInstanceOf[_Class[_]], this)
@@ -117,24 +111,23 @@ private[runtime] final class _Class[A] {
       // unlikely, only possible when operating on Class[_] instances
       if (right.isInterface()) _Class.checkHasTrait(left, right)
       else false
-    } else if (right.isInterface()) {
-      // likely - in most cases we check if class is class or class is trait
-      val size = left.itablesCount
-      if (size >= 0) {
-        // fast-path
-        val slot = right.id & size
-        val itablePtr = Intrinsics.elemRawPtr(
-          left.itables,
-          Intrinsics.castRawSizeToInt(Intrinsics.sizeOf[ITableEntry]) * slot
-        )
-        val itableId = Intrinsics.loadInt(itablePtr)
-        itableId == right.id
-      } else _Class.checkHasTrait(left, right)
+    } else if (right.isInterface()) _Class.checkImplements(left, right)
+    else if (right.superclassCount < _Class.LineageSize) {
+      // `right` is in the lineage of `left` at index superclassCount(right)
+      val lineage = Intrinsics.classFieldRawPtr(left, "lineage")
+      val ancestor = Intrinsics.loadObject(
+        Intrinsics.elemRawPtr(lineage, _Class.PtrSize * right.superclassCount)
+      )
+      ancestor eq right
     } else {
-      val rightFrom = right.id
-      val rightTo = right.idRangeUntil
-      val leftId = left.id
-      leftId >= rightFrom && leftId <= rightTo
+      var ancestor: _Class[_] = left
+      var count = left.superclassCount
+      val rightCount = right.superclassCount
+      while (count > rightCount) {
+        ancestor = ancestor.superClass.asInstanceOf[_Class[_]]
+        count -= 1
+      }
+      count == rightCount && (ancestor eq right)
     }
   }
 
@@ -227,24 +220,60 @@ private[runtime] object _Class {
   ): _Class[A] =
     cls.asInstanceOf[_Class[A]]
 
-  private def checkHasTrait(left: _Class[_], right: _Class[_]): Boolean = {
-    var low = 0
-    var high = left.interfacesCount - 1
-    if (high == -1) return false
-    val interfaces = left.interfaces
-    val rightId = right.id
-    while (low <= high) {
-      val idx = (low + high) / 2
-      val interfacePtr = Intrinsics.elemRawPtr(
-        interfaces,
-        Intrinsics.castRawSizeToInt(Intrinsics.sizeOf[Ptr[_]]) * idx
+  /** Bits of _Class.flags, keep in sync with
+   *  codegen.RuntimeTypeInformation.Flags
+   */
+  private[runtime] object Flags {
+    // Literal constants, inlined at use sites without loading the module
+    final val IsInterface = 0x1 // 1 << 0
+    final val IsPrimitive = 0x2 // 1 << 1
+    final val IsArray = 0x4 // 1 << 2
+    final val IsAtHomeSlot = 0x80 // 1 << 7
+    final val TraitKeyShift = 8
+  }
+
+  // Keep in sync with codegen.CommonMemoryLayouts.LineageSize
+  private final val LineageSize = 8
+  @alwaysinline private def PtrSize =
+    Intrinsics.castRawSizeToInt(Intrinsics.sizeOf[RawPtr])
+
+  /* Looks `trt` up in the itable of class `left` the way generated code
+   * does, see codegen.ITable: linear probing from the slot selected by the
+   * trait key, until the trait or an empty slot.
+   */
+  private def checkImplements(left: _Class[_], trt: _Class[_]): Boolean = {
+    val mask = left.itablesMask
+    val entrySize = 2 * PtrSize
+    var pos = ((trt.flags >>> Flags.TraitKeyShift) >>> left.itablesShift) & mask
+    if ((trt.flags & Flags.IsAtHomeSlot) != 0) {
+      // Implementors hold the trait in this slot, see Metadata.alwaysAtHomeSlot
+      val entry = Intrinsics.loadObject(
+        Intrinsics.elemRawPtr(left.itables, entrySize * pos)
       )
-      val interface =
-        Intrinsics.loadObject(interfacePtr).asInstanceOf[_Class[_]]
-      val interfaceId = interface.id
-      if (interfaceId == rightId) return true
-      if (interfaceId < rightId) low = idx + 1
-      else high = idx - 1
+      return entry eq trt
+    }
+    var probes = 0
+    while (probes <= mask) {
+      val entry = Intrinsics.loadObject(
+        Intrinsics.elemRawPtr(left.itables, entrySize * pos)
+      )
+      if (entry eq trt) return true
+      if (entry eq null) return false
+      pos = (pos + 1) & mask
+      probes += 1
+    }
+    false
+  }
+
+  // `interfaces` lists every trait implemented by `left`
+  private def checkHasTrait(left: _Class[_], right: _Class[_]): Boolean = {
+    val interfaces = left.interfaces
+    val ptrSize = Intrinsics.castRawSizeToInt(Intrinsics.sizeOf[Ptr[_]])
+    var idx = 0
+    while (idx < left.interfacesCount) {
+      val interfacePtr = Intrinsics.elemRawPtr(interfaces, ptrSize * idx)
+      if (Intrinsics.loadObject(interfacePtr) eq right) return true
+      idx += 1
     }
     false
   }
@@ -293,19 +322,19 @@ private object LinkedClasses {
       case _             => throw new ClassNotFoundException(className)
     }
 
-  // Every class instance starts with a pointer to classOf[Class]
+  // The class list section holds a pointer to the RTTI of every class and
+  // trait, the RTTI of a type is its java.lang.Class instance
   private def find(className: String): Class[_] = {
     val ptrSize = castRawSizeToInt(sizeOf[RawPtr])
-    val section = StaticRoots.classInfoSection()
+    val section = StaticRoots.classListSection()
     val start = loadRawPtr(section)
     val end = loadRawPtr(elemRawPtr(section, ptrSize))
     val size = castRawPtrToLong(end) - castRawPtrToLong(start)
-    val classOfClass = castObjectToRawPtr(classOf[_Class[_]])
     var offset = 0L
     while (offset < size) {
-      val ptr = elemRawPtr(start, castLongToRawSize(offset))
-      if (loadRawPtr(ptr) == classOfClass) {
-        val cls = castRawPtrToObject(ptr).asInstanceOf[_Class[_]]
+      val rtti = loadRawPtr(elemRawPtr(start, castLongToRawSize(offset)))
+      if (castRawPtrToLong(rtti) != 0L) {
+        val cls = castRawPtrToObject(rtti).asInstanceOf[_Class[_]]
         if (cls.name == className) return cls
       }
       offset += ptrSize

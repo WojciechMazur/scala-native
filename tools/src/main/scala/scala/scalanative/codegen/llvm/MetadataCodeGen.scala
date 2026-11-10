@@ -568,6 +568,10 @@ private[codegen] trait MetadataCodeGen { self: AbstractCodeGen =>
 
       case Null | Nothing => DIBasicTypes(Ptr)
 
+      // A class the program never loads, possible for the type of a field
+      // that is declared but never reached in granular builds
+      case _: RefKind => toMetadataType(nir.Rt.Object)
+
       case other =>
         throw new NotImplementedError(s"No idea how to dwarfise ${other.getClass().getName} $other")
     }

@@ -285,7 +285,7 @@ private[codegen] object Generate {
           val cond = nir.Val.Local(fresh(), nir.Type.Bool)
           val alloc = nir.Val.Local(fresh(), clsTy)
 
-          if (cls.isConstantModule) {
+          if (meta.isConstantModule(cls)) {
             val moduleTyName = name.member(nir.Sig.Generated("type"))
             val moduleTyVal = nir.Val.Global(moduleTyName, nir.Type.Ptr)
             val instanceName = name.member(nir.Sig.Generated("instance"))

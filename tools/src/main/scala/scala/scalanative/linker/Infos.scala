@@ -136,9 +136,14 @@ final class Class(
 
   def isConstantModule(implicit
       analysis: ReachabilityAnalysis.Result
+  ): Boolean = isConstantModule(hasNoFields = fields.isEmpty)
+
+  /** A module whose instance can be allocated statically: it has no fields, as
+   *  decided by the caller, and an empty constructor, or is allowlisted.
+   */
+  def isConstantModule(hasNoFields: Boolean)(implicit
+      analysis: ReachabilityAnalysis.Result
   ): Boolean = {
-    val hasNoFields =
-      fields.isEmpty
     val hasEmptyOrNoCtor = {
       val ctor = name.member(nir.Sig.Ctor(Seq.empty))
       analysis.infos
@@ -260,6 +265,29 @@ object ReachabilityAnalysis {
         collection.Map[nir.Global, nir.Defn]
       ] = Map.empty
   ) extends ReachabilityAnalysis {
+
+    /** The same result with declarations taken from another analysis: the
+     *  analysis of optimized code keeps only definitions the optimizer emitted,
+     *  while layouts of granular builds follow the original ones.
+     */
+    private[scalanative] def withDeclarations(
+        declarations: collection.Map[
+          nir.Global.Top,
+          collection.Map[nir.Global, nir.Defn]
+        ]
+    ): Result = new Result(
+      infos = infos,
+      entries = entries,
+      links = links,
+      linkCppRuntime = linkCppRuntime,
+      preprocessorDefinitions = preprocessorDefinitions,
+      defns = defns,
+      dynsigs = dynsigs,
+      dynimpls = dynimpls,
+      resolvedVals = resolvedVals,
+      foundServiceProviders = foundServiceProviders,
+      declarations = declarations
+    )
 
     /** Fields declared by the class itself, in declaration order. */
     def declaredFields(cls: Class): Seq[nir.Defn.Var] =

@@ -9,7 +9,7 @@ import scala.annotation.tailrec
 // callee-saved registers (once LLVM optimizes the code, e.g. with LTO in debug mode).
 sealed trait St[S, A] {
   @tailrec final def run(s: S): (S, A) = this match {
-    case Pt(f) => f(s)
+    case Pt(f)     => f(s)
     case FM(st, k) =>
       st match {
         case Pt(f) =>

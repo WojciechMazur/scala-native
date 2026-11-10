@@ -6,26 +6,24 @@ on:
 
 jobs:
   old:
-    name: "${{ matrix.variant }} lto=${{ matrix.lto }} stack=${{ matrix.stack }}"
+    name: "${{ matrix.variant }} lto=${{ matrix.lto }} gc=${{ matrix.gc }}"
     runs-on: ubuntu-22.04
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { variant: gdb, lto: thin, stack: "8192" }
-          - { variant: plain, lto: thin, stack: unlimited }
-          - { variant: plain, lto: thin, stack: "65536" }
-          - { variant: plain, lto: none, stack: "2048" }
-          - { variant: plain, lto: none, stack: "1024" }
-          - { variant: plain, lto: thin, stack: "4096" }
+          - { variant: gdb, lto: thin, stack: "8192", gc: immix }
+          - { variant: plain, lto: thin, stack: "8192", gc: none }
+          - { variant: plain, lto: thin, stack: "8192", gc: boehm }
+          - { variant: plain, lto: thin, stack: "8192", gc: commix }
     steps:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 8 }
       - uses: sbt/setup-sbt@v1
       - name: Deps
         run: |
-          sudo apt-get update && sudo apt-get -y install libunwind-dev libre2-dev libsdl2-dev gdb
+          sudo apt-get update && sudo apt-get -y install libunwind-dev libre2-dev libsdl2-dev libgc-dev gdb
           sudo sysctl -w kernel.yama.ptrace_scope=0
       - name: Fetch minart
         run: curl -fsSL https://codeload.github.com/JD557/minart/tar.gz/05a8a8d9 | tar xz && mv minart-* minart
@@ -41,8 +39,9 @@ jobs:
                   case " $seen " in *" $pid "*) continue;; esac
                   seen="$seen $pid"
                   sudo gdb -p $pid -batch -ex 'handle SIGPIPE nostop noprint' -ex 'continue' \
-                    -ex 'bt 60' -ex 'info registers rsp rbp rip' -ex 'x/8i $pc-16' \
-                    -ex 'info proc mappings' > ../gdb-$pid.log 2>&1 &
+                    -ex 'bt 60' -ex 'info registers' -ex 'x/4gx $rbp' -ex 'x/4gx *(long*)$rbp' -ex 'info symbol *(long*)$rbp' \
+                    -ex 'x/4gx $rbx' -ex 'info symbol *(long*)$rbx' -ex 'x/4gx $r15' -ex 'info symbol *(long*)$r15' -ex 'x/4gx $r14' -ex 'info symbol *(long*)$r14' -ex 'x/4gx $r13' \
+                    -ex 'p/x *(int*)(*(long*)$rbp+0xc)' -ex 'p/x *(int*)(*(long*)$rbp+0x8)' -ex 'frame 1' -ex 'x/12i $pc-40' > ../gdb-$pid.log 2>&1 &
                 done
                 sleep 0.05
               done
@@ -55,6 +54,7 @@ jobs:
             'set ThisBuild / scalafixOnCompile := false' 'set ThisBuild / scalafmtOnCompile := false' \
             ++2.13 \
             'set LocalProject("soundNative") / Test / nativeLTO := "${{ matrix.lto }}"' \
+            'set LocalProject("soundNative") / Test / nativeGC := "${{ matrix.gc }}"' \
             'show soundNative/Test/nativeConfig' soundNative/test 2>&1 | tee ../out.log
           rc=${PIPESTATUS[0]}; echo "sbt exit: $rc"
           sleep 3
@@ -63,9 +63,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: out-${{ matrix.variant }}-${{ matrix.lto }}-${{ matrix.stack }}
+          name: out-${{ matrix.variant }}-${{ matrix.lto }}-${{ matrix.gc }}
           path: |
             out.log
             gdb-*.log
             minart/sound/native/target/scala-*/minart-sound-test-out
+            minart/sound/native/target/scala-*/native/*.ll
           retention-days: 5

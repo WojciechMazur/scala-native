@@ -12,6 +12,7 @@
 #include "shared/ThreadUtil.h"
 #include "SyncGreyLists.h"
 #include "stackOverflowGuards.h"
+#include "staticSections.h"
 
 #define LAST_FIELD_OFFSET -1
 
@@ -540,6 +541,22 @@ void Marker_markCustomRoots(Heap *heap, Stats *stats, GreyPacket **outHolder,
     mutex_unlock(&roots->modificationLock);
 }
 
+typedef struct {
+    Heap *heap;
+    Stats *stats;
+    GreyPacket **out;
+    GreyPacket **weakRefOut;
+} MarkerContext;
+
+static void Marker_markLockWord(void **lockWord, void *context) {
+    MarkerContext *ctx = (MarkerContext *)context;
+    // An inflated lock word is a tagged pointer into the monitor object
+    word_t *address = (word_t *)*lockWord;
+    if (Heap_IsWordInHeap(ctx->heap, address))
+        Marker_markConservative(ctx->heap, ctx->stats, ctx->out,
+                                ctx->weakRefOut, address);
+}
+
 void Marker_MarkRoots(Heap *heap, Stats *stats) {
     atomic_thread_fence(memory_order_seq_cst);
 
@@ -550,6 +567,8 @@ void Marker_MarkRoots(Heap *heap, Stats *stats) {
         Marker_markProgramStack(thread, heap, stats, &out, &weakRefOut);
     }
     Marker_markCustomRoots(heap, stats, &out, &weakRefOut, customRoots);
+    MarkerContext context = {heap, stats, &out, &weakRefOut};
+    scalanative_foreach_class_lock_word(Marker_markLockWord, &context);
     Marker_giveFullPacket(heap, stats, out);
     Marker_giveWeakRefPacket(heap, stats, weakRefOut);
 }

@@ -71,6 +71,13 @@ sealed trait NativeConfig {
   /** Shall we use the incremental compilation? */
   def useIncrementalCompilation: Boolean
 
+  /** Shall code be generated without whole-program facts? Each library's code
+   *  then depends only on its own definitions and the declarations of its
+   *  dependencies, at the cost of fewer optimizations: virtual calls are
+   *  resolved statically only when the target cannot be overridden.
+   */
+  def useGranularBuild: Boolean
+
    // format: off
   /** Shall be compiled with multithreading support.
    *
@@ -264,6 +271,9 @@ sealed trait NativeConfig {
   /** Create a new config with given incrementalCompilation value */
   def withIncrementalCompilation(value: Boolean): NativeConfig
 
+  /** Create a new config with given granularBuild value */
+  def withGranularBuild(value: Boolean): NativeConfig
+
   /** Create a new config with support for multithreading */
   def withMultithreading(enabled: Boolean): NativeConfig
 
@@ -347,6 +357,7 @@ object NativeConfig {
       linkStubs = false,
       optimize = true,
       useIncrementalCompilation = true,
+      useGranularBuild = false,
       multithreading = None, // detect
       linktimeProperties = Map.empty,
       embedResources = false,
@@ -379,6 +390,7 @@ object NativeConfig {
       linkStubs: Boolean,
       optimize: Boolean,
       useIncrementalCompilation: Boolean,
+      useGranularBuild: Boolean,
       multithreading: Option[Boolean],
       linktimeProperties: LinktimeProperites,
       embedResources: Boolean,
@@ -457,6 +469,9 @@ object NativeConfig {
 
     override def withIncrementalCompilation(value: Boolean): NativeConfig =
       copy(useIncrementalCompilation = value)
+
+    override def withGranularBuild(value: Boolean): NativeConfig =
+      copy(useGranularBuild = value)
 
     def withMultithreading(enabled: Boolean): NativeConfig =
       copy(multithreading = Some(enabled))
@@ -551,6 +566,7 @@ object NativeConfig {
           | - linkStubs:               $linkStubs
           | - optimize                 $optimize
           | - incrementalCompilation:  $useIncrementalCompilation
+          | - granularBuild:           $useGranularBuild
           | - multithreading           ${multithreading.getOrElse("detect")}
           | - linktimeProperties:      ${showMap(linktimeProperties)}
           | - embedResources:          $embedResources

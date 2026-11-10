@@ -252,8 +252,52 @@ object ReachabilityAnalysis {
       val dynsigs: Seq[nir.Sig],
       val dynimpls: Seq[nir.Global.Member],
       val resolvedVals: mutable.Map[String, nir.Val],
-      val foundServiceProviders: FoundServiceProviders
+      val foundServiceProviders: FoundServiceProviders,
+      // Definitions of every loaded class, trait and module, in declaration
+      // order, reached or not
+      val declarations: collection.Map[
+        nir.Global.Top,
+        collection.Map[nir.Global, nir.Defn]
+      ] = Map.empty
   ) extends ReachabilityAnalysis {
+
+    /** Fields declared by the class itself, in declaration order. */
+    def declaredFields(cls: Class): Seq[nir.Defn.Var] =
+      declarations
+        .get(cls.name)
+        .fold(Seq.empty[nir.Defn.Var])(
+          _.valuesIterator
+            .collect {
+              case defn: nir.Defn.Var
+                  if defn.name.isInstanceOf[nir.Global.Member] =>
+                defn
+            }
+            .toSeq
+        )
+
+    /** Signatures of methods declared by the class or trait itself, abstract or
+     *  not, that subclasses can override: instance methods that are not
+     *  private.
+     */
+    def declaredVirtualMethods(scope: ScopeInfo): Seq[nir.Sig] =
+      declarations
+        .get(scope.name)
+        .fold(Seq.empty[nir.Sig])(
+          _.valuesIterator
+            .collect {
+              case defn @ (_: nir.Defn.Define | _: nir.Defn.Declare)
+                  if isOverridable(defn.name) =>
+                defn.name.asInstanceOf[nir.Global.Member].sig
+            }
+            .toSeq
+        )
+
+    private def isOverridable(name: nir.Global): Boolean = name match {
+      case nir.Global.Member(_, sig) =>
+        sig.isMethod && !sig.isStatic && !sig.isPrivate
+      case _ => false
+    }
+
     lazy val ObjectClass = infos(nir.Rt.Object.name).asInstanceOf[Class]
     lazy val StringClass = infos(nir.Rt.StringName).asInstanceOf[Class]
     lazy val StringValueField =

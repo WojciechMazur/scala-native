@@ -6,23 +6,19 @@ on:
 
 jobs:
   old:
-    name: "minart@${{ matrix.rev }} SN0.4.10 ${{ matrix.os }} ${{ matrix.scala }} lto=${{ matrix.lto }} mode=${{ matrix.mode }}"
-    runs-on: ${{ matrix.os }}
+    name: "${{ matrix.variant }} lto=${{ matrix.lto }} stack=${{ matrix.stack }}"
+    runs-on: ubuntu-22.04
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04]
-        rev: [05a8a8d9]
-        scala: ["2.12", "2.13", "3.2"]
-        lto: [thin]
-        mode: [debug]
         include:
-          - { os: ubuntu-22.04, rev: 05a8a8d9, scala: "2.13", lto: none, mode: debug }
-          - { os: ubuntu-22.04, rev: 05a8a8d9, scala: "2.13", lto: thin, mode: release }
-          - { os: ubuntu-22.04, rev: 05a8a8d9, scala: "2.13", lto: full, mode: debug }
-          - { os: ubuntu-22.04, rev: 4e27ae84, scala: "2.13", lto: thin, mode: debug }
-          - { os: ubuntu-24.04, rev: 05a8a8d9, scala: "2.13", lto: thin, mode: debug }
+          - { variant: gdb, lto: thin, stack: "8192" }
+          - { variant: plain, lto: thin, stack: unlimited }
+          - { variant: plain, lto: thin, stack: "65536" }
+          - { variant: plain, lto: none, stack: "2048" }
+          - { variant: plain, lto: none, stack: "1024" }
+          - { variant: plain, lto: thin, stack: "4096" }
     steps:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 8 }
@@ -30,40 +26,46 @@ jobs:
       - name: Deps
         run: |
           sudo apt-get update && sudo apt-get -y install libunwind-dev libre2-dev libsdl2-dev gdb
-          clang --version; which clang; ld --version | head -1
-          ls /usr/lib/llvm-*/lib/LLVMgold.so || true
+          sudo sysctl -w kernel.yama.ptrace_scope=0
       - name: Fetch minart
-        run: curl -fsSL https://codeload.github.com/JD557/minart/tar.gz/${{ matrix.rev }} | tar xz && mv minart-* minart
+        run: curl -fsSL https://codeload.github.com/JD557/minart/tar.gz/05a8a8d9 | tar xz && mv minart-* minart
       - name: Test
         working-directory: minart
         env: { CI: "true" }
         run: |
-          ulimit -c unlimited
-          sudo sysctl -w kernel.core_pattern=/tmp/core.%e.%p
+          if [ "${{ matrix.variant }}" = gdb ]; then
+            (
+              seen=""
+              while true; do
+                for pid in $(pgrep -f minart-sound-test-out); do
+                  case " $seen " in *" $pid "*) continue;; esac
+                  seen="$seen $pid"
+                  sudo gdb -p $pid -batch -ex 'handle SIGPIPE nostop noprint' -ex 'continue' \
+                    -ex 'bt 60' -ex 'info registers rsp rbp rip' -ex 'x/8i $pc-16' \
+                    -ex 'info proc mappings' > ../gdb-$pid.log 2>&1 &
+                done
+                sleep 0.05
+              done
+            ) &
+          fi
+          ulimit -s ${{ matrix.stack }}
+          ulimit -s
           set +e
           sbt -J-Xmx3G -Dsbt.color=false \
             'set ThisBuild / scalafixOnCompile := false' 'set ThisBuild / scalafmtOnCompile := false' \
-            ++${{ matrix.scala }} \
+            ++2.13 \
             'set LocalProject("soundNative") / Test / nativeLTO := "${{ matrix.lto }}"' \
-            'set LocalProject("soundNative") / Test / nativeMode := "${{ matrix.mode }}"' \
             'show soundNative/Test/nativeConfig' soundNative/test 2>&1 | tee ../out.log
           rc=${PIPESTATUS[0]}; echo "sbt exit: $rc"
-          ls -la /tmp/core.* 2>/dev/null || echo "no core"
+          sleep 3
+          for f in ../gdb-*.log; do [ -f "$f" ] && { echo "=== $f"; head -150 "$f"; }; done
           exit $rc
-      - name: Backtrace
-        if: always()
-        run: |
-          for c in /tmp/core.*; do
-            [ -f "$c" ] || continue
-            bin=$(ls minart/sound/native/target/scala-*/minart-sound-test-out | head -1)
-            gdb -batch -ex 'bt 40' -ex 'info registers' -ex 'x/6i $pc-12' "$bin" "$c" || true
-          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: out-${{ matrix.os }}-${{ matrix.rev }}-${{ matrix.scala }}-${{ matrix.lto }}-${{ matrix.mode }}
+          name: out-${{ matrix.variant }}-${{ matrix.lto }}-${{ matrix.stack }}
           path: |
             out.log
+            gdb-*.log
             minart/sound/native/target/scala-*/minart-sound-test-out
-            minart/sound/native/target/scala-*/native/*.ll
           retention-days: 5

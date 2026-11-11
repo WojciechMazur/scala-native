@@ -53,3 +53,16 @@ SN_DEFINE_SECTION(strings, "sn_strings", "__sn_strings", ".snstr")
 SN_DEFINE_SECTION(classinfo, "sn_classinfo", "__sn_classinfo", ".sncls")
 SN_DEFINE_SECTION(globals, "sn_global_objects", "__sn_globals", ".snglob")
 SN_DEFINE_SECTION(classlist, "sn_classlist", "__sn_classlist", ".sncll")
+
+/* Linked into every image: registers the sections of the image containing it
+ * when loaded, before main runs.
+ */
+static SNImageSections thisImage;
+
+__attribute__((constructor)) static void scalanative_register_this_image(void) {
+    thisImage.strings = *scalanative_static_strings_section();
+    thisImage.classinfo = *scalanative_static_classinfo_section();
+    thisImage.globals = *scalanative_static_globals_section();
+    thisImage.classlist = *scalanative_static_classlist_section();
+    scalanative_register_image(&thisImage);
+}

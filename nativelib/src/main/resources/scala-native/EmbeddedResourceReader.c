@@ -1,26 +1,39 @@
 #include <stdint.h>
-extern int8_t **__scala_native_resources_all_path;
-extern int8_t **__scala_native_resources_all_content;
-extern int32_t *__scala_native_resources_all_content_lengths;
-extern int32_t *__scala_native_resources_all_path_lengths;
-extern int32_t __scala_native_resources_amount;
+
+/* Registered by the program at startup, see codegen.Generate: the runtime may
+ * be linked apart from the program and its embedded resources.
+ */
+static int8_t **resourcesPaths;
+static int8_t **resourcesContents;
+static int32_t *resourcesPathLengths;
+static int32_t *resourcesContentLengths;
+static int32_t resourcesAmount;
+
+void scalanative_register_embedded_resources(int8_t **paths, int8_t **contents,
+                                             int32_t *pathLengths,
+                                             int32_t *contentLengths,
+                                             int32_t amount) {
+    resourcesPaths = paths;
+    resourcesContents = contents;
+    resourcesPathLengths = pathLengths;
+    resourcesContentLengths = contentLengths;
+    resourcesAmount = amount;
+}
 
 int8_t *scalanative_resource_get_content_ptr(int32_t embeddedFileId) {
-    return __scala_native_resources_all_content[embeddedFileId];
+    return resourcesContents[embeddedFileId];
 }
 
 int8_t *scalanative_resource_get_path_ptr(int32_t embeddedFileId) {
-    return __scala_native_resources_all_path[embeddedFileId];
+    return resourcesPaths[embeddedFileId];
 }
 
-int32_t scalanative_resource_get_embedded_size() {
-    return __scala_native_resources_amount;
-}
+int32_t scalanative_resource_get_embedded_size() { return resourcesAmount; }
 
 int32_t scalanative_resource_get_path_length(int32_t embeddedFileId) {
-    return __scala_native_resources_all_path_lengths[embeddedFileId];
+    return resourcesPathLengths[embeddedFileId];
 }
 
 int32_t scalanative_resource_get_content_length(int32_t embeddedFileId) {
-    return __scala_native_resources_all_content_lengths[embeddedFileId];
+    return resourcesContentLengths[embeddedFileId];
 }

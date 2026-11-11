@@ -20,11 +20,45 @@ static void registerSection(const SNStaticSection *section) {
         scalanative_GC_add_roots(section->start, section->end);
 }
 
+/* Images register before main, from constructors, and later when loaded
+ * with dlopen. Registered images are never removed, unit libraries are not
+ * unloaded.
+ */
+#define SN_MAX_IMAGES 256
+
+static const SNImageSections *images[SN_MAX_IMAGES];
+static atomic_size_t imagesCount;
+static atomic_bool staticRootsRegistered;
+
+void scalanative_register_image(const SNImageSections *image) {
+    size_t index = atomic_fetch_add(&imagesCount, 1);
+    if (index >= SN_MAX_IMAGES)
+        abort();
+    images[index] = image;
+    if (atomic_load(&staticRootsRegistered))
+        registerSection(&image->globals);
+}
+
+size_t scalanative_images_count(void) {
+    size_t count = atomic_load(&imagesCount);
+    return count < SN_MAX_IMAGES ? count : SN_MAX_IMAGES;
+}
+
+const SNImageSections *scalanative_image_at(size_t index) {
+    return images[index];
+}
+
 /* Class and string objects are not scanned: only lock words of their
  * inflated monitors are, see scalanative_register_object_roots.
  */
-SN_SECTION_LOCAL void scalanative_register_static_roots(void) {
-    registerSection(scalanative_static_globals_section());
+void scalanative_register_static_roots(void) {
+    atomic_store(&staticRootsRegistered, true);
+    size_t count = scalanative_images_count();
+    for (size_t i = 0; i < count; i++) {
+        // Concurrently registered images register their own roots
+        if (images[i] != NULL)
+            registerSection(&images[i]->globals);
+    }
 }
 
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
@@ -121,9 +155,19 @@ static bool containsObject(const SNStaticSection *section, void *object) {
  * need their lock word registered, global objects are always scanned. This
  * works independently of the collector's heap layout or allocation API.
  */
+static bool isStaticObject(void *object) {
+    size_t count = scalanative_images_count();
+    for (size_t i = 0; i < count; i++) {
+        const SNImageSections *image = images[i];
+        if (image != NULL && (containsObject(&image->classinfo, object) ||
+                              containsObject(&image->strings, object)))
+            return true;
+    }
+    return false;
+}
+
 SN_SECTION_LOCAL void scalanative_register_object_roots(void *object) {
-    if (containsObject(scalanative_static_classinfo_section(), object) ||
-        containsObject(scalanative_static_strings_section(), object)) {
+    if (isStaticObject(object)) {
         // Object header: the RTTI, then the lock word
         registerLockWord(&((void **)object)[1]);
     }

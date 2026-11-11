@@ -7,10 +7,11 @@
 extern "C" {
 #endif
 
-/* Registers the global objects section as GC roots. Called after GC
- * initialization, before Scala initializers.
+/* Registers the global objects sections of every loaded image as GC roots,
+ * and of images loaded later when they register. Called by the program after
+ * GC initialization, before Scala initializers.
  */
-SN_SECTION_LOCAL void scalanative_register_static_roots(void);
+void scalanative_register_static_roots(void);
 
 /* Called when a monitor is inflated on `object`. A static object in the class
  * or string sections then references the heap through its lock word, which

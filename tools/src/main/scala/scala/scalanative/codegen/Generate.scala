@@ -46,6 +46,7 @@ private[codegen] object Generate {
     def genInjects(): Unit = {
       buf += InitDecl
       buf += RegisterStaticRootsDecl
+      buf += RegisterResourcesDecl
       buf += RegisterReflectiveProxiesDecl
       buf += meta.reflectiveProxies
       buf ++= ThreadBootstrapDecls
@@ -165,7 +166,26 @@ private[codegen] object Generate {
         ),
         unwind
       )
-      Seq(gcInit, registerRoots, registerProxies)
+      // Embedded resources are read by the runtime, which may be linked apart
+      val registerResources = {
+        def load(name: String, ty: nir.Type) = {
+          val value = nir.Val.Local(fresh(), ty)
+          val inst = nir.Inst.Let(value.id, nir.Op.Load(ty, nir.Val.Global(Extern(name), nir.Type.Ptr)), unwind)
+          (inst, value)
+        }
+        val loads = Seq(
+          load("__scala_native_resources_all_path", nir.Type.Ptr),
+          load("__scala_native_resources_all_content", nir.Type.Ptr),
+          load("__scala_native_resources_all_path_lengths", nir.Type.Ptr),
+          load("__scala_native_resources_all_content_lengths", nir.Type.Ptr),
+          load("__scala_native_resources_amount", nir.Type.Int)
+        )
+        loads.map(_._1) :+ nir.Inst.Let(
+          nir.Op.Call(RegisterResourcesSig, RegisterResources, loads.map(_._2)),
+          unwind
+        )
+      }
+      Seq(gcInit, registerRoots, registerProxies) ++ registerResources
     }
 
     private def genThreadBootstrap(library: Boolean, complete: Boolean)(implicit fresh: nir.Fresh): Seq[nir.Inst] = {
@@ -436,7 +456,7 @@ private[codegen] object Generate {
                 )
               layout.layout.tys(gcModifiedFieldReferentIdx).offset.toInt
           }
-      addToBuf(weakRefFieldOffsetName, modifiedFieldOffset)
+      addToBuf(weakRefFieldOffsetName(meta.granular), modifiedFieldOffset)
     }
 
     private def validateMainEntry(entry: nir.Global.Top): Unit = {
@@ -521,7 +541,25 @@ private[codegen] object Generate {
     )
     val RegisterReflectiveProxies = nir.Val.Global(RegisterReflectiveProxiesDecl.name, nir.Type.Ptr)
 
+    val RegisterResourcesSig = nir.Type.Function(
+      Seq(nir.Type.Ptr, nir.Type.Ptr, nir.Type.Ptr, nir.Type.Ptr, nir.Type.Int),
+      nir.Type.Unit
+    )
+    val RegisterResourcesDecl = nir.Defn.Declare(
+      nir.Attrs.None,
+      Extern("scalanative_register_embedded_resources"),
+      RegisterResourcesSig
+    )
+    val RegisterResources = nir.Val.Global(RegisterResourcesDecl.name, nir.Type.Ptr)
+
     val weakRefFieldOffsetName = Extern("__weak_ref_field_offset")
+
+    /** In granular builds the offset is owned by the class it describes, so that the library of java.lang.ref defines
+     *  it for the garbage collector instead of each program.
+     */
+    def weakRefFieldOffsetName(granular: Boolean): nir.Global.Member =
+      if (!granular) weakRefFieldOffsetName
+      else nir.Global.Top("java.lang.ref.WeakReference").member(nir.Sig.Extern("__weak_ref_field_offset"))
   }
 
   /** Definitions emitted once per program: entry points, the reflective proxy table and runtime constants computed from

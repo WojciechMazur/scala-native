@@ -322,13 +322,33 @@ private object LinkedClasses {
       case _             => throw new ClassNotFoundException(className)
     }
 
-  // The class list section holds a pointer to the RTTI of every class and
-  // trait, the RTTI of a type is its java.lang.Class instance
+  // The class list section of every image holds a pointer to the RTTI of
+  // each of its classes and traits, the RTTI of a type is its java.lang.Class
+  // instance
   private def find(className: String): Class[_] = {
     val ptrSize = castRawSizeToInt(sizeOf[RawPtr])
-    val section = StaticRoots.classListSection()
+    val images = castRawSizeToLong(StaticRoots.imagesCount())
+    var image = 0L
+    while (image < images) {
+      val sections = StaticRoots.imageAt(castLongToRawSize(image))
+      if (castRawPtrToLong(sections) != 0L) {
+        // The class list is the fourth {start, end} range
+        val section = elemRawPtr(sections, castIntToRawSize(6 * ptrSize))
+        val found = findIn(section, className, ptrSize)
+        if (found != null) return found
+      }
+      image += 1
+    }
+    null
+  }
+
+  private def findIn(
+      section: RawPtr,
+      className: String,
+      ptrSize: Int
+  ): Class[_] = {
     val start = loadRawPtr(section)
-    val end = loadRawPtr(elemRawPtr(section, ptrSize))
+    val end = loadRawPtr(elemRawPtr(section, castIntToRawSize(ptrSize)))
     val size = castRawPtrToLong(end) - castRawPtrToLong(start)
     var offset = 0L
     while (offset < size) {

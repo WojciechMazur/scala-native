@@ -1276,6 +1276,10 @@ private[scalanative] object Lower {
           buf.unreachable(nir.Next.None)
 
         case ClassRef(cls) if staticMethodIn(cls) =>
+          // Library units are compiled without the optimizer, which otherwise
+          // checks receivers of direct calls: callees using `this` only
+          // through intrinsics do not check it themselves
+          if (meta.granular && !sig.isStatic) genGuardNotNull(buf, obj)
           genStaticMethod(cls)
 
         case ScopeRef(scope) =>

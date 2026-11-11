@@ -22,9 +22,22 @@ object CodeGen {
   type IRGenerator = Future[Path]
   type IRGenerators = Seq[IRGenerator]
 
-  /** Lower and generate code for given assembly. */
-  def apply(config: build.Config, analysis: ReachabilityAnalysis.Result)(
-      implicit ec: ExecutionContext
+  /** Lower and generate code for given assembly.
+   *
+   *  @param provided
+   *    definitions compiled apart, by library units: they are only declared
+   *  @param imports
+   *    symbols library units use without defining them: those the program does
+   *    not define get a stub, never called since the program does not reach
+   *    them
+   */
+  def apply(
+      config: build.Config,
+      analysis: ReachabilityAnalysis.Result,
+      provided: Set[nir.Global] = Set.empty,
+      imports: Map[nir.Global, build.units.UnitImport] = Map.empty
+  )(implicit
+      ec: ExecutionContext
   ): Future[IRGenerators] = {
     val defns = analysis.defns
     val granular = config.compilerConfig.useGranularBuild
@@ -47,10 +60,220 @@ object CodeGen {
       if (!granular) Set.empty
       else
         (proxies ++ embedded).map(_.name).toSet ++ Generate.programDefinitions
-    val lowered = lower(generated ++ embedded)
+    val lowered = lower(declareProvided(generated, provided) ++ embedded)
     lowered
       .andThen { case Success(defns) => dumpDefns(config, "lowered", defns) }
-      .map(emit(config, _, program))
+      .map { lowered =>
+        if (provided.isEmpty && imports.isEmpty)
+          emit(config, lowered, program)
+        else {
+          val emitted = lowered.filterNot(isProvided(_, provided))
+          val defined = emitted.collect {
+            case defn if !defn.isInstanceOf[nir.Defn.Declare] => defn.name
+          }.toSet
+          val stubs = imports.collect {
+            case (name: nir.Global.Member, imported)
+                if !defined.contains(name) && !provided.contains(name) =>
+              stub(name, imported)
+          }
+          val stubNames = stubs.map(_.name: nir.Global).toSet
+          val withoutDeclarations =
+            emitted.filterNot(defn => stubNames.contains(defn.name))
+          // Library code compiled apart may refer to members the program
+          // never reached, such as inherited methods in virtual tables
+          val (declarations, _) = declareMissing(analysis, lowered, lowered)
+          emit(
+            config,
+            withoutDeclarations ++ stubs,
+            program ++ stubNames,
+            references = lowered ++ declarations
+          )
+        }
+      }
+  }
+
+  /** Declarations of the symbols `defns` refer to without defining or declaring
+   *  them, taken from the classes the analysis loaded. Returns them lowered,
+   *  and the symbols that could not be found.
+   */
+  private[scalanative] def declareMissing(
+      analysis: ReachabilityAnalysis.Result,
+      defns: Seq[nir.Defn],
+      env: Seq[nir.Defn]
+  )(implicit
+      meta: CodeGenMetadata,
+      logger: build.Logger
+  ): (Seq[nir.Defn], Set[nir.Global]) = {
+    val known = env.map(_.name: nir.Global).toSet
+    val missing = mutable.HashSet.empty[nir.Global]
+    val traverse = new nir.Traverse {
+      override def onVal(value: nir.Val): Unit = {
+        value match {
+          case nir.Val.Global(name, _) if !known.contains(name) =>
+            missing += name
+          case _ => ()
+        }
+        super.onVal(value)
+      }
+    }
+    defns.foreach {
+      case _: nir.Defn.Declare => ()
+      case defn                => traverse.onDefn(defn)
+    }
+    val found = missing.toSeq.flatMap { name =>
+      analysis.declarations
+        .get(name.top)
+        .flatMap(_.get(name))
+        .collect {
+          case defn: nir.Defn.Define =>
+            nir.Defn.Declare(defn.attrs, defn.name, defn.ty)(defn.pos)
+          case defn: nir.Defn.Declare => defn
+        }
+    }
+    // Lowering drops declarations of methods it knows of, such as declared
+    // but unreached ones: lower them as externs, keeping their attributes
+    val attrs = found.map(defn => defn.name -> defn.attrs).toMap
+    val lowered = Lower(found.map { defn =>
+      defn.copy(attrs = defn.attrs.withIsExtern(true))(defn.pos)
+    }).map {
+      case defn: nir.Defn.Declare =>
+        defn.copy(attrs = attrs(defn.name))(defn.pos)
+      case defn => defn
+    }
+    (lowered, missing.toSet -- found.map(_.name))
+  }
+
+  private def stub(
+      name: nir.Global.Member,
+      imported: build.units.UnitImport
+  ): nir.Defn = {
+    implicit val pos: nir.SourcePosition = nir.SourcePosition.NoPosition
+    imported.ty match {
+      case ty @ nir.Type.Function(args, _) if imported.isFunction =>
+        val fresh = nir.Fresh()
+        val params = args.map(nir.Val.Local(fresh(), _))
+        nir.Defn.Define(
+          nir.Attrs.None,
+          name,
+          ty,
+          Seq(
+            nir.Inst.Label(fresh(), params),
+            nir.Inst.Unreachable(nir.Next.None)
+          )
+        )
+      case ty => nir.Defn.Var(nir.Attrs.None, name, ty, nir.Val.Zero(ty))
+    }
+  }
+
+  // Method bodies of provided definitions are not lowered, only declared
+  private def declareProvided(
+      defns: Seq[nir.Defn],
+      provided: Set[nir.Global]
+  ): Seq[nir.Defn] =
+    if (provided.isEmpty) defns
+    else
+      defns.map {
+        case defn: nir.Defn.Define if provided.contains(defn.name) =>
+          nir.Defn.Declare(defn.attrs, defn.name, defn.ty)(defn.pos)
+        case defn => defn
+      }
+
+  // Kept for the types of references, never emitted
+  private def isProvided(defn: nir.Defn, provided: Set[nir.Global]) =
+    defn match {
+      case _: nir.Defn.Declare => false
+      case defn                => provided.contains(defn.name)
+    }
+
+  /** Lowers every definition of `analysis` together with the metadata of its
+   *  classes, without the parts generated once per program: reflective proxies
+   *  and embedded resources. Used to compile the definitions of a library unit,
+   *  see `build.units.UnitCompile`.
+   */
+  private[scalanative] def lowerUnit(
+      config: build.Config,
+      analysis: ReachabilityAnalysis.Result,
+      provided: Set[nir.Global]
+  )(implicit
+      ec: ExecutionContext
+  ): Future[(CodeGenMetadata, Seq[nir.Defn], Set[nir.Global])] = {
+    implicit def logger: build.Logger = config.logger
+    implicit val platform: PlatformInfo = PlatformInfo(config)
+    implicit val meta: CodeGenMetadata =
+      new CodeGenMetadata(analysis, config, Nil)
+    val generated = declareProvided(Generate(None, analysis.defns), provided)
+    // Definitions no program reaches may need facts the analysis lacks, such
+    // as classes missing from the classpath: those are only declared
+    val jobs = partitionBy(generated)(_.name).map {
+      case (_, defns) =>
+        Future {
+          defns.map { defn =>
+            try Right(Lower(Seq(defn)))
+            catch {
+              case scala.util.control.NonFatal(_) |
+                  _: util.UnreachableException.type =>
+                val declared = defn match {
+                  case defn: nir.Defn.Define =>
+                    Lower(
+                      Seq(
+                        nir.Defn.Declare(defn.attrs, defn.name, defn.ty)(
+                          defn.pos
+                        )
+                      )
+                    )
+                  case _ => Nil
+                }
+                Left(defn.name -> declared)
+            }
+          }
+        }
+    }
+    Future.sequence(jobs).map { results =>
+      val all = results.flatten.toSeq
+      val lowered = all.flatMap {
+        case Right(defns)        => defns
+        case Left((_, declared)) => declared
+      }
+      val failed = all.collect { case Left((name, _)) => name }.toSet
+      (meta, lowered, failed)
+    }
+  }
+
+  /** Writes `selected` to `outputDir`, one IR file per source file, with
+   *  references to `env` declared, C symbols weakly. Returns the IR files with
+   *  the C symbols each refers to.
+   */
+  private[scalanative] def emitUnit(
+      config: build.Config,
+      meta: CodeGenMetadata,
+      env: Seq[nir.Defn],
+      selected: Seq[nir.Defn],
+      outputDir: Path
+  )(implicit ec: ExecutionContext): Seq[Future[(Path, Set[String])]] = {
+    implicit val _meta: CodeGenMetadata = meta
+    val envMap = env.map(defn => defn.name -> defn).toMap
+    Files.createDirectories(outputDir)
+    // Shared by the whole unit, the scope outlives the generation
+    val scope = Scope.unsafe()
+    val dir = VirtualDirectory.real(outputDir)(scope)
+    val sourceCodeCache = new SourceCodeCache(config)
+    // Darwin's linker needs a compilation unit per source file, see emit
+    def sourceOf(defn: nir.Defn): String = defn.pos.source match {
+      case nir.SourceFile.Relative(path) => path
+      case _                             => defn.name.top.id
+    }
+    val generators = selected.groupBy(sourceOf).toSeq.map {
+      case (source, defns) =>
+        Future {
+          val id = build.store.Digest.of(source).hash.take(24)
+          val codegen =
+            Impl(envMap, defns.sortBy(_.name), sourceCodeCache, weak = true)
+          val path = codegen.gen(id, dir)
+          path -> codegen.weakExternSymbols.toSet
+        }
+    }
+    Future.sequence(generators).onComplete(_ => scope.close())
+    generators
   }
 
   private[scalanative] def lower(
@@ -80,13 +303,15 @@ object CodeGen {
   private def emit(
       config: build.Config,
       assembly: Seq[nir.Defn],
-      program: Set[nir.Global] = Set.empty
+      program: Set[nir.Global] = Set.empty,
+      references: Seq[nir.Defn] = Nil
   )(implicit
       meta: CodeGenMetadata,
       ec: ExecutionContext
   ): IRGenerators =
     Scope { implicit in =>
-      val env = assembly.map(defn => defn.name -> defn).toMap
+      // Definitions compiled apart are declared where referenced
+      val env = (references ++ assembly).map(defn => defn.name -> defn).toMap
       val outputDirPath = config.workDir.resolve("generated")
       if (Build.userConfigHasChanged(config))
         IO.deleteRecursive(outputDirPath)
@@ -180,19 +405,22 @@ object CodeGen {
     def apply(
         env: Map[nir.Global, nir.Defn],
         defns: Seq[nir.Defn],
-        sourcesCache: SourceCodeCache
+        sourcesCache: SourceCodeCache,
+        weak: Boolean = false
     )(implicit
         meta: CodeGenMetadata
-    ): AbstractCodeGen = new StdCodeGen(env, defns, sourcesCache)
+    ): AbstractCodeGen = new StdCodeGen(env, defns, sourcesCache, weak)
 
     private class StdCodeGen(
         env: Map[nir.Global, nir.Defn],
         defns: Seq[nir.Defn],
-        sourcesCache: SourceCodeCache
+        sourcesCache: SourceCodeCache,
+        weak: Boolean
     )(implicit
         meta: CodeGenMetadata
     ) extends AbstractCodeGen(env, defns) {
       override def sourceCodeCache: SourceCodeCache = sourcesCache
+      override protected def weakExterns: Boolean = weak
     }
 
     class BuildInfoCodegen(env: Map[nir.Global, nir.Defn])(implicit

@@ -24,6 +24,41 @@ import scala.scalanative.{build, linker, nir}
 import MetadataCodeGen.DefnScopes
 
 private[codegen] object AbstractCodeGen {
+
+  /** An exact rendering of a constant, unlike `show`: equal renderings mean
+   *  equal constants.
+   */
+  private[llvm] def renderConstant(
+      value: nir.Val,
+      out: java.lang.StringBuilder
+  ): Unit = value match {
+    case value: nir.Val.ByteString =>
+      val bytes: Array[Byte] = value.bytes
+      out.append("b").append(bytes.length).append(':')
+      var i = 0
+      while (i < bytes.length) {
+        out.append(bytes(i).toInt).append(',')
+        i += 1
+      }
+    case nir.Val.String(string) =>
+      out.append("s").append(string.length).append(':').append(string)
+    case nir.Val.StructValue(values) =>
+      out.append("{").append(values.size).append(':')
+      values.foreach(renderConstant(_, out))
+      out.append('}')
+    case nir.Val.ArrayValue(elemty, values) =>
+      out.append("[").append(elemty.show).append(';').append(values.size)
+      out.append(':')
+      values.foreach(renderConstant(_, out))
+      out.append(']')
+    case nir.Val.Const(inner) =>
+      out.append("c(")
+      renderConstant(inner, out)
+      out.append(')')
+    case other =>
+      out.append(other.ty.show).append(' ').append(other.show).append(';')
+  }
+
   private final case class ConstantKey(
       value: nir.Val,
       section: Option[GlobalSections.Section]
@@ -51,6 +86,16 @@ private[codegen] abstract class AbstractCodeGen(
   private val generated = mutable.Set.empty[String]
   generated.sizeHint(1024)
   private val externSigMembers = mutable.Map.empty[nir.Sig, nir.Global.Member]
+
+  /** Declare C functions and globals as weak references: library units are
+   *  compiled for any program and may refer to symbols a platform or
+   *  configuration lacks, from code no program using them reaches.
+   */
+  protected def weakExterns: Boolean = false
+  private val weakDeclared = mutable.Set.empty[nir.Global]
+
+  /** Symbols of the C declarations referenced weakly, see `weakExterns`. */
+  def weakExternSymbols: collection.Set[String] = weakDeclared.map(mangled)
 
   private def isGnu: Boolean = {
     meta.buildConfig.compilerConfig.configuredOrDetectedTriple.env
@@ -127,6 +172,15 @@ private[codegen] abstract class AbstractCodeGen(
       genDefn {
         val defn = env(n)
         implicit val rootPos = defn.pos
+        val isC = defn match {
+          case nir.Defn.Declare(attrs, name, _) =>
+            (attrs.isExtern || name.sig.isExtern) && !defn.isExternRedirect
+          case nir.Defn.Var(attrs, _, _, _)   => attrs.isExtern
+          case nir.Defn.Const(attrs, _, _, _) => attrs.isExtern
+          case _                              => false
+        }
+        // LLVM intrinsics are no symbols
+        if (weakExterns && isC && !mn.startsWith("llvm.")) weakDeclared += n
         defn match {
           case defn @ nir.Defn.Var(attrs, _, _, _) =>
             defn.copy(attrs.withIsExtern(true))
@@ -208,19 +262,26 @@ private[codegen] abstract class AbstractCodeGen(
 
   private def genConsts()(implicit sb: ShowBuilder): Unit = {
     import sb._
+    // Equal constants of different keys share their content-based name
+    val emitted = mutable.Set.empty[nir.Global]
     constMap.toSeq.sortBy(_._2.show).foreach {
-      case (ConstantKey(value, section), name) =>
+      case (ConstantKey(value, section), name) if emitted.add(name) =>
         newline()
         str("@")
         genGlobal(name)
         // A literal's characters are immutable, but its object header contains
         // a mutable lock word. Do not allow LLVM to merge or duplicate it.
+        // Granular builds compile code apart: the linker keeps one copy of
+        // each constant, so that equal literals stay the same object, as on
+        // the JVM, wherever they were compiled.
+        val linkage = if (meta.granular) "linkonce_odr hidden" else "private"
         str(
-          if (section.isDefined) " = private global "
-          else " = private unnamed_addr constant "
+          if (section.isDefined) s" = $linkage global "
+          else s" = $linkage unnamed_addr constant "
         )
         genVal(value)
         section.foreach(genStaticObjectSection)
+      case _ => ()
     }
   }
 
@@ -264,7 +325,11 @@ private[codegen] abstract class AbstractCodeGen(
     str("@")
     genGlobal(name)
     str(" = ")
-    str(if (attrs.isExtern) "external " else "hidden ")
+    str(
+      if (!attrs.isExtern) "hidden "
+      else if (weakDeclared.contains(name)) "extern_weak "
+      else "external "
+    )
     if (attrs.isExtern && isThreadLocal(name)) {
       str("thread_local ")
     }
@@ -317,7 +382,11 @@ private[codegen] abstract class AbstractCodeGen(
     val isDecl = insts.isEmpty
 
     newline()
-    str(if (isDecl) "declare " else "define ")
+    str(
+      if (!isDecl) "define "
+      else if (weakDeclared.contains(name)) "declare extern_weak "
+      else "declare "
+    )
     if (targetsWindows && !isDecl && attrs.isExtern) {
       // Generate export modifier only for extern (C-ABI compliant) signatures
       val nir.Global.Member(_, sig) = name: @unchecked
@@ -408,11 +477,15 @@ private[codegen] abstract class AbstractCodeGen(
   private[codegen] def toDereferenceable(
       refty: nir.Type.RefKind
   ): (Boolean, String, Long) = {
-    val size = meta.analysis.infos(refty.className) match {
-      case info: linker.Trait =>
-        meta.layout(meta.analysis.ObjectClass).size
-      case info: linker.Class =>
+    val size = meta.analysis.infos.get(refty.className) match {
+      case Some(info: linker.Class) =>
         meta.layout(info).size
+      case Some(_: linker.Trait) =>
+        meta.layout(meta.analysis.ObjectClass).size
+      // Library units compile code mentioning classes outside the classpath,
+      // any object is at least as large as java.lang.Object
+      case _ if meta.granular =>
+        meta.layout(meta.analysis.ObjectClass).size
       case _ =>
         unreachable
     }
@@ -593,10 +666,17 @@ private[codegen] abstract class AbstractCodeGen(
   ): nir.Global.Member =
     constMap.getOrElseUpdate(
       ConstantKey(value, section), {
-        val idx = constMap.size
+        // Named after their content in granular builds, see genConsts
+        val id =
+          if (meta.granular) {
+            val content = new java.lang.StringBuilder
+            section.foreach(s => content.append(s.toString))
+            AbstractCodeGen.renderConstant(value, content)
+            build.store.Digest.of(content.toString).hash.take(32)
+          } else constMap.size.toString
         val name =
           nir.Global
-            .Member(nir.Global.Top("__const"), nir.Sig.Generated(idx.toString))
+            .Member(nir.Global.Top("__const"), nir.Sig.Generated(id))
         constTy(name) = value.ty
         name
       }

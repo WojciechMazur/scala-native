@@ -81,6 +81,29 @@ private[scalanative] object PluginCompat:
   ): Vector[File] =
     toNioPaths(cp).map(_.toFile())
 
+  /** Links the binary of a link task, see `nativeLinkSettings`. */
+  @transient lazy val nativeLinkRun =
+    taskKey[() => NioPath]("Links the binary of a native link task")
+
+  /** The link task `key`, cached by the output key of its build plan: the link
+   *  runs only when that key changed, sbt restores the binary otherwise. The
+   *  link itself is no input.
+   */
+  @annotation.nowarn("msg=transient")
+  def nativeLinkSettings(
+      key: TaskKey[FileRef],
+      outputKey: TaskKey[String],
+      tag: Tags.Tag
+  ): Seq[Setting[?]] = Seq(
+    key := {
+      val _ = (key / outputKey).value
+      val conv = Keys.fileConverter.value
+      val binary = conv.toVirtualFile((key / nativeLinkRun).value())
+      Def.declareOutput(binary): FileRef
+    },
+    key := key.tag(tag).value
+  )
+
   val sbtVersionBaseSettings = Seq[Setting[?]](
     Keys.platform := ScalaNativePlatform.current
   )

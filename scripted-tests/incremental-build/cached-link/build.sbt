@@ -6,9 +6,16 @@ scalaVersion := sys.props("scala.version")
 def toolchainMarker(crossTarget: File): File =
   crossTarget / "native" / "userConfigHash"
 
+// Without the checksum, a link task that runs builds again and leaves the
+// marker
 lazy val forgetToolchainRun =
   taskKey[Unit]("Delete the marker of a toolchain run")
-forgetToolchainRun := IO.delete(toolchainMarker(crossTarget.value))
+forgetToolchainRun := IO.delete(
+  Seq(
+    toolchainMarker(crossTarget.value),
+    crossTarget.value / "native" / "build-checksum"
+  )
+)
 
 lazy val checkToolchainSkipped =
   taskKey[Unit]("Check the last link did not run the toolchain")

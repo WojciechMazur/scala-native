@@ -9,7 +9,7 @@ import java.util.zip.ZipFile
 
 import scala.collection.mutable
 
-import scala.scalanative.build.store.Digest
+import scala.scalanative.build.store.{Digest, SourceTree}
 import scala.scalanative.io.VirtualDirectory
 import scala.scalanative.nir.serialization.{BinaryDeserializer, Prelude}
 import scala.scalanative.util.Scope
@@ -85,7 +85,10 @@ private[scalanative] object DeriveLibrary {
   ): Seq[(Path, () => Array[Byte])] =
     if (Files.isDirectory(entry)) {
       val directory = VirtualDirectory.real(entry)
-      directory.files.map(path => path -> (() => toArray(directory.read(path))))
+      SourceTree
+        .list(entry, isLibraryFile(entry, _))
+        .map(entry.relativize(_))
+        .map(path => path -> (() => toArray(directory.read(path))))
     } else {
       val zip = new ZipFile(entry.toFile())
       scope.acquire(zip)
@@ -113,6 +116,13 @@ private[scalanative] object DeriveLibrary {
       }
       files.result()
     }
+
+  /** Whether `path`, a file of the directory `entry`, is read into its library:
+   *  NIR files and service declarations.
+   */
+  def isLibraryFile(entry: Path, path: Path): Boolean =
+    path.toString.endsWith(".nir") ||
+      isServiceDeclaration(entry.relativize(path))
 
   /** Whether `path` declares service providers. The first form is used in jars,
    *  the second one in directories.

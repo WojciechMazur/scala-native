@@ -55,10 +55,7 @@ private[scalanative] object Libraries {
     if (Files.isDirectory(entry))
       SourceTree(
         entry,
-        include = { path =>
-          path.toString.endsWith(".nir") ||
-          DeriveLibrary.isServiceDeclaration(entry.relativize(path))
-        },
+        include = DeriveLibrary.isLibraryFile(entry, _),
         digest = cache.digest(_)
       ).digest
     else cache.digest(entry)

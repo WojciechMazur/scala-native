@@ -35,6 +35,29 @@ private[scalanative] object LLVM {
   /** List of source patterns used: ".c, .cpp, .S" */
   val srcExtensions = Seq(".c", cppExt, ".S")
 
+  /** How to compile a source as a stored action, see `store.BuildCache`.
+   *
+   *  @param inputs
+   *    Digest of everything the compilation reads besides system headers: the
+   *    source itself, or the whole source tree of a native library.
+   *  @param root
+   *    Directory whose location is not part of the action key: paths below it
+   *    are replaced by a placeholder in the compiler flags.
+   *  @param source
+   *    Path of the source relative to `root` when it affects the output, e.g.
+   *    through `__FILE__`.
+   *  @param mappedRoot
+   *    Location `root` is mapped to in the object file, so that it does not
+   *    depend on where the source was compiled.
+   */
+  final case class StoredCompile(
+      cache: store.BuildCache,
+      inputs: store.Digest,
+      root: Path,
+      source: Option[String] = None,
+      mappedRoot: Option[Path] = None
+  )
+
   /** Compile the given files to object files
    *
    *  @param config
@@ -48,6 +71,10 @@ private[scalanative] object LLVM {
    *    recompilation. Determined by the caller, as only it knows what to
    *    compare `config` against (e.g. native libraries compile with per-library
    *    options that the user config hash does not cover).
+   *  @param stored
+   *    Compile as a stored action instead, reusing the object compiled from the
+   *    same inputs with the same flags by any build. `configChanged` is then
+   *    irrelevant.
    *  @return
    *    The paths of the `.o` files.
    */
@@ -55,7 +82,8 @@ private[scalanative] object LLVM {
       config: Config,
       analysis: ReachabilityAnalysis.Result,
       path: Path,
-      configChanged: Boolean
+      configChanged: Boolean,
+      stored: Option[StoredCompile] = None
   )(implicit
       ec: ExecutionContext
   ): Future[Path] = {
@@ -65,22 +93,83 @@ private[scalanative] object LLVM {
     val inpath = path.abs
     val outpath = inpath + oExt
     val objPath = Paths.get(outpath)
-    // compile if out of date or no object file
-    if (needsCompiling(path, objPath, configChanged))
-      compileFile(path, objPath)
-    else Future.successful(objPath)
+    stored match {
+      case Some(stored) => Future(compileStored(path, objPath, stored))
+      // compile if out of date or no object file
+      case None if needsCompiling(path, objPath, configChanged) =>
+        Future(compileFile(path, objPath))
+      case None => Future.successful(objPath)
+    }
+  }
+
+  private def compileStored(
+      srcPath: Path,
+      objPath: Path,
+      stored: StoredCompile
+  )(implicit
+      config: Config,
+      analysis: ReachabilityAnalysis.Result
+  ): Path = {
+    val prefixMap = stored.mappedRoot.map { mapped =>
+      s"-ffile-prefix-map=${stored.root.abs}=${mapped.abs}"
+    }
+    val command = compileCommand(srcPath, objPath, prefixMap.toSeq)
+    // Paths that differ between builds of the same inputs
+    val placeholders = Seq(
+      stored.mappedRoot.map(_.abs -> "$MAPPED"),
+      Some(stored.root.abs -> "$ROOT"),
+      Some(config.workDir.abs -> "$WORKDIR")
+    ).flatten
+    def normalize(arg: String): String =
+      placeholders.foldLeft(arg) {
+        case (arg, (path, placeholder)) => arg.replace(path, placeholder)
+      }
+    val (compiler, args) = (command.head, command.tail)
+    val inputArgs = Set(srcPath.abs, objPath.abs)
+    val key = store.ActionKey
+      .builder("compile", version = 1)
+      .add("toolchain", store.BuildCache.toolchain(Paths.get(compiler)))
+      .add("inputs", stored.inputs)
+      .add("source", stored.source.getOrElse(""))
+      .addAll("flags", args.filterNot(inputArgs).map(normalize))
+      .result()
+    stored.cache.run(key, Seq("object" -> objPath)) {
+      runCompiler(command, srcPath)
+    }
+    objPath
   }
 
   private def compileFile(srcPath: Path, objPath: Path)(implicit
       config: Config,
-      analysis: ReachabilityAnalysis.Result,
-      ec: ExecutionContext
-  ): Future[Path] = Future {
+      analysis: ReachabilityAnalysis.Result
+  ): Path = {
+    runCompiler(compileCommand(srcPath, objPath, Nil), srcPath)
+    objPath
+  }
+
+  private def runCompiler(command: Seq[String], srcPath: Path)(implicit
+      config: Config
+  ): Unit = {
+    config.logger.running(command)
+    val result = Process(command, config.workDir.toFile) !
+      Logger.toCompilerProcessLogger(config.logger)
+    if (result != 0) {
+      throw new BuildException(s"Failed to compile ${srcPath.abs}")
+    }
+  }
+
+  private def compileCommand(
+      srcPath: Path,
+      objPath: Path,
+      extraFlags: Seq[String]
+  )(implicit
+      config: Config,
+      analysis: ReachabilityAnalysis.Result
+  ): Seq[String] = {
     val inpath = srcPath.abs
     val outpath = objPath.abs
     val isCpp = inpath.endsWith(cppExt)
     val isLl = inpath.endsWith(llExt)
-    val workDir = config.workDir
 
     val compiler = if (isCpp) config.clangPP.abs else config.clang.abs
     val langOptions = {
@@ -112,20 +201,9 @@ private[scalanative] object LLVM {
       buildTargetCompileOpts ++ flto(Some(inpath)) ++ sanitizer ++
         target ++ langOptions ++ platformFlags ++ debugFlags ++
         configFlags ++ Seq("-fvisibility=hidden", opt) ++
-        Seq("-fomit-frame-pointer") ++
+        Seq("-fomit-frame-pointer") ++ extraFlags ++
         config.compileOptions
-    val compilec: Seq[String] =
-      Seq(compiler, "-c", inpath, "-o", outpath) ++ flags
-
-    // compile
-    config.logger.running(compilec)
-    val result = Process(compilec, workDir.toFile) !
-      Logger.toCompilerProcessLogger(config.logger)
-    if (result != 0) {
-      throw new BuildException(s"Failed to compile ${inpath}")
-    }
-
-    objPath
+    Seq(compiler, "-c", inpath, "-o", outpath) ++ flags
   }
 
   /** Links a collection of `.ll.o` files and the `.o` files from the

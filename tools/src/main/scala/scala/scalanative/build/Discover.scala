@@ -30,6 +30,50 @@ object Discover {
   def granularBuild(): Boolean =
     getenv("SCALANATIVE_GRANULAR").exists(_.toBoolean)
 
+  /** Directory of the build cache shared by granular builds on this machine:
+   *  the SCALANATIVE_CACHE_DIR env var or the `scala.scalanative.cache.dir`
+   *  system property, `off` disables the cache. Defaults to `scala-native/v1`
+   *  in the user's cache directory.
+   */
+  private[scalanative] def buildCacheDir(): Option[Path] =
+    getenv("SCALANATIVE_CACHE_DIR")
+      .orElse(Option(System.getProperty("scala.scalanative.cache.dir")))
+      .filter(_.nonEmpty) match {
+      case Some("off") => None
+      case Some(dir)   => Some(Paths.get(dir))
+      case None        =>
+        val userCache =
+          if (Platform.isWindows)
+            getenv("LOCALAPPDATA").map(Paths.get(_))
+          else
+            getenv("XDG_CACHE_HOME")
+              .filter(_.nonEmpty)
+              .map(Paths.get(_))
+              .orElse(
+                Option(System.getProperty("user.home"))
+                  .map(Paths.get(_, ".cache"))
+              )
+        userCache.map(_.resolve("scala-native").resolve("v1"))
+    }
+
+  /** Size the build cache is trimmed to, from SCALANATIVE_CACHE_MAX_SIZE in
+   *  bytes or with a K, M or G suffix, 10G by default.
+   */
+  private[scalanative] def buildCacheMaxSize(): Long =
+    getenv("SCALANATIVE_CACHE_MAX_SIZE")
+      .map(_.trim.toUpperCase)
+      .filter(_.nonEmpty)
+      .flatMap { size =>
+        val (digits, unit) = size.last match {
+          case 'K' => (size.init, 1024L)
+          case 'M' => (size.init, 1024L * 1024)
+          case 'G' => (size.init, 1024L * 1024 * 1024)
+          case _   => (size, 1L)
+        }
+        Try(digits.trim.toLong * unit).toOption
+      }
+      .getOrElse(store.BuildCache.DefaultMaxSizeBytes)
+
   /** LTO variant used for release mode from SCALANATIVE_LTO env var or default.
    */
   def LTO(): LTO =

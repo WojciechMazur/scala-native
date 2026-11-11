@@ -44,11 +44,65 @@ private[scalanative] object NativeLib {
   def compileNativeLibrary(
       config: Config,
       analysis: ReachabilityAnalysis.Result,
-      nativeLib: NativeLib
+      nativeLib: NativeLib,
+      cache: Option[store.BuildCache] = None
   )(implicit ec: ExecutionContext): Future[Seq[Path]] = {
     val destPath = unpackNativeCode(nativeLib)
     val paths = findNativePaths(destPath)
     val projConfig = configureNativeLibrary(config, analysis, destPath)
+    cache match {
+      case Some(cache) =>
+        compileStored(projConfig, analysis, destPath, paths, cache)
+      case None => compileInPlace(projConfig, analysis, destPath, paths)
+    }
+  }
+
+  /* Each source compiles as a stored action whose inputs are the whole native
+   * code tree of the library: sources include headers of the same library,
+   * never of another one. Objects refer to the copy of the tree in the store,
+   * so they are identical whichever build compiled them.
+   */
+  private def compileStored(
+      projConfig: Config,
+      analysis: ReachabilityAnalysis.Result,
+      destPath: Path,
+      paths: Seq[Path],
+      cache: store.BuildCache
+  )(implicit ec: ExecutionContext): Future[Seq[Path]] = {
+    // Objects replaced here must not be reused by a build without the cache
+    Files.deleteIfExists(destPath.resolve(compileConfigHashFile))
+    val root = destPath.resolve(nativeCodeDir)
+    val tree = store.SourceTree(root, !_.toString.endsWith(LLVM.oExt))
+    val mappedRoot = cache.sources(tree)
+    val compilations = paths.map { path =>
+      val source = root.relativize(path).toString.replace('\\', '/')
+      val stored = LLVM.StoredCompile(
+        cache,
+        inputs = tree.digest,
+        root = root,
+        source = Some(source),
+        mappedRoot = mappedRoot
+      )
+      LLVM
+        .compile(
+          projConfig,
+          analysis,
+          path,
+          configChanged = false,
+          Some(stored)
+        )
+        .transform(Success(_))
+    }
+    // Wait for every compilation, as compileInPlace does
+    Future.sequence(compilations).map(_.map(_.get))
+  }
+
+  private def compileInPlace(
+      projConfig: Config,
+      analysis: ReachabilityAnalysis.Result,
+      destPath: Path,
+      paths: Seq[Path]
+  )(implicit ec: ExecutionContext): Future[Seq[Path]] = {
     /* `projConfig` extends the user's config with flags derived from the
      * linked program (e.g. `@define`s) and the environment, so it is
      * compared against what this library was last compiled with rather

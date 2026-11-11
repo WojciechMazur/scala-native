@@ -263,8 +263,28 @@ object ReachabilityAnalysis {
       val declarations: collection.Map[
         nir.Global.Top,
         collection.Map[nir.Global, nir.Defn]
-      ] = Map.empty
+      ] = Map.empty,
+      // Symbols that were referenced but are missing or unsupported, only in
+      // analyses that allow them, see Reach.allowUnavailable
+      val unavailable: Set[nir.Global] = Set.empty
   ) extends ReachabilityAnalysis {
+
+    /** The same result with other definitions. */
+    private[scalanative] def withDefns(defns: Seq[nir.Defn]): Result =
+      new Result(
+        infos = infos,
+        entries = entries,
+        links = links,
+        linkCppRuntime = linkCppRuntime,
+        preprocessorDefinitions = preprocessorDefinitions,
+        defns = defns,
+        dynsigs = dynsigs,
+        dynimpls = dynimpls,
+        resolvedVals = resolvedVals,
+        foundServiceProviders = foundServiceProviders,
+        declarations = declarations,
+        unavailable = unavailable
+      )
 
     /** The same result with declarations taken from another analysis: the
      *  analysis of optimized code keeps only definitions the optimizer emitted,
@@ -286,7 +306,8 @@ object ReachabilityAnalysis {
       dynimpls = dynimpls,
       resolvedVals = resolvedVals,
       foundServiceProviders = foundServiceProviders,
-      declarations = declarations
+      declarations = declarations,
+      unavailable = unavailable
     )
 
     /** Fields declared by the class itself, in declaration order. */

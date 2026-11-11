@@ -6,10 +6,16 @@ import java.nio.file.{Path, Paths}
 import scala.annotation.tailrec
 import scala.collection.mutable
 
+/** @param allowUnavailable
+ *    produce a result even if referenced symbols are missing or unsupported,
+ *    listing them in `Result.unavailable`. Used to compile every definition of
+ *    a library, including those no program can link.
+ */
 private[linker] class Reach(
     protected val config: build.Config,
     entries: Seq[nir.Global],
-    protected val loader: ClassLoader
+    protected val loader: ClassLoader,
+    allowUnavailable: Boolean = false
 ) extends LinktimeValueResolver
     with LinktimeIntrinsicCallsResolver {
   import Reach._
@@ -77,7 +83,7 @@ private[linker] class Reach(
     // in reachUnavailable
     done.valuesIterator.filter(_ != null).foreach(defns += _)
 
-    if (unreachable.isEmpty && unsupported.isEmpty)
+    if (allowUnavailable || (unreachable.isEmpty && unsupported.isEmpty))
       new ReachabilityAnalysis.Result(
         infos = infos,
         entries = (entries ++ exports.toSeq).distinct,
@@ -89,7 +95,8 @@ private[linker] class Reach(
         dynimpls = dynimpls.toSeq,
         resolvedVals = resolvedNirValues,
         foundServiceProviders = foundServiceProviders,
-        declarations = loaded
+        declarations = loaded,
+        unavailable = (unreachable.keySet ++ unsupported.keySet).toSet
       )
     else
       new ReachabilityAnalysis.Failure(
@@ -1182,9 +1189,10 @@ private[scalanative] object Reach {
   def apply(
       config: build.Config,
       entries: Seq[nir.Global],
-      loader: ClassLoader
+      loader: ClassLoader,
+      allowUnavailable: Boolean = false
   ): ReachabilityAnalysis = {
-    val reachability = new Reach(config, entries, loader)
+    val reachability = new Reach(config, entries, loader, allowUnavailable)
     reachability.process()
     reachability.processDelayed()
     reachability.result()

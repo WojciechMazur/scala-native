@@ -1,4 +1,6 @@
 #include "staticSections.h"
+#include <stdatomic.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 #define SN_SECTION_STORAGE(name)                                               \
@@ -55,14 +57,21 @@ SN_DEFINE_SECTION(globals, "sn_global_objects", "__sn_globals", ".snglob")
 SN_DEFINE_SECTION(classlist, "sn_classlist", "__sn_classlist", ".sncll")
 
 /* Linked into every image: registers the sections of the image containing it
- * when loaded, before main runs.
+ * once, when loaded or when the runtime starts.
  */
 static SNImageSections thisImage;
+static atomic_bool thisImageRegistered;
 
-__attribute__((constructor)) static void scalanative_register_this_image(void) {
+SN_SECTION_LOCAL void scalanative_register_current_image(void) {
+    if (atomic_exchange(&thisImageRegistered, true))
+        return;
     thisImage.strings = *scalanative_static_strings_section();
     thisImage.classinfo = *scalanative_static_classinfo_section();
     thisImage.globals = *scalanative_static_globals_section();
     thisImage.classlist = *scalanative_static_classlist_section();
     scalanative_register_image(&thisImage);
+}
+
+__attribute__((constructor)) static void scalanative_register_this_image(void) {
+    scalanative_register_current_image();
 }

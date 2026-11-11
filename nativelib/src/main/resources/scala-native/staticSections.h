@@ -39,6 +39,12 @@ scalanative_static_globals_section(void);
 SN_SECTION_LOCAL const SNStaticSection *
 scalanative_static_classlist_section(void);
 
+/* Registers the image containing the runtime. Images register themselves from
+ * a constructor, but nothing else refers to this object: a static library
+ * would leave it out without this reference from the runtime.
+ */
+SN_SECTION_LOCAL void scalanative_register_current_image(void);
+
 /* The registry of loaded images, kept by the runtime, see staticRoots.c */
 void scalanative_register_image(const SNImageSections *image);
 size_t scalanative_images_count(void);

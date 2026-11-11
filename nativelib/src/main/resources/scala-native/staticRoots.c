@@ -40,6 +40,7 @@ void scalanative_register_image(const SNImageSections *image) {
 }
 
 size_t scalanative_images_count(void) {
+    scalanative_register_current_image();
     size_t count = atomic_load(&imagesCount);
     return count < SN_MAX_IMAGES ? count : SN_MAX_IMAGES;
 }
@@ -52,6 +53,7 @@ const SNImageSections *scalanative_image_at(size_t index) {
  * inflated monitors are, see scalanative_register_object_roots.
  */
 void scalanative_register_static_roots(void) {
+    scalanative_register_current_image();
     atomic_store(&staticRootsRegistered, true);
     size_t count = scalanative_images_count();
     for (size_t i = 0; i < count; i++) {

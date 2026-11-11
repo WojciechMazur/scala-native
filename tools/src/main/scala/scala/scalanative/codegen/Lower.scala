@@ -1222,11 +1222,23 @@ private[scalanative] object Lower {
           case _ => util.unreachable
         }
 
+      // Granular tables hold every declared method that can be overridden,
+      // see Metadata.overridableMethods and traitMethods
+      def hasDispatchSlot: Boolean = obj.ty match {
+        case ClassRef(cls)                           => vtable(cls).index(sig) != -1
+        case TraitRef(_) if meta.isObjectMethod(sig) =>
+          vtable(Object).index(sig) != -1
+        case TraitRef(trt) => meta.traitMethods(trt).contains(sig)
+        case _             => false
+      }
+
       def genMethodLookup(scope: ScopeInfo): Unit =
         // Without whole-program facts the targets reached so far say nothing
         // about the classes of other libraries. Methods that cannot be
-        // overridden, such as private ones, still have a single target.
-        if (meta.granular && sig.isMethod && !sig.isStatic && !sig.isPrivate)
+        // overridden, such as private ones or compiler-generated accessors
+        // called with a public signature, still have a single target.
+        if (meta.granular && sig.isMethod && !sig.isStatic && !sig.isPrivate &&
+            hasDispatchSlot)
           genVirtualLookup()
         else
           scope.targets(sig).toSeq match {

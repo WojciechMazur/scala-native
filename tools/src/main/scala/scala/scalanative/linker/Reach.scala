@@ -43,7 +43,7 @@ private[linker] class Reach(
   if (injects.nonEmpty) {
     injects.groupBy(_.name.top).foreach {
       case (owner, defns) =>
-        val buf = mutable.Map.empty[nir.Global, nir.Defn]
+        val buf = mutable.LinkedHashMap.empty[nir.Global, nir.Defn]
         loaded.update(owner, buf)
         defns.foreach(defn => buf.update(defn.name, defn))
     }
@@ -88,7 +88,8 @@ private[linker] class Reach(
         dynsigs = dynsigs.toSeq,
         dynimpls = dynimpls.toSeq,
         resolvedVals = resolvedNirValues,
-        foundServiceProviders = foundServiceProviders
+        foundServiceProviders = foundServiceProviders,
+        declarations = loaded
       )
     else
       new ReachabilityAnalysis.Failure(
@@ -140,7 +141,9 @@ private[linker] class Reach(
         .fold[Unit] {
           if (!ignoreIfUnavailable) addMissing(global)
         } { defns =>
-          val scope = mutable.Map.empty[nir.Global, nir.Defn]
+          // Keep the declaration order, field layouts in granular builds
+          // follow it
+          val scope = mutable.LinkedHashMap.empty[nir.Global, nir.Defn]
           defns.foreach { defn => scope(defn.name) = defn }
           loaded(owner) = scope
         }

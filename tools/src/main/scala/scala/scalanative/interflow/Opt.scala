@@ -17,6 +17,9 @@ private[interflow] trait Opt { self: Interflow =>
   }
 
   def opt(name: nir.Global.Member): nir.Defn.Define =
+    inUnitOf(getOriginal(originalName(name)))(optInUnit(name))
+
+  private def optInUnit(name: nir.Global.Member): nir.Defn.Define =
     in(s"visit ${name.show}") {
       val orig = originalName(name)
       val origtys = argumentTypes(orig)

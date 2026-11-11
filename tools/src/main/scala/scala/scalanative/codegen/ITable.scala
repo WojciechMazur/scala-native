@@ -105,13 +105,15 @@ private[codegen] object ITable {
     }
   }
 
-  private def methods(cls: linker.Class, trt: linker.Trait): nir.Val =
-    if (trt.methods.isEmpty) nir.Val.Null
+  private def methods(cls: linker.Class, trt: linker.Trait)(implicit
+      meta: Metadata
+  ): nir.Val =
+    if (meta.traitMethods(trt).isEmpty) nir.Val.Null
     else
       nir.Val.Const(
         nir.Val.ArrayValue(
           nir.Type.Ptr,
-          trt.methods.map { sig =>
+          meta.traitMethods(trt).map { sig =>
             cls
               .resolve(sig)
               .map(nir.Val.Global(_, nir.Type.Ptr))

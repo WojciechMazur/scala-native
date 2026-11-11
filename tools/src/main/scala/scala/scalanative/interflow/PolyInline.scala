@@ -17,6 +17,10 @@ private[interflow] trait PolyInline { self: Interflow =>
       value match {
         case DelayedRef(op: nir.Op.Method) =>
           mode match {
+            case _ if granular =>
+              // Depends on the classes allocated in the whole program
+              None
+
             case build.Mode.Debug =>
               None
 

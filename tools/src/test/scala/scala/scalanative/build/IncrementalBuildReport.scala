@@ -206,6 +206,7 @@ object IncrementalBuildReport {
       .withIncrementalCompilation(
         options.get("incremental").forall(_.toBoolean)
       )
+      .withGranularBuild(options.get("granular").exists(_.toBoolean))
     val keep = options.get("keep").exists(_.toBoolean)
 
     val measurements = run(nativeConfig, Fixture.steps, keep)
@@ -335,6 +336,7 @@ object IncrementalBuildReport {
     line(
       s"Mode: ${config.mode}, optimize: ${config.optimize}, " +
         s"incremental: ${config.useIncrementalCompilation}, " +
+        s"granular: ${config.useGranularBuild}, " +
         s"GC: ${config.gc}, LTO: ${config.lto}"
     )
     line("")

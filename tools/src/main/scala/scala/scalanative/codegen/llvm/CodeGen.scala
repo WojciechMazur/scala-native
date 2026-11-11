@@ -27,7 +27,12 @@ object CodeGen {
       implicit ec: ExecutionContext
   ): Future[IRGenerators] = {
     val defns = analysis.defns
-    val proxies = GenerateReflectiveProxies(analysis.dynimpls, defns)
+    val granular = config.compilerConfig.useGranularBuild
+    val proxies = GenerateReflectiveProxies(
+      analysis.dynimpls,
+      defns,
+      withPositions = !granular
+    )
 
     implicit def logger: build.Logger = config.logger
     implicit val platform: PlatformInfo = PlatformInfo(config)
@@ -36,10 +41,16 @@ object CodeGen {
 
     val generated = Generate(encodedMainClass(config), defns ++ proxies)
     val embedded = ResourceEmbedder(config)
+    // Definitions that exist once per program, emitted apart from library code
+    // in granular builds
+    val program: Set[nir.Global] =
+      if (!granular) Set.empty
+      else
+        (proxies ++ embedded).map(_.name).toSet ++ Generate.programDefinitions
     val lowered = lower(generated ++ embedded)
     lowered
       .andThen { case Success(defns) => dumpDefns(config, "lowered", defns) }
-      .map(emit(config, _))
+      .map(emit(config, _, program))
   }
 
   private[scalanative] def lower(
@@ -62,9 +73,15 @@ object CodeGen {
   }
 
   private final val EmptyPath = "__empty"
+  // Definitions that exist once per program, see CodeGen.apply
+  private final val ProgramPartition = "__program"
 
   /** Generate code for given assembly. */
-  private def emit(config: build.Config, assembly: Seq[nir.Defn])(implicit
+  private def emit(
+      config: build.Config,
+      assembly: Seq[nir.Defn],
+      program: Set[nir.Global] = Set.empty
+  )(implicit
       meta: CodeGenMetadata,
       ec: ExecutionContext
   ): IRGenerators =
@@ -78,8 +95,10 @@ object CodeGen {
       val sourceCodeCache = new SourceCodeCache(config)
 
       def outputFileId(defn: nir.Defn): String =
-        defn.pos.source.directory
-          .getOrElse(EmptyPath)
+        if (program.contains(defn.name)) ProgramPartition
+        else
+          defn.pos.source.directory
+            .getOrElse(EmptyPath)
 
       // Partition into multiple LLVM IR files proportional to number
       // of available processors. This prevents LLVM from optimizing

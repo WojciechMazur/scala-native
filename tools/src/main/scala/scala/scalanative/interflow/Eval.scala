@@ -314,6 +314,15 @@ private[interflow] trait Eval { self: Interflow =>
           else realType
         }
 
+        // Granular builds: other libraries may add implementations, so only
+        // targets that cannot be overridden are known
+        val openWorld = objty match {
+          case ExactClassRef(_, _)           => false
+          case ClassRef(_) if !sig.isVirtual => false
+          case ScopeRef(scope) if granular   =>
+            cannotBeOverridden(scope, sig).isEmpty
+          case _ => false
+        }
         val targets = objty match {
           case nir.Type.Null =>
             Seq.empty
@@ -321,13 +330,18 @@ private[interflow] trait Eval { self: Interflow =>
             cls.resolve(sig).toSeq
           case ClassRef(cls) if !sig.isVirtual =>
             cls.resolve(sig).toSeq
+          case ScopeRef(scope) if granular && !openWorld =>
+            cannotBeOverridden(scope, sig).toSeq
           case ScopeRef(scope) =>
             scope.targets(sig)
           case _ =>
             bailOut
         }
 
-        if (targets.size == 0) {
+        if (openWorld) {
+          targets.foreach(visitRoot)
+          delay(nir.Op.Method(materialize(obj), sig))
+        } else if (targets.size == 0) {
           emit(nir.Op.Method(materialize(obj), sig))
           nir.Val.Zero(nir.Type.Nothing)
         } else if (targets.size == 1) {

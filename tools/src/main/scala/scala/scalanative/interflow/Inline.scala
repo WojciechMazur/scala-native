@@ -39,16 +39,25 @@ private[interflow] trait Inline { self: Interflow =>
         def inlineDepthLimitExceeded = inliningBacktrace.size > maxInlineDepth
         def hasUnwind = defn.hasUnwind
 
-        val shall = mode match {
-          case build.Mode.Debug =>
-            alwaysInline || isCtor
-          case build.Mode.ReleaseFast =>
-            alwaysInline || hintInline || isSmall || isCtor
-          case build.Mode.ReleaseSize =>
-            alwaysInline || isSmall || isCtor
-          case build.Mode.ReleaseFull =>
-            alwaysInline || hintInline || isSmall || isCtor || hasVirtualArgs
-        }
+        // Granular builds inline code of another library only when it must be
+        // inlined, so libraries do not depend on each other's method bodies
+        def isOtherUnit =
+          granular && currentUnit.isDefined &&
+            Interflow.unitOf(defn) != currentUnit
+
+        val shall =
+          if (isOtherUnit) alwaysInline
+          else
+            mode match {
+              case build.Mode.Debug =>
+                alwaysInline || isCtor
+              case build.Mode.ReleaseFast =>
+                alwaysInline || hintInline || isSmall || isCtor
+              case build.Mode.ReleaseSize =>
+                alwaysInline || isSmall || isCtor
+              case build.Mode.ReleaseFull =>
+                alwaysInline || hintInline || isSmall || isCtor || hasVirtualArgs
+            }
         lazy val shallNot = {
           // A callee with exception handlers is not inlined: its throws and
           // calls would have to be remapped to the caller's handlers

@@ -18,7 +18,7 @@ private[codegen] class FieldLayout(cls: Class)(implicit meta: Metadata) {
       val base = cls.parent.fold {
         Seq.empty[Field]
       } { parent => meta.layout(parent).entries }
-      base ++ cls.members.collect { case f: Field => f }
+      base ++ ownFields
     }
     val usesCustomAlignment = entries.exists(_.attrs.align.isDefined)
     val isArray = nir.Type.isArray(cls.name)
@@ -33,6 +33,41 @@ private[codegen] class FieldLayout(cls: Class)(implicit meta: Metadata) {
       (entries, layout)
     }
   }
+
+  /* Fields of the class itself: the reached ones, in the order they were
+   * reached, or in granular builds every declared field, in source order, so
+   * the layout does not depend on the rest of the program. Classes whose layout the runtime mirrors keep their canonical
+   * field order, which code generation otherwise gets by reaching them first.
+   */
+  private def ownFields: Seq[Field] =
+    if (!meta.granular) cls.members.collect { case f: Field => f }.toSeq
+    else {
+      // Source order; fields without a position, such as generated ones,
+      // follow in NIR order
+      val declared = meta.analysis
+        .declaredFields(cls)
+        .zipWithIndex
+        .sortBy {
+          case (defn, index) =>
+            val pos = defn.pos
+            if (pos.isEmpty) (1, 0, 0, index)
+            else (0, pos.line, pos.column, index)
+        }
+        .map(_._1)
+      val canonical = FieldLayout.canonicalOrder.getOrElse(cls.name, Nil)
+      val ordered =
+        canonical.flatMap(name => declared.find(_.name == name)) ++
+          declared.filterNot(defn => canonical.contains(defn.name))
+      ordered.map { defn =>
+        meta.analysis.infos.get(defn.name) match {
+          case Some(field: Field) => field
+          case _                  =>
+            val nir.Defn.Var(attrs, name: nir.Global.Member, ty, rhs) =
+              defn: @unchecked
+            new Field(attrs, cls, name, isConst = false, ty, rhs)(defn.pos)
+        }
+      }
+    }
 
   val struct = nir.Type.StructValue(layout.tys.map(_.ty))
   val size = layout.size
@@ -49,4 +84,21 @@ private[codegen] class FieldLayout(cls: Class)(implicit meta: Metadata) {
     nir.Val.Const(nir.Val.ArrayValue(nir.Type.Int, offsets.map(nir.Val.Int(_))))
   }
 
+}
+
+private[codegen] object FieldLayout {
+
+  /** Field order of classes whose layout is fixed elsewhere: java.lang.Class
+   *  mirrors the RTTI emitted by code generation, java.lang.String is read by
+   *  the C runtime.
+   */
+  val canonicalOrder: Map[nir.Global, Seq[nir.Global]] = Map(
+    nir.Rt.ClassName -> nir.Rt.jlClassFields,
+    nir.Rt.StringName -> Seq(
+      nir.Rt.StringValueName,
+      nir.Rt.StringOffsetName,
+      nir.Rt.StringCountName,
+      nir.Rt.StringCachedHashCodeName
+    )
+  )
 }

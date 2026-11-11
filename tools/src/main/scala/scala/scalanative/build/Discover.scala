@@ -26,6 +26,10 @@ object Discover {
   def optimize(): Boolean =
     getenv("SCALANATIVE_OPTIMIZE").forall(_.toBoolean)
 
+  /** Granular builds from SCALANATIVE_GRANULAR env var, off by default. */
+  def granularBuild(): Boolean =
+    getenv("SCALANATIVE_GRANULAR").exists(_.toBoolean)
+
   /** LTO variant used for release mode from SCALANATIVE_LTO env var or default.
    */
   def LTO(): LTO =

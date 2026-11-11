@@ -994,6 +994,11 @@ private[scalanative] object Lower {
       (mask, itables, start)
     }
 
+    private def isExactRef(ty: nir.Type): Boolean = ty match {
+      case ref: nir.Type.RefKind => ref.isExact
+      case _                     => false
+    }
+
     def genIntrinsicCallOp(
         kind: IntrinsicCall,
         buf: nir.InstructionBuilder,
@@ -1060,12 +1065,12 @@ private[scalanative] object Lower {
       }
 
     object shouldCarrierCompensateBlockingExtern {
-      private val usesVirtualThreads = platform.isMultithreadingEnabled && {
+      private val usesVirtualThreads = platform.isMultithreadingEnabled && (meta.granular || {
         analysis.infos.get(RuntimeVirtualThread).exists {
           case info: ScopeInfo => info.implementors.exists(_.allocations > 0)
           case _               => false
         }
-      }
+      })
       def apply(name: nir.Global.Member) =
         usesVirtualThreads && analysis.infos.get(name).exists { info =>
           val attrs = info.attrs
@@ -1172,7 +1177,8 @@ private[scalanative] object Lower {
 
       def genTraitVirtualLookup(trt: Trait): Unit = {
         val methodIdx = nir.Val.Int(
-          trt.methods
+          meta
+            .traitMethods(trt)
             .indexOf(sig)
             .ensuring(_ >= 0, s"Not found ${sig.show} entry in ${trt.name.id} methods")
         )
@@ -1205,25 +1211,32 @@ private[scalanative] object Lower {
         }
       }
 
-      def genMethodLookup(scope: ScopeInfo): Unit = {
-        scope.targets(sig).toSeq match {
-          case Seq() =>
-            // logger.warn(s"Unable to call ${sig.show} on instance of ${scope.name.id} in ${srcPosition.show}. It would result in NullPointerException at runtime")
-            let(n, nir.Op.Copy(nir.Val.Null), unwind)
-          case Seq(impl) =>
-            let(n, nir.Op.Copy(nir.Val.Global(impl, nir.Type.Ptr)), unwind)
-          case _ =>
-            obj.ty match {
-              case ClassRef(cls) =>
-                genClassVirtualLookup(cls)
-              case TraitRef(_) if Object.calls.contains(sig) =>
-                genClassVirtualLookup(Object)
-              case TraitRef(trt) =>
-                genTraitVirtualLookup(trt)
-              case _ => util.unreachable
-            }
+      def genVirtualLookup(): Unit =
+        obj.ty match {
+          case ClassRef(cls) =>
+            genClassVirtualLookup(cls)
+          case TraitRef(_) if meta.isObjectMethod(sig) =>
+            genClassVirtualLookup(Object)
+          case TraitRef(trt) =>
+            genTraitVirtualLookup(trt)
+          case _ => util.unreachable
         }
-      }
+
+      def genMethodLookup(scope: ScopeInfo): Unit =
+        // Without whole-program facts the targets reached so far say nothing
+        // about the classes of other libraries. Methods that cannot be
+        // overridden, such as private ones, still have a single target.
+        if (meta.granular && sig.isMethod && !sig.isStatic && !sig.isPrivate)
+          genVirtualLookup()
+        else
+          scope.targets(sig).toSeq match {
+            case Seq() =>
+              // logger.warn(s"Unable to call ${sig.show} on instance of ${scope.name.id} in ${srcPosition.show}. It would result in NullPointerException at runtime")
+              let(n, nir.Op.Copy(nir.Val.Null), unwind)
+            case Seq(impl) =>
+              let(n, nir.Op.Copy(nir.Val.Global(impl, nir.Type.Ptr)), unwind)
+            case _ => genVirtualLookup()
+          }
 
       def genStaticMethod(cls: Class): Unit = {
         val method = cls
@@ -1237,7 +1250,16 @@ private[scalanative] object Lower {
       }
 
       def staticMethodIn(cls: Class): Boolean =
-        !sig.isVirtual || !cls.calls.contains(sig)
+        if (!meta.granular) !sig.isVirtual || !cls.calls.contains(sig)
+        else
+          !sig.isVirtual || sig.isStatic || sig.isPrivate || {
+            // No subclass, in any library, can override the target
+            val target = cls.resolve(sig)
+            target.isDefined && {
+              cls.attrs.isFinal || isExactRef(v.ty) ||
+              target.flatMap(analysis.infos.get).exists(_.attrs.isFinal)
+            }
+          }
 
       // We check type of original value, because it may change inside `genVal` transformation
       // Eg. nir.Val.String is transformed to Const(StructValue) which changes type from Ref to Ptr
@@ -1355,7 +1377,9 @@ private[scalanative] object Lower {
       val obj = genVal(buf, v)
 
       ty match {
-        case ClassRef(cls) if cls.subclasses.isEmpty =>
+        // A class without subclasses: one pointer comparison. Granular builds
+        // only know that of final classes, other libraries may extend the rest
+        case ClassRef(cls) if (if (meta.granular) cls.attrs.isFinal else cls.subclasses.isEmpty) =>
           val typeptr = let(nir.Op.Load(nir.Type.Ptr, obj), unwind)
           let(nir.Op.Comp(nir.Comp.Ieq, nir.Type.Ptr, typeptr, rtti(cls).const), unwind)
 
@@ -1846,7 +1870,7 @@ private[scalanative] object Lower {
       val nir.Op.Module(name) = op
 
       meta.analysis.infos(name) match {
-        case cls: Class if cls.isConstantModule =>
+        case cls: Class if meta.isConstantModule(cls) =>
           val instance = name.member(nir.Sig.Generated("instance"))
           buf.let(
             n,

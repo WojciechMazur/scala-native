@@ -46,32 +46,8 @@ private[scalanative] class Interflow(val config: build.Config)(implicit
     new ScopedVar[mutable.UnrolledBuffer[DebugInfo.LexicalScope]]
   )
 
-  // Not thread-safe, each thread shall contain its own stack
-  protected class SymbolsStack {
-    private var state: List[nir.Global.Member] = Nil
-    private var cachedSize = 0
-
-    def tracked[T](symbol: nir.Global.Member)(block: => T): T = {
-      push(symbol)
-      try block
-      finally pop()
-    }
-    def size = cachedSize
-    def contains(symbol: nir.Global.Member): Boolean = state.contains(symbol)
-    def push(symbol: nir.Global.Member): Unit = {
-      state = symbol :: state
-      cachedSize += 1
-    }
-    def pop(): nir.Global.Member = {
-      require(state.nonEmpty, "Cannot pop empty stack")
-      val head :: tail = state: @unchecked
-      state = tail
-      cachedSize -= 1
-      head
-    }
-  }
   private val inliningBacktraceTl =
-    ThreadLocal.withInitial(() => new SymbolsStack())
+    ThreadLocal.withInitial(() => new Interflow.SymbolsStack())
   private val contextTl =
     ThreadLocal.withInitial(() => List.empty[String])
   private val mergeProcessorTl =
@@ -163,7 +139,7 @@ private[scalanative] class Interflow(val config: build.Config)(implicit
   def popContext(): Unit =
     contextTl.set(contextTl.get.tail)
 
-  def inliningBacktrace: SymbolsStack =
+  def inliningBacktrace: Interflow.SymbolsStack =
     inliningBacktraceTl.get
 
   def mergeProcessor: MergeProcessor =
@@ -188,9 +164,78 @@ private[scalanative] class Interflow(val config: build.Config)(implicit
 
   protected def mode: build.Mode = config.compilerConfig.mode
 
+  /** Optimize without whole-program facts, see NativeConfig.useGranularBuild:
+   *  devirtualize only calls whose target cannot be overridden, and inline
+   *  across libraries only what must be inlined.
+   */
+  protected def granular: Boolean = config.compilerConfig.useGranularBuild
+
+  // Library (classpath entry) of the method being optimized
+  private val currentUnitTl =
+    ThreadLocal.withInitial(() => Option.empty[java.nio.file.Path])
+  def currentUnit: Option[java.nio.file.Path] = currentUnitTl.get
+  def inUnitOf[T](defn: nir.Defn)(body: => T): T = {
+    val previous = currentUnitTl.get
+    currentUnitTl.set(Interflow.unitOf(defn))
+    try body
+    finally currentUnitTl.set(previous)
+  }
+
+  /** The target of a call that no subclass, in any library, can override. */
+  def cannotBeOverridden(
+      scope: ScopeInfo,
+      sig: nir.Sig
+  ): Option[nir.Global.Member] =
+    if (!sig.isVirtual || sig.isStatic || sig.isPrivate) scope match {
+      case cls: Class => cls.resolve(sig)
+      case _          => None
+    }
+    else
+      scope match {
+        case cls: Class =>
+          cls.resolve(sig).filter { target =>
+            cls.attrs.isFinal ||
+            analysis.infos.get(target).exists(_.attrs.isFinal)
+          }
+        case _ => None
+      }
+
 }
 
 object Interflow {
+
+  /* Not thread-safe, each thread shall contain its own stack. Kept out of the
+   * Interflow instance: threads of a shared pool keep the value of a thread
+   * local after the optimizer is done, so a stack pointing to its Interflow
+   * would retain the whole program.
+   */
+  final class SymbolsStack {
+    private var state: List[nir.Global.Member] = Nil
+    private var cachedSize = 0
+
+    def tracked[T](symbol: nir.Global.Member)(block: => T): T = {
+      push(symbol)
+      try block
+      finally pop()
+    }
+    def size = cachedSize
+    def contains(symbol: nir.Global.Member): Boolean = state.contains(symbol)
+    def push(symbol: nir.Global.Member): Unit = {
+      state = symbol :: state
+      cachedSize += 1
+    }
+    def pop(): nir.Global.Member = {
+      require(state.nonEmpty, "Cannot pop empty stack")
+      val head :: tail = state: @unchecked
+      state = tail
+      cachedSize -= 1
+      head
+    }
+  }
+
+  /** The library a definition comes from: the classpath entry of its NIR. */
+  def unitOf(defn: nir.Defn): Option[java.nio.file.Path] =
+    Option(defn.pos.nirSource).filter(_.exists).map(_.directory)
 
   def optimize(config: build.Config, analysis: ReachabilityAnalysis.Result)(
       implicit ec: ExecutionContext

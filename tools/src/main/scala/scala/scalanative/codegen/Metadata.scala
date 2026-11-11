@@ -11,6 +11,9 @@ private[scalanative] class Metadata(
     proxies: Seq[nir.Defn]
 )(implicit val platform: PlatformInfo) {
   def config: build.NativeConfig = buildConfig.compilerConfig
+
+  /** Generate code without whole-program facts, see NativeConfig */
+  def granular: Boolean = config.useGranularBuild
   private implicit def self: Metadata = this
 
   final val usesLockWords = platform.isMultithreadingEnabled
@@ -39,6 +42,49 @@ private[scalanative] class Metadata(
   lazy val reflectiveProxies: nir.Defn.Const =
     ReflectiveProxyTable.defn(proxies)
 
+  /** Whether the module instance is allocated statically. Granular builds look
+   *  at declared fields, reached or not, so the decision stays the same in
+   *  every program using the module.
+   */
+  def isConstantModule(cls: Class): Boolean =
+    if (!granular) cls.isConstantModule(analysis)
+    else
+      cls.isConstantModule(hasNoFields = layout(cls).entries.isEmpty)(analysis)
+
+  /** Overridable methods declared by the class, or by its traits for their
+   *  default implementations, sorted by mangled signature.
+   */
+  def overridableMethods(cls: Class): Seq[nir.Sig] =
+    (cls +: interfaces(cls))
+      .flatMap(analysis.declaredVirtualMethods)
+      .distinct
+      .sortBy(_.mangle)
+
+  /** Methods of the trait indexed by its itable entries. Granular builds use
+   *  every method the trait and its super-traits declare, sorted by mangled
+   *  signature; otherwise only the methods called on the trait.
+   */
+  def traitMethods(trt: Trait): Seq[nir.Sig] =
+    traitMethodsCache.getOrElseUpdate(
+      trt,
+      if (!granular) trt.methods
+      else
+        (trt +: interfaces(trt))
+          .flatMap(analysis.declaredVirtualMethods)
+          .distinct
+          .sortBy(_.mangle)
+    )
+  private lazy val traitMethodsCache = mutable.Map.empty[Trait, Seq[nir.Sig]]
+
+  /** Whether java.lang.Object declares the method, calls through traits then
+   *  use the vtable of Object.
+   */
+  def isObjectMethod(sig: nir.Sig): Boolean =
+    if (!granular) analysis.ObjectClass.calls.contains(sig)
+    else objectMethods.contains(sig)
+  private lazy val objectMethods: Set[nir.Sig] =
+    analysis.declaredVirtualMethods(analysis.ObjectClass).toSet
+
   /** Number of superclasses: 0 for java.lang.Object and primitives */
   def superclassCount(cls: Class): Int =
     cls.parent.fold(0)(superclassCount(_) + 1)
@@ -52,7 +98,7 @@ private[scalanative] class Metadata(
    *  used by generated code and recorded in the trait's RTTI flags.
    */
   def alwaysAtHomeSlot(trt: Trait): Boolean =
-    atHomeSlotCache.getOrElseUpdate(
+    !granular && atHomeSlotCache.getOrElseUpdate(
       trt,
       trt.implementors.forall(cls =>
         itable.get(cls).forall(_.atHomeSlot.contains(trt))

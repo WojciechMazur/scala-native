@@ -67,6 +67,12 @@ private[scalanative] object ScalaNative {
           Interflow
             .optimize(config, analysis)
             .map(Link(config, analysis.entries, _))
+            .map {
+              // Keep declarations of the original code, see withDeclarations
+              case result: ReachabilityAnalysis.Result =>
+                result.withDeclarations(analysis.declarations)
+              case failure => failure
+            }
         }
       }
     else {

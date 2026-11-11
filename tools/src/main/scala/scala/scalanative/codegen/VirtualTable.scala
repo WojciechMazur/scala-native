@@ -28,14 +28,25 @@ private[codegen] class VirtualTable(cls: linker.Class)(implicit
       impls(sig) = impl
     }
     slots.foreach { sig => addImpl(sig) }
-    cls.calls.foreach { sig =>
-      if (cls.targets(sig).size > 1) {
-        if (!impls.contains(sig)) {
+    if (meta.granular) {
+      // Every method the class or its traits declare, so slots do not depend
+      // on the calls made by the rest of the program
+      meta
+        .overridableMethods(cls)
+        .filterNot(impls.contains)
+        .foreach { sig =>
           addSlot(sig)
           addImpl(sig)
         }
+    } else
+      cls.calls.foreach { sig =>
+        if (cls.targets(sig).size > 1) {
+          if (!impls.contains(sig)) {
+            addSlot(sig)
+            addImpl(sig)
+          }
+        }
       }
-    }
   }
   val value: nir.Val =
     nir.Val.ArrayValue(nir.Type.Ptr, slots.map(impls).toSeq)

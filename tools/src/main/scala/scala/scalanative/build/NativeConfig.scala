@@ -78,6 +78,16 @@ sealed trait NativeConfig {
    */
   def useGranularBuild: Boolean
 
+  /** Definitions left out of libraries compiled apart in granular builds, as
+   *  patterns: a class name, `*` matching any characters (`java.time.*`), or a
+   *  class pattern followed by `#` and a method or field name
+   *  (`java.lang.String#toLowerCase`). Definitions referring to symbols missing
+   *  from the classpath are left out without being listed. A program reaching a
+   *  left out definition fails to link, as it does when it reaches a missing
+   *  symbol.
+   */
+  def libraryExclusions: Seq[String]
+
    // format: off
   /** Shall be compiled with multithreading support.
    *
@@ -274,6 +284,9 @@ sealed trait NativeConfig {
   /** Create a new config with given granularBuild value */
   def withGranularBuild(value: Boolean): NativeConfig
 
+  /** Create a new config with given library exclusions */
+  def withLibraryExclusions(value: Seq[String]): NativeConfig
+
   /** Create a new config with support for multithreading */
   def withMultithreading(enabled: Boolean): NativeConfig
 
@@ -358,6 +371,7 @@ object NativeConfig {
       optimize = true,
       useIncrementalCompilation = true,
       useGranularBuild = false,
+      libraryExclusions = Nil,
       multithreading = None, // detect
       linktimeProperties = Map.empty,
       embedResources = false,
@@ -391,6 +405,7 @@ object NativeConfig {
       optimize: Boolean,
       useIncrementalCompilation: Boolean,
       useGranularBuild: Boolean,
+      libraryExclusions: Seq[String],
       multithreading: Option[Boolean],
       linktimeProperties: LinktimeProperites,
       embedResources: Boolean,
@@ -472,6 +487,9 @@ object NativeConfig {
 
     override def withGranularBuild(value: Boolean): NativeConfig =
       copy(useGranularBuild = value)
+
+    override def withLibraryExclusions(value: Seq[String]): NativeConfig =
+      copy(libraryExclusions = value)
 
     def withMultithreading(enabled: Boolean): NativeConfig =
       copy(multithreading = Some(enabled))
@@ -567,6 +585,7 @@ object NativeConfig {
           | - optimize                 $optimize
           | - incrementalCompilation:  $useIncrementalCompilation
           | - granularBuild:           $useGranularBuild
+          | - libraryExclusions:       ${libraryExclusions.mkString(", ")}
           | - multithreading           ${multithreading.getOrElse("detect")}
           | - linktimeProperties:      ${showMap(linktimeProperties)}
           | - embedResources:          $embedResources

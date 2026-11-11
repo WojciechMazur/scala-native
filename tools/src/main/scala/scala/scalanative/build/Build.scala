@@ -158,10 +158,10 @@ object Build {
         .flatMap(optimize(config, _))
         .flatMap { linkerResult =>
           val units = compileUnits(config)
-          val provided = units.flatMap(_.manifest.exports).toSet
-          val imports = units.flatMap(_.manifest.imports).toMap
+          checkExclusions(units, linkerResult)
+          val provided = units.flatMap(_.manifest.defined).toSet
           ScalaNative
-            .codegen(config, linkerResult, provided, imports)
+            .codegen(config, linkerResult, provided)
             .flatMap { irGenerators =>
               compile(config, linkerResult, irGenerators)
             }
@@ -260,6 +260,36 @@ object Build {
           }
         finally cache.close()
       }
+
+  /** Reaching a definition left out of a library is an error, as reaching a
+   *  missing symbol is, see `units.UnitCompile`.
+   */
+  private def checkExclusions(
+      compiled: Seq[units.CompiledUnit],
+      analysis: ReachabilityAnalysis.Result
+  ): Unit = {
+    val excluded = compiled.flatMap { unit =>
+      unit.manifest.excluded.map {
+        case (name, reason) => name -> (unit, reason)
+      }
+    }.toMap
+    val reached = analysis.defns.flatMap { defn =>
+      excluded.get(defn.name).map(defn.name -> _)
+    }
+    if (reached.nonEmpty) {
+      val details = reached
+        .sortBy(_._1.mangle)
+        .map {
+          case (name, (unit, reason)) =>
+            val library = unit.unit.entries.map(_._1.getFileName).mkString(", ")
+            s"  ${name.show} in $library: $reason"
+        }
+        .mkString("\n")
+      throw new BuildException(
+        s"Found ${reached.size} definitions left out of libraries compiled apart:\n$details"
+      )
+    }
+  }
 
   private def usesUnits(config: Config): Boolean = {
     val nativeConfig = config.compilerConfig

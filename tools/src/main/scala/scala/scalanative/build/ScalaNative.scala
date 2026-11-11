@@ -216,8 +216,7 @@ private[scalanative] object ScalaNative {
   def codegen(
       config: Config,
       analysis: ReachabilityAnalysis.Result,
-      provided: Set[nir.Global] = Set.empty,
-      imports: Map[nir.Global, units.UnitImport] = Map.empty
+      provided: Set[nir.Global] = Set.empty
   )(implicit
       ec: ExecutionContext
   ): Future[CodeGen.IRGenerators] = {
@@ -225,7 +224,7 @@ private[scalanative] object ScalaNative {
       if (config.compilerConfig.sourceLevelDebuggingConfig.enabled)
         " (with debug metadata)"
       else ""
-    val codeGen = CodeGen(config, analysis, provided, imports)
+    val codeGen = CodeGen(config, analysis, provided)
     config.logger.timeAsync(s"Generating intermediate code$withMetadata") {
       codeGen
         .flatMap(Future.sequence(_))

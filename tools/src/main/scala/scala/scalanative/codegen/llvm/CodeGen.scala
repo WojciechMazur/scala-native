@@ -26,16 +26,11 @@ object CodeGen {
    *
    *  @param provided
    *    definitions compiled apart, by library units: they are only declared
-   *  @param imports
-   *    symbols library units use without defining them: those the program does
-   *    not define get a stub, never called since the program does not reach
-   *    them
    */
   def apply(
       config: build.Config,
       analysis: ReachabilityAnalysis.Result,
-      provided: Set[nir.Global] = Set.empty,
-      imports: Map[nir.Global, build.units.UnitImport] = Map.empty
+      provided: Set[nir.Global] = Set.empty
   )(implicit
       ec: ExecutionContext
   ): Future[IRGenerators] = {
@@ -64,28 +59,15 @@ object CodeGen {
     lowered
       .andThen { case Success(defns) => dumpDefns(config, "lowered", defns) }
       .map { lowered =>
-        if (provided.isEmpty && imports.isEmpty)
-          emit(config, lowered, program)
+        if (provided.isEmpty) emit(config, lowered, program)
         else {
-          val emitted = lowered.filterNot(isProvided(_, provided))
-          val defined = emitted.collect {
-            case defn if !defn.isInstanceOf[nir.Defn.Declare] => defn.name
-          }.toSet
-          val stubs = imports.collect {
-            case (name: nir.Global.Member, imported)
-                if !defined.contains(name) && !provided.contains(name) =>
-              stub(name, imported)
-          }
-          val stubNames = stubs.map(_.name: nir.Global).toSet
-          val withoutDeclarations =
-            emitted.filterNot(defn => stubNames.contains(defn.name))
           // Library code compiled apart may refer to members the program
           // never reached, such as inherited methods in virtual tables
           val (declarations, _) = declareMissing(analysis, lowered, lowered)
           emit(
             config,
-            withoutDeclarations ++ stubs,
-            program ++ stubNames,
+            lowered.filterNot(isProvided(_, provided)),
+            program,
             references = lowered ++ declarations
           )
         }
@@ -143,28 +125,6 @@ object CodeGen {
     (lowered, missing.toSet -- found.map(_.name))
   }
 
-  private def stub(
-      name: nir.Global.Member,
-      imported: build.units.UnitImport
-  ): nir.Defn = {
-    implicit val pos: nir.SourcePosition = nir.SourcePosition.NoPosition
-    imported.ty match {
-      case ty @ nir.Type.Function(args, _) if imported.isFunction =>
-        val fresh = nir.Fresh()
-        val params = args.map(nir.Val.Local(fresh(), _))
-        nir.Defn.Define(
-          nir.Attrs.None,
-          name,
-          ty,
-          Seq(
-            nir.Inst.Label(fresh(), params),
-            nir.Inst.Unreachable(nir.Next.None)
-          )
-        )
-      case ty => nir.Defn.Var(nir.Attrs.None, name, ty, nir.Val.Zero(ty))
-    }
-  }
-
   // Method bodies of provided definitions are not lowered, only declared
   private def declareProvided(
       defns: Seq[nir.Defn],
@@ -196,7 +156,7 @@ object CodeGen {
       provided: Set[nir.Global]
   )(implicit
       ec: ExecutionContext
-  ): Future[(CodeGenMetadata, Seq[nir.Defn], Set[nir.Global])] = {
+  ): Future[(CodeGenMetadata, Seq[nir.Defn], Map[nir.Global, String])] = {
     implicit def logger: build.Logger = config.logger
     implicit val platform: PlatformInfo = PlatformInfo(config)
     implicit val meta: CodeGenMetadata =
@@ -210,8 +170,8 @@ object CodeGen {
           defns.map { defn =>
             try Right(Lower(Seq(defn)))
             catch {
-              case scala.util.control.NonFatal(_) |
-                  _: util.UnreachableException.type =>
+              case failure @ (scala.util.control.NonFatal(_) |
+                  _: util.UnreachableException.type) =>
                 val declared = defn match {
                   case defn: nir.Defn.Define =>
                     Lower(
@@ -223,7 +183,7 @@ object CodeGen {
                     )
                   case _ => Nil
                 }
-                Left(defn.name -> declared)
+                Left((defn.name, String.valueOf(failure), declared))
             }
           }
         }
@@ -231,10 +191,12 @@ object CodeGen {
     Future.sequence(jobs).map { results =>
       val all = results.flatten.toSeq
       val lowered = all.flatMap {
-        case Right(defns)        => defns
-        case Left((_, declared)) => declared
+        case Right(defns)           => defns
+        case Left((_, _, declared)) => declared
       }
-      val failed = all.collect { case Left((name, _)) => name }.toSet
+      val failed = all.collect {
+        case Left((name, failure, _)) => name -> failure
+      }.toMap
       (meta, lowered, failed)
     }
   }

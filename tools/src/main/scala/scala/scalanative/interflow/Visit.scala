@@ -26,6 +26,9 @@ private[interflow] trait Visit { self: Interflow =>
     mode match {
       case build.Mode.Debug | build.Mode.ReleaseFast | build.Mode.ReleaseSize =>
         false
+      // Specialized copies would be added to the library of the method
+      case _ if granular =>
+        false
 
       case build.Mode.ReleaseFull =>
         if (!shallVisit(name)) {

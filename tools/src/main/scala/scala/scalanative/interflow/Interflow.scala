@@ -188,9 +188,49 @@ private[scalanative] class Interflow(val config: build.Config)(implicit
 
   protected def mode: build.Mode = config.compilerConfig.mode
 
+  /** Optimize without whole-program facts, see NativeConfig.useGranularBuild:
+   *  devirtualize only calls whose target cannot be overridden, and inline
+   *  across libraries only what must be inlined.
+   */
+  protected def granular: Boolean = config.compilerConfig.useGranularBuild
+
+  // Library (classpath entry) of the method being optimized
+  private val currentUnitTl =
+    ThreadLocal.withInitial(() => Option.empty[java.nio.file.Path])
+  def currentUnit: Option[java.nio.file.Path] = currentUnitTl.get
+  def inUnitOf[T](defn: nir.Defn)(body: => T): T = {
+    val previous = currentUnitTl.get
+    currentUnitTl.set(Interflow.unitOf(defn))
+    try body
+    finally currentUnitTl.set(previous)
+  }
+
+  /** The target of a call that no subclass, in any library, can override. */
+  def cannotBeOverridden(
+      scope: ScopeInfo,
+      sig: nir.Sig
+  ): Option[nir.Global.Member] =
+    if (!sig.isVirtual || sig.isStatic || sig.isPrivate) scope match {
+      case cls: Class => cls.resolve(sig)
+      case _          => None
+    }
+    else
+      scope match {
+        case cls: Class =>
+          cls.resolve(sig).filter { target =>
+            cls.attrs.isFinal ||
+            analysis.infos.get(target).exists(_.attrs.isFinal)
+          }
+        case _ => None
+      }
+
 }
 
 object Interflow {
+
+  /** The library a definition comes from: the classpath entry of its NIR. */
+  def unitOf(defn: nir.Defn): Option[java.nio.file.Path] =
+    Option(defn.pos.nirSource).filter(_.exists).map(_.directory)
 
   def optimize(config: build.Config, analysis: ReachabilityAnalysis.Result)(
       implicit ec: ExecutionContext

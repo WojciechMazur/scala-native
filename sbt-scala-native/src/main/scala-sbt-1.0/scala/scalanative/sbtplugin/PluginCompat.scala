@@ -7,6 +7,9 @@ import xsbti.FileConverter
 
 private[scalanative] object PluginCompat {
   type FileRef = java.io.File
+
+  /** sbt 1 runs tasks every time, `Build.buildCached` skips unchanged links. */
+  final val cachesTasks = false
   type NioPath = java.nio.file.Path
 
   def toNioPath(out: FileRef)(implicit conv: FileConverter): NioPath =

@@ -1,0 +1,13 @@
+> nativeLink
+> forgetToolchainRun
+
+# Nothing changed: the link task is reused without running the toolchain
+> nativeLink
+> checkToolchainSkipped
+> show nativeLink / nativeLinkOutputKey
+
+# A changed source links again
+$ copy-file changes/Main.scala src/main/scala/Main.scala
+> nativeLink
+> checkToolchainRan
+> run

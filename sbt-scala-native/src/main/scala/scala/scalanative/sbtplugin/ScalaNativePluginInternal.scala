@@ -147,9 +147,8 @@ object ScalaNativePluginInternal {
     }
   )
 
-  private def nativeLinkImpl(
+  private def linkConfig(
       nativeConfig: NativeConfig,
-      sbtLogger: sbt.Logger,
       baseDir: Path,
       moduleName: String,
       mainClass: Option[String],
@@ -157,25 +156,56 @@ object ScalaNativePluginInternal {
       classpath: Seq[Path],
       sourcesClassPath: Seq[Path],
       nativeLogger: build.Logger
-  ) = {
+  ): build.Config =
+    build.Config.empty
+      .withLogger(nativeLogger)
+      .withClassPath(classpath)
+      .withSourcesClassPath(sourcesClassPath)
+      .withBaseDir(baseDir)
+      .withModuleName(moduleName)
+      .withMainClass(mainClass)
+      .withTestConfig(testConfig)
+      .withCompilerConfig(nativeConfig)
 
-    val config =
-      build.Config.empty
-        .withLogger(nativeLogger)
-        .withClassPath(classpath)
-        .withSourcesClassPath(sourcesClassPath)
-        .withBaseDir(baseDir)
-        .withModuleName(moduleName)
-        .withMainClass(mainClass)
-        .withTestConfig(testConfig)
-        .withCompilerConfig(nativeConfig)
-
+  private def nativeLinkImpl(config: build.Config) =
     interceptBuildException {
       SharedScope { implicit sharedScope: Scope =>
         Build
           .buildCachedAwait(config)
           .toFile()
       }
+    }
+
+  /** Inputs of a link that sbt cannot see, such as the identity of the
+   *  compilers, as `Build.plan` digests them. Read by the link task so that
+   *  build tools caching tasks by their inputs link again when they change.
+   */
+  private lazy val nativeLinkOutputKey = taskKey[String](
+    "Digest of the inputs of the native link, see scala.scalanative.build.BuildPlan"
+  )
+
+  private def nativeLinkOutputKeyTask(
+      testConfig: Boolean,
+      moduleSuffix: String,
+      linkKey: TaskKey[FileRef]
+  ): Def.Initialize[Task[String]] = Def.task {
+    // Runs every time: the compilers can change without sbt noticing
+    Def.uncached {
+      implicit val conv: FileConverter = Keys.fileConverter.value
+      val config = linkConfig(
+        nativeConfig = (linkKey / nativeConfig).value,
+        classpath = PluginCompat.toNioPaths(fullClasspath.value),
+        // Sources follow from the dependencies on the classpath
+        sourcesClassPath = Nil,
+        nativeLogger = streams.value.log.toLogger,
+        mainClass = selectMainClass.value,
+        baseDir = crossTarget.value.toPath(),
+        testConfig = testConfig,
+        moduleName = moduleName.value + moduleSuffix
+      )
+      if (PluginCompat.cachesTasks)
+        interceptBuildException(Build.plan(config).outputKey)
+      else ""
     }
   }
 
@@ -202,16 +232,19 @@ object ScalaNativePluginInternal {
           sbtLogger
         )
 
+        // Part of the cache key of this task, see nativeLinkOutputKey
+        val _ = (linkKey / nativeLinkOutputKey).value
         val artifactFile = nativeLinkImpl(
-          nativeConfig = userConfig,
-          classpath = classpath,
-          sourcesClassPath = sourcesClassPath,
-          sbtLogger = sbtLogger,
-          nativeLogger = nativeLogger,
-          mainClass = selectMainClass.value,
-          baseDir = crossTarget.value.toPath(),
-          testConfig = testConfig,
-          moduleName = moduleName.value + moduleSuffix
+          linkConfig(
+            nativeConfig = userConfig,
+            classpath = classpath,
+            sourcesClassPath = sourcesClassPath,
+            nativeLogger = nativeLogger,
+            mainClass = selectMainClass.value,
+            baseDir = crossTarget.value.toPath(),
+            testConfig = testConfig,
+            moduleName = moduleName.value + moduleSuffix
+          )
         )
         toFileRef(artifactFile)
       }
@@ -237,6 +270,18 @@ object ScalaNativePluginInternal {
       .withMode(Mode.releaseFast),
     nativeLinkReleaseFull / nativeConfig := nativeConfig.value
       .withMode(Mode.releaseFull),
+    nativeLink / nativeLinkOutputKey :=
+      nativeLinkOutputKeyTask(testConfig, "", nativeLink).value,
+    nativeLinkReleaseFast / nativeLinkOutputKey := nativeLinkOutputKeyTask(
+      testConfig,
+      "-release-fast",
+      nativeLinkReleaseFast
+    ).value,
+    nativeLinkReleaseFull / nativeLinkOutputKey := nativeLinkOutputKeyTask(
+      testConfig,
+      "-release-full",
+      nativeLinkReleaseFull
+    ).value,
     nativeLinkReleaseFull := nativeLinkCachedTask(
       testConfig,
       moduleSuffix = "-release-full",

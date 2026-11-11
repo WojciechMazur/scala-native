@@ -16,14 +16,15 @@ import scala.util.control.NonFatal
  *  Actions run through `run`: their outputs are reused when they are up to date
  *  in `workDir`, copied from the store when another build already ran the same
  *  action, and stored after running otherwise. Problems with the store are
- *  logged and never fail the build, the action then simply runs.
+ *  logged and never fail the build, the action then simply runs. Without a
+ *  store, outputs are only reused from `workDir`.
  *
  *  `workDir/action-index` remembers the action that produced each output and
  *  the digests of hashed inputs, so a build with nothing to do neither rehashes
  *  inputs nor reads the store.
  */
 private[scalanative] final class BuildCache private (
-    val store: DiskStore,
+    storeOption: Option[DiskStore],
     workDir: Path,
     logger: Logger,
     maxSizeBytes: Long
@@ -73,7 +74,7 @@ private[scalanative] final class BuildCache private (
       UpToDate
     } else
       withLock(key) {
-        val restored = tryStore(s"read action $key")(false) {
+        val restored = withStore(s"read action $key")(false) { store =>
           store.getAction(key).exists { result =>
             outputs.forall {
               case (name, path) =>
@@ -86,7 +87,7 @@ private[scalanative] final class BuildCache private (
           Restored
         } else {
           execute
-          tryStore(s"store action $key")(()) {
+          withStore(s"store action $key")(()) { store =>
             val result = ActionResult(outputs.map {
               case (name, path) => name -> store.putBlob(path)
             })
@@ -100,7 +101,7 @@ private[scalanative] final class BuildCache private (
 
   /** The location of `tree` in the store, see `DiskStore.sources`. */
   def sources(tree: SourceTree): Option[Path] =
-    tryStore(s"store sources ${tree.root}")(Option.empty[Path]) {
+    withStore(s"store sources ${tree.root}")(Option.empty[Path]) { store =>
       Some(store.sources(tree))
     }
 
@@ -114,7 +115,7 @@ private[scalanative] final class BuildCache private (
       case ex: IOException =>
         logger.debug(s"Cannot write action index $indexPath: $ex")
     }
-    tryStore("collect garbage")(()) {
+    withStore("collect garbage")(()) { store =>
       store.maybeCollectGarbage(maxSizeBytes).foreach { stats =>
         logger.debug(s"Collected garbage in ${store.root}: $stats")
       }
@@ -128,18 +129,23 @@ private[scalanative] final class BuildCache private (
       Files.getLastModifiedTime(output).toMillis()
     )
 
-  private def tryStore[T](what: String)(fallback: => T)(body: => T): T =
-    try body
-    catch {
-      case NonFatal(ex) =>
-        logger.warn(s"Build cache in ${store.root}: cannot $what: $ex")
-        fallback
-    }
+  private def withStore[T](what: String)(fallback: => T)(
+      body: DiskStore => T
+  ): T = storeOption match {
+    case None        => fallback
+    case Some(store) =>
+      try body(store)
+      catch {
+        case NonFatal(ex) =>
+          logger.warn(s"Build cache in ${store.root}: cannot $what: $ex")
+          fallback
+      }
+  }
 
   // Builds in this JVM running the same action wait for each other instead of
   // repeating it; across processes the work may be repeated, which is safe
   private def withLock[T](key: ActionKey)(body: => T): T = {
-    val lockKey = s"${store.root}:${key.hash}"
+    val lockKey = s"${storeOption.fold(workDir)(_.root)}:${key.hash}"
     val lock = new Object
     val existing = locks.putIfAbsent(lockKey, lock)
     val owned = if (existing == null) lock else existing
@@ -170,7 +176,7 @@ private[scalanative] object BuildCache {
     else
       Discover.buildCacheDir().map { dir =>
         new BuildCache(
-          new DiskStore(dir),
+          Some(new DiskStore(dir)),
           config.workDir,
           config.logger,
           Discover.buildCacheMaxSize()
@@ -178,7 +184,13 @@ private[scalanative] object BuildCache {
       }
 
   def apply(store: DiskStore, workDir: Path, logger: Logger): BuildCache =
-    new BuildCache(store, workDir, logger, DefaultMaxSizeBytes)
+    new BuildCache(Some(store), workDir, logger, DefaultMaxSizeBytes)
+
+  /** A cache of `workDir` alone: outputs and input digests of earlier builds in
+   *  the same directory.
+   */
+  def local(workDir: Path, logger: Logger): BuildCache =
+    new BuildCache(None, workDir, logger, DefaultMaxSizeBytes)
 
   private val toolchains = TrieMap.empty[(String, Long, Long), Digest]
 

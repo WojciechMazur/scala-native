@@ -47,6 +47,7 @@ object ExternalCallbacks {
       System.gc()
       remaining -= 1
     }
+    if (lastThrown.get() != null) System.err.println("RECLAIM-FAIL")
     assert(
       lastThrown.get() == null,
       "released native exception remains reachable"

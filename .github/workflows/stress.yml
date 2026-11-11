@@ -1,0 +1,15 @@
+name: stress-call03
+on: push
+jobs:
+  stress:
+    runs-on: ubuntu-22.04
+    strategy: { fail-fast: false, matrix: { shard: [1, 2, 3] } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/linux-setup-env
+        with: { scala-version: "3" }
+      - name: Stress
+        env: { SCALANATIVE_MODE: release-fast, SCALANATIVE_GC: immix, SCALANATIVE_OPTIMIZE: true }
+        run: |
+          for i in 1 2 3 4; do (while true; do :; done) & done
+          sbt "test-scripted 3 external-threads/runtime"

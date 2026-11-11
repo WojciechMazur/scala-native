@@ -1,17 +1,3 @@
-> set scenarioConfiguration := "immix-st"
-> runScenarios
-> set scenarioConfiguration := "immix-mt"
-> runScenarios
-> set scenarioConfiguration := "commix-st"
-> runScenarios
-> set scenarioConfiguration := "commix-mt"
-> runScenarios
-> set scenarioConfiguration := "boehm-st"
-> runScenarios
 > set scenarioConfiguration := "boehm-mt"
 > runScenarios
-> set scenarioConfiguration := "none-st"
-> runScenarios
-> set scenarioConfiguration := "none-mt"
-> runScenarios
-> verifyScenarioCoverage
+$ exec sh stress.sh

@@ -15,6 +15,9 @@ import xsbti.{FileConverter, HashedVirtualFileRef}
 private[scalanative] object PluginCompat:
   type FileRef = HashedVirtualFileRef
 
+  /** sbt 2 caches task results by their inputs. */
+  final val cachesTasks = true
+
   private final case class FileRefData(
       id: String,
       contentHash: String,

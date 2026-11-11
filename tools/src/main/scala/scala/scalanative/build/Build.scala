@@ -20,6 +20,15 @@ import ScalaNative._
 /** Utility methods for building code using Scala Native. */
 object Build {
 
+  /** What a build of `config` depends on, computed without building: see
+   *  [[BuildPlan#outputKey]]. Hashes the classpath, reusing the digests of
+   *  files unchanged since an earlier plan or build in the same `workDir`.
+   */
+  def plan(config: Config): BuildPlan = {
+    checkWorkdirExists(config)
+    BuildPlan(config)
+  }
+
   /** Run the complete Scala Native pipeline, LLVM optimizer and system linker,
    *  producing a native binary in the end, same as `build` method.
    *

@@ -49,8 +49,6 @@ checkToolchainRan := assert(
 lazy val deleteLibraries =
   taskKey[Unit]("Delete the libraries of the build cache")
 deleteLibraries := IO.delete(
-  Option((buildCache(baseDirectory.value) / "lib").listFiles())
-    .toSeq
-    .flatten
+  Option((buildCache(baseDirectory.value) / "lib").listFiles()).toSeq.flatten
     .filter(_.isFile)
 )

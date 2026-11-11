@@ -102,6 +102,27 @@ class GranularCodeGenTest extends CodeGenSpec {
     )
   }
 
+  // java.lang.Class is the RTTI emitted by code generation: its fields must
+  // follow the RTTI layout, whatever order its source declares them in
+  @Test def classFieldsFollowTheRttiLayout(): Unit =
+    for (granular <- Seq(false, true))
+      optimize(
+        "Test",
+        library + ("Test.scala" -> baseMain),
+        _.withGranularBuild(granular)
+      ) {
+        case (config, optimized) =>
+          implicit val platform: PlatformInfo = PlatformInfo(config)
+          val meta = new Metadata(optimized, config, Nil)
+          val jlClass =
+            optimized.infos(nir.Rt.ClassName).asInstanceOf[linker.Class]
+          assertEquals(
+            s"granular=$granular",
+            nir.Rt.jlClassFields,
+            meta.layout(jlClass).entries.map(_.name)
+          )
+      }
+
   // Without the option the same change does affect library code, so the
   // test above exercises what granular builds change
   @Test def libraryCodeDependsOnTheApplicationByDefault(): Unit =

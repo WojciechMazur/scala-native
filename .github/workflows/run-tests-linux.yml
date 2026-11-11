@@ -183,6 +183,32 @@ jobs:
         run: sbt "test-runtime ${{ matrix.scala }}"
 
   # This job is basically copy-paste of test-runtime.
+  # Main difference is code generated without whole-program facts
+  test-runtime-granular:
+    name: Test runtime granular
+    if: github.event_name == 'pull_request' || ((github.event_name == 'schedule' || github.event_name == 'workflow_call') && github.repository == 'scala-native/scala-native')
+    runs-on: ubuntu-22.04
+    needs: tests-tools
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: [3]
+        build-mode: [debug]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/linux-setup-env
+        with:
+          scala-version: ${{matrix.scala}}
+
+      - name: Run tests
+        timeout-minutes: 45
+        env:
+          SCALANATIVE_MODE: ${{ matrix.build-mode }}
+          SCALANATIVE_GRANULAR: true
+          SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
+        run: sbt "test-runtime ${{ matrix.scala }}"
+
+  # This job is basically copy-paste of test-runtime.
   # Scripted tests take a long time to run, ~30 minutes, and should be limited and absolute minimum.
   test-scripted:
     name: Test scripted

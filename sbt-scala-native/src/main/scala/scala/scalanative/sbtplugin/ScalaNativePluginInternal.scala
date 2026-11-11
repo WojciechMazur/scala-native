@@ -131,6 +131,7 @@ object ScalaNativePluginInternal {
         .withGC(Discover.GC())
         .withMode(Discover.mode())
         .withOptimize(Discover.optimize())
+        .withGranularBuild(Discover.granularBuild())
     },
     ThisBuild / nativeConfig := (Global / nativeConfig).value,
     nativeWarnOldJVM := {

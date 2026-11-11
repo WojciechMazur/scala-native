@@ -9,7 +9,7 @@ SCALAFMT="$HERE/.scalafmt-$VERSION"
 CHECK_MODIFIED_ONLY=${CHECK_MODIFIED_ONLY:-false}
 
 if [ ! -f $COURSIER ]; then
-  curl -fsSL -o $COURSIER https://github.com/coursier/launchers/raw/master/coursier
+  curl -fsSL -o $COURSIER https://raw.githubusercontent.com/coursier/coursier/gh-pages/coursier
   chmod +x $COURSIER
 fi
 

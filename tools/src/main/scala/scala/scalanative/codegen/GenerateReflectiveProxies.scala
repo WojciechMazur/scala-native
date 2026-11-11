@@ -8,11 +8,15 @@ import scala.collection.mutable
 private[codegen] object GenerateReflectiveProxies {
   implicit val scopeId: nir.ScopeId = nir.ScopeId.TopLevel
 
-  private def genReflProxy(defn: nir.Defn.Define): nir.Defn.Define = {
+  private def genReflProxy(
+      defn: nir.Defn.Define,
+      withPositions: Boolean
+  ): nir.Defn.Define = {
     implicit val fresh: nir.Fresh = nir.Fresh()
     val nir.Global.Member(owner, sig) = defn.name
     val defnType = defn.ty.asInstanceOf[nir.Type.Function]
-    implicit val pos: nir.SourcePosition = defn.pos
+    implicit val pos: nir.SourcePosition =
+      if (withPositions) defn.pos else nir.SourcePosition.NoPosition
 
     val proxyArgs = genProxyArgs(defnType)
     val proxyTy = genProxyTy(defnType, proxyArgs)
@@ -143,9 +147,14 @@ private[codegen] object GenerateReflectiveProxies {
     }
   }
 
+  /** Proxies of the methods called reflectively. Without positions they carry
+   *  no debug info, as needed when they are emitted with the program, apart
+   *  from the libraries declaring the methods.
+   */
   def apply(
       dynimpls: Seq[nir.Global],
-      defns: Seq[nir.Defn]
+      defns: Seq[nir.Defn],
+      withPositions: Boolean = true
   ): Seq[nir.Defn.Define] = {
 
     // filters methods with same name and args but different return type for each given type
@@ -170,7 +179,7 @@ private[codegen] object GenerateReflectiveProxies {
     defns.foreach {
       case defn: nir.Defn.Define =>
         if (toProxy.contains(defn.name)) {
-          result += genReflProxy(defn)
+          result += genReflProxy(defn, withPositions)
         }
       case _ =>
         ()

@@ -524,6 +524,16 @@ private[codegen] object Generate {
     val weakRefFieldOffsetName = Extern("__weak_ref_field_offset")
   }
 
+  /** Definitions emitted once per program: entry points, the reflective proxy table and runtime constants computed from
+   *  the whole program.
+   */
+  def programDefinitions: Set[nir.Global] = Set(
+    Impl.MainName,
+    Impl.LibraryInitName,
+    ReflectiveProxyTable.name,
+    Impl.weakRefFieldOffsetName
+  )
+
   def depends(implicit platform: PlatformInfo): Seq[nir.Global] = {
     Seq(
       ObjectArray.name,

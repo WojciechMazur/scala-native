@@ -1,9 +1,9 @@
 package scala.scalanative
 package build
 
-import java.nio.file.Path
+import java.nio.file.{Files, Path, StandardCopyOption}
 
-import scala.scalanative.build.store.{ActionKey, BuildCache, Digest}
+import scala.scalanative.build.store.{ActionKey, BuildCache, Digest, DiskStore}
 
 /** What a build of a config depends on, known before running it.
  *
@@ -13,19 +13,45 @@ import scala.scalanative.build.store.{ActionKey, BuildCache, Digest}
  *    version. Builds with the same key produce the same artifact, so a build
  *    tool can use it as the input hash of its link task and skip the toolchain
  *    when it did not change. It does not depend on the build directory or on
- *    file timestamps.
+ *    file timestamps. Executables linked against shared libraries depend on the
+ *    directory of these libraries, see `BuildCache.libraryDir`.
  *  @param inputs
  *    the named digests the key is made of, to tell why it changed
- *  @param selfContained
- *    whether the artifact works on its own: an executable linked against shared
- *    libraries of the build directory does not, a build tool must not restore
- *    it from its cache without running the build
+ *  @param libraries
+ *    for executables linked against shared libraries, the record of the
+ *    libraries the artifact of this key needs, written by the build
  */
 final class BuildPlan private[build] (
     val outputKey: String,
     val inputs: Seq[(String, String)],
-    val selfContained: Boolean
+    libraries: Option[Path]
 ) {
+
+  /** Whether an artifact of this key, kept by a build tool, works without
+   *  running the build: an executable linked against shared libraries needs
+   *  them, they may have been collected or never built on this machine.
+   */
+  def restorable: Boolean = libraries.forall { record =>
+    try {
+      val names = new String(Files.readAllBytes(record), "UTF-8")
+        .split('\n')
+        .filter(_.nonEmpty)
+      // Records are in a child of the library directory
+      val dir = record.getParent().getParent()
+      names.forall(name => Files.isRegularFile(dir.resolve(name)))
+    } catch { case _: java.io.IOException => false }
+  }
+
+  /** Records the libraries the artifact needs, see `restorable`. */
+  private[build] def recordLibraries(names: Seq[Path]): Unit =
+    libraries.foreach { record =>
+      val content = names.map(_.getFileName.toString).mkString("\n")
+      Files.createDirectories(record.getParent())
+      val tmp = Files.createTempFile(record.getParent(), ".record", ".tmp")
+      IO.write(tmp, content)
+      Files.move(tmp, record, StandardCopyOption.REPLACE_EXISTING)
+    }
+
   override def toString: String =
     inputs
       .map { case (name, digest) => s"  $name: $digest" }
@@ -38,6 +64,11 @@ private[build] object BuildPlan {
     val cache = BuildCache.local(config.workDir, config.logger)
     try {
       val nativeConfig = config.compilerConfig
+      // Executables refer to the absolute location of the libraries
+      val libraryDir =
+        if (nativeConfig.useDynamicLibraries && Build.usesUnits(config))
+          Some(BuildCache.libraryDir(config).toAbsolutePath())
+        else None
       def entries(paths: Seq[Path]): Seq[(Path, Digest)] =
         NativeLib.filterClasspath(paths).map { entry =>
           entry -> units.Libraries.digest(entry, cache)
@@ -60,7 +91,7 @@ private[build] object BuildPlan {
         ),
         "classpath" -> Digest.of(classpath.map(_._2.toString).mkString("\n")),
         "sources" -> Digest.of(sources.map(_._2.toString).mkString("\n"))
-      )
+      ) ++ libraryDir.map(dir => "libraries" -> Digest.of(dir.toString))
       val key = inputs
         .foldLeft(ActionKey.builder("artifact", version = 1)) {
           case (builder, (name, digest)) => builder.add(name, digest)
@@ -69,8 +100,9 @@ private[build] object BuildPlan {
       new BuildPlan(
         key.hash,
         inputs.map { case (n, d) => n -> d.hash },
-        selfContained =
-          !(nativeConfig.useDynamicLibraries && Build.usesUnits(config))
+        libraryDir.map(
+          _.resolve(DiskStore.ProgramsDir).resolve(key.hash)
+        )
       )
     } finally cache.close()
   }

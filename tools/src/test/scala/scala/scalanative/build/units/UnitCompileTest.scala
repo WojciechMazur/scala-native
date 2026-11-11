@@ -225,22 +225,28 @@ class UnitCompileTest {
     val (config, result) = build(dir, usesApi, dynamic = true)
     val binary = result.fold(throw _, identity)
     assertEquals("84", Process(binary.toString).!!.trim)
-    val stream = Files.walk(config.workDir.resolve("units"))
-    val libraries =
-      try
-        stream.toArray.toSeq
-          .map(_.asInstanceOf[Path])
-          .filter { path =>
-            val name = path.getFileName.toString
-            name.startsWith("libsn-") &&
-              (name.endsWith(".so") || name.endsWith(".dylib"))
-          }
-      finally stream.close()
+    val plan = Build.plan(config)
+    val libraryDir = store.BuildCache.libraryDir(config)
+    val libraries = new String(
+      Files.readAllBytes(
+        libraryDir.resolve("programs").resolve(plan.outputKey)
+      ),
+      StandardCharsets.UTF_8
+    ).split('\n').toSeq.map(libraryDir.resolve(_))
     // The runtime and lib.jar
     assertEquals(libraries.mkString(", "), 2, libraries.size)
-    // Build tools must not restore the program without its libraries
-    assertFalse(Build.plan(config).selfContained)
     // The program holds no library code
     assertTrue(Files.size(binary) < libraries.map(Files.size(_)).max / 10)
+    // Libraries are links to the blobs of the store
+    libraries.foreach { library =>
+      assertTrue(
+        library.toString,
+        Files.getAttribute(library, "unix:nlink").asInstanceOf[Int] > 1
+      )
+    }
+    // Build tools may keep the program only while its libraries exist
+    assertTrue(plan.restorable)
+    Files.delete(libraries.head)
+    assertFalse(plan.restorable)
   }
 }

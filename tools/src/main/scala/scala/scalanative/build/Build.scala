@@ -168,9 +168,19 @@ object Build {
             .map { objects =>
               val linked = units.filter(_.manifest.exports.nonEmpty)
               val libraries = linked.flatMap(_.library)
-              if (libraries.nonEmpty)
-                link(config, linkerResult, objects, libraries = libraries)
-              else {
+              if (libraries.nonEmpty) {
+                val artifact =
+                  link(config, linkerResult, objects, libraries = libraries)
+                // For build tools keeping the artifact, see BuildPlan. They
+                // may leave sources, only found in debug information, out
+                Seq(initialConfig, initialConfig.withSourcesClassPath(Nil))
+                  .map(config => plan(config))
+                  .map(plan => plan.outputKey -> plan)
+                  .toMap
+                  .values
+                  .foreach(_.recordLibraries(libraries))
+                artifact
+              } else {
                 // Dependent units first, for linkers resolving in one pass
                 val archives = linked.reverse.map(_.archive)
                 val weakSymbols = units.flatMap(_.manifest.externs).distinct

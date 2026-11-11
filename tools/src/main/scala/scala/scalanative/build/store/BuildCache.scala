@@ -71,6 +71,8 @@ private[scalanative] final class BuildCache private (
 
     if (outputs.forall { case (_, path) => isUpToDate(path) }) {
       outputs.foreach { case (_, path) => recordOutput(key, path) }
+      // Outputs in use are the last to be evicted
+      withStore(s"touch action $key")(())(_.touchAction(key))
       UpToDate
     } else
       withLock(key) {
@@ -86,6 +88,8 @@ private[scalanative] final class BuildCache private (
           outputs.foreach { case (_, path) => recordOutput(key, path) }
           Restored
         } else {
+          // Restored outputs may be links to stored blobs, never written to
+          outputs.foreach { case (_, path) => Files.deleteIfExists(path) }
           execute
           withStore(s"store action $key")(()) { store =>
             val result = ActionResult(outputs.map {
@@ -98,6 +102,12 @@ private[scalanative] final class BuildCache private (
         }
       }
   }
+
+  /** Where shared libraries of library units are placed: in the store, or in
+   *  `workDir` without one.
+   */
+  def libraryDir: Path =
+    storeOption.fold(workDir.resolve("lib"))(_.libraries)
 
   /** The location of `tree` in the store, see `DiskStore.sources`. */
   def sources(tree: SourceTree): Option[Path] =
@@ -182,6 +192,13 @@ private[scalanative] object BuildCache {
           Discover.buildCacheMaxSize()
         )
       }
+
+  /** The library directory of the builds of `config`, see `libraryDir`. */
+  def libraryDir(config: Config): Path =
+    Discover
+      .buildCacheDir()
+      .filter(_ => config.compilerConfig.useGranularBuild)
+      .fold(config.workDir.resolve("lib"))(new DiskStore(_).libraries)
 
   def apply(store: DiskStore, workDir: Path, logger: Logger): BuildCache =
     new BuildCache(Some(store), workDir, logger, DefaultMaxSizeBytes)

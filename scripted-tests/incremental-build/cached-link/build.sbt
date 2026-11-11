@@ -11,10 +11,10 @@ def toolchainMarker(crossTarget: File): File =
 lazy val forgetToolchainRun =
   taskKey[Unit]("Delete the marker of a toolchain run")
 forgetToolchainRun := IO.delete(
-  Seq(
-    toolchainMarker(crossTarget.value),
-    crossTarget.value / "native" / "build-checksum"
-  )
+  toolchainMarker(crossTarget.value) +:
+    // sbt 1 runs link tasks every time, the checksum skips unchanged links
+    (if (sbtVersion.value.startsWith("1.")) Nil
+     else Seq(crossTarget.value / "native" / "build-checksum"))
 )
 
 lazy val checkToolchainSkipped =

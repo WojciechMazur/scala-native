@@ -22,28 +22,35 @@ def toolchainMarker(crossTarget: File): File =
 lazy val forgetToolchainRun =
   taskKey[Unit]("Delete the marker of a toolchain run")
 forgetToolchainRun := IO.delete(
-  Seq(
-    toolchainMarker(crossTarget.value),
-    crossTarget.value / "native" / "build-checksum"
-  )
+  toolchainMarker(crossTarget.value) +:
+    // sbt 1 runs link tasks every time, the checksum skips unchanged links
+    (if (sbtVersion.value.startsWith("1.")) Nil
+     else Seq(crossTarget.value / "native" / "build-checksum"))
 )
 
+// Only sbt 2 keeps the program after clean
 lazy val checkToolchainSkipped =
   taskKey[Unit]("Check the last link did not run the toolchain")
 checkToolchainSkipped := assert(
-  !toolchainMarker(crossTarget.value).exists,
+  sbtVersion.value.startsWith("1.") ||
+    !toolchainMarker(crossTarget.value).exists,
   "the toolchain ran although its output was kept"
 )
 
+// Programs of platforms linking statically need no library
 lazy val checkToolchainRan =
   taskKey[Unit]("Check the last link ran the toolchain")
 checkToolchainRan := assert(
-  toolchainMarker(crossTarget.value).exists,
+  !(buildCache(baseDirectory.value) / "lib").exists ||
+    toolchainMarker(crossTarget.value).exists,
   "the toolchain did not run although libraries were missing"
 )
 
 lazy val deleteLibraries =
   taskKey[Unit]("Delete the libraries of the build cache")
 deleteLibraries := IO.delete(
-  (buildCache(baseDirectory.value) / "lib").listFiles().filter(_.isFile)
+  Option((buildCache(baseDirectory.value) / "lib").listFiles())
+    .toSeq
+    .flatten
+    .filter(_.isFile)
 )

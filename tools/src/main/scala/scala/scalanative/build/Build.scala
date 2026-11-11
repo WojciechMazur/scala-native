@@ -167,25 +167,36 @@ object Build {
       irGenerators: Seq[Future[Path]]
   )(implicit ec: ExecutionContext): Future[Seq[Path]] =
     config.logger.timeAsync("Compiling to native code") {
+      val cache = store.BuildCache.open(config)
       // compile generated LLVM IR
       val configChanged = userConfigHasChanged(config)
       val compileGeneratedIR = Future
         .sequence {
           irGenerators.map(irGenerator =>
-            irGenerator.flatMap(generatedIR =>
-              LLVM.compile(config, analysis, generatedIR, configChanged)
-            )
+            irGenerator.flatMap { generatedIR =>
+              val stored = cache.map { cache =>
+                LLVM.StoredCompile(
+                  cache,
+                  inputs = cache.digest(generatedIR),
+                  root = config.workDir
+                )
+              }
+              LLVM.compile(config, analysis, generatedIR, configChanged, stored)
+            }
           )
         }
 
       /* Finds all the libraries on the classpath that contain native
        * code and then compiles them.
        */
-      val compileNativeLibs = findAndCompileNativeLibraries(config, analysis)
+      val compileNativeLibs =
+        findAndCompileNativeLibraries(config, analysis, cache)
 
-      Future.reduceLeft(
-        immutable.Seq(compileGeneratedIR, compileNativeLibs)
-      )(_ ++ _)
+      Future
+        .reduceLeft(
+          immutable.Seq(compileGeneratedIR, compileNativeLibs)
+        )(_ ++ _)
+        .andThen { case _ => cache.foreach(_.close()) }
     }
 
   /** Links the given object files using the system's linker. */
@@ -272,17 +283,20 @@ object Build {
    *    the compiler configuration
    *  @param analysis
    *    the result from the linker
+   *  @param cache
+   *    the build cache to compile through, if any
    *  @return
    *    the paths to the compiled objects
    */
   private[scala] def findAndCompileNativeLibraries(
       config: Config,
-      analysis: ReachabilityAnalysis.Result
+      analysis: ReachabilityAnalysis.Result,
+      cache: Option[store.BuildCache] = None
   )(implicit ec: ExecutionContext): Future[Seq[Path]] = {
     import NativeLib.{findNativeLibs, compileNativeLibrary}
     Future
       .traverse(findNativeLibs(config))(
-        compileNativeLibrary(config, analysis, _)
+        compileNativeLibrary(config, analysis, _, cache)
       )
       .map(_.flatten)
   }

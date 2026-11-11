@@ -296,7 +296,9 @@ object Build {
     MultiScalaProject("tools", platform = MultiScalaProject.JVM)
       .settings(
         libraryDependencies ++= Deps.JUnitJvm,
-        Test / fork := true
+        Test / fork := true,
+        // Builds wait for futures without a timeout: fail instead of hanging
+        Test / javaOptions += "-XX:+ExitOnOutOfMemoryError"
       )
       .withCommonTools
       .withBuildInfo(Test)

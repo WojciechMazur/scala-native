@@ -244,6 +244,78 @@ private[scalanative] object LLVM {
     out
   }
 
+  /** Links the shared library `out` of a library unit from every object of
+   *  `archive` and `objects`, against the shared libraries of its
+   *  `dependencies`. Weak references to `weakSymbols` may stay undefined: they
+   *  resolve to symbols of the program or of its other libraries, or to null.
+   */
+  def linkSharedLibrary(
+      config: Config,
+      analysis: ReachabilityAnalysis.Result,
+      archive: Path,
+      objects: Seq[Path],
+      dependencies: Seq[Path],
+      weakSymbols: Seq[String],
+      out: Path
+  ): Path = {
+    implicit val _config: Config = config
+    val name = out.getFileName.toString
+    // Every `@link` of the unit, those of other platforms are left out
+    val links = (Seq("pthread", "dl", "m") ++ config.gc.links ++
+      analysis.links.map(_.name).filter(isLinkable(config, _))).distinct
+    // Libraries of units are found next to each other, wherever they are
+    val origin = if (config.targetsMac) "@loader_path" else "$ORIGIN"
+    val runPaths = dependencies
+      .map(_.toAbsolutePath().getParent().getFileName().toString)
+      .distinct
+      .map(dir => s"-Wl,-rpath,$origin/../$dir")
+    val flags = runPaths ++ {
+      if (config.targetsMac)
+        Seq("-dynamiclib", s"-Wl,-install_name,@rpath/$name") ++
+          Seq(s"-Wl,-force_load,${archive.abs}") ++ objects.map(_.abs) ++
+          dependencies.map(_.abs) ++
+          weakSymbols.sorted.map(symbol => s"-Wl,-U,_$symbol")
+      else
+        Seq("-shared", "-fPIC", s"-Wl,-soname,$name") ++
+          Seq("-Wl,--whole-archive", archive.abs, "-Wl,--no-whole-archive") ++
+          objects.map(_.abs) ++ Seq("-Wl,--as-needed") ++ dependencies.map(
+            _.abs
+          )
+    }
+    val list = out.resolveSibling(name + ".link")
+    IO.write(
+      list,
+      (flags ++ sourceLevelDebugFlags ++ sanitizer ++ target ++
+        Seq("-o", out.abs) ++ config.linkingOptions ++ links.map("-l" + _))
+        .map(flag => escapeWhitespaces(flag.replace("\\", "/")))
+        .mkString("", "\n", "\n")
+    )
+    val compiler =
+      if (isCppRuntimeRequired(config, analysis)) config.clangPP.abs
+      else config.clang.abs
+    val command = Seq(compiler, s"@${list.abs}")
+    config.logger.running(command)
+    val result = Process(command, config.workDir.toFile()) !
+      Logger.toCompilerProcessLogger(config.logger)
+    if (result != 0) throw new BuildException(s"Failed to link ${out.abs}")
+    out
+  }
+
+  // Whether the linker finds the library `name`
+  private def isLinkable(config: Config, name: String): Boolean = {
+    val out = Files.createTempFile(config.workDir, "linkable", ".so")
+    try {
+      val kind = if (config.targetsMac) "-dynamiclib" else "-shared"
+      val command =
+        Seq(config.clang.abs, kind, "-x", "c", "-", "-o", out.abs) ++
+          config.linkingOptions :+ s"-l$name"
+      (Process(command) #< new _root_.java.io.ByteArrayInputStream(
+        Array.emptyByteArray
+      ) !
+        ProcessLogger(_ => ())) == 0
+    } finally Files.deleteIfExists(out)
+  }
+
   /** Links a collection of `.ll.o` files and the `.o` files from the
    *  `nativelib`, other libaries, and the application project into the native
    *  binary.
@@ -262,20 +334,21 @@ private[scalanative] object LLVM {
       analysis: ReachabilityAnalysis.Result,
       objectsPaths: Seq[Path],
       archives: Seq[Path] = Nil,
-      weakSymbols: Seq[String] = Nil
+      weakSymbols: Seq[String] = Nil,
+      sharedLibraries: Seq[Path] = Nil
   ): Path = {
     implicit val _config: Config = config
     implicit val _analysis: ReachabilityAnalysis.Result = analysis
     val buildPath = config.buildPath
 
     // don't link if no changes
-    if (!needsLinking(objectsPaths ++ archives, buildPath)) {
+    if (!needsLinking(objectsPaths ++ archives ++ sharedLibraries, buildPath)) {
       return copyOutput(config, buildPath)
     }
 
     val command = config.compilerConfig.buildTarget match {
       case BuildTarget.Application | BuildTarget.LibraryDynamic =>
-        prepareLinkCommand(objectsPaths, archives, weakSymbols)
+        prepareLinkCommand(objectsPaths, archives, weakSymbols, sharedLibraries)
       case BuildTarget.LibraryStatic =>
         prepareArchiveCommand(objectsPaths)
     }
@@ -339,7 +412,8 @@ private[scalanative] object LLVM {
   private def prepareLinkCommand(
       objectsPaths: Seq[Path],
       archives: Seq[Path],
-      weakSymbols: Seq[String]
+      weakSymbols: Seq[String],
+      sharedLibraries: Seq[Path]
   )(implicit config: Config, analysis: ReachabilityAnalysis.Result) = {
     val workDir = config.workDir
     val links = {
@@ -444,6 +518,13 @@ private[scalanative] object LLVM {
         // Apple linker must be told they may stay undefined
         if (config.targetsMac)
           weakSymbols.sorted.foreach(symbol => add(s"-Wl,-U,_$symbol"))
+        // Libraries compiled apart and linked dynamically, found where they
+        // were built
+        sharedLibraries.foreach(p => add(p.abs))
+        sharedLibraries
+          .map(_.toAbsolutePath().getParent())
+          .distinct
+          .foreach(dir => add(s"-Wl,-rpath,${dir.abs}"))
 
         linkopts.foreach(add)
 

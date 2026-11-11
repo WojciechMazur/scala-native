@@ -163,14 +163,19 @@ object Build {
           ScalaNative
             .codegen(config, linkerResult, provided)
             .flatMap { irGenerators =>
-              compile(config, linkerResult, irGenerators)
+              compile(config, linkerResult, irGenerators, units)
             }
             .map { objects =>
-              // Dependent units first, for linkers resolving in one pass
-              val archives =
-                units.reverse.filter(_.manifest.exports.nonEmpty).map(_.archive)
-              val weakSymbols = units.flatMap(_.manifest.externs).distinct
-              link(config, linkerResult, objects, archives, weakSymbols)
+              val linked = units.filter(_.manifest.exports.nonEmpty)
+              val libraries = linked.flatMap(_.library)
+              if (libraries.nonEmpty)
+                link(config, linkerResult, objects, libraries = libraries)
+              else {
+                // Dependent units first, for linkers resolving in one pass
+                val archives = linked.reverse.map(_.archive)
+                val weakSymbols = units.flatMap(_.manifest.externs).distinct
+                link(config, linkerResult, objects, archives, weakSymbols)
+              }
             }
             .map(artifact => postProcess(config, artifact))
         }
@@ -182,7 +187,8 @@ object Build {
   private def compile(
       config: Config,
       analysis: ReachabilityAnalysis.Result,
-      irGenerators: Seq[Future[Path]]
+      irGenerators: Seq[Future[Path]],
+      compiledUnits: Seq[units.CompiledUnit] = Nil
   )(implicit ec: ExecutionContext): Future[Seq[Path]] =
     config.logger.timeAsync("Compiling to native code") {
       val cache = store.BuildCache.open(config)
@@ -205,10 +211,16 @@ object Build {
         }
 
       /* Finds all the libraries on the classpath that contain native
-       * code and then compiles them.
+       * code and then compiles them. Shared libraries of units hold their
+       * native code, the executable registers its own sections.
        */
       val compileNativeLibs =
-        findAndCompileNativeLibraries(config, analysis, cache)
+        findAndCompileNativeLibraries(
+          config,
+          analysis,
+          cache,
+          entry => compiledUnits.exists(_.holdsNativeCode(entry))
+        ).map(_ ++ compiledUnits.flatMap(_.sections).headOption)
 
       Future
         .reduceLeft(
@@ -222,12 +234,13 @@ object Build {
       config: Config,
       analysis: ReachabilityAnalysis.Result,
       compiled: Seq[Path],
-      archives: Seq[Path],
-      weakSymbols: Seq[String]
+      archives: Seq[Path] = Nil,
+      weakSymbols: Seq[String] = Nil,
+      libraries: Seq[Path] = Nil
   ): Path = config.logger.time(
     s"Linking native code (${config.gc.name} gc, ${config.LTO.name} lto)"
   ) {
-    LLVM.link(config, analysis, compiled, archives, weakSymbols)
+    LLVM.link(config, analysis, compiled, archives, weakSymbols, libraries)
   }
 
   /** Granular builds compile library units apart, see `units.UnitCompile`.
@@ -291,7 +304,7 @@ object Build {
     }
   }
 
-  private def usesUnits(config: Config): Boolean = {
+  private[build] def usesUnits(config: Config): Boolean = {
     val nativeConfig = config.compilerConfig
     nativeConfig.useGranularBuild && Discover.granularUnits() &&
       (config.targetsLinux || config.targetsMac) &&
@@ -380,11 +393,14 @@ object Build {
   private[scala] def findAndCompileNativeLibraries(
       config: Config,
       analysis: ReachabilityAnalysis.Result,
-      cache: Option[store.BuildCache] = None
+      cache: Option[store.BuildCache] = None,
+      compiledApart: Path => Boolean = _ => false
   )(implicit ec: ExecutionContext): Future[Seq[Path]] = {
     import NativeLib.{findNativeLibs, compileNativeLibrary}
     Future
-      .traverse(findNativeLibs(config))(
+      .traverse(
+        findNativeLibs(config).filterNot(lib => compiledApart(lib.src))
+      )(
         compileNativeLibrary(config, analysis, _, cache)
       )
       .map(_.flatten)

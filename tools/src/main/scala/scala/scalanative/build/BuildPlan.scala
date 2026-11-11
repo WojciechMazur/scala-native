@@ -16,10 +16,15 @@ import scala.scalanative.build.store.{ActionKey, BuildCache, Digest}
  *    file timestamps.
  *  @param inputs
  *    the named digests the key is made of, to tell why it changed
+ *  @param selfContained
+ *    whether the artifact works on its own: an executable linked against shared
+ *    libraries of the build directory does not, a build tool must not restore
+ *    it from its cache without running the build
  */
 final class BuildPlan private[build] (
     val outputKey: String,
-    val inputs: Seq[(String, String)]
+    val inputs: Seq[(String, String)],
+    val selfContained: Boolean
 ) {
   override def toString: String =
     inputs
@@ -61,7 +66,12 @@ private[build] object BuildPlan {
           case (builder, (name, digest)) => builder.add(name, digest)
         }
         .result()
-      new BuildPlan(key.hash, inputs.map { case (n, d) => n -> d.hash })
+      new BuildPlan(
+        key.hash,
+        inputs.map { case (n, d) => n -> d.hash },
+        selfContained =
+          !(nativeConfig.useDynamicLibraries && Build.usesUnits(config))
+      )
     } finally cache.close()
   }
 

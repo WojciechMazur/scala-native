@@ -13,6 +13,7 @@ import scala.concurrent.duration.Duration
 import scala.sys.process._
 
 import org.junit.Assert._
+import org.junit.Assume.assumeFalse
 import org.junit.Test
 
 import scala.scalanative.buildinfo.ScalaNativeBuildInfo
@@ -75,7 +76,8 @@ class UnitCompileTest {
   private def build(
       dir: Path,
       main: String,
-      exclusions: Seq[String] = Nil
+      exclusions: Seq[String] = Nil,
+      dynamic: Boolean = false
   ): (Config, Either[Throwable, Path]) = {
     // Compiled together, then split into the library jar and the program
     val classes = Files.createDirectories(dir.resolve("classes"))
@@ -106,6 +108,7 @@ class UnitCompileTest {
           .withMode(Mode.debug)
           .withGranularBuild(true)
           .withLibraryExclusions(exclusions)
+          .withDynamicLibraries(dynamic)
       )
       .withLogger(Logger.nullLogger)
     val result =
@@ -215,5 +218,29 @@ class UnitCompileTest {
         assertTrue(ex.getMessage, ex.getMessage.contains("libraryExclusions"))
       case other => fail(s"Expected a link failure, got $other")
     }
+  }
+
+  @Test def linksLibrariesDynamically(): Unit = withDir { dir =>
+    assumeFalse("Static only", scala.util.Properties.isWin)
+    val (config, result) = build(dir, usesApi, dynamic = true)
+    val binary = result.fold(throw _, identity)
+    assertEquals("84", Process(binary.toString).!!.trim)
+    val stream = Files.walk(config.workDir.resolve("units"))
+    val libraries =
+      try
+        stream.toArray.toSeq
+          .map(_.asInstanceOf[Path])
+          .filter { path =>
+            val name = path.getFileName.toString
+            name.startsWith("libsn-") &&
+              (name.endsWith(".so") || name.endsWith(".dylib"))
+          }
+      finally stream.close()
+    // The runtime and lib.jar
+    assertEquals(libraries.mkString(", "), 2, libraries.size)
+    // Build tools must not restore the program without its libraries
+    assertFalse(Build.plan(config).selfContained)
+    // The program holds no library code
+    assertTrue(Files.size(binary) < libraries.map(Files.size(_)).max / 10)
   }
 }

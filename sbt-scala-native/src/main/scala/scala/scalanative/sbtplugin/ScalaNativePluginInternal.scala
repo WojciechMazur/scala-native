@@ -132,6 +132,7 @@ object ScalaNativePluginInternal {
         .withMode(Discover.mode())
         .withOptimize(Discover.optimize())
         .withGranularBuild(Discover.granularBuild())
+        .withDynamicLibraries(Discover.dynamicLibraries())
     },
     ThisBuild / nativeConfig := (Global / nativeConfig).value,
     nativeWarnOldJVM := {
@@ -203,8 +204,12 @@ object ScalaNativePluginInternal {
         testConfig = testConfig,
         moduleName = moduleName.value + moduleSuffix
       )
-      if (PluginCompat.cachesTasks)
-        interceptBuildException(Build.plan(config).outputKey)
+      if (PluginCompat.cachesTasks) interceptBuildException {
+        val plan = Build.plan(config)
+        // Executables needing libraries of the build directory always link
+        if (plan.selfContained) plan.outputKey
+        else java.util.UUID.randomUUID().toString
+      }
       else ""
     }
   }

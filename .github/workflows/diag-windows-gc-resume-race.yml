@@ -1,0 +1,84 @@
+name: DIAG Windows GC resume race
+on:
+  pull_request:
+    branches: [ci-base/windows-gc-resume-race]
+  workflow_dispatch:
+
+jobs:
+  stress:
+    name: GC stress (${{ matrix.os }}, ${{ matrix.variant }}, ${{ matrix.replica }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 75
+    env:
+      ENABLE_EXPERIMENTAL_COMPILER: true
+      VCPKG_DEFAULT_HOST_TRIPLET: ${{ matrix.os == 'windows-11-arm' && 'arm64-windows' || 'x64-windows' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-11-arm]
+        variant: [baseline, fixed]
+        replica: [1, 2]
+    steps:
+      - name: Setup git config
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 3
+      - uses: ./.github/actions/windows-setup-env
+        if: matrix.os == 'windows-2022'
+        id: setup
+        with:
+          scala-version: 3
+      - uses: ./.github/actions/windows-arm-setup-env
+        if: matrix.os == 'windows-11-arm'
+        id: setup-arm
+        with:
+          scala-version: 3
+
+      # The fix is the last commit; baseline restores the GC sources before it.
+      - name: Use baseline GC sources
+        if: matrix.variant == 'baseline'
+        shell: pwsh
+        run: |
+          git checkout HEAD~1 -- nativelib/src/main/resources/scala-native/gc
+          git status --short
+
+      - name: Build stress program (release-fast)
+        shell: cmd
+        env:
+          SCALANATIVE_MODE: release-fast
+          SCALANATIVE_INCLUDE_DIRS: ${{ steps.setup.outputs.vcpkg-dir || steps.setup-arm.outputs.vcpkg-dir }}\include
+          SCALANATIVE_LIB_DIRS: ${{ steps.setup.outputs.vcpkg-dir || steps.setup-arm.outputs.vcpkg-dir }}\lib
+        run: sbt sandbox3/nativeLink
+
+      - name: Run stress
+        timeout-minutes: 45
+        shell: pwsh
+        env:
+          GC_MAXIMUM_HEAP_SIZE: 16m
+        run: |
+          $exe = Get-ChildItem -Recurse target\out -Filter 'sandbox*.exe' | Select-Object -First 1
+          $out = Join-Path $env:RUNNER_TEMP 'stress'
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $stress = Join-Path $out 'stress.exe'
+          Copy-Item $exe.FullName $stress
+          "cpus=$env:NUMBER_OF_PROCESSORS exe=$($exe.FullName)"
+          $deadline = (Get-Date).AddMinutes(35)
+          $i = 0
+          while ((Get-Date) -lt $deadline) {
+            $procs = @()
+            for ($k = 0; $k -lt 4; $k++) {
+              $i++
+              $procs += Start-Process -FilePath $stress -ArgumentList '3000', '32', '10000' -NoNewWindow -PassThru `
+                -RedirectStandardOutput "$out\$i.out" -RedirectStandardError "$out\$i.err"
+            }
+            $procs | Wait-Process -Timeout 900 -ErrorAction SilentlyContinue
+            foreach ($p in $procs) { if (-not $p.HasExited) { "killing stuck pid=$($p.Id)"; $p.Kill() } }
+            $hangs = @(Select-String -Path "$out\*.err" -Pattern '^HANG').Count
+            "$(Get-Date -Format o) processes=$i hangs=$hangs"
+          }
+          "===== summary: processes=$i"
+          Select-String -Path "$out\*.err" -Pattern 'HANG|after System.gc|not released' | ForEach-Object { $_.Line }
+          $hangs = @(Select-String -Path "$out\*.err" -Pattern '^HANG').Count
+          "hangs=$hangs"
+          if ($hangs -gt 0) { exit 1 }

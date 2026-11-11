@@ -1,0 +1,25 @@
+name: probe-coredump
+on: push
+jobs:
+  probe:
+    runs-on: ubuntu-22.04
+    steps:
+      - run: |
+          cat /proc/sys/kernel/core_pattern; cat /proc/sys/fs/suid_dumpable; ulimit -c; ulimit -a | grep core
+          systemctl is-active apport || true; cat /etc/default/apport || true; nproc; free -g
+          cat > a.c <<'C'
+          #include <sys/mman.h>
+          #include <stdlib.h>
+          #include <stdio.h>
+          #include <sys/resource.h>
+          int main(int c, char **v) {
+            size_t gb = atoll(v[1]);
+            if (c > 2) { struct rlimit r = {1, 1}; setrlimit(RLIMIT_CORE, &r); }
+            void *p = mmap(NULL, gb << 30, PROT_READ|PROT_WRITE, MAP_NORESERVE|MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+            ((char*)p)[0] = 1; fprintf(stderr, "mapped %zu GB\n", gb); abort();
+          }
+          C
+          gcc -O1 a.c -o a
+          for gb in 0 1 4 16; do s=$(date +%s.%N); ./a $gb || true; e=$(date +%s.%N); echo "GB=$gb took $(echo "$e - $s" | bc)s"; done
+          s=$(date +%s.%N); ./a 16 nocore || true; e=$(date +%s.%N); echo "GB=16 rlimit1 took $(echo "$e - $s" | bc)s"
+          ls -la /var/crash /var/lib/apport/coredump 2>/dev/null || true; tail -20 /var/log/apport.log 2>/dev/null || true

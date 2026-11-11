@@ -298,7 +298,12 @@ object Build {
         libraryDependencies ++= Deps.JUnitJvm,
         Test / fork := true,
         // Builds wait for futures without a timeout: fail instead of hanging
-        Test / javaOptions += "-XX:+ExitOnOutOfMemoryError"
+        Test / javaOptions += "-XX:+ExitOnOutOfMemoryError",
+        // Granular builds in tests use their own build cache
+        Test / javaOptions += {
+          val dir = (Test / target).value / "build-cache"
+          s"-Dscala.scalanative.cache.dir=${dir.getAbsolutePath}"
+        }
       )
       .withCommonTools
       .withBuildInfo(Test)

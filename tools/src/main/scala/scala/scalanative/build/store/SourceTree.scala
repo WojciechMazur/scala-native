@@ -2,7 +2,12 @@ package scala.scalanative
 package build
 package store
 
-import java.nio.file.{Files, Path}
+import java.io.IOException
+import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.{
+  FileVisitOption, FileVisitResult, Files, NoSuchFileException, Path,
+  SimpleFileVisitor
+}
 
 import scala.collection.mutable
 
@@ -30,18 +35,41 @@ private[scalanative] final case class SourceTree(
 
 private[scalanative] object SourceTree {
 
-  def apply(root: Path, include: Path => Boolean): SourceTree = {
+  def apply(
+      root: Path,
+      include: Path => Boolean,
+      digest: Path => Digest = Digest.of(_: Path)
+  ): SourceTree = {
     val files = mutable.ArrayBuffer.empty[(String, Digest)]
     if (Files.isDirectory(root)) {
-      val stream = Files.walk(root)
-      try
-        stream.forEach { path =>
-          if (Files.isRegularFile(path) && include(path)) {
+      // Files may come and go while walking, e.g. when the build directory
+      // is inside the tree: they are not part of it
+      val visitor = new SimpleFileVisitor[Path] {
+        override def visitFile(
+            path: Path,
+            attrs: BasicFileAttributes
+        ): FileVisitResult = {
+          if (attrs.isRegularFile() && include(path)) {
             val relative = root.relativize(path).toString.replace('\\', '/')
-            files += relative -> Digest.of(path)
+            try files += relative -> digest(path)
+            catch { case _: NoSuchFileException => () }
           }
+          FileVisitResult.CONTINUE
         }
-      finally stream.close()
+        override def visitFileFailed(
+            path: Path,
+            ex: IOException
+        ): FileVisitResult = ex match {
+          case _: NoSuchFileException => FileVisitResult.CONTINUE
+          case _                      => throw ex
+        }
+      }
+      Files.walkFileTree(
+        root,
+        java.util.EnumSet.of(FileVisitOption.FOLLOW_LINKS),
+        Int.MaxValue,
+        visitor
+      )
     }
     SourceTree(root, files.sortBy(_._1).toSeq)
   }

@@ -19,12 +19,23 @@ sealed abstract class ClassLoader {
 
 object ClassLoader {
 
-  def fromDisk(config: build.Config)(implicit in: Scope): ClassLoader = {
-    val classpath = config.classPath.map { path =>
-      ClassPath(VirtualDirectory.real(path), config.logger)
+  def fromDisk(config: build.Config)(implicit in: Scope): ClassLoader =
+    build.store.BuildCache.open(config) match {
+      // Granular builds load classes from the libraries derived from the
+      // classpath, see build.units.Library
+      case Some(cache) =>
+        try {
+          val libraries = build.units.Libraries.open(config, cache)
+          new FromDisk(libraries.map {
+            case (_, library) => ClassPath(library)
+          })
+        } finally cache.close()
+      case None =>
+        val classpath = config.classPath.map { path =>
+          ClassPath(VirtualDirectory.real(path), config.logger)
+        }
+        new FromDisk(classpath)
     }
-    new FromDisk(classpath)
-  }
 
   def fromMemory(defns: Seq[nir.Defn]): ClassLoader =
     new FromMemory(defns)

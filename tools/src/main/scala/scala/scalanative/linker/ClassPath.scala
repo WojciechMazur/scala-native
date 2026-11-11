@@ -39,6 +39,31 @@ object ClassPath {
   ): ClassPath =
     new Impl(directory, log)
 
+  /** Classpath entry read from its derived library, see `build.units.Library`.
+   */
+  private[scalanative] def apply(
+      library: build.units.Library.Reader
+  ): ClassPath = new FromLibrary(library)
+
+  private final class FromLibrary(library: build.units.Library.Reader)
+      extends ClassPath {
+    private val cache =
+      new java.util.concurrent.ConcurrentHashMap[nir.Global.Top, Option[
+        Seq[nir.Defn]
+      ]]
+
+    def contains(name: nir.Global): Boolean = library.contains(name.top)
+
+    def load(name: nir.Global.Top): Option[Seq[nir.Defn]] =
+      cache.computeIfAbsent(name, library.load(_))
+
+    lazy val classesWithEntryPoints: Iterable[nir.Global.Top] =
+      library.index.classes.filter(_.hasEntryPoints).map(_.name)
+
+    def definedServicesProviders: Map[nir.Global.Top, Seq[nir.Global.Top]] =
+      library.index.services
+  }
+
   private final class Impl(directory: VirtualDirectory, log: Logger)
       extends ClassPath {
     val nirFiles = mutable.Map.empty[nir.Global.Top, Path]

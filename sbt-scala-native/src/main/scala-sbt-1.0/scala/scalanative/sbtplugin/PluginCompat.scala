@@ -23,6 +23,19 @@ private[scalanative] object PluginCompat {
   def toFileRef(file: File)(implicit conv: FileConverter): FileRef =
     file
 
+  /** Links the binary of a link task, see `nativeLinkSettings`. */
+  lazy val nativeLinkRun =
+    taskKey[() => NioPath]("Links the binary of a native link task")
+
+  /** The link task `key`, run every time. */
+  def nativeLinkSettings(
+      key: TaskKey[FileRef],
+      outputKey: TaskKey[String],
+      tag: Tags.Tag
+  ): Seq[Setting[_]] = Seq(
+    key := Def.task((key / nativeLinkRun).value().toFile()).tag(tag).value
+  )
+
   val sbtVersionBaseSettings = Seq[Setting[_]](
     Keys.crossVersion := ScalaNativeCrossVersion.binary,
     platformDepsCrossVersion := ScalaNativeCrossVersion.binary

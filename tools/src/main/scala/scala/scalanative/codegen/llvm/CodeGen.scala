@@ -203,7 +203,8 @@ object CodeGen {
 
   /** Writes `selected` to `outputDir`, one IR file per source file, with
    *  references to `env` declared, C symbols weakly. Returns the IR files with
-   *  the C symbols each refers to.
+   *  the C symbols each refers to. Units linked as shared libraries export
+   *  their globals too.
    */
   private[scalanative] def emitUnit(
       config: build.Config,
@@ -228,8 +229,13 @@ object CodeGen {
       case (source, defns) =>
         Future {
           val id = build.store.Digest.of(source).hash.take(24)
-          val codegen =
-            Impl(envMap, defns.sortBy(_.name), sourceCodeCache, weak = true)
+          val codegen = Impl(
+            envMap,
+            defns.sortBy(_.name),
+            sourceCodeCache,
+            weak = true,
+            shared = config.compilerConfig.useDynamicLibraries
+          )
           val path = codegen.gen(id, dir)
           path -> codegen.weakExternSymbols.toSet
         }
@@ -368,21 +374,25 @@ object CodeGen {
         env: Map[nir.Global, nir.Defn],
         defns: Seq[nir.Defn],
         sourcesCache: SourceCodeCache,
-        weak: Boolean = false
+        weak: Boolean = false,
+        shared: Boolean = false
     )(implicit
         meta: CodeGenMetadata
-    ): AbstractCodeGen = new StdCodeGen(env, defns, sourcesCache, weak)
+    ): AbstractCodeGen =
+      new StdCodeGen(env, defns, sourcesCache, weak, shared)
 
     private class StdCodeGen(
         env: Map[nir.Global, nir.Defn],
         defns: Seq[nir.Defn],
         sourcesCache: SourceCodeCache,
-        weak: Boolean
+        weak: Boolean,
+        shared: Boolean
     )(implicit
         meta: CodeGenMetadata
     ) extends AbstractCodeGen(env, defns) {
       override def sourceCodeCache: SourceCodeCache = sourcesCache
       override protected def weakExterns: Boolean = weak
+      override protected def sharedLibrary: Boolean = shared
     }
 
     class BuildInfoCodegen(env: Map[nir.Global, nir.Defn])(implicit

@@ -92,6 +92,11 @@ private[codegen] abstract class AbstractCodeGen(
    *  configuration lacks, from code no program using them reaches.
    */
   protected def weakExterns: Boolean = false
+
+  /** Code of a shared library: globals are visible to other images, which refer
+   *  to class metadata, and no definition is assumed local to an executable.
+   */
+  protected def sharedLibrary: Boolean = false
   private val weakDeclared = mutable.Set.empty[nir.Global]
 
   /** Symbols of the C declarations referenced weakly, see `weakExterns`. */
@@ -150,7 +155,7 @@ private[codegen] abstract class AbstractCodeGen(
     val flags = List.newBuilder[Metadata.Node]
     if (!platform.targetsWindows) {
       flags += tuple(Min, "PIC Level", PIC_LEVEL)
-      if (meta.config.buildTarget == BuildTarget.Application)
+      if (meta.config.buildTarget == BuildTarget.Application && !sharedLibrary)
         flags += tuple(Max, "PIE Level", PIE_LEVEL)
     }
     if (generateDebugMetadata) {
@@ -326,7 +331,7 @@ private[codegen] abstract class AbstractCodeGen(
     genGlobal(name)
     str(" = ")
     str(
-      if (!attrs.isExtern) "hidden "
+      if (!attrs.isExtern) { if (sharedLibrary) "" else "hidden " }
       else if (weakDeclared.contains(name)) "extern_weak "
       else "external "
     )

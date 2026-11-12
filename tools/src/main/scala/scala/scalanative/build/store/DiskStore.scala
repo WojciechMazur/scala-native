@@ -7,10 +7,11 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.attribute.FileTime
 import java.nio.file.{
   AtomicMoveNotSupportedException, DirectoryNotEmptyException,
-  FileAlreadyExistsException, Files, NoSuchFileException, Path,
-  StandardCopyOption
+  FileAlreadyExistsException, FileSystemException, Files, NoSuchFileException,
+  Path, StandardCopyOption
 }
 import java.security.DigestOutputStream
+import java.util.UUID
 
 import scala.collection.mutable
 
@@ -21,6 +22,8 @@ import scala.collection.mutable
  *  <root>/ac/<2 hex>/<action key>    action results
  *  <root>/cas/<2 hex>/<sha256>       blobs
  *  <root>/sources/<tree digest>/     source trees referenced by debug info
+ *  <root>/lib/                       shared libraries programs load, linked
+ *                                    to their blobs
  *  <root>/tmp/                       staging area for atomic publishing
  *  }}}
  *
@@ -28,12 +31,24 @@ import scala.collection.mutable
  *  nothing or a complete entry and never need a lock. Concurrent writers of the
  *  same entry produce the same content, the last move wins. Reads verify blob
  *  contents, a corrupt blob is deleted and reported as missing.
+ *
+ *  Except on Windows, blobs are read-only and restored as hard links: outputs
+ *  take no space of their own, and stay real files, which loaders resolving
+ *  paths relative to a library need. Outputs must be replaced, never written in
+ *  place.
  */
 private[scalanative] final class DiskStore(val root: Path) extends ActionStore {
+  import DiskStore.linksBlobs
+
   private val acDir = root.resolve("ac")
   private val casDir = root.resolve("cas")
   private val sourcesDir = root.resolve("sources")
   private val tmpDir = root.resolve("tmp")
+
+  /** Where shared libraries of library units are placed, see
+   *  `units.UnitCompile`.
+   */
+  val libraries: Path = root.resolve("lib")
 
   private def acPath(key: ActionKey): Path =
     acDir.resolve(key.hash.substring(0, 2)).resolve(key.hash)
@@ -66,6 +81,9 @@ private[scalanative] final class DiskStore(val root: Path) extends ActionStore {
     }
   }
 
+  /** Marks the result of `key` as recently used. */
+  def touchAction(key: ActionKey): Unit = touch(acPath(key))
+
   def putAction(key: ActionKey, result: ActionResult): Unit = {
     result.outputs.foreach {
       case (name, digest) =>
@@ -88,7 +106,17 @@ private[scalanative] final class DiskStore(val root: Path) extends ActionStore {
       try Files.copy(file, out)
       finally out.close()
       val digest = Digest(Digest.hex(md.digest()), Files.size(tmp))
-      if (!hasBlob(digest)) moveIntoPlace(tmp, casPath(digest))
+      if (!hasBlob(digest)) {
+        makeReadOnly(tmp)
+        moveIntoPlace(tmp, casPath(digest))
+      }
+      // The output becomes a link as when restored
+      if (linksBlobs) {
+        val parent = file.toAbsolutePath().getParent()
+        val linked = parent.resolve(s".sn-blob-${UUID.randomUUID()}.tmp")
+        try if (link(casPath(digest), linked)) moveIntoPlace(linked, file)
+        finally deleteQuietly(linked)
+      }
       digest
     } finally deleteQuietly(tmp)
   }
@@ -99,13 +127,12 @@ private[scalanative] final class DiskStore(val root: Path) extends ActionStore {
     else {
       val parent = target.toAbsolutePath().getParent()
       Files.createDirectories(parent)
-      val tmp = Files.createTempFile(parent, ".sn-blob-", ".tmp")
+      val tmp = parent.resolve(s".sn-blob-${UUID.randomUUID()}.tmp")
       try {
-        val md = Digest.newMessageDigest()
-        val out = new DigestOutputStream(Files.newOutputStream(tmp), md)
-        try Files.copy(blob, out)
-        finally out.close()
-        if (Digest.hex(md.digest()) != digest.hash) {
+        val restored =
+          if (linksBlobs && link(blob, tmp)) hashOf(blob) == digest.hash
+          else copy(blob, tmp) == digest.hash
+        if (!restored) {
           deleteQuietly(blob)
           false
         } else {
@@ -117,6 +144,42 @@ private[scalanative] final class DiskStore(val root: Path) extends ActionStore {
       } finally deleteQuietly(tmp)
     }
   }
+
+  // Hard links need the same file system, outputs are copied otherwise
+  private def link(blob: Path, target: Path): Boolean =
+    try {
+      makeReadOnly(blob) // blobs stored by earlier versions
+      Files.createLink(target, blob)
+      true
+    } catch {
+      case _: UnsupportedOperationException | _: FileSystemException => false
+    }
+
+  // Copies `blob` to `target`, returns the hash of what was copied
+  private def copy(blob: Path, target: Path): String = {
+    val md = Digest.newMessageDigest()
+    val out = new DigestOutputStream(Files.newOutputStream(target), md)
+    try Files.copy(blob, out)
+    finally out.close()
+    Digest.hex(md.digest())
+  }
+
+  private def hashOf(file: Path): String = {
+    val md = Digest.newMessageDigest()
+    val in = Files.newInputStream(file)
+    try {
+      val buffer = new Array[Byte](1 << 16)
+      var read = in.read(buffer)
+      while (read >= 0) {
+        md.update(buffer, 0, read)
+        read = in.read(buffer)
+      }
+    } finally in.close()
+    Digest.hex(md.digest())
+  }
+
+  private def makeReadOnly(path: Path): Unit =
+    if (linksBlobs) path.toFile().setWritable(false, false)
 
   /** A copy of `tree`, made if not stored yet. Object files built from the tree
    *  refer to this location in their debug info, so it stays valid whichever
@@ -229,6 +292,19 @@ private[scalanative] final class DiskStore(val root: Path) extends ActionStore {
     listDir(sourcesDir).foreach { dir =>
       if (lastModified(dir) <= evictedUntil) IO.deleteRecursive(dir)
     }
+    // Libraries whose blob is gone, and programs needing them
+    listDir(libraries).foreach { path =>
+      if (Files.isRegularFile(path) && linkCount(path) == 1 &&
+          now - lastModified(path) > grace)
+        deleteQuietly(path)
+    }
+    listDir(libraries.resolve(DiskStore.ProgramsDir)).foreach { record =>
+      val needed =
+        try Files.readAllLines(record).toArray.toSeq.map(_.toString)
+        catch { case _: IOException => Nil }
+      if (!needed.forall(name => Files.exists(libraries.resolve(name))))
+        deleteQuietly(record)
+    }
     listDir(tmpDir).foreach { path =>
       if (now - lastModified(path) > grace) IO.deleteRecursive(path)
     }
@@ -296,6 +372,10 @@ private[scalanative] final class DiskStore(val root: Path) extends ActionStore {
       )
     catch { case _: IOException => () }
 
+  private def linkCount(path: Path): Int =
+    try Files.getAttribute(path, "unix:nlink").asInstanceOf[Int]
+    catch { case _: Exception => 0 }
+
   private def lastModified(path: Path): Long =
     try Files.getLastModifiedTime(path).toMillis()
     catch { case _: IOException => 0L }
@@ -324,6 +404,13 @@ private[scalanative] final class DiskStore(val root: Path) extends ActionStore {
 private[scalanative] object DiskStore {
   final val DefaultGraceMillis: Long = 60L * 60 * 1000
   final val DefaultGcIntervalMillis: Long = 24L * 60 * 60 * 1000
+
+  /** Records of the libraries each program needs, in the library directory, see
+   *  `BuildPlan`.
+   */
+  final val ProgramsDir = "programs"
+
+  private val linksBlobs = !scala.util.Properties.isWin
 
   final case class GcStats(
       actions: Int,

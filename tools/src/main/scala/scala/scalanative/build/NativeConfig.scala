@@ -88,6 +88,13 @@ sealed trait NativeConfig {
    */
   def libraryExclusions: Seq[String]
 
+  /** Shall granular builds link library units as shared libraries? Programs are
+   *  then small executables loading libraries compiled once, shared by every
+   *  program using the same libraries and configuration. Linux and macOS only,
+   *  other platforms link statically.
+   */
+  def useDynamicLibraries: Boolean
+
    // format: off
   /** Shall be compiled with multithreading support.
    *
@@ -287,6 +294,9 @@ sealed trait NativeConfig {
   /** Create a new config with given library exclusions */
   def withLibraryExclusions(value: Seq[String]): NativeConfig
 
+  /** Create a new config with given dynamicLibraries value */
+  def withDynamicLibraries(value: Boolean): NativeConfig
+
   /** Create a new config with support for multithreading */
   def withMultithreading(enabled: Boolean): NativeConfig
 
@@ -372,6 +382,7 @@ object NativeConfig {
       useIncrementalCompilation = true,
       useGranularBuild = false,
       libraryExclusions = Nil,
+      useDynamicLibraries = false,
       multithreading = None, // detect
       linktimeProperties = Map.empty,
       embedResources = false,
@@ -406,6 +417,7 @@ object NativeConfig {
       useIncrementalCompilation: Boolean,
       useGranularBuild: Boolean,
       libraryExclusions: Seq[String],
+      useDynamicLibraries: Boolean,
       multithreading: Option[Boolean],
       linktimeProperties: LinktimeProperites,
       embedResources: Boolean,
@@ -490,6 +502,9 @@ object NativeConfig {
 
     override def withLibraryExclusions(value: Seq[String]): NativeConfig =
       copy(libraryExclusions = value)
+
+    override def withDynamicLibraries(value: Boolean): NativeConfig =
+      copy(useDynamicLibraries = value)
 
     def withMultithreading(enabled: Boolean): NativeConfig =
       copy(multithreading = Some(enabled))
@@ -586,6 +601,7 @@ object NativeConfig {
           | - incrementalCompilation:  $useIncrementalCompilation
           | - granularBuild:           $useGranularBuild
           | - libraryExclusions:       ${libraryExclusions.mkString(", ")}
+          | - dynamicLibraries:        $useDynamicLibraries
           | - multithreading           ${multithreading.getOrElse("detect")}
           | - linktimeProperties:      ${showMap(linktimeProperties)}
           | - embedResources:          $embedResources

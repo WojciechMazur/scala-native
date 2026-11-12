@@ -505,6 +505,7 @@ object NativeConfigJsonFormats {
       final val UseIncrementalCompilation = "useIncrementalCompilation"
       final val UseGranularBuild = "useGranularBuild"
       final val LibraryExclusions = "libraryExclusions"
+      final val UseDynamicLibraries = "useDynamicLibraries"
       final val Multithreading = "multithreading"
       final val LinktimeProperties = "linktimeProperties"
       final val EmbedResources = "embedResources"
@@ -540,6 +541,7 @@ object NativeConfigJsonFormats {
       builder.addField(Field.UseIncrementalCompilation, obj.useIncrementalCompilation)
       builder.addField(Field.UseGranularBuild, obj.useGranularBuild)
       builder.addField(Field.LibraryExclusions, obj.libraryExclusions)
+      builder.addField(Field.UseDynamicLibraries, obj.useDynamicLibraries)
       builder.addField(Field.Multithreading, obj.multithreading)
       builder.addField(Field.LinktimeProperties, obj.linktimeProperties)
       builder.addField(Field.EmbedResources, obj.embedResources)
@@ -579,6 +581,7 @@ object NativeConfigJsonFormats {
           .withIncrementalCompilation(unbuilder.readField[Boolean](Field.UseIncrementalCompilation))
           .withGranularBuild(unbuilder.readField[Boolean](Field.UseGranularBuild))
           .withLibraryExclusions(unbuilder.readField[Seq[String]](Field.LibraryExclusions))
+          .withDynamicLibraries(unbuilder.readField[Boolean](Field.UseDynamicLibraries))
           .withMultithreading(unbuilder.readField[Option[Boolean]](Field.Multithreading))
           .withLinktimeProperties(_ => unbuilder.readField[NativeConfig.LinktimeProperites](Field.LinktimeProperties))
           .withEmbedResources(unbuilder.readField[Boolean](Field.EmbedResources))

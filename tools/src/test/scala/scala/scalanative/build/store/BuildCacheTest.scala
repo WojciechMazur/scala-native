@@ -54,7 +54,11 @@ class BuildCacheTest {
       new String(Files.readAllBytes(second.resolve("out.o")))
     )
 
-    // A modified or deleted output is restored
+    // A replaced or deleted output is restored. Outputs are links to read-only
+    // blobs, never modified in place
+    if (!scala.util.Properties.isWin)
+      assertFalse(Files.isWritable(first.resolve("out.o")))
+    Files.delete(first.resolve("out.o"))
     IO.write(first.resolve("out.o"), "modified output")
     assertEquals(BuildCache.Restored, build(first))
     Files.delete(first.resolve("out.o"))

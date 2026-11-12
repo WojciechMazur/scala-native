@@ -6,6 +6,7 @@ import java.nio.file.attribute.FileTime
 import java.nio.file.{Files, Path}
 
 import org.junit.Assert._
+import org.junit.Assume.assumeFalse
 import org.junit.Test
 
 class DiskStoreTest {
@@ -60,6 +61,11 @@ class DiskStoreTest {
     val restored = dir.resolve("restored/out.o")
     assertTrue(store.getBlob(digest, restored))
     assertEquals("object code", read(restored))
+    if (!scala.util.Properties.isWin) {
+      // A link to the blob, which no build may write to
+      assertTrue(Files.isSameFile(store.casPath(digest), restored))
+      assertFalse(Files.isWritable(restored))
+    }
     assertEquals(None, store.getAction(key("b")))
   }
 
@@ -84,6 +90,7 @@ class DiskStoreTest {
     assertEquals("missing blob", None, store.getAction(key("a")))
 
     // Same size, different content
+    store.casPath(b).toFile().setWritable(true)
     IO.write(store.casPath(b), "content of c")
     val target = file(dir, "target", "previous")
     assertFalse(store.getBlob(b, target))
@@ -100,6 +107,41 @@ class DiskStoreTest {
     IO.write(ac.resolve(key("a").hash), "truncated")
     assertEquals(None, store.getAction(key("a")))
   }
+
+  @Test def garbageCollectionRemovesLibrariesOfEvictedActions(): Unit =
+    withDir { dir =>
+      assumeFalse("Libraries are links", scala.util.Properties.isWin)
+      val store = new DiskStore(dir.resolve("store"))
+      def library(name: String): Path = {
+        val output = store.libraries.resolve(s"libsn-$name.so")
+        IO.write(output, s"code of $name")
+        val blob = store.putBlob(output)
+        store.putAction(key(name), ActionResult(Seq("library" -> blob)))
+        IO.write(
+          store.libraries.resolve(s"programs/$name"),
+          output.getFileName.toString
+        )
+        age(
+          dir
+            .resolve("store/ac")
+            .resolve(key(name).hash.take(2))
+            .resolve(key(name).hash),
+          20000
+        )
+        age(store.casPath(blob), 20000)
+        age(output, 20000)
+        output
+      }
+      val used = library("used")
+      val evicted = library("evicted")
+      assertTrue(store.getAction(key("used")).isDefined)
+
+      store.collectGarbage(maxSizeBytes = 1500, grace = 5000)
+      assertTrue(Files.exists(used))
+      assertTrue(Files.exists(store.libraries.resolve("programs/used")))
+      assertFalse(Files.exists(evicted))
+      assertFalse(Files.exists(store.libraries.resolve("programs/evicted")))
+    }
 
   @Test def garbageCollectionEvictsLeastRecentlyUsed(): Unit = withDir { dir =>
     val store = new DiskStore(dir.resolve("store"))

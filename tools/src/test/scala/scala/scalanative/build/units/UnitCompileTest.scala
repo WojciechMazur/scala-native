@@ -13,6 +13,7 @@ import scala.concurrent.duration.Duration
 import scala.sys.process._
 
 import org.junit.Assert._
+import org.junit.Assume.assumeFalse
 import org.junit.Test
 
 import scala.scalanative.buildinfo.ScalaNativeBuildInfo
@@ -75,7 +76,8 @@ class UnitCompileTest {
   private def build(
       dir: Path,
       main: String,
-      exclusions: Seq[String] = Nil
+      exclusions: Seq[String] = Nil,
+      dynamic: Boolean = false
   ): (Config, Either[Throwable, Path]) = {
     // Compiled together, then split into the library jar and the program
     val classes = Files.createDirectories(dir.resolve("classes"))
@@ -106,6 +108,7 @@ class UnitCompileTest {
           .withMode(Mode.debug)
           .withGranularBuild(true)
           .withLibraryExclusions(exclusions)
+          .withDynamicLibraries(dynamic)
       )
       .withLogger(Logger.nullLogger)
     val result =
@@ -215,5 +218,35 @@ class UnitCompileTest {
         assertTrue(ex.getMessage, ex.getMessage.contains("libraryExclusions"))
       case other => fail(s"Expected a link failure, got $other")
     }
+  }
+
+  @Test def linksLibrariesDynamically(): Unit = withDir { dir =>
+    assumeFalse("Static only", scala.util.Properties.isWin)
+    val (config, result) = build(dir, usesApi, dynamic = true)
+    val binary = result.fold(throw _, identity)
+    assertEquals("84", Process(binary.toString).!!.trim)
+    val plan = Build.plan(config)
+    val libraryDir = store.BuildCache.libraryDir(config)
+    val libraries = new String(
+      Files.readAllBytes(
+        libraryDir.resolve("programs").resolve(plan.outputKey)
+      ),
+      StandardCharsets.UTF_8
+    ).split('\n').toSeq.map(libraryDir.resolve(_))
+    // The runtime and lib.jar
+    assertEquals(libraries.mkString(", "), 2, libraries.size)
+    // The program holds no library code
+    assertTrue(Files.size(binary) < libraries.map(Files.size(_)).max / 10)
+    // Libraries are links to the blobs of the store
+    libraries.foreach { library =>
+      assertTrue(
+        library.toString,
+        Files.getAttribute(library, "unix:nlink").asInstanceOf[Int] > 1
+      )
+    }
+    // Build tools may keep the program only while its libraries exist
+    assertTrue(plan.restorable)
+    Files.delete(libraries.head)
+    assertFalse(plan.restorable)
   }
 }

@@ -1,0 +1,20 @@
+# The first link records the libraries the program needs, the second one is
+# cached by sbt under the output key
+> nativeLink
+> nativeLink
+> forgetToolchainRun
+> nativeLink
+> checkToolchainSkipped
+> run
+
+# After clean, sbt restores the program, the build cache keeps its libraries
+> clean
+> nativeLink
+> checkToolchainSkipped
+> run
+
+# Without its libraries, the program links again
+> deleteLibraries
+> nativeLink
+> checkToolchainRan
+> run

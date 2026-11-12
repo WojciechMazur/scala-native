@@ -57,7 +57,9 @@ private[codegen] object ITable {
       ITable(
         mask = 0,
         shift = 0,
-        nir.Val.Global(emptyName, nir.Type.Ptr),
+        // Granular builds compile libraries apart: each module has its copy
+        if (meta.granular) nir.Val.Const(emptyEntry)
+        else nir.Val.Global(emptyName, nir.Type.Ptr),
         Set.empty
       )
     else {

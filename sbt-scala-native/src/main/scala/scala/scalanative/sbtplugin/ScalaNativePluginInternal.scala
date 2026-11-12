@@ -132,6 +132,7 @@ object ScalaNativePluginInternal {
         .withMode(Discover.mode())
         .withOptimize(Discover.optimize())
         .withGranularBuild(Discover.granularBuild())
+        .withDynamicLibraries(Discover.dynamicLibraries())
     },
     ThisBuild / nativeConfig := (Global / nativeConfig).value,
     nativeWarnOldJVM := {
@@ -203,8 +204,12 @@ object ScalaNativePluginInternal {
         testConfig = testConfig,
         moduleName = moduleName.value + moduleSuffix
       )
-      if (PluginCompat.cachesTasks)
-        interceptBuildException(Build.plan(config).outputKey)
+      if (PluginCompat.cachesTasks) interceptBuildException {
+        val plan = Build.plan(config)
+        // Executables whose libraries are missing link again
+        if (plan.restorable) plan.outputKey
+        else java.util.UUID.randomUUID().toString
+      }
       else ""
     }
   }
@@ -213,154 +218,163 @@ object ScalaNativePluginInternal {
   private final val isGeneratingForIDE =
     sys.env.getOrElse("METALS_ENABLED", "false").toBoolean
 
-  private def nativeLinkCachedTask(
+  /** The link of `linkKey`, run by the link task when its inputs changed, see
+   *  `PluginCompat.nativeLinkSettings`: only it may be cached.
+   */
+  private def nativeLinkRunTask(
       testConfig: Boolean,
       moduleSuffix: String,
       linkKey: TaskKey[FileRef]
-  ): Def.Initialize[Task[FileRef]] =
-    Def
-      .task {
-        implicit val conv: FileConverter = Keys.fileConverter.value
-        val sbtLogger = streams.value.log
-        val nativeLogger = sbtLogger.toLogger
-        val classpath = PluginCompat.toNioPaths(fullClasspath.value)
-        val userConfig = (linkKey / nativeConfig).value
+  ): Def.Initialize[Task[() => java.nio.file.Path]] =
+    Def.task {
+      implicit val conv: FileConverter = Keys.fileConverter.value
+      val sbtLogger = streams.value.log
+      val nativeLogger = sbtLogger.toLogger
+      val classpath = PluginCompat.toNioPaths(fullClasspath.value)
+      val userConfig = (linkKey / nativeConfig).value
+      val resolution = dependencyResolution.value
+      val externalClasspath = externalDependencyClasspath.value
+      val mainClass = selectMainClass.value
+      val baseDir = crossTarget.value.toPath()
+      val module = moduleName.value + moduleSuffix
+      () => {
         val sourcesClassPath = resolveSourcesClassPath(
           userConfig,
-          dependencyResolution.value,
-          externalDependencyClasspath.value,
+          resolution,
+          externalClasspath,
           sbtLogger
         )
-
-        // Part of the cache key of this task, see nativeLinkOutputKey
-        val _ = (linkKey / nativeLinkOutputKey).value
-        val artifactFile = nativeLinkImpl(
+        nativeLinkImpl(
           linkConfig(
             nativeConfig = userConfig,
             classpath = classpath,
             sourcesClassPath = sourcesClassPath,
             nativeLogger = nativeLogger,
-            mainClass = selectMainClass.value,
-            baseDir = crossTarget.value.toPath(),
+            mainClass = mainClass,
+            baseDir = baseDir,
             testConfig = testConfig,
-            moduleName = moduleName.value + moduleSuffix
+            moduleName = module
           )
-        )
-        toFileRef(artifactFile)
+        ).toPath()
       }
-      .tag(NativeTags.Link)
+    }
 
   /** Config settings are called for each project, for each Scala version, and
    *  for test and app configurations. The total with 3 Scala versions equals 6
    *  times per project.
    */
-  def scalaNativeConfigSettings(testConfig: Boolean): Seq[Setting[_]] = Seq(
-    auxiliaryClassFiles := Def.uncached {
-      auxiliaryClassFiles.value :+ NirAuxiliaryClassFiles
-    },
-    compile / scalacOptions ++= {
-      if (isGeneratingForIDE) None
-      else
-        Some(
-          s"-P:scalanative:positionRelativizationPaths:${sourceDirectories.value.map(_.getAbsolutePath()).mkString(";")}"
-        )
-    },
-    nativeLink / nativeConfig := nativeConfig.value,
-    nativeLinkReleaseFast / nativeConfig := nativeConfig.value
-      .withMode(Mode.releaseFast),
-    nativeLinkReleaseFull / nativeConfig := nativeConfig.value
-      .withMode(Mode.releaseFull),
-    nativeLink / nativeLinkOutputKey :=
-      nativeLinkOutputKeyTask(testConfig, "", nativeLink).value,
-    nativeLinkReleaseFast / nativeLinkOutputKey := nativeLinkOutputKeyTask(
-      testConfig,
-      "-release-fast",
-      nativeLinkReleaseFast
-    ).value,
-    nativeLinkReleaseFull / nativeLinkOutputKey := nativeLinkOutputKeyTask(
-      testConfig,
-      "-release-full",
-      nativeLinkReleaseFull
-    ).value,
-    nativeLinkReleaseFull := nativeLinkCachedTask(
-      testConfig,
-      moduleSuffix = "-release-full",
-      linkKey = nativeLinkReleaseFull
-    ).value,
-    nativeLinkReleaseFast := nativeLinkCachedTask(
-      testConfig,
-      moduleSuffix = "-release-fast",
-      linkKey = nativeLinkReleaseFast
-    ).value,
-    nativeLink := nativeLinkCachedTask(
-      testConfig,
-      moduleSuffix = "",
-      linkKey = nativeLink
-    ).value,
-    console := console
-      .dependsOn(Def.task {
-        streams.value.log.warn(
-          "Scala REPL doesn't work with Scala Native. You " +
-            "are running a JVM REPL. Native things won't work."
-        )
-      })
-      .value,
-    run := {
-      implicit val conv: FileConverter = Keys.fileConverter.value
-      val env = (run / envVars).value.toSeq
-      val logger = streams.value.log
-      val binary = toFile(nativeLink.value).getAbsolutePath
-      val args = binary +: spaceDelimited("<arg>").parsed
-
-      @volatile var pipeOutputThreads: List[Thread] = Nil
-
-      logger.running(args)
-
-      val message = try {
-        val exitCode = {
-          val proc =
-            new ProcessBuilder(args: _*)
-
-          env.foreach { case (k, v) => proc.environment().put(k, v) }
-
-          val process = proc.start()
-
-          /*
-           * Comment copied from Scala.js:
-           * https://github.com/scala-js/scala-js/blob/35c206173ad3b6626a8bd02b687690fcfba93c31/sbt-plugin/src/main/scala/org/scalajs/sbtplugin/ScalaJSPluginInternal.scala#L598-L603
-           *
-           * #4560 Explicitly redirect out/err to System.out/System.err, instead
-           * of relying on `inheritOut` and `inheritErr`, so that streams
-           * installed with `System.setOut` and `System.setErr` are always taken
-           * into account. sbt installs such alternative outputs when it runs in
-           * server mode.
-           */
-          val err = process.getErrorStream()
-          val out = process.getInputStream()
-          pipeOutputThreads = List(
-            PipeOutputThread.start(err, System.err),
-            PipeOutputThread.start(out, System.out)
+  def scalaNativeConfigSettings(testConfig: Boolean): Seq[Setting[_]] =
+    Seq(nativeLink, nativeLinkReleaseFast, nativeLinkReleaseFull).flatMap(
+      PluginCompat.nativeLinkSettings(_, nativeLinkOutputKey, NativeTags.Link)
+    ) ++ Seq(
+      auxiliaryClassFiles := Def.uncached {
+        auxiliaryClassFiles.value :+ NirAuxiliaryClassFiles
+      },
+      compile / scalacOptions ++= {
+        if (isGeneratingForIDE) None
+        else
+          Some(
+            s"-P:scalanative:positionRelativizationPaths:${sourceDirectories.value.map(_.getAbsolutePath()).mkString(";")}"
           )
+      },
+      nativeLink / nativeConfig := nativeConfig.value,
+      nativeLinkReleaseFast / nativeConfig := nativeConfig.value
+        .withMode(Mode.releaseFast),
+      nativeLinkReleaseFull / nativeConfig := nativeConfig.value
+        .withMode(Mode.releaseFull),
+      nativeLink / nativeLinkOutputKey :=
+        nativeLinkOutputKeyTask(testConfig, "", nativeLink).value,
+      nativeLinkReleaseFast / nativeLinkOutputKey := nativeLinkOutputKeyTask(
+        testConfig,
+        "-release-fast",
+        nativeLinkReleaseFast
+      ).value,
+      nativeLinkReleaseFull / nativeLinkOutputKey := nativeLinkOutputKeyTask(
+        testConfig,
+        "-release-full",
+        nativeLinkReleaseFull
+      ).value,
+      nativeLinkReleaseFull / PluginCompat.nativeLinkRun := Def.uncached(
+        nativeLinkRunTask(
+          testConfig,
+          "-release-full",
+          nativeLinkReleaseFull
+        ).value
+      ),
+      nativeLinkReleaseFast / PluginCompat.nativeLinkRun := Def.uncached(
+        nativeLinkRunTask(
+          testConfig,
+          "-release-fast",
+          nativeLinkReleaseFast
+        ).value
+      ),
+      nativeLink / PluginCompat.nativeLinkRun := Def.uncached(
+        nativeLinkRunTask(testConfig, "", nativeLink).value
+      ),
+      console := console
+        .dependsOn(Def.task {
+          streams.value.log.warn(
+            "Scala REPL doesn't work with Scala Native. You " +
+              "are running a JVM REPL. Native things won't work."
+          )
+        })
+        .value,
+      run := {
+        implicit val conv: FileConverter = Keys.fileConverter.value
+        val env = (run / envVars).value.toSeq
+        val logger = streams.value.log
+        val binary = toFile(nativeLink.value).getAbsolutePath
+        val args = binary +: spaceDelimited("<arg>").parsed
 
-          process.waitFor()
+        @volatile var pipeOutputThreads: List[Thread] = Nil
+
+        logger.running(args)
+
+        val message = try {
+          val exitCode = {
+            val proc =
+              new ProcessBuilder(args: _*)
+
+            env.foreach { case (k, v) => proc.environment().put(k, v) }
+
+            val process = proc.start()
+
+            /*
+             * Comment copied from Scala.js:
+             * https://github.com/scala-js/scala-js/blob/35c206173ad3b6626a8bd02b687690fcfba93c31/sbt-plugin/src/main/scala/org/scalajs/sbtplugin/ScalaJSPluginInternal.scala#L598-L603
+             *
+             * #4560 Explicitly redirect out/err to System.out/System.err, instead
+             * of relying on `inheritOut` and `inheritErr`, so that streams
+             * installed with `System.setOut` and `System.setErr` are always taken
+             * into account. sbt installs such alternative outputs when it runs in
+             * server mode.
+             */
+            val err = process.getErrorStream()
+            val out = process.getInputStream()
+            pipeOutputThreads = List(
+              PipeOutputThread.start(err, System.err),
+              PipeOutputThread.start(out, System.out)
+            )
+
+            process.waitFor()
+          }
+
+          if (exitCode == 0) None
+          else Some("Nonzero exit code: " + exitCode)
+        } finally {
+          // always shutdown the output piping threads
+          for (pipeOutputThread <- pipeOutputThreads)
+            pipeOutputThread.join()
         }
 
-        if (exitCode == 0) None
-        else Some("Nonzero exit code: " + exitCode)
-      } finally {
-        // always shutdown the output piping threads
-        for (pipeOutputThread <- pipeOutputThreads)
-          pipeOutputThread.join()
+        message.foreach(sys.error)
+      },
+      runMain := {
+        throw new MessageOnlyException(
+          "`runMain` is not supported in Scala Native"
+        )
       }
-
-      message.foreach(sys.error)
-    },
-    runMain := {
-      throw new MessageOnlyException(
-        "`runMain` is not supported in Scala Native"
-      )
-    }
-  )
+    )
 
   lazy val scalaNativeCompileSettings: Seq[Setting[_]] = {
     scalaNativeConfigSettings(false)

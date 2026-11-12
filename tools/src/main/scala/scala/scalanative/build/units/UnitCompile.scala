@@ -24,12 +24,18 @@ import scala.scalanative.linker.{ClassLoader, Reach, ReachabilityAnalysis}
  *    definitions left out of the unit, with the reason
  *  @param externs
  *    C symbols the archive refers to weakly
+ *  @param links
+ *    libraries of every `@link` of the unit
+ *  @param linkCppRuntime
+ *    whether the unit needs the C++ runtime
  */
 private[scalanative] final case class UnitManifest(
     exports: Set[nir.Global],
     hidden: Set[nir.Global],
     excluded: Map[nir.Global, String],
-    externs: Set[String]
+    externs: Set[String],
+    links: Set[String] = Set.empty,
+    linkCppRuntime: Boolean = false
 ) {
   def defined: Set[nir.Global] = exports ++ hidden
 
@@ -45,8 +51,10 @@ private[scalanative] final case class UnitManifest(
         s"exclude\t${name.mangle}\t${reason.replaceAll("[\t\n]", " ")}"
     }.sorted
     val externLines = externs.toSeq.sorted.map(symbol => s"extern\t$symbol")
+    val linkLines = links.toSeq.sorted.map(name => s"link\t$name") ++
+      (if (linkCppRuntime) Seq("cpp") else Nil)
     (lines("export", exports) ++ lines("hidden", hidden) ++ excludedLines ++
-      externLines).mkString("", "\n", "\n")
+      externLines ++ linkLines).mkString("", "\n", "\n")
   }
 }
 
@@ -56,6 +64,8 @@ private[scalanative] object UnitManifest {
     val hidden = Set.newBuilder[nir.Global]
     val excluded = Map.newBuilder[nir.Global, String]
     val externs = Set.newBuilder[String]
+    val links = Set.newBuilder[String]
+    var linkCppRuntime = false
     text.split('\n').foreach { line =>
       line.split('\t') match {
         case Array("export", name) =>
@@ -65,6 +75,8 @@ private[scalanative] object UnitManifest {
         case Array("exclude", name, reason) =>
           excluded += nir.Unmangle.unmangleGlobal(name) -> reason
         case Array("extern", symbol) => externs += symbol
+        case Array("link", name)     => links += name
+        case Array("cpp")            => linkCppRuntime = true
         case _                       => ()
       }
     }
@@ -72,17 +84,36 @@ private[scalanative] object UnitManifest {
       exports.result(),
       hidden.result(),
       excluded.result(),
-      externs.result()
+      externs.result(),
+      links.result(),
+      linkCppRuntime
     )
   }
 }
 
-/** A compiled library unit: an archive with one object per source file. */
+/** A compiled library unit: an archive with one object per source file.
+ *
+ *  @param library
+ *    the shared library of the unit, with its native code, when units are
+ *    linked dynamically
+ *  @param sections
+ *    the object registering the static sections of an image with the runtime,
+ *    linked into every image when units are linked dynamically
+ */
 private[scalanative] final case class CompiledUnit(
     unit: BuildUnit,
     archive: Path,
-    manifest: UnitManifest
-)
+    manifest: UnitManifest,
+    library: Option[Path] = None,
+    sections: Option[Path] = None
+) {
+
+  /** Whether the shared library holds the native code of `entry`. */
+  def holdsNativeCode(entry: Path): Boolean =
+    library.isDefined && unit.entries.exists {
+      case (e, _) => e.toAbsolutePath() == entry.toAbsolutePath()
+    }
+}
 
 /** Compiles every definition of a library unit, independently of the programs
  *  that will link it.
@@ -97,7 +128,7 @@ private[scalanative] final case class CompiledUnit(
  *  only the objects they refer to.
  */
 private[scalanative] object UnitCompile {
-  final val FormatVersion = 13
+  final val FormatVersion = 15
 
   /** Compiles the library units of `partition`, dependencies first, as stored
    *  actions. Returns them by index in the partition, library units only.
@@ -172,9 +203,32 @@ private[scalanative] object UnitCompile {
       cache: BuildCache
   )(implicit ec: ExecutionContext): CompiledUnit = {
     val unit = partition(index)
-    val dir = config.workDir.resolve("units").resolve(unit.digest.hash.take(16))
+    val id = unit.digest.hash.take(16)
+    val dir = config.workDir.resolve("units").resolve(id)
     val archive = dir.resolve("unit.a")
     val manifestPath = dir.resolve("unit.exports")
+    // Classpath entries without Scala Native classes need no library
+    val ownsClasses = unit.entries.exists {
+      case (_, library) =>
+        library.classes.exists(cls => owners.get(cls.name).contains(index))
+    }
+    val native =
+      if (!config.compilerConfig.useDynamicLibraries || !ownsClasses) None
+      else {
+        // Units without the runtime native code reuse the object of a
+        // dependency
+        val dependencySections = dependencies.toSeq
+          .sortBy(_._1)
+          .flatMap(_._2.sections)
+          .headOption
+        Some(
+          Native(
+            dir.resolve("natives.a"),
+            dir.resolve("sections.o"),
+            dependencySections
+          )
+        )
+      }
     val key = dependencies.toSeq
       .sortBy(_._1)
       .foldLeft(
@@ -188,8 +242,14 @@ private[scalanative] object UnitCompile {
             .add("dependency-abi", dep.unit.abiDigest)
             .add("dependency-exports", dep.manifest.exportsDigest)
       }
-      .result()
-    cache.run(key, Seq("archive" -> archive, "manifest" -> manifestPath)) {
+    native.flatMap(_.dependencySections).foreach { sections =>
+      key.add("dependency-sections", cache.digest(sections))
+    }
+    val outputs = Seq("archive" -> archive, "manifest" -> manifestPath) ++
+      native.toSeq.flatMap { native =>
+        Seq("natives" -> native.archive, "sections" -> native.sections)
+      }
+    cache.run(key.result(), outputs) {
       val manifest = compileSources(
         config,
         unit,
@@ -199,14 +259,77 @@ private[scalanative] object UnitCompile {
         loader,
         cache,
         dir,
-        archive
+        archive,
+        native
       )
       IO.write(manifestPath, manifest.serialize)
     }
     val manifest = UnitManifest.parse(
       new String(Files.readAllBytes(manifestPath), StandardCharsets.UTF_8)
     )
-    CompiledUnit(unit, archive, manifest)
+    CompiledUnit(
+      unit,
+      archive,
+      manifest,
+      native.map(link(config, manifest, archive, _, dependencies, cache)),
+      native.map(_.sections)
+    )
+  }
+
+  /** The native code of a unit linked dynamically: an archive of its objects,
+   *  and the object registering the static sections of an image.
+   */
+  private case class Native(
+      archive: Path,
+      sections: Path,
+      dependencySections: Option[Path]
+  )
+
+  /** Links the shared library of a unit into the library directory of the build
+   *  cache, see `BuildCache.libraryDir`. Libraries are named after their
+   *  inputs, dependencies included: they never change once linked, so builds
+   *  and machines can share them, and they find each other in the same
+   *  directory wherever it is.
+   */
+  private def link(
+      config: Config,
+      manifest: UnitManifest,
+      archive: Path,
+      native: Native,
+      dependencies: Map[Int, CompiledUnit],
+      cache: BuildCache
+  ): Path = {
+    val dependencyLibraries =
+      dependencies.toSeq.sortBy(_._1).flatMap(_._2.library)
+    // Libraries of other platforms are left out, Scala externs being weak
+    val links =
+      manifest.links.toSeq.sorted.filter(LLVM.isLinkable(config, _))
+    val key = ActionKey
+      .builder("link-unit", FormatVersion)
+      .add("plan", Digest.of(unitPlan(config)))
+      .add("archive", cache.digest(archive))
+      .add("natives", cache.digest(native.archive))
+      .add("sections", cache.digest(native.sections))
+      .addAll("dependencies", dependencyLibraries.map(_.getFileName.toString))
+      .addAll("links", links)
+      .add("cpp", manifest.linkCppRuntime.toString)
+      .result()
+    val extension = if (config.targetsMac) "dylib" else "so"
+    val library =
+      cache.libraryDir.resolve(s"libsn-${key.hash.take(16)}.$extension")
+    cache.run(key, Seq("library" -> library)) {
+      LLVM.linkSharedLibrary(
+        config,
+        manifest.linkCppRuntime,
+        links,
+        Seq(archive, native.archive),
+        Seq(native.sections),
+        dependencyLibraries,
+        manifest.externs.toSeq,
+        library
+      )
+    }
+    library
   }
 
   // What unit code depends on besides its definitions: the build plan without
@@ -227,8 +350,16 @@ private[scalanative] object UnitCompile {
       loader: ClassLoader,
       cache: BuildCache,
       dir: Path,
-      archive: Path
+      archive: Path,
+      native: Option[Native]
   )(implicit ec: ExecutionContext): UnitManifest = {
+    // Shared libraries hold position independent code exporting its symbols
+    val unitConfig =
+      if (native.isEmpty) config
+      else
+        config.withCompilerConfig(
+          _.withCompileOptions(_ ++ Seq("-fPIC", "-fvisibility=default"))
+        )
     val owned: Seq[nir.Global.Top] = unit.entries.flatMap {
       case (_, library) =>
         library.classes.map(_.name).filter(owners.get(_).contains(index))
@@ -295,21 +426,79 @@ private[scalanative] object UnitCompile {
           root = config.workDir
         )
         LLVM
-          .compile(config, analysis, ir, configChanged = false, Some(stored))
+          .compile(
+            unitConfig,
+            analysis,
+            ir,
+            configChanged = false,
+            Some(stored)
+          )
           .map(_ -> externs)
     })
     val results = Await.result(Future.sequence(compiled), Duration.Inf)
     val objects = results.map(_._1)
     val externs = results.flatMap(_._2).toSet
     LLVM.archive(config, objects.sortBy(_.getFileName.toString), archive)
+    native.foreach { native =>
+      val nativeLibs = {
+        val entries = unit.entries.map(_._1.toAbsolutePath()).toSet
+        // With the build config: the native code directories follow from it
+        NativeLib
+          .findNativeLibs(config)
+          .filter(lib => entries.contains(lib.src.toAbsolutePath()))
+      }
+      compileNatives(unitConfig, unit, analysis, cache, nativeLibs, native)
+    }
     val exports = exported(lowered, kept)
     config.logger.debug(
       s"Unit ${describe(unit)}: ${exports.size} exported and " +
         s"${kept.size - exports.size} hidden definitions, " +
         s"${excluded.size} excluded"
     )
-    UnitManifest(exports, kept -- exports, excluded, externs)
+    UnitManifest(
+      exports,
+      kept -- exports,
+      excluded,
+      externs,
+      analysis.links.map(_.name).toSet,
+      analysis.linkCppRuntime
+    )
   }
+
+  /** Compiles the native code of the classpath entries of `unit`, with every
+   *  definition of the unit reached, into the archive of `native`. The object
+   *  registering the static sections of the library comes from that native code
+   *  or from a dependency.
+   */
+  private def compileNatives(
+      config: Config,
+      unit: BuildUnit,
+      analysis: ReachabilityAnalysis.Result,
+      cache: BuildCache,
+      nativeLibs: Seq[NativeLib],
+      native: Native
+  )(implicit ec: ExecutionContext): Unit = {
+    val natives = Await.result(
+      Future
+        .traverse(nativeLibs)(
+          NativeLib.compileNativeLibrary(config, analysis, _, Some(cache))
+        )
+        .map(_.flatten),
+      Duration.Inf
+    )
+    val (own, others) =
+      natives.partition(_.getFileName.toString.startsWith(SectionsSource))
+    own.headOption.orElse(native.dependencySections) match {
+      case Some(sections) => Files.copy(sections, native.sections)
+      case None           =>
+        throw new BuildException(
+          s"No $SectionsSource for the library of ${describe(unit)}"
+        )
+    }
+    LLVM.archive(config, others.sortBy(_.toString), native.archive)
+  }
+
+  private final val SectionsSource = "staticSections.c"
 
   /** Methods referring to symbols the analysis has no information about, such
    *  as members of missing classes, cannot be lowered. They are only declared,
@@ -441,9 +630,14 @@ private[scalanative] object UnitCompile {
       else if (isExtern(ref)) true
       // Symbols of no class are generated once per program
       else !owners.contains(ref.top)
+    // Tables of the class, not generated code such as module accessors
     def isMetadata(name: nir.Global) = name match {
       case nir.Global.Member(_, sig) =>
-        sig.unmangled.isInstanceOf[nir.Sig.Generated]
+        sig.unmangled.isInstanceOf[nir.Sig.Generated] &&
+          byName.get(name).exists {
+            case _: nir.Defn.Var | _: nir.Defn.Const => true
+            case _                                   => false
+          }
       case _ => false
     }
     def isMethod(name: nir.Global) = name match {

@@ -30,6 +30,12 @@ object Discover {
   def granularBuild(): Boolean =
     getenv("SCALANATIVE_GRANULAR").exists(_.toBoolean)
 
+  /** Whether granular builds link library units dynamically, from the
+   *  SCALANATIVE_GRANULAR_DYNAMIC env var, off by default.
+   */
+  def dynamicLibraries(): Boolean =
+    getenv("SCALANATIVE_GRANULAR_DYNAMIC").exists(_.toBoolean)
+
   /** Whether granular builds compile library units apart, from the
    *  SCALANATIVE_GRANULAR_UNITS env var, on by default.
    */

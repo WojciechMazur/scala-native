@@ -766,7 +766,9 @@ object Settings {
       }
       scriptedLaunchOpts.value ++
         Seq(
-          "-Xmx1024M",
+          // Cold builds of the runtime unit with debug info, next to sbt
+          // itself, need more than 1 GB
+          "-Xmx2G",
           "-Dplugin.version=" + version.value,
           "-Dscala.version=" + scalaVersion.value,
           "-Dscala213.version=" + ScalaVersions.scala213,

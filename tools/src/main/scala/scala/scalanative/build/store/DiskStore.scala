@@ -39,7 +39,7 @@ import scala.collection.mutable
  *  place.
  */
 private[scalanative] final class DiskStore(val root: Path) extends ActionStore {
-  import DiskStore.linksBlobs
+  import DiskStore.{LockPollMillis, linksBlobs}
 
   private val acDir = root.resolve("ac")
   private val casDir = root.resolve("cas")
@@ -198,13 +198,21 @@ private[scalanative] final class DiskStore(val root: Path) extends ActionStore {
       StandardOpenOption.WRITE
     )
     try {
-      val lock = Option(channel.tryLock()).getOrElse {
+      // Polling: a blocking lock fails when the kernel sees a cycle between
+      // processes, each holding a lock in one thread and waiting in another,
+      // although every thread would get its lock eventually
+      var lock = channel.tryLock()
+      if (lock == null) {
         onWait()
-        channel.lock()
+        while (lock == null) {
+          Thread.sleep(LockPollMillis)
+          lock = channel.tryLock()
+        }
       }
+      val held = lock
       new AutoCloseable {
         def close(): Unit =
-          try lock.release()
+          try held.release()
           finally channel.close()
       }
     } catch {
@@ -458,6 +466,8 @@ private[scalanative] object DiskStore {
    *  `BuildPlan`.
    */
   final val ProgramsDir = "programs"
+
+  private final val LockPollMillis = 25L
 
   private val linksBlobs = !scala.util.Properties.isWin
 

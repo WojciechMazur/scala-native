@@ -101,12 +101,24 @@ class MainGenericRunner {
           sys.process.Process(cmd, dir.toFile).run().exitValue() == 0
         case Some(file) =>
           val log = ProcessBuilder.Redirect.appendTo(file)
-          new ProcessBuilder(cmd: _*)
-            .directory(dir.toFile)
-            .redirectOutput(log)
-            .redirectError(log)
-            .start()
-            .waitFor() == 0
+          // Processes forked meanwhile by other builds of this JVM may hold
+          // the executable open for writing for a moment (ETXTBSY)
+          def start(attempt: Int): Process =
+            try
+              new ProcessBuilder(cmd: _*)
+                .directory(dir.toFile)
+                .redirectOutput(log)
+                .redirectError(log)
+                .start()
+            catch {
+              case e: java.io.IOException
+                  if attempt < 10 && String
+                    .valueOf(e.getMessage)
+                    .contains("Text file busy") =>
+                Thread.sleep(50L * (attempt + 1))
+                start(attempt + 1)
+            }
+          start(0).waitFor() == 0
       }
     }
     Stats.record(

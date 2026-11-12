@@ -128,6 +128,25 @@ private[scalanative] final case class CompiledUnit(
  *  only the objects they refer to.
  */
 private[scalanative] object UnitCompile {
+
+  /** Manifests parsed by this JVM, by digest: the manifest of the runtime unit
+   *  lists thousands of symbols, read by every build using it.
+   */
+  private val manifests =
+    new java.util.concurrent.ConcurrentHashMap[Digest, UnitManifest]
+  private final val MaxManifests = 256
+
+  private def parsedManifest(path: Path, cache: BuildCache): UnitManifest = {
+    val digest = cache.digest(path)
+    Option(manifests.get(digest)).getOrElse {
+      val manifest = UnitManifest.parse(
+        new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
+      )
+      if (manifests.size() >= MaxManifests) manifests.clear()
+      manifests.put(digest, manifest)
+      manifest
+    }
+  }
   final val FormatVersion = 15
 
   /** Compiles the library units of `partition`, dependencies first, as stored
@@ -265,9 +284,7 @@ private[scalanative] object UnitCompile {
       )
       IO.write(manifestPath, manifest.serialize)
     }
-    val manifest = UnitManifest.parse(
-      new String(Files.readAllBytes(manifestPath), StandardCharsets.UTF_8)
-    )
+    val manifest = parsedManifest(manifestPath, cache)
     CompiledUnit(
       unit,
       archive,

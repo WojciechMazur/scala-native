@@ -132,7 +132,7 @@ private[scalanative] final class DiskStore(val root: Path) extends ActionStore {
       val tmp = parent.resolve(s".sn-blob-${UUID.randomUUID()}.tmp")
       try {
         val restored =
-          if (linksBlobs && link(blob, tmp)) hashOf(blob) == digest.hash
+          if (linksBlobs && link(blob, tmp)) isIntact(blob, digest)
           else copy(blob, tmp) == digest.hash
         if (!restored) {
           deleteQuietly(blob)
@@ -164,6 +164,21 @@ private[scalanative] final class DiskStore(val root: Path) extends ActionStore {
     try Files.copy(blob, out)
     finally out.close()
     Digest.hex(md.digest())
+  }
+
+  /** Whether the content of `blob` has `digest`. Blobs are read-only, each is
+   *  hashed once per JVM while its size and modification time stay the same.
+   */
+  private def isIntact(blob: Path, digest: Digest): Boolean = {
+    val path = blob.toAbsolutePath().toString
+    val stamp = (Files.size(blob), Files.getLastModifiedTime(blob).toMillis())
+    if (DiskStore.verifiedBlobs.get(path) == stamp) true
+    else {
+      val intact = hashOf(blob) == digest.hash
+      if (intact) DiskStore.verifiedBlobs.put(path, stamp)
+      else DiskStore.verifiedBlobs.remove(path)
+      intact
+    }
   }
 
   private def hashOf(file: Path): String = {
@@ -468,6 +483,10 @@ private[scalanative] object DiskStore {
   final val ProgramsDir = "programs"
 
   private final val LockPollMillis = 25L
+
+  /** Blobs found intact, with their size and modification time then. */
+  private val verifiedBlobs =
+    new java.util.concurrent.ConcurrentHashMap[String, (Long, Long)]
 
   private val linksBlobs = !scala.util.Properties.isWin
 

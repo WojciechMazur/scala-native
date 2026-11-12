@@ -36,6 +36,11 @@ private[scalanative] final class BuildCache private (
   private val current = TrieMap.empty[String, IndexEntry]
   private val buildStart = System.currentTimeMillis()
 
+  /** Digests of the outputs this build restored or stored, known without
+   *  hashing them.
+   */
+  private val outputDigests = TrieMap.empty[String, InputEntry]
+
   /** The digest of `file`, reusing the one recorded by an earlier build if the
    *  file has not been modified since.
    */
@@ -43,12 +48,16 @@ private[scalanative] final class BuildCache private (
     val path = file.toAbsolutePath().toString
     val size = Files.size(file)
     val mtime = Files.getLastModifiedTime(file).toMillis()
-    val known = current.get(path).orElse(previous.get(path)).collect {
-      case input: InputEntry
-          if input.size == size && input.mtime == mtime &&
-            input.isTrustworthy =>
-        input.digest
+    val produced = outputDigests.get(path).collect {
+      case input if input.size == size && input.mtime == mtime => input.digest
     }
+    val known =
+      produced.orElse(current.get(path).orElse(previous.get(path)).collect {
+        case input: InputEntry
+            if input.size == size && input.mtime == mtime &&
+              input.isTrustworthy =>
+          input.digest
+      })
     known.getOrElse {
       val digest = Digest.of(file)
       current(path) = InputEntry(size, mtime, digest, recordedAt = buildStart)
@@ -85,24 +94,33 @@ private[scalanative] final class BuildCache private (
       UpToDate
     } else
       withLock(key, exclusive) {
-        val restored = withStore(s"read action $key")(false) { store =>
-          store.getAction(key).exists { result =>
-            outputs.forall {
-              case (name, path) =>
-                result.output(name).exists(store.getBlob(_, path))
+        val restored =
+          withStore(s"read action $key")(Option.empty[ActionResult]) { store =>
+            store.getAction(key).filter { result =>
+              outputs.forall {
+                case (name, path) =>
+                  result.output(name).exists(store.getBlob(_, path))
+              }
             }
           }
+        restored.foreach { result =>
+          outputs.foreach {
+            case (name, path) =>
+              recordOutput(key, path)
+              result.output(name).foreach(recordDigest(path, _))
+          }
         }
-        if (restored) {
-          outputs.foreach { case (_, path) => recordOutput(key, path) }
-          Restored
-        } else {
+        if (restored.isDefined) Restored
+        else {
           // Restored outputs may be links to stored blobs, never written to
           outputs.foreach { case (_, path) => Files.deleteIfExists(path) }
           execute
           withStore(s"store action $key")(()) { store =>
             val result = ActionResult(outputs.map {
-              case (name, path) => name -> store.putBlob(path)
+              case (name, path) =>
+                val digest = store.putBlob(path)
+                recordDigest(path, digest)
+                name -> digest
             })
             store.putAction(key, result)
           }
@@ -161,6 +179,14 @@ private[scalanative] final class BuildCache private (
       }
     }
   }
+
+  private def recordDigest(output: Path, digest: Digest): Unit =
+    outputDigests(output.toAbsolutePath().toString) = InputEntry(
+      Files.size(output),
+      Files.getLastModifiedTime(output).toMillis(),
+      digest,
+      recordedAt = buildStart
+    )
 
   private def recordOutput(key: ActionKey, output: Path): Unit =
     current(output.toAbsolutePath().toString) = OutputEntry(

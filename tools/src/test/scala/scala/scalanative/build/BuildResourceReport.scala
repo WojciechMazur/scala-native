@@ -54,6 +54,7 @@ object BuildResourceReport {
       .foreach(System.setProperty("scala.scalanative.cache.dir", _))
     val nativeConfig = IncrementalBuildReport.defaultNativeConfig
       .withMode(options.get("mode").map(Mode(_)).getOrElse(Mode.debug))
+      .withOptimize(options.get("optimize").forall(_.toBoolean))
       .withGranularBuild(kind != "baseline")
       .withDynamicLibraries(kind == "dynamic")
       .withSourceLevelDebuggingConfig(config =>

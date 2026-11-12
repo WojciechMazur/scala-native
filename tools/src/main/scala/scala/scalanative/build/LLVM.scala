@@ -206,6 +206,44 @@ private[scalanative] object LLVM {
     Seq(compiler, "-c", inpath, "-o", outpath) ++ flags
   }
 
+  /** Creates the static library `out` from `objects`. The archive is
+   *  deterministic: the same objects in the same order make the same bytes.
+   */
+  def archive(config: Config, objects: Seq[Path], out: Path): Path = {
+    Files.createDirectories(out.toAbsolutePath().getParent())
+    Files.deleteIfExists(out)
+    // Archivers refuse to create empty archives
+    if (objects.isEmpty) {
+      IO.write(out, "!<arch>\n")
+      return out
+    }
+    val list = out.resolveSibling(s"${out.getFileName()}.objects")
+    IO.write(list, objects.map(_.abs).mkString("\n"))
+    val (command, env) =
+      if (config.targetsMac)
+        Seq(
+          "libtool",
+          "-static",
+          "-no_warning_for_no_symbols",
+          "-o",
+          out.abs,
+          "-filelist",
+          list.abs
+        ) -> Seq("ZERO_AR_DATE" -> "1")
+      else
+        Seq(
+          Discover.discover("ar").abs,
+          "rcsD",
+          out.abs,
+          s"@${list.abs}"
+        ) -> Nil
+    config.logger.running(command)
+    val result = Process(command, config.workDir.toFile(), env: _*) !
+      Logger.toCompilerProcessLogger(config.logger)
+    if (result != 0) throw new BuildException(s"Failed to archive ${out.abs}")
+    out
+  }
+
   /** Links a collection of `.ll.o` files and the `.o` files from the
    *  `nativelib`, other libaries, and the application project into the native
    *  binary.
@@ -222,20 +260,22 @@ private[scalanative] object LLVM {
   def link(
       config: Config,
       analysis: ReachabilityAnalysis.Result,
-      objectsPaths: Seq[Path]
+      objectsPaths: Seq[Path],
+      archives: Seq[Path] = Nil,
+      weakSymbols: Seq[String] = Nil
   ): Path = {
     implicit val _config: Config = config
     implicit val _analysis: ReachabilityAnalysis.Result = analysis
     val buildPath = config.buildPath
 
     // don't link if no changes
-    if (!needsLinking(objectsPaths, buildPath)) {
+    if (!needsLinking(objectsPaths ++ archives, buildPath)) {
       return copyOutput(config, buildPath)
     }
 
     val command = config.compilerConfig.buildTarget match {
       case BuildTarget.Application | BuildTarget.LibraryDynamic =>
-        prepareLinkCommand(objectsPaths)
+        prepareLinkCommand(objectsPaths, archives, weakSymbols)
       case BuildTarget.LibraryStatic =>
         prepareArchiveCommand(objectsPaths)
     }
@@ -297,7 +337,9 @@ private[scalanative] object LLVM {
   }
 
   private def prepareLinkCommand(
-      objectsPaths: Seq[Path]
+      objectsPaths: Seq[Path],
+      archives: Seq[Path],
+      weakSymbols: Seq[String]
   )(implicit config: Config, analysis: ReachabilityAnalysis.Result) = {
     val workDir = config.workDir
     val links = {
@@ -389,6 +431,19 @@ private[scalanative] object LLVM {
         if (useLdd) add("-Wl,--start-lib")
         objectsPaths.foreach(p => add(p.abs))
         if (useLdd) add("-Wl,--end-lib")
+
+        // Libraries compiled apart, objects are pulled when referenced. They
+        // refer to each other, GNU ld needs them grouped to resolve that
+        if (archives.nonEmpty) {
+          val group = !config.targetsMac
+          if (group) add("-Wl,--start-group")
+          archives.foreach(p => add(p.abs))
+          if (group) add("-Wl,--end-group")
+        }
+        // Weak references to symbols defined nowhere are null at runtime, the
+        // Apple linker must be told they may stay undefined
+        if (config.targetsMac)
+          weakSymbols.sorted.foreach(symbol => add(s"-Wl,-U,_$symbol"))
 
         linkopts.foreach(add)
 

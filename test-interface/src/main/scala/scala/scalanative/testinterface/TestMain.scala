@@ -82,13 +82,14 @@ object TestMain {
     // Loading debug metadata can take up to few seconds which might mess up timeout specific tests
     // Prefetch the debug metadata before the actual tests do start
     // Execute after creating connection with the TestRunnner server
+    // Positions are decoded only when the stack trace is materialized
     if (LinktimeInfo.sourceLevelDebuging.generateFunctionSourcePositions) {
       val shouldPrefetch =
         sys.env
           .get("SCALANATIVE_TEST_PREFETCH_DEBUG_INFO")
           .exists(v => v.isEmpty() || v == "1")
       if (shouldPrefetch)
-        new RuntimeException().fillInStackTrace().ensuring(_ != null)
+        new RuntimeException().getStackTrace().ensuring(_ != null)
     }
 
     bridge.start()

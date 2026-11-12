@@ -40,20 +40,27 @@ private[scalanative] object SourceTree {
       include: Path => Boolean,
       digest: Path => Digest = Digest.of(_: Path)
   ): SourceTree = {
-    val files = mutable.ArrayBuffer.empty[(String, Digest)]
+    val files = list(root, include).flatMap { path =>
+      val relative = root.relativize(path).toString.replace('\\', '/')
+      try Some(relative -> digest(path))
+      catch { case _: NoSuchFileException => None }
+    }
+    SourceTree(root, files.sortBy(_._1))
+  }
+
+  /** Regular files under `root` accepted by `include`. Files may come and go
+   *  while walking, e.g. when the build directory is inside the tree: they are
+   *  not part of it.
+   */
+  def list(root: Path, include: Path => Boolean): Seq[Path] = {
+    val files = mutable.ArrayBuffer.empty[Path]
     if (Files.isDirectory(root)) {
-      // Files may come and go while walking, e.g. when the build directory
-      // is inside the tree: they are not part of it
       val visitor = new SimpleFileVisitor[Path] {
         override def visitFile(
             path: Path,
             attrs: BasicFileAttributes
         ): FileVisitResult = {
-          if (attrs.isRegularFile() && include(path)) {
-            val relative = root.relativize(path).toString.replace('\\', '/')
-            try files += relative -> digest(path)
-            catch { case _: NoSuchFileException => () }
-          }
+          if (attrs.isRegularFile() && include(path)) files += path
           FileVisitResult.CONTINUE
         }
         override def visitFileFailed(
@@ -71,6 +78,6 @@ private[scalanative] object SourceTree {
         visitor
       )
     }
-    SourceTree(root, files.sortBy(_._1).toSeq)
+    files.toSeq
   }
 }

@@ -213,14 +213,18 @@ private[scalanative] object ScalaNative {
   }
 
   /** Given low-level assembly, emit LLVM IR for it to the buildDirectory. */
-  def codegen(config: Config, analysis: ReachabilityAnalysis.Result)(implicit
+  def codegen(
+      config: Config,
+      analysis: ReachabilityAnalysis.Result,
+      provided: Set[nir.Global] = Set.empty
+  )(implicit
       ec: ExecutionContext
   ): Future[CodeGen.IRGenerators] = {
     val withMetadata =
       if (config.compilerConfig.sourceLevelDebuggingConfig.enabled)
         " (with debug metadata)"
       else ""
-    val codeGen = CodeGen(config, analysis)
+    val codeGen = CodeGen(config, analysis, provided)
     config.logger.timeAsync(s"Generating intermediate code$withMetadata") {
       codeGen
         .flatMap(Future.sequence(_))

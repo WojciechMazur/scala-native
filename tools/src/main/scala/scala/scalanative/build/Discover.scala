@@ -30,6 +30,12 @@ object Discover {
   def granularBuild(): Boolean =
     getenv("SCALANATIVE_GRANULAR").exists(_.toBoolean)
 
+  /** Whether granular builds compile library units apart, from the
+   *  SCALANATIVE_GRANULAR_UNITS env var, on by default.
+   */
+  private[scalanative] def granularUnits(): Boolean =
+    getenv("SCALANATIVE_GRANULAR_UNITS").forall(_.toBoolean)
+
   /** Directory of the build cache shared by granular builds on this machine:
    *  the SCALANATIVE_CACHE_DIR env var or the `scala.scalanative.cache.dir`
    *  system property, `off` disables the cache. Defaults to `scala-native/v1`

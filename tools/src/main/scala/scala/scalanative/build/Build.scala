@@ -157,12 +157,21 @@ object Build {
         }
         .flatMap(optimize(config, _))
         .flatMap { linkerResult =>
+          val units = compileUnits(config)
+          checkExclusions(units, linkerResult)
+          val provided = units.flatMap(_.manifest.defined).toSet
           ScalaNative
-            .codegen(config, linkerResult)
+            .codegen(config, linkerResult, provided)
             .flatMap { irGenerators =>
               compile(config, linkerResult, irGenerators)
             }
-            .map(objects => link(config, linkerResult, objects))
+            .map { objects =>
+              // Dependent units first, for linkers resolving in one pass
+              val archives =
+                units.reverse.filter(_.manifest.exports.nonEmpty).map(_.archive)
+              val weakSymbols = units.flatMap(_.manifest.externs).distinct
+              link(config, linkerResult, objects, archives, weakSymbols)
+            }
             .map(artifact => postProcess(config, artifact))
         }
         .andThen { case Success(_) => dumpUserConfigHash(config) }
@@ -212,11 +221,82 @@ object Build {
   private def link(
       config: Config,
       analysis: ReachabilityAnalysis.Result,
-      compiled: Seq[Path]
+      compiled: Seq[Path],
+      archives: Seq[Path],
+      weakSymbols: Seq[String]
   ): Path = config.logger.time(
     s"Linking native code (${config.gc.name} gc, ${config.LTO.name} lto)"
   ) {
-    LLVM.link(config, analysis, compiled)
+    LLVM.link(config, analysis, compiled, archives, weakSymbols)
+  }
+
+  /** Granular builds compile library units apart, see `units.UnitCompile`.
+   *  Their definitions are then only declared by the program. Returns the
+   *  compiled units, dependencies first.
+   */
+  private def compileUnits(
+      config: Config
+  )(implicit ec: ExecutionContext): Seq[units.CompiledUnit] =
+    if (!usesUnits(config)) Nil
+    else
+      config.logger.time("Compiling library units") {
+        val cache = store.BuildCache
+          .open(config)
+          .getOrElse(store.BuildCache.local(config.workDir, config.logger))
+        try
+          Scope { implicit scope =>
+            val libraries = units.Libraries.open(config, cache)
+            val loader = new linker.ClassLoader.FromDisk(libraries.map {
+              case (_, library) => linker.ClassPath(library)
+            })
+            val partition = units.UnitPartitioner(libraries.map {
+              case (entry, library) => entry -> library.index
+            })
+            units.UnitCompile
+              .all(config, partition, loader, cache)
+              .toSeq
+              .sortBy(_._1)
+              .map(_._2)
+          }
+        finally cache.close()
+      }
+
+  /** Reaching a definition left out of a library is an error, as reaching a
+   *  missing symbol is, see `units.UnitCompile`.
+   */
+  private def checkExclusions(
+      compiled: Seq[units.CompiledUnit],
+      analysis: ReachabilityAnalysis.Result
+  ): Unit = {
+    val excluded = compiled.flatMap { unit =>
+      unit.manifest.excluded.map {
+        case (name, reason) => name -> (unit, reason)
+      }
+    }.toMap
+    val reached = analysis.defns.flatMap { defn =>
+      excluded.get(defn.name).map(defn.name -> _)
+    }
+    if (reached.nonEmpty) {
+      val details = reached
+        .sortBy(_._1.mangle)
+        .map {
+          case (name, (unit, reason)) =>
+            val library = unit.unit.entries.map(_._1.getFileName).mkString(", ")
+            s"  ${name.show} in $library: $reason"
+        }
+        .mkString("\n")
+      throw new BuildException(
+        s"Found ${reached.size} definitions left out of libraries compiled apart:\n$details"
+      )
+    }
+  }
+
+  private def usesUnits(config: Config): Boolean = {
+    val nativeConfig = config.compilerConfig
+    nativeConfig.useGranularBuild && Discover.granularUnits() &&
+      (config.targetsLinux || config.targetsMac) &&
+      nativeConfig.buildTarget == BuildTarget.Application &&
+      nativeConfig.lto == LTO.None
   }
 
   /** Based on reachability analysis check if config can be tuned for better

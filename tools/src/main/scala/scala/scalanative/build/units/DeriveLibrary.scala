@@ -4,11 +4,12 @@ package units
 
 import java.io.{BufferedReader, ByteArrayInputStream, InputStreamReader}
 import java.nio.ByteBuffer
-import java.nio.file.Path
+import java.nio.file.{Files, Path, Paths}
+import java.util.zip.ZipFile
 
 import scala.collection.mutable
 
-import scala.scalanative.build.store.Digest
+import scala.scalanative.build.store.{Digest, SourceTree}
 import scala.scalanative.io.VirtualDirectory
 import scala.scalanative.nir.serialization.{BinaryDeserializer, Prelude}
 import scala.scalanative.util.Scope
@@ -22,46 +23,48 @@ private[scalanative] object DeriveLibrary {
   def apply(entry: Path, digest: Digest, target: Path, logger: Logger)(implicit
       scope: Scope
   ): LibraryIndex = {
-    val directory = VirtualDirectory.real(entry)
-    val files = directory.files.sortBy(_.toString)
-    val classes = files.filter(_.toString.endsWith(".nir")).map { path =>
-      val bytes = toArray(directory.read(path))
-      val source = nir.NIRSource(entry, path)
-      val name = nir.Global.Top(io.packageNameFromPath(path))
-      Prelude.tryReadFrom(ByteBuffer.wrap(bytes), source.debugName) match {
-        case Right(prelude) =>
-          val defns = new BinaryDeserializer(ByteBuffer.wrap(bytes), source)
-            .deserialize()
-          val index = ClassIndex(
-            name = name,
-            path = path.toString,
-            hasEntryPoints = prelude.hasEntryPoints,
-            digest = Digest.of(bytes),
-            abiDigest = abi(defns),
-            references = references(name, defns)
-          )
-          Library.ClassFile(index, bytes)
-        // Kept as is: the linker reports it if the class is ever loaded
-        case Left(error) =>
-          logger.warn(
-            s"Can't check if file contains entrypoints, ${path} would be ignored: ${error.getMessage()}"
-          )
-          val fileDigest = Digest.of(bytes)
-          val index = ClassIndex(
-            name = name,
-            path = path.toString,
-            hasEntryPoints = false,
-            digest = fileDigest,
-            abiDigest = fileDigest,
-            references = Nil
-          )
-          Library.ClassFile(index, bytes)
+    val files = filesOf(entry).sortBy(_._1.toString)
+    val contents = files.toMap
+    def read(path: Path): Array[Byte] = contents(path)()
+    val classes =
+      files.map(_._1).filter(_.toString.endsWith(".nir")).map { path =>
+        val bytes = read(path)
+        val source = nir.NIRSource(entry, path)
+        val name = nir.Global.Top(io.packageNameFromPath(path))
+        Prelude.tryReadFrom(ByteBuffer.wrap(bytes), source.debugName) match {
+          case Right(prelude) =>
+            val defns = new BinaryDeserializer(ByteBuffer.wrap(bytes), source)
+              .deserialize()
+            val index = ClassIndex(
+              name = name,
+              path = path.toString,
+              hasEntryPoints = prelude.hasEntryPoints,
+              digest = Digest.of(bytes),
+              abiDigest = abi(defns),
+              references = references(name, defns)
+            )
+            Library.ClassFile(index, bytes)
+          // Kept as is: the linker reports it if the class is ever loaded
+          case Left(error) =>
+            logger.warn(
+              s"Can't check if file contains entrypoints, ${path} would be ignored: ${error.getMessage()}"
+            )
+            val fileDigest = Digest.of(bytes)
+            val index = ClassIndex(
+              name = name,
+              path = path.toString,
+              hasEntryPoints = false,
+              digest = fileDigest,
+              abiDigest = fileDigest,
+              references = Nil
+            )
+            Library.ClassFile(index, bytes)
+        }
       }
-    }
     val services = files.collect {
-      case path if isServiceDeclaration(path) =>
+      case (path, bytes) if isServiceDeclaration(path) =>
         nir.Global.Top(path.getFileName().toString) ->
-          serviceProviders(toArray(directory.read(path)))
+          serviceProviders(bytes())
     }.toMap
     val abiDigest = Digest.of(
       classes
@@ -72,6 +75,54 @@ private[scalanative] object DeriveLibrary {
     Library.write(target, digest, abiDigest, classes, services)
     LibraryIndex(digest, abiDigest, classes.map(_.index), services)
   }
+
+  /** Files of the classpath `entry`, named as the linker names them, with their
+   *  content. Jars are read with a private `ZipFile`: zip file systems are
+   *  shared by the whole JVM and may be closed by their other users.
+   */
+  private def filesOf(entry: Path)(implicit
+      scope: Scope
+  ): Seq[(Path, () => Array[Byte])] =
+    if (Files.isDirectory(entry)) {
+      val directory = VirtualDirectory.real(entry)
+      SourceTree
+        .list(entry, isLibraryFile(entry, _))
+        .map(entry.relativize(_))
+        .map(path => path -> (() => toArray(directory.read(path))))
+    } else {
+      val zip = new ZipFile(entry.toFile())
+      scope.acquire(zip)
+      val files = Seq.newBuilder[(Path, () => Array[Byte])]
+      val entries = zip.entries()
+      while (entries.hasMoreElements()) {
+        val zipEntry = entries.nextElement()
+        if (!zipEntry.isDirectory()) {
+          // As paths of the jar's file system, rooted at /
+          val path = Paths.get("/" + zipEntry.getName())
+          files += path -> { () =>
+            val in = zip.getInputStream(zipEntry)
+            try {
+              val out = new java.io.ByteArrayOutputStream()
+              val buffer = new Array[Byte](64 * 1024)
+              var read = in.read(buffer)
+              while (read != -1) {
+                out.write(buffer, 0, read)
+                read = in.read(buffer)
+              }
+              out.toByteArray()
+            } finally in.close()
+          }
+        }
+      }
+      files.result()
+    }
+
+  /** Whether `path`, a file of the directory `entry`, is read into its library:
+   *  NIR files and service declarations.
+   */
+  def isLibraryFile(entry: Path, path: Path): Boolean =
+    path.toString.endsWith(".nir") ||
+      isServiceDeclaration(entry.relativize(path))
 
   /** Whether `path` declares service providers. The first form is used in jars,
    *  the second one in directories.

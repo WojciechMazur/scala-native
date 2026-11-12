@@ -15,6 +15,11 @@ sealed abstract class ClassLoader {
 
   def load(global: nir.Global.Top): Option[Seq[nir.Defn]]
 
+  /** This loader remembering what it loaded, for as long as the returned loader
+   *  is used: class paths do not keep loaded definitions.
+   */
+  def remembering: ClassLoader = new ClassLoader.Remembering(this)
+
 }
 
 object ClassLoader {
@@ -53,6 +58,21 @@ object ClassLoader {
         case path if path.contains(global) =>
           path.load(global)
       }.flatten
+  }
+
+  private final class Remembering(underlying: ClassLoader) extends ClassLoader {
+    private val loaded =
+      new java.util.concurrent.ConcurrentHashMap[nir.Global.Top, Option[
+        Seq[nir.Defn]
+      ]]
+
+    def classesWithEntryPoints: Iterable[nir.Global.Top] =
+      underlying.classesWithEntryPoints
+    def definedServicesProviders
+        : Map[nir.Global.Top, Iterable[nir.Global.Top]] =
+      underlying.definedServicesProviders
+    def load(global: nir.Global.Top): Option[Seq[nir.Defn]] =
+      loaded.computeIfAbsent(global, underlying.load(_))
   }
 
   final class FromMemory(defns: Seq[nir.Defn]) extends ClassLoader {

@@ -360,39 +360,29 @@ private[scalanative] object UnitCompile {
       .mkString("\n")
   }
 
-  private def compileSources(
+  /** The IR of the definitions of `unit`, and what its manifest needs. */
+  private case class Generated(
+      irFiles: Seq[(Path, Set[String])],
+      kept: Set[nir.Global],
+      excluded: Map[nir.Global, String],
+      exports: Set[nir.Global]
+  )
+
+  /* Lowers the definitions of `unit` and writes their IR. A method of its own,
+   * so that the lowered definitions and the metadata, the largest part of the
+   * memory a unit takes, are garbage once the IR is written, before it is
+   * compiled.
+   */
+  private def generate(
       config: Config,
       unit: BuildUnit,
       index: Int,
       dependencies: Map[Int, CompiledUnit],
       owners: Map[nir.Global.Top, Int],
-      loader: ClassLoader,
+      analysis: ReachabilityAnalysis.Result,
       cache: BuildCache,
-      dir: Path,
-      archive: Path,
-      native: Option[Native]
-  )(implicit ec: ExecutionContext): UnitManifest = {
-    // Shared libraries hold position independent code exporting its symbols
-    val unitConfig =
-      if (native.isEmpty) config
-      else
-        config.withCompilerConfig(
-          _.withCompileOptions(_ ++ Seq("-fPIC", "-fvisibility=default"))
-        )
-    val owned: Seq[nir.Global.Top] = unit.entries.flatMap {
-      case (_, library) =>
-        library.classes.map(_.name).filter(owners.get(_).contains(index))
-    }
-    // Every definition of the unit, and what code generation needs
-    val entries = owned.flatMap { cls =>
-      cls +: loader.load(cls).toSeq.flatten.map(_.name)
-    } ++ ScalaNative.entries(config.withMainClass(None))
-    val analysis = config.logger.time(s"Reaching unit ${describe(unit)}") {
-      Reach(config, entries, loader, allowUnavailable = true) match {
-        case result: ReachabilityAnalysis.Result => result
-        case _ => throw new BuildException("Unit analysis failed")
-      }
-    }
+      dir: Path
+  )(implicit ec: ExecutionContext): Generated = {
     val provided = dependencies.values.flatMap(_.manifest.exports).toSet
     val (analyzed, unanalyzed) = withoutUnanalyzed(analysis)
     val (meta, lowered, unlowered) = Await.result(
@@ -438,9 +428,54 @@ private[scalanative] object UnitCompile {
       dir.resolve("ir"),
       cache.jarSources
     )
+    Generated(
+      Await.result(Future.sequence(irFiles), Duration.Inf),
+      kept,
+      excluded,
+      exported(lowered, kept)
+    )
+  }
+
+  private def compileSources(
+      config: Config,
+      unit: BuildUnit,
+      index: Int,
+      dependencies: Map[Int, CompiledUnit],
+      owners: Map[nir.Global.Top, Int],
+      loader: ClassLoader,
+      cache: BuildCache,
+      dir: Path,
+      archive: Path,
+      native: Option[Native]
+  )(implicit ec: ExecutionContext): UnitManifest = {
+    // Shared libraries hold position independent code exporting its symbols
+    val unitConfig =
+      if (native.isEmpty) config
+      else
+        config.withCompilerConfig(
+          _.withCompileOptions(_ ++ Seq("-fPIC", "-fvisibility=default"))
+        )
+    val owned: Seq[nir.Global.Top] = unit.entries.flatMap {
+      case (_, library) =>
+        library.classes.map(_.name).filter(owners.get(_).contains(index))
+    }
+    // Every definition of the unit, and what code generation needs, loaded
+    // once: the analysis keeps them
+    val unitLoader = loader.remembering
+    val entries = owned.flatMap { cls =>
+      cls +: unitLoader.load(cls).toSeq.flatten.map(_.name)
+    } ++ ScalaNative.entries(config.withMainClass(None))
+    val analysis = config.logger.time(s"Reaching unit ${describe(unit)}") {
+      Reach(config, entries, unitLoader, allowUnavailable = true) match {
+        case result: ReachabilityAnalysis.Result => result
+        case _ => throw new BuildException("Unit analysis failed")
+      }
+    }
+    val Generated(irFiles, kept, excluded, exports) =
+      generate(config, unit, index, dependencies, owners, analysis, cache, dir)
     // Objects compiled from the same IR by an earlier version of the unit are
     // reused
-    val compiled = irFiles.map(_.flatMap {
+    val compiled = irFiles.map {
       case (ir, externs) =>
         val stored = LLVM.StoredCompile(
           cache,
@@ -456,7 +491,7 @@ private[scalanative] object UnitCompile {
             Some(stored)
           )
           .map(_ -> externs)
-    })
+    }
     val results = Await.result(Future.sequence(compiled), Duration.Inf)
     val objects = results.map(_._1)
     val externs = results.flatMap(_._2).toSet
@@ -471,7 +506,6 @@ private[scalanative] object UnitCompile {
       }
       compileNatives(unitConfig, unit, analysis, cache, nativeLibs, native)
     }
-    val exports = exported(lowered, kept)
     config.logger.debug(
       s"Unit ${describe(unit)}: ${exports.size} exported and " +
         s"${kept.size - exports.size} hidden definitions, " +

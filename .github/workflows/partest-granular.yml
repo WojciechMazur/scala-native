@@ -7,8 +7,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
 
+# Each commit measures on its own: a later push must not cancel legs still
+# measuring an earlier one
 concurrency:
-  group: partest-granular-${{ github.head_ref || github.ref }}
+  group: partest-granular-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -20,7 +22,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        leg: [baseline, static, dynamic]
+        # Throw-away: only the leg being investigated
+        leg: [dynamic]
         include:
           - leg: baseline
             granular: false
@@ -54,6 +57,13 @@ jobs:
         run: |
           out="${{ runner.temp }}/out"
           mkdir -p "$out"
+          # Runners exhausting memory or disk are shut down without a trace:
+          # sample both into the log
+          (while true; do
+            echo "[resources] $(date +%T) $(free -m | awk '/Mem:/ {print "mem_used=" $3 "M mem_avail=" $7 "M"}') $(free -m | awk '/Swap:/ {print "swap_used=" $3 "M"}') $(df -m "${{ runner.temp }}" /tmp | awk 'NR>1 {printf "free(%s)=%sM ", $6, $4}') top: $(ps -eo rss,comm --sort=-rss | awk 'NR>1 && NR<=6 {printf "%s=%dM ", $2, $1/1024}') procs(clang)=$(pgrep -c clang || true)"
+            sleep 15
+          done) &
+          sampler=$!
           start=$(date +%s)
           set +e
           # One command line: sbt runs its arguments as a single command
@@ -61,6 +71,7 @@ jobs:
             "set LocalProject(\"scalaPartestTests${{ env.project-version }}\") / Test / javaOptions += \"-Xmx4G\"; scalaPartestTests${{ env.project-version }}/testOnly partest-* -- --showDiff" \
             2>&1 | tee "$out/partest.log"
           status=${PIPESTATUS[0]}
+          kill $sampler || true
           set -e
           end=$(date +%s)
           {

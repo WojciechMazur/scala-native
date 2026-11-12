@@ -6,9 +6,8 @@ import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.nio.file.attribute.FileTime
 import java.nio.file.{
-  AtomicMoveNotSupportedException, DirectoryNotEmptyException,
-  FileAlreadyExistsException, FileSystemException, Files, NoSuchFileException,
-  Path, StandardCopyOption
+  AtomicMoveNotSupportedException, FileSystemException, Files,
+  NoSuchFileException, Path, StandardCopyOption
 }
 import java.security.DigestOutputStream
 import java.util.UUID
@@ -217,9 +216,9 @@ private[scalanative] final class DiskStore(val root: Path) extends ActionStore {
         Files.createDirectories(sourcesDir)
         try Files.move(tmp, dir, StandardCopyOption.ATOMIC_MOVE)
         catch {
-          // Published concurrently
-          case _: FileAlreadyExistsException | _: DirectoryNotEmptyException =>
-            ()
+          // Published concurrently: the failure is a plain
+          // FileSystemException on macOS
+          case _: FileSystemException if Files.isDirectory(dir) => ()
         }
       } finally if (Files.exists(tmp)) IO.deleteRecursive(tmp)
     }

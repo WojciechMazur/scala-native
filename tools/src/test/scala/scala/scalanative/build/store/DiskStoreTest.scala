@@ -198,4 +198,23 @@ class DiskStoreTest {
     assertEquals(copy, store.sources(first))
     assertEquals("int a;", read(copy.resolve("a.c")))
   }
+
+  @Test def publishesSourcesConcurrently(): Unit = withDir { dir =>
+    IO.write(dir.resolve("tree/a.c"), "int a;")
+    val tree = SourceTree(dir.resolve("tree"), _ => true)
+    val store = new DiskStore(dir.resolve("store"))
+    val threads = 8
+    val start = new java.util.concurrent.CountDownLatch(1)
+    val pool = java.util.concurrent.Executors.newFixedThreadPool(threads)
+    try {
+      val copies = (1 to threads).map { _ =>
+        pool.submit(new java.util.concurrent.Callable[Path] {
+          def call(): Path = { start.await(); store.sources(tree) }
+        })
+      }
+      start.countDown()
+      // Every build gets the copy, whichever published it
+      assertEquals(1, copies.map(_.get()).distinct.size)
+    } finally pool.shutdown()
+  }
 }

@@ -44,5 +44,7 @@ object Defaults {
           .withLinkingOptions(Discover.linkingOptions())
           .withCompileOptions(Discover.compileOptions())
           .withMultithreading(true)
+          .withGranularBuild(Discover.granularBuild())
+          .withDynamicLibraries(Discover.dynamicLibraries())
       )
 }

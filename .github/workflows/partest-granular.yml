@@ -1,0 +1,116 @@
+name: Partests with granular builds
+# Measures the whole partest suite built as today, with granular builds and
+# with granular builds linking dynamically: time, sharing through the build
+# cache and failures compared with today's builds.
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+concurrency:
+  group: partest-granular-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  partest:
+    name: Partest (${{ matrix.leg }})
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.body, '[partest-granular]')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      matrix:
+        leg: [baseline, static, dynamic]
+        include:
+          - leg: baseline
+            granular: false
+            dynamic: false
+          - leg: static
+            granular: true
+            dynamic: false
+          - leg: dynamic
+            granular: true
+            dynamic: true
+    env:
+      SCALANATIVE_MODE: debug
+      SCALANATIVE_GRANULAR: ${{ matrix.granular }}
+      SCALANATIVE_GRANULAR_DYNAMIC: ${{ matrix.dynamic }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/linux-setup-env
+        with:
+          scala-version: "2.13"
+
+      - name: Prepare partests
+        run: |
+          sbt "scalaPartest${{ env.project-version }}/fetchScalaSource" \
+            "scalaPartestTests${{ env.project-version }}/Test/compile"
+
+      - name: Run all partests
+        id: partest
+        continue-on-error: true
+        env:
+          SCALANATIVE_CACHE_DIR: ${{ runner.temp }}/sn-cache
+          SCALANATIVE_PARTEST_STATS: ${{ runner.temp }}/out/stats.csv
+        run: |
+          out="${{ runner.temp }}/out"
+          mkdir -p "$out"
+          start=$(date +%s)
+          set +e
+          /usr/bin/time -v -o "$out/time.txt" sbt \
+            "-J-Xmx3G" \
+            "set LocalProject(\"scalaPartestTests${{ env.project-version }}\") / Test / javaOptions += \"-Xmx4G\"" \
+            "scalaPartestTests${{ env.project-version }}/testOnly partest-* -- --showDiff" \
+            2>&1 | tee "$out/partest.log"
+          status=${PIPESTATUS[0]}
+          set -e
+          end=$(date +%s)
+          {
+            echo "leg=${{ matrix.leg }}"
+            echo "exit=$status"
+            echo "wall_seconds=$((end - start))"
+            echo "max_rss_kb=$(grep -oP 'Maximum resident set size \(kbytes\): \K[0-9]+' "$out/time.txt" || echo 0)"
+          } > "$out/summary.env"
+          exit $status
+
+      - name: Collect results
+        if: always()
+        run: |
+          out="${{ runner.temp }}/out"
+          cache="${{ runner.temp }}/sn-cache"
+          mkdir -p "$out"
+          # Tests partest reported as failed
+          grep -oE '!! +[0-9]+ - [^ ]+' "$out/partest.log" \
+            | sed -E 's/!! +[0-9]+ - //' | sort -u > "$out/failed.txt" || true
+          {
+            if [ -d "$cache" ]; then
+              echo "store_bytes=$(du -sb "$cache" | cut -f1)"
+              echo "cas_blobs=$(find "$cache/cas" -type f 2>/dev/null | wc -l)"
+              echo "actions=$(find "$cache/ac" -type f 2>/dev/null | wc -l)"
+              echo "libraries=$(find "$cache/lib" -maxdepth 1 -type f 2>/dev/null | wc -l)"
+              echo "library_bytes=$(find "$cache/lib" -maxdepth 1 -type f -printf '%s\n' 2>/dev/null | awk '{s+=$1} END {print s+0}')"
+              echo "programs=$(find "$cache/lib/programs" -type f 2>/dev/null | wc -l)"
+            fi
+          } >> "$out/summary.env"
+          tail -n 200 "$out/partest.log" > "$out/partest-tail.log" || true
+          rm -f "$out/partest.log"
+          cat "$out/summary.env"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: partest-${{ matrix.leg }}
+          path: ${{ runner.temp }}/out
+
+  report:
+    name: Partest report
+    needs: partest
+    if: always() && needs.partest.result != 'skipped'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          path: results
+      - name: Compare legs
+        run: python3 scripts/ci/partest-granular-report.py results | tee -a "$GITHUB_STEP_SUMMARY"

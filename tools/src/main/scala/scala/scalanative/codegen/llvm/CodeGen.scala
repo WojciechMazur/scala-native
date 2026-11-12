@@ -160,7 +160,7 @@ object CodeGen {
     implicit def logger: build.Logger = config.logger
     implicit val platform: PlatformInfo = PlatformInfo(config)
     implicit val meta: CodeGenMetadata =
-      new CodeGenMetadata(analysis, config, Nil)
+      new CodeGenMetadata(analysis, config, Nil, wholeProgram = false)
     val generated = declareProvided(Generate(None, analysis.defns), provided)
     // Definitions no program reaches may need facts the analysis lacks, such
     // as classes missing from the classpath: those are only declared

@@ -5,10 +5,15 @@ import scala.collection.mutable
 
 import scalanative.linker.{Class, ReachabilityAnalysis, ScopeInfo, Trait}
 
+/** @param wholeProgram
+ *    whether the analysis is the one of a program, which reaches what may run,
+ *    rather than of a library unit, which reaches all its definitions
+ */
 private[scalanative] class Metadata(
     val analysis: ReachabilityAnalysis.Result,
     val buildConfig: build.Config,
-    proxies: Seq[nir.Defn]
+    proxies: Seq[nir.Defn],
+    val wholeProgram: Boolean = true
 )(implicit val platform: PlatformInfo) {
   def config: build.NativeConfig = buildConfig.compilerConfig
 

@@ -2188,7 +2188,8 @@ private[scalanative] object Lower {
           // Reflective proxies might make the intrinsic method reachable, but they're unlikely to be called
           def isMaybeReflectiveProxy = metadata.analysis.dynimpls.contains(symbol)
           // Ingore intrinsic call form intrinsic methods. It was already handled
-          if (!isMaybeReflectiveProxy && resolveIntrinsicCall(owner, sig).isEmpty) {
+          // Library units lower intrinsic methods no program calls
+          if (metadata.wholeProgram && !isMaybeReflectiveProxy && resolveIntrinsicCall(owner, sig).isEmpty) {
             logger.warn(s"Instrinsic method was not resolved by Scala Native, it would lead to runtime exception. Defined at ${srcPos.show}")
           }
           None

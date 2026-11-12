@@ -21,7 +21,12 @@ import scala.scalanative.util.Scope
 class MainGenericRunner {
   private def errorFn(str: String) = Defaults.errorFn(str)
 
-  def process(args: Array[String]): Boolean = {
+  def process(args: Array[String]): Boolean = process(args, None)
+
+  /** Builds and runs the program, with its output appended to `output` if
+   *  given, else to the output of this process.
+   */
+  def process(args: Array[String], output: Option[java.io.File]): Boolean = {
     val command =
       new GenericRunnerCommand(args.toList, (x: String) => errorFn(x))
 
@@ -91,7 +96,18 @@ class MainGenericRunner {
 
     val res = {
       val cmd = execPath.toAbsolutePath.toFile.toString :: command.arguments
-      sys.process.Process(cmd, dir.toFile).run().exitValue() == 0
+      output match {
+        case None =>
+          sys.process.Process(cmd, dir.toFile).run().exitValue() == 0
+        case Some(file) =>
+          val log = ProcessBuilder.Redirect.appendTo(file)
+          new ProcessBuilder(cmd: _*)
+            .directory(dir.toFile)
+            .redirectOutput(log)
+            .redirectError(log)
+            .start()
+            .waitFor() == 0
+      }
     }
     Stats.record(
       test = testName(command),

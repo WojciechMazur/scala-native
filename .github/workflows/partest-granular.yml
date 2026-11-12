@@ -22,8 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Throw-away: only the leg being investigated
-        leg: [dynamic]
+        leg: [baseline, static, dynamic]
         include:
           - leg: baseline
             granular: false
@@ -38,6 +37,9 @@ jobs:
       SCALANATIVE_MODE: debug
       SCALANATIVE_GRANULAR: ${{ matrix.granular }}
       SCALANATIVE_GRANULAR_DYNAMIC: ${{ matrix.dynamic }}
+      # Programs are built in the partest JVM, as build tools build them, not
+      # in a JVM started per test
+      SCALANATIVE_PARTEST_IN_PROCESS: true
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/linux-setup-env

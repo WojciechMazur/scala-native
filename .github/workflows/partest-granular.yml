@@ -43,8 +43,7 @@ jobs:
 
       - name: Prepare partests
         run: |
-          sbt "scalaPartest${{ env.project-version }}/fetchScalaSource" \
-            "scalaPartestTests${{ env.project-version }}/Test/compile"
+          sbt "scalaPartest${{ env.project-version }}/fetchScalaSource; scalaPartestTests${{ env.project-version }}/Test/compile"
 
       - name: Run all partests
         id: partest
@@ -57,10 +56,9 @@ jobs:
           mkdir -p "$out"
           start=$(date +%s)
           set +e
-          /usr/bin/time -v -o "$out/time.txt" sbt \
-            "-J-Xmx3G" \
-            "set LocalProject(\"scalaPartestTests${{ env.project-version }}\") / Test / javaOptions += \"-Xmx4G\"" \
-            "scalaPartestTests${{ env.project-version }}/testOnly partest-* -- --showDiff" \
+          # One command line: sbt runs its arguments as a single command
+          /usr/bin/time -v -o "$out/time.txt" sbt "-J-Xmx3G" \
+            "set LocalProject(\"scalaPartestTests${{ env.project-version }}\") / Test / javaOptions += \"-Xmx4G\"; scalaPartestTests${{ env.project-version }}/testOnly partest-* -- --showDiff" \
             2>&1 | tee "$out/partest.log"
           status=${PIPESTATUS[0]}
           set -e

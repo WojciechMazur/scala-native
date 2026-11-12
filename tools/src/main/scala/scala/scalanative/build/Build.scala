@@ -46,8 +46,13 @@ object Build {
   )(implicit scope: Scope, ec: ExecutionContext): Future[Path] = {
     val checksumPath = config.workDir.resolve("build-checksum")
 
+    // Executables whose libraries are missing link again
+    def librariesPresent =
+      !config.compilerConfig.useDynamicLibraries || plan(config).restorable
+
     if (Files.exists(config.artifactPath) &&
-        IO.readFully(checksumPath).contains(checkSum(config).toString)) {
+        IO.readFully(checksumPath).contains(checkSum(config).toString) &&
+        librariesPresent) {
       config.logger.info(
         "Build skipped: No changes detected in build configuration and class path contents since last build."
       )

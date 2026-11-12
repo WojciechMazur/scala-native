@@ -3,7 +3,8 @@ package build
 package store
 
 import java.nio.file.attribute.FileTime
-import java.nio.file.{Files, Path}
+import java.nio.file.{Files, Path, Paths}
+import java.util.concurrent.TimeUnit
 
 import org.junit.Assert._
 import org.junit.Assume.assumeFalse
@@ -216,5 +217,76 @@ class DiskStoreTest {
       // Every build gets the copy, whichever published it
       assertEquals(1, copies.map(_.get()).distinct.size)
     } finally pool.shutdown()
+  }
+
+  // Where the classes the probe needs were loaded from: forked test JVMs do not
+  // list them in java.class.path
+  private def probeClasspath: String = {
+    val scala3 =
+      Seq("scala.runtime.LazyVals$", "scala.runtime.function.JProcedure1")
+        .flatMap(name =>
+          scala.util.Try[Class[_]](Class.forName(name)).toOption.toList
+        )
+    (Seq(
+      ActionLockProbe.getClass,
+      classOf[DiskStore],
+      classOf[nir.Global],
+      classOf[util.Scope],
+      classOf[scala.Option[_]]
+    ) ++ scala3)
+      .map(c =>
+        Paths.get(c.getProtectionDomain.getCodeSource.getLocation.toURI)
+      )
+      .distinct
+      .mkString(java.io.File.pathSeparator)
+  }
+
+  @Test def locksActionsAcrossProcesses(): Unit = withDir { dir =>
+    val root = dir.resolve("store")
+    val locked = dir.resolve("locked")
+    val release = dir.resolve("release")
+    val javaBin = Paths.get(System.getProperty("java.home"), "bin", "java")
+    val probe = new ProcessBuilder(
+      javaBin.toString,
+      "-cp",
+      probeClasspath,
+      "scala.scalanative.build.store.ActionLockProbe",
+      root.toString,
+      "unit",
+      locked.toString,
+      release.toString
+    ).inheritIO().start()
+    try {
+      val deadline = System.currentTimeMillis() + 60000
+      while (!Files.exists(locked) && probe.isAlive &&
+          System.currentTimeMillis() < deadline) Thread.sleep(20)
+      assertTrue("the probe did not take the lock", Files.exists(locked))
+
+      val store = new DiskStore(root)
+      val waited = new java.util.concurrent.CountDownLatch(1)
+      val acquired = new java.util.concurrent.CountDownLatch(1)
+      val waiter = new Thread(() => {
+        val lock = store.lockAction(
+          ActionLockProbe.key("unit"),
+          () => waited.countDown()
+        )
+        acquired.countDown()
+        lock.close()
+      })
+      waiter.start()
+      // Held by the other process: this one waits
+      assertTrue(waited.await(10, TimeUnit.SECONDS))
+      assertFalse(acquired.await(300, TimeUnit.MILLISECONDS))
+      // Another action is not held
+      store.lockAction(ActionLockProbe.key("other"), () => fail()).close()
+
+      Files.createFile(release)
+      assertTrue(acquired.await(30, TimeUnit.SECONDS))
+      waiter.join()
+    } finally {
+      if (!Files.exists(release)) Files.createFile(release)
+      probe.waitFor(30, TimeUnit.SECONDS)
+      probe.destroy()
+    }
   }
 }

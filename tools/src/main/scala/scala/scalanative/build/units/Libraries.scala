@@ -73,7 +73,7 @@ private[scalanative] object Libraries {
       .add("entry", entryDigest)
       .result()
     val target = dir.resolve(s"${entryDigest.hash}.snl")
-    cache.run(key, Seq("library" -> target)) {
+    cache.run(key, Seq("library" -> target), exclusive = true) {
       Scope { implicit in =>
         DeriveLibrary(entry, entryDigest, target, logger)
       }

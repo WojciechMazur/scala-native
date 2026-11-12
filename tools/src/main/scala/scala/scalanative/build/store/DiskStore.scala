@@ -3,11 +3,12 @@ package build
 package store
 
 import java.io.IOException
+import java.nio.channels.FileChannel
 import java.nio.charset.StandardCharsets
 import java.nio.file.attribute.FileTime
 import java.nio.file.{
   AtomicMoveNotSupportedException, FileSystemException, Files,
-  NoSuchFileException, Path, StandardCopyOption
+  NoSuchFileException, Path, StandardCopyOption, StandardOpenOption
 }
 import java.security.DigestOutputStream
 import java.util.UUID
@@ -24,6 +25,7 @@ import scala.collection.mutable
  *  <root>/lib/                       shared libraries programs load, linked
  *                                    to their blobs
  *  <root>/tmp/                       staging area for atomic publishing
+ *  <root>/locks/<2 hex>/<action key> locks of long actions, see `lockAction`
  *  }}}
  *
  *  Every entry is written to `tmp` and moved into place, so readers see either
@@ -43,6 +45,7 @@ private[scalanative] final class DiskStore(val root: Path) extends ActionStore {
   private val casDir = root.resolve("cas")
   private val sourcesDir = root.resolve("sources")
   private val tmpDir = root.resolve("tmp")
+  private val locksDir = root.resolve("locks")
 
   /** Where shared libraries of library units are placed, see
    *  `units.UnitCompile`.
@@ -179,6 +182,37 @@ private[scalanative] final class DiskStore(val root: Path) extends ActionStore {
 
   private def makeReadOnly(path: Path): Unit =
     if (linksBlobs) path.toFile().setWritable(false, false)
+
+  /** Locks the action `key` against other processes using this store, waiting
+   *  while another one holds it, so that builds running at once do not all run
+   *  the same long action: the ones waiting find its result afterwards. Locks
+   *  of a process are released when it exits. The lock of one action must be
+   *  taken once per process: file locks do not exclude threads.
+   */
+  def lockAction(key: ActionKey, onWait: () => Unit): AutoCloseable = {
+    val path = locksDir.resolve(key.hash.substring(0, 2)).resolve(key.hash)
+    Files.createDirectories(path.getParent())
+    val channel = FileChannel.open(
+      path,
+      StandardOpenOption.CREATE,
+      StandardOpenOption.WRITE
+    )
+    try {
+      val lock = Option(channel.tryLock()).getOrElse {
+        onWait()
+        channel.lock()
+      }
+      new AutoCloseable {
+        def close(): Unit =
+          try lock.release()
+          finally channel.close()
+      }
+    } catch {
+      case ex: Throwable =>
+        channel.close()
+        throw ex
+    }
+  }
 
   /** The files referred to by the virtual paths of debug information, see
    *  `DiskStore.virtualSources`.

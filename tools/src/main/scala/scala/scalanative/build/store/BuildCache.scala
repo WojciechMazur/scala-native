@@ -58,8 +58,17 @@ private[scalanative] final class BuildCache private (
 
   /** Makes the named `outputs` of the action `key` exist, running `execute`
    *  only if neither `workDir` nor the store has them.
+   *
+   *  @param exclusive
+   *    whether builds in other processes wait for this action instead of
+   *    running it at the same time, for actions taking long or much memory: the
+   *    waiting ones restore its outputs afterwards
    */
-  def run(key: ActionKey, outputs: Seq[(String, Path)])(
+  def run(
+      key: ActionKey,
+      outputs: Seq[(String, Path)],
+      exclusive: Boolean = false
+  )(
       execute: => Unit
   ): Outcome = {
     def isUpToDate(output: Path): Boolean =
@@ -75,7 +84,7 @@ private[scalanative] final class BuildCache private (
       withStore(s"touch action $key")(())(_.touchAction(key))
       UpToDate
     } else
-      withLock(key) {
+      withLock(key, exclusive) {
         val restored = withStore(s"read action $key")(false) { store =>
           store.getAction(key).exists { result =>
             outputs.forall {
@@ -174,15 +183,35 @@ private[scalanative] final class BuildCache private (
   }
 
   // Builds in this JVM running the same action wait for each other instead of
-  // repeating it; across processes the work may be repeated, which is safe
-  private def withLock[T](key: ActionKey)(body: => T): T = {
+  // repeating it; across processes only exclusive actions do, other ones may
+  // be repeated, which is safe
+  private def withLock[T](key: ActionKey, exclusive: Boolean)(
+      body: => T
+  ): T = {
     val lockKey = s"${storeOption.fold(workDir)(_.root)}:${key.hash}"
     val lock = new Object
     val existing = locks.putIfAbsent(lockKey, lock)
     val owned = if (existing == null) lock else existing
     owned.synchronized {
-      try body
-      finally locks.remove(lockKey, lock)
+      try {
+        val processLock =
+          if (!exclusive) None
+          else
+            withStore(s"lock action $key")(Option.empty[AutoCloseable]) {
+              store =>
+                Some(
+                  store.lockAction(
+                    key,
+                    () =>
+                      logger.info(
+                        s"Waiting for another build running the same action in ${store.root}"
+                      )
+                  )
+                )
+            }
+        try body
+        finally processLock.foreach(_.close())
+      } finally locks.remove(lockKey, lock)
     }
   }
 }

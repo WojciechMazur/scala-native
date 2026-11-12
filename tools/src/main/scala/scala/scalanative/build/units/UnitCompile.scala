@@ -249,7 +249,8 @@ private[scalanative] object UnitCompile {
       native.toSeq.flatMap { native =>
         Seq("natives" -> native.archive, "sections" -> native.sections)
       }
-    cache.run(key.result(), outputs) {
+    // Programs built at once compile each unit once
+    cache.run(key.result(), outputs, exclusive = true) {
       val manifest = compileSources(
         config,
         unit,
@@ -332,7 +333,7 @@ private[scalanative] object UnitCompile {
     val debugInfo = dsymutil.toSeq.flatMap { _ =>
       Seq("dsym", "dsym-info").zip(LLVM.dsymFiles(library))
     }
-    cache.run(key, ("library" -> library) +: debugInfo) {
+    cache.run(key, ("library" -> library) +: debugInfo, exclusive = true) {
       LLVM.linkSharedLibrary(
         config,
         manifest.linkCppRuntime,

@@ -5,11 +5,14 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.{AbstractMap, HashMap}
 
 import scala.annotation.tailrec
+import scala.util.control.NonFatal
 
 import scala.scalanative.meta.LinktimeInfo
 import scala.scalanative.runtime.dwarf.DWARF.{DIE, DIEUnit}
 import scala.scalanative.runtime.dwarf.{BinaryFile, DWARF, ELF, MachO, PE, PIE}
-import scala.scalanative.unsafe.{CString, Tag, UnsafeRichArray, Zone}
+import scala.scalanative.unsafe.{
+  CString, Ptr, Tag, UnsafeRichArray, Zone, fromCString
+}
 import scala.scalanative.unsigned.UInt
 import scalanative.unsigned._
 
@@ -28,12 +31,62 @@ private[runtime] object Backtrace {
 
   private val dwarfInfo: Option[DwarfInfo] = processFile()
 
+  /** Debug information of shared libraries, by path: addresses in a library are
+   *  biased by its load address only, see `backtraceImage`.
+   */
+  private case class LibraryDwarf(
+      subprograms: scala.Array[DWARF.SubprogramDIE],
+      strings: DWARF.Strings
+  )
+  private val libraries =
+    new ConcurrentHashMap[String, Option[LibraryDwarf]]()
+
   case class Position(linkageName: CString, filename: String, line: Int)
   object Position {
     final val empty = Position(null, null, 0)
   }
 
-  def decodePosition(pc: Long): Position = {
+  def decodePosition(pc: Long): Position =
+    if (LinktimeInfo.isMac || LinktimeInfo.isLinux) {
+      val path = fromRawPtr[CString](Intrinsics.stackalloc[CString]())
+      val bias = fromRawPtr[Long](Intrinsics.stackalloc[Long]())
+      if (backtraceImage.imageOf(pc, path, bias) == LibraryImage)
+        decodeLibraryPosition(fromCString(!path), pc - !bias)
+      else decodeExecutablePosition(pc)
+    } else decodeExecutablePosition(pc)
+
+  private final val LibraryImage = 2
+
+  private def decodeLibraryPosition(path: String, address: Long): Position = {
+    val dwarf = libraries.computeIfAbsent(
+      path,
+      _ =>
+        // A library without readable debug information has no positions
+        try
+          readImage(path).map {
+            case (subprograms, strings, _, _) =>
+              LibraryDwarf(subprograms, strings)
+          }
+        catch { case NonFatal(_) => None }
+    )
+    dwarf
+      .flatMap { info =>
+        search(info.subprograms, address).map(position(info.strings, _))
+      }
+      .getOrElse(Position.empty)
+  }
+
+  private def position(
+      strings: DWARF.Strings,
+      subprogram: DWARF.SubprogramDIE
+  ): Position =
+    Position(
+      strings.buf.at(subprogram.linkageNameAt.toInt),
+      strings.read(subprogram.filenameAt),
+      subprogram.line + 1 // line number in DWARF is 0-based
+    )
+
+  private def decodeExecutablePosition(pc: Long): Position = {
     dwarfInfo match {
       case Some(info) =>
         // The address (DW_AT_(low|high)_address) in debug information has the file offset (the offset in the executable + __PAGEZERO in macho).
@@ -54,20 +107,9 @@ private[runtime] object Backtrace {
         } else {
           address
         }
-        val position = for {
-          subprogram <- search(info.subprograms, virtualAddress)
-        } yield {
-          val filename = info.strings.read(subprogram.filenameAt)
-          val linkageName =
-            info.strings.buf
-              .at(subprogram.linkageNameAt.toInt)
-          Position(
-            linkageName,
-            filename,
-            subprogram.line + 1
-          ) // line number in DWARF is 0-based
-        }
-        position.getOrElse(Position.empty)
+        search(info.subprograms, virtualAddress)
+          .map(position(info.strings, _))
+          .getOrElse(Position.empty)
       case None =>
         Position.empty // there's no debug section
     }
@@ -197,67 +239,9 @@ private[runtime] object Backtrace {
   private final val ELF_MAGIC = 0x7f454c46
   private final val MZ_MAGIC = 0x5a4d
 
-  private def processFile(): Option[DwarfInfo] = {
-    implicit val bf: BinaryFile = new BinaryFile(new File(ExecInfo.filename))
-    val head = bf.position()
-    val magic = bf.readInt()
-    bf.seek(head)
-    val dwarfInfo: Option[
-      (scala.Array[DWARF.SubprogramDIE], DWARF.Strings, Boolean, Long)
-    ] =
-      if (LinktimeInfo.isMac) {
-        if (magic == MACHO_MAGIC) {
-          val macho = MachO.parse(bf)
-          processMacho(macho)
-            .map {
-              case (dies, strings, isPIE) =>
-                (dies, strings, isPIE, 0L)
-            }
-            .orElse {
-              val basename = new File(ExecInfo.filename).getName()
-              // dsymutil `foo` will assemble the debug information into `foo.dSYM/Contents/Resources/DWARF/foo`.
-              // Coulnt't find the official source, but at least libbacktrace locate the dSYM file from this location.
-              // https://github.com/ianlancetaylor/libbacktrace/blob/cdb64b688dda93bbbacbc2b1ccf50ce9329d4748/macho.c#L908
-              val dSymPath =
-                s"${ExecInfo.filename}.dSYM/Contents/Resources/DWARF/${basename}"
-              if (new File(dSymPath).exists()) {
-                val dSYMBin: BinaryFile = new BinaryFile(
-                  new File(dSymPath)
-                )
-                val dSYMMacho = MachO.parse(dSYMBin)
-                if (dSYMMacho.uuid == macho.uuid) // Validate the macho in dSYM has the same build uuid.
-                  processMacho(dSYMMacho)(dSYMBin).map {
-                    case (dies, strings, isPIE) =>
-                      (dies, strings, isPIE, 0L)
-                  }
-                else None
-              } else None
-            }
-        } else None
-      } else if (magic == ELF_MAGIC) {
-        val elf = ELF.parse(bf)
-        processELF(elf).map {
-          case (dies, strings) =>
-            (dies, strings, elf.isPositionIndependentBinary, 0L)
-        }
-      } else if ((magic & 0xffff) == MZ_MAGIC) {
-        scala.util.Try(PE.parse(bf)).toOption.flatMap { pe =>
-          processPE(pe).map {
-            case (dies, strings) =>
-              (
-                dies,
-                strings,
-                pe.isPositionIndependentBinary,
-                pe.preferredImageBase
-              )
-          }
-        }
-      } else {
-        None
-      }
-
+  private def processFile(): Option[DwarfInfo] =
     for {
-      dwarf <- dwarfInfo
+      dwarf <- readImage(ExecInfo.filename)
       offset = vmoffset.get_vmoffset()
     } yield {
       DwarfInfo(
@@ -267,6 +251,67 @@ private[runtime] object Backtrace {
         isPositionIndependentBinary = dwarf._3,
         preferredImageBase = dwarf._4
       )
+    }
+
+  /** The subprograms and strings of the image at `filename`, whether it is
+   *  position independent and its preferred base (PE only).
+   */
+  private def readImage(filename: String): Option[
+    (scala.Array[DWARF.SubprogramDIE], DWARF.Strings, Boolean, Long)
+  ] = {
+    implicit val bf: BinaryFile = new BinaryFile(new File(filename))
+    val head = bf.position()
+    val magic = bf.readInt()
+    bf.seek(head)
+    if (LinktimeInfo.isMac) {
+      if (magic == MACHO_MAGIC) {
+        val macho = MachO.parse(bf)
+        processMacho(macho)
+          .map {
+            case (dies, strings, isPIE) =>
+              (dies, strings, isPIE, 0L)
+          }
+          .orElse {
+            val basename = new File(filename).getName()
+            // dsymutil `foo` will assemble the debug information into `foo.dSYM/Contents/Resources/DWARF/foo`.
+            // Coulnt't find the official source, but at least libbacktrace locate the dSYM file from this location.
+            // https://github.com/ianlancetaylor/libbacktrace/blob/cdb64b688dda93bbbacbc2b1ccf50ce9329d4748/macho.c#L908
+            val dSymPath =
+              s"${filename}.dSYM/Contents/Resources/DWARF/${basename}"
+            if (new File(dSymPath).exists()) {
+              val dSYMBin: BinaryFile = new BinaryFile(
+                new File(dSymPath)
+              )
+              val dSYMMacho = MachO.parse(dSYMBin)
+              if (dSYMMacho.uuid == macho.uuid) // Validate the macho in dSYM has the same build uuid.
+                processMacho(dSYMMacho)(dSYMBin).map {
+                  case (dies, strings, isPIE) =>
+                    (dies, strings, isPIE, 0L)
+                }
+              else None
+            } else None
+          }
+      } else None
+    } else if (magic == ELF_MAGIC) {
+      val elf = ELF.parse(bf)
+      processELF(elf).map {
+        case (dies, strings) =>
+          (dies, strings, elf.isPositionIndependentBinary, 0L)
+      }
+    } else if ((magic & 0xffff) == MZ_MAGIC) {
+      scala.util.Try(PE.parse(bf)).toOption.flatMap { pe =>
+        processPE(pe).map {
+          case (dies, strings) =>
+            (
+              dies,
+              strings,
+              pe.isPositionIndependentBinary,
+              pe.preferredImageBase
+            )
+        }
+      }
+    } else {
+      None
     }
   }
 

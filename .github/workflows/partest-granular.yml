@@ -40,6 +40,10 @@ jobs:
       # Programs are built in the partest JVM, as build tools build them, not
       # in a JVM started per test
       SCALANATIVE_PARTEST_IN_PROCESS: true
+      # Job-wide: the sbt server started by the first step runs the tests and
+      # keeps the environment it started with
+      SCALANATIVE_CACHE_DIR: /tmp/sn-partest/cache
+      SCALANATIVE_PARTEST_STATS: /tmp/sn-partest/out/stats.csv
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/linux-setup-env
@@ -48,16 +52,14 @@ jobs:
 
       - name: Prepare partests
         run: |
+          mkdir -p "/tmp/sn-partest/out"
           sbt "scalaPartest${{ env.project-version }}/fetchScalaSource; scalaPartestTests${{ env.project-version }}/Test/compile"
 
       - name: Run all partests
         id: partest
         continue-on-error: true
-        env:
-          SCALANATIVE_CACHE_DIR: ${{ runner.temp }}/sn-cache
-          SCALANATIVE_PARTEST_STATS: ${{ runner.temp }}/out/stats.csv
         run: |
-          out="${{ runner.temp }}/out"
+          out="/tmp/sn-partest/out"
           mkdir -p "$out"
           # Runners exhausting memory or disk are shut down without a trace:
           # sample both into the log
@@ -87,8 +89,8 @@ jobs:
       - name: Collect results
         if: always()
         run: |
-          out="${{ runner.temp }}/out"
-          cache="${{ runner.temp }}/sn-cache"
+          out="/tmp/sn-partest/out"
+          cache="/tmp/sn-partest/cache"
           mkdir -p "$out"
           # Tests partest reported as failed
           grep -oE '!! +[0-9]+ - [^ ]+' "$out/partest.log" \
@@ -111,7 +113,7 @@ jobs:
         if: always()
         with:
           name: partest-${{ matrix.leg }}
-          path: ${{ runner.temp }}/out
+          path: /tmp/sn-partest/out
 
   report:
     name: Partest report

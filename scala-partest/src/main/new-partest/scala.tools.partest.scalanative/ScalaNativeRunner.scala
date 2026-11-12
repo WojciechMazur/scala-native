@@ -40,8 +40,26 @@ class ScalaNativeRunner(
       val classpath = args(args.indexOf("-classpath") + 1)
       val program =
         args.drop(args.indexOf(runner) + 1).filterNot(_ == "-usejavacp")
-      new scala.tools.nsc.MainGenericRunner()
-        .process(("-classpath" +: classpath +: program).toArray, Some(outFile))
+      // A failed build fails this test only, as an exiting JVM would
+      try
+        new scala.tools.nsc.MainGenericRunner()
+          .process(
+            ("-classpath" +: classpath +: program).toArray,
+            Some(outFile)
+          )
+      catch {
+        case t: Throwable =>
+          val trace = new java.io.StringWriter
+          t.printStackTrace(new java.io.PrintWriter(trace))
+          System.err.println(s"Building ${outFile.getName} failed: $trace")
+          java.nio.file.Files.write(
+            outFile.toPath,
+            trace.toString.getBytes("UTF-8"),
+            java.nio.file.StandardOpenOption.CREATE,
+            java.nio.file.StandardOpenOption.APPEND
+          )
+          false
+      }
     }
   }
 }

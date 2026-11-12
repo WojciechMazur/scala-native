@@ -151,12 +151,21 @@ private[scalanative] object LLVM {
     objPath
   }
 
+  // Compilers running at once in this JVM, whichever execution context runs
+  // the builds: one per processor, each takes up to a few hundred MB
+  private val compilers =
+    new java.util.concurrent.Semaphore(Runtime.getRuntime.availableProcessors())
+
   private def runCompiler(command: Seq[String], srcPath: Path)(implicit
       config: Config
   ): Unit = {
     config.logger.running(command)
-    val result = Process(command, config.workDir.toFile) !
-      Logger.toCompilerProcessLogger(config.logger)
+    compilers.acquire()
+    val result =
+      try
+        Process(command, config.workDir.toFile) !
+          Logger.toCompilerProcessLogger(config.logger)
+      finally compilers.release()
     if (result != 0) {
       throw new BuildException(s"Failed to compile ${srcPath.abs}")
     }

@@ -662,12 +662,15 @@ private[scalanative] object LLVM {
         if (config.targetsMac)
           weakSymbols.sorted.foreach(symbol => add(s"-Wl,-U,_$symbol"))
         // Libraries compiled apart and linked dynamically, found where they
-        // were built
+        // were built. LD_LIBRARY_PATH, like DYLD_LIBRARY_PATH on macOS, takes
+        // precedence over a RUNPATH, so they can be found elsewhere too
         sharedLibraries.foreach(p => add(p.abs))
         sharedLibraries
           .map(_.toAbsolutePath().getParent())
           .distinct
           .foreach(dir => add(s"-Wl,-rpath,${dir.abs}"))
+        if (sharedLibraries.nonEmpty && !config.targetsMac)
+          add("-Wl,--enable-new-dtags")
 
         linkopts.foreach(add)
 

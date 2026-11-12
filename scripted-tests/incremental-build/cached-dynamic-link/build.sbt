@@ -52,3 +52,35 @@ deleteLibraries := IO.delete(
   Option((buildCache(baseDirectory.value) / "lib").listFiles()).toSeq.flatten
     .filter(_.isFile)
 )
+
+// Libraries of a moved build cache are found through the library path
+lazy val runWithMovedLibraries =
+  taskKey[Unit]("Run the program with its libraries in another directory")
+runWithMovedLibraries := {
+  val conv = Keys.fileConverter.value
+  // sbt 1 links to a File, sbt 2 to a virtual file
+  val program = ((Compile / nativeLink).value: Any) match {
+    case f: File                   => f
+    case ref: xsbti.VirtualFileRef => conv.toPath(ref).toFile
+  }
+  val libraries = buildCache(baseDirectory.value) / "lib"
+  if (libraries.exists) {
+    val moved = target.value / "moved-lib"
+    IO.delete(moved)
+    IO.move(libraries, moved)
+    try {
+      val variable =
+        if (System.getProperty("os.name").startsWith("Mac"))
+          "DYLD_LIBRARY_PATH"
+        else "LD_LIBRARY_PATH"
+      val output = scala.sys.process
+        .Process(
+          Seq(program.getAbsolutePath),
+          None,
+          variable -> moved.getAbsolutePath
+        )
+        .!!
+      assert(output.trim == "hello", s"unexpected output: $output")
+    } finally IO.move(moved, libraries)
+  }
+}

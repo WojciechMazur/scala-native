@@ -7,6 +7,9 @@
 > checkToolchainSkipped
 > run
 
+# The program finds its libraries elsewhere through the library path
+> runWithMovedLibraries
+
 # After clean, sbt restores the program, the build cache keeps its libraries
 > clean
 > nativeLink

@@ -304,7 +304,15 @@ private[scalanative] object UnitCompile {
     // Libraries of other platforms are left out, Scala externs being weak
     val links =
       manifest.links.toSeq.sorted.filter(LLVM.isLinkable(config, _))
-    val key = ActionKey
+    // On macOS the debug information stays in the objects of the unit: it is
+    // linked into a dSYM next to the library, stored with it
+    val positions =
+      config.compilerConfig.sourceLevelDebuggingConfig.generateFunctionSourcePositions
+    val dsymutil =
+      if (config.targetsMac && positions)
+        Discover.tryDiscover("dsymutil", "LLVM_BIN").toOption
+      else None
+    val keyBuilder = ActionKey
       .builder("link-unit", FormatVersion)
       .add("plan", Digest.of(unitPlan(config)))
       .add("archive", cache.digest(archive))
@@ -313,11 +321,18 @@ private[scalanative] object UnitCompile {
       .addAll("dependencies", dependencyLibraries.map(_.getFileName.toString))
       .addAll("links", links)
       .add("cpp", manifest.linkCppRuntime.toString)
+    val key = dsymutil
+      .fold(keyBuilder)(path =>
+        keyBuilder.add("dsymutil", BuildCache.toolchain(path))
+      )
       .result()
     val extension = if (config.targetsMac) "dylib" else "so"
     val library =
       cache.libraryDir.resolve(s"libsn-${key.hash.take(16)}.$extension")
-    cache.run(key, Seq("library" -> library)) {
+    val debugInfo = dsymutil.toSeq.flatMap { _ =>
+      Seq("dsym", "dsym-info").zip(LLVM.dsymFiles(library))
+    }
+    cache.run(key, ("library" -> library) +: debugInfo) {
       LLVM.linkSharedLibrary(
         config,
         manifest.linkCppRuntime,
@@ -328,7 +343,10 @@ private[scalanative] object UnitCompile {
         manifest.externs.toSeq,
         library
       )
+      dsymutil.foreach(LLVM.linkDebugInfo(config, _, library))
     }
+    if (dsymutil.nonEmpty)
+      cache.sourcesRoot.foreach(LLVM.writeSourceRemapping(library, _))
     library
   }
 
@@ -409,12 +427,15 @@ private[scalanative] object UnitCompile {
     // build cache, stale ones must not end up in the archive
     if (Files.isDirectory(dir)) IO.deleteRecursive(dir)
     Files.createDirectories(dir)
+    // Sources of jars are referred to through the store, so that the code of
+    // the unit does not depend on the build that generated it
     val irFiles = CodeGen.emitUnit(
       config,
       meta,
       env,
       selected,
-      dir.resolve("ir")
+      dir.resolve("ir"),
+      cache.jarSources
     )
     // Objects compiled from the same IR by an earlier version of the unit are
     // reused

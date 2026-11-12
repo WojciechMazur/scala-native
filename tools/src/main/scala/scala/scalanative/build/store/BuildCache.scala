@@ -109,10 +109,31 @@ private[scalanative] final class BuildCache private (
   def libraryDir: Path =
     storeOption.fold(workDir.resolve("lib"))(_.libraries)
 
-  /** The location of `tree` in the store, see `DiskStore.sources`. */
-  def sources(tree: SourceTree): Option[Path] =
-    withStore(s"store sources ${tree.root}")(Option.empty[Path]) { store =>
-      Some(store.sources(tree))
+  /** Where the store keeps the sources of virtual locations, see
+   *  `DiskStore.sourcesRoot`.
+   */
+  def sourcesRoot: Option[Path] = storeOption.map(_.sourcesRoot)
+
+  /** The virtual location of `tree`, stored if not yet, see
+   *  `DiskStore.sources`.
+   */
+  def sources(tree: SourceTree): Option[String] =
+    withStore(s"store sources ${tree.root}")(Option.empty[String]) { store =>
+      store.sources(tree)
+      Some(DiskStore.virtualSources(tree.digest))
+    }
+
+  /** The unpacked sources of the jar `archive` and their virtual location, see
+   *  `DiskStore.unpackedSources`.
+   */
+  def jarSources(archive: Path): Option[(Path, String)] =
+    withStore(s"store sources of $archive")(Option.empty[(Path, String)]) {
+      store =>
+        val digest = this.digest(archive)
+        Some(
+          store.unpackedSources(archive, digest) ->
+            DiskStore.virtualSources(digest)
+        )
     }
 
   /** Saves the index and occasionally collects garbage in the store. */

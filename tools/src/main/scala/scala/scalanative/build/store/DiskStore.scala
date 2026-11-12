@@ -181,23 +181,39 @@ private[scalanative] final class DiskStore(val root: Path) extends ActionStore {
   private def makeReadOnly(path: Path): Unit =
     if (linksBlobs) path.toFile().setWritable(false, false)
 
-  /** A copy of `tree`, made if not stored yet. Object files built from the tree
-   *  refer to this location in their debug info, so it stays valid whichever
-   *  build compiled them.
+  /** The files referred to by the virtual paths of debug information, see
+   *  `DiskStore.virtualSources`.
    */
-  def sources(tree: SourceTree): Path = {
-    val dir = sourcesDir.resolve(tree.digest.hash)
+  def sourcesRoot: Path = sourcesDir
+
+  /** A copy of `tree`, made if not stored yet. Object files built from the tree
+   *  refer to it through `DiskStore.virtualSources(tree.digest)`.
+   */
+  def sources(tree: SourceTree): Path =
+    publishSources(tree.digest) { tmp =>
+      tree.files.foreach {
+        case (relative, _) =>
+          val target = tmp.resolve(relative)
+          Files.createDirectories(target.getParent())
+          Files.copy(tree.root.resolve(relative), target)
+      }
+    }
+
+  /** The sources of the jar `archive`, whose digest is `digest`, unpacked if
+   *  not stored yet. Code generated from them refers to them through
+   *  `DiskStore.virtualSources(digest)`.
+   */
+  def unpackedSources(archive: Path, digest: Digest): Path =
+    publishSources(digest)(IO.unzip(archive, _))
+
+  private def publishSources(digest: Digest)(fill: Path => Unit): Path = {
+    val dir = sourcesDir.resolve(digest.hash)
     if (Files.isDirectory(dir)) touch(dir)
     else {
       Files.createDirectories(tmpDir)
       val tmp = Files.createTempDirectory(tmpDir, "sources-")
       try {
-        tree.files.foreach {
-          case (relative, _) =>
-            val target = tmp.resolve(relative)
-            Files.createDirectories(target.getParent())
-            Files.copy(tree.root.resolve(relative), target)
-        }
+        fill(tmp)
         Files.createDirectories(sourcesDir)
         try Files.move(tmp, dir, StandardCopyOption.ATOMIC_MOVE)
         catch {
@@ -411,6 +427,16 @@ private[scalanative] object DiskStore {
   final val ProgramsDir = "programs"
 
   private val linksBlobs = !scala.util.Properties.isWin
+
+  /** Where debug information of stored code says its sources are: the same on
+   *  every machine, so that stored code does not depend on the location of the
+   *  store. Debuggers map it to `sourcesRoot`.
+   */
+  final val VirtualSourceRoot = "/scala-native-sources"
+
+  /** The virtual location of the sources with `digest`. */
+  def virtualSources(digest: Digest): String =
+    s"$VirtualSourceRoot/${digest.hash}"
 
   final case class GcStats(
       actions: Int,

@@ -211,7 +211,7 @@ private[codegen] trait MetadataCodeGen { self: AbstractCodeGen =>
       .map { sourcePath =>
         DIFile(
           filename = sourcePath.getFileName().toString(),
-          directory = sourcePath.getParent().toString()
+          directory = sourceCodeCache.debugDirectory(sourcePath)
         )
       }
       .getOrElse(DIFile("unknown", "unknown"))

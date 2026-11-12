@@ -211,7 +211,8 @@ object CodeGen {
       meta: CodeGenMetadata,
       env: Seq[nir.Defn],
       selected: Seq[nir.Defn],
-      outputDir: Path
+      outputDir: Path,
+      jarSources: Path => Option[(Path, String)]
   )(implicit ec: ExecutionContext): Seq[Future[(Path, Set[String])]] = {
     implicit val _meta: CodeGenMetadata = meta
     val envMap = env.map(defn => defn.name -> defn).toMap
@@ -219,7 +220,7 @@ object CodeGen {
     // Shared by the whole unit, the scope outlives the generation
     val scope = Scope.unsafe()
     val dir = VirtualDirectory.real(outputDir)(scope)
-    val sourceCodeCache = new SourceCodeCache(config)
+    val sourceCodeCache = new SourceCodeCache(config, jarSources)
     // Darwin's linker needs a compilation unit per source file, see emit
     def sourceOf(defn: nir.Defn): String = defn.pos.source match {
       case nir.SourceFile.Relative(path) => path

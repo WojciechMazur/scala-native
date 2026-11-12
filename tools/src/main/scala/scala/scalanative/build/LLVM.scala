@@ -48,14 +48,14 @@ private[scalanative] object LLVM {
    *    through `__FILE__`.
    *  @param mappedRoot
    *    Location `root` is mapped to in the object file, so that it does not
-   *    depend on where the source was compiled.
+   *    depend on where the source was compiled, see `DiskStore.virtualSources`.
    */
   final case class StoredCompile(
       cache: store.BuildCache,
       inputs: store.Digest,
       root: Path,
       source: Option[String] = None,
-      mappedRoot: Option[Path] = None
+      mappedRoot: Option[String] = None
   )
 
   /** Compile the given files to object files
@@ -111,15 +111,19 @@ private[scalanative] object LLVM {
       analysis: ReachabilityAnalysis.Result
   ): Path = {
     val prefixMap = stored.mappedRoot.map { mapped =>
-      s"-ffile-prefix-map=${stored.root.abs}=${mapped.abs}"
+      s"-ffile-prefix-map=${stored.root.abs}=$mapped"
     }
-    val command = compileCommand(srcPath, objPath, prefixMap.toSeq)
+    // Paths in debug information are absolute: the directory the compiler
+    // runs in only needs to be the same for every build
+    val compilationDir =
+      s"-fdebug-compilation-dir=${store.DiskStore.VirtualSourceRoot}"
+    val command =
+      compileCommand(srcPath, objPath, prefixMap.toSeq :+ compilationDir)
     // Paths that differ between builds of the same inputs
     val placeholders = Seq(
-      stored.mappedRoot.map(_.abs -> "$MAPPED"),
-      Some(stored.root.abs -> "$ROOT"),
-      Some(config.workDir.abs -> "$WORKDIR")
-    ).flatten
+      stored.root.abs -> "$ROOT",
+      config.workDir.abs -> "$WORKDIR"
+    )
     def normalize(arg: String): String =
       placeholders.foldLeft(arg) {
         case (arg, (path, placeholder)) => arg.replace(path, placeholder)
@@ -396,6 +400,128 @@ private[scalanative] object LLVM {
       case Failure(e) => config.logger.warn(e.getMessage())
       case Success(_) =>
     }
+
+  /** The files of the dSYM bundle of `binary` produced by `linkDebugInfo`: the
+   *  DWARF of the binary and the bundle's `Info.plist`.
+   */
+  def dsymFiles(binary: Path): Seq[Path] = {
+    val contents = Paths.get(binary.toString + ".dSYM", "Contents")
+    Seq(
+      contents.resolve("Resources/DWARF").resolve(binary.getFileName),
+      contents.resolve("Info.plist")
+    )
+  }
+
+  /** Links the DWARF debug information of the objects `binary` was linked from
+   *  into its dSYM bundle, see `dsymFiles`: the bundle no longer needs the
+   *  objects, so it stays valid when they are gone.
+   */
+  def linkDebugInfo(config: Config, dsymutil: Path, binary: Path): Unit = {
+    val bundle = Paths.get(binary.toString + ".dSYM")
+    val tmp = Files.createTempDirectory(config.workDir, "dsym")
+    try {
+      val linked = tmp.resolve(bundle.getFileName)
+      val command = Seq(dsymutil.abs, binary.abs, "-o", linked.abs)
+      config.logger.running(command)
+      val result = Process(command, config.workDir.toFile()) !
+        Logger.toCompilerProcessLogger(config.logger)
+      if (result != 0)
+        throw new BuildException(
+          s"Failed to link the debug information of $binary"
+        )
+      // Only the files kept by the build cache, not the relocation maps
+      // dsymutil may add
+      dsymFiles(binary).foreach { file =>
+        val source = linked.resolve(bundle.relativize(file))
+        Files.createDirectories(file.getParent())
+        Files.move(source, file, StandardCopyOption.REPLACE_EXISTING)
+      }
+    } finally IO.deleteRecursive(tmp)
+  }
+
+  /** Tells lldb where the sources of the virtual root are, see
+   *  `DiskStore.virtualSources`: a `<UUID>.plist` with `DBGSourcePathRemapping`
+   *  in the dSYM bundle of `binary`. It names the store of this machine, so it
+   *  is written by each build instead of being stored.
+   */
+  def writeSourceRemapping(binary: Path, sourcesRoot: Path): Unit = {
+    val dwarf = dsymFiles(binary).head
+    machoUuid(dwarf).foreach { uuid =>
+      val plist = dwarf.getParent().getParent().resolve(s"$uuid.plist")
+      val content =
+        s"""|<?xml version="1.0" encoding="UTF-8"?>
+            |<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            |<plist version="1.0">
+            |<dict>
+            |  <key>DBGVersion</key>
+            |  <string>3</string>
+            |  <key>DBGSourcePathRemapping</key>
+            |  <dict>
+            |    <key>${store.DiskStore.VirtualSourceRoot}</key>
+            |    <string>${xmlEscape(sourcesRoot.abs)}</string>
+            |  </dict>
+            |</dict>
+            |</plist>
+            |""".stripMargin
+      if (!IO.readFully(plist).contains(content)) {
+        val tmp = Files.createTempFile(plist.getParent(), ".remap", ".tmp")
+        try {
+          IO.write(tmp, content)
+          Files.move(tmp, plist, StandardCopyOption.REPLACE_EXISTING)
+        } finally Files.deleteIfExists(tmp)
+      }
+    }
+  }
+
+  private def xmlEscape(text: String): String =
+    text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+  /** The UUID of the 64-bit Mach-O file at `path`, as dSYM bundles name it. */
+  private def machoUuid(path: Path): Option[String] = {
+    val LcUuid = 0x1b
+    // The header and the load commands, not the debug information after them
+    def read(channel: java.nio.channels.FileChannel, size: Int) = {
+      val buffer = java.nio.ByteBuffer
+        .allocate(size)
+        .order(java.nio.ByteOrder.LITTLE_ENDIAN)
+      channel.read(buffer, 0L)
+      buffer
+    }
+    try {
+      val channel = java.nio.channels.FileChannel.open(path)
+      val buffer =
+        try {
+          val header = read(channel, 32)
+          read(channel, 32 + math.max(header.getInt(20), 0))
+        } finally channel.close()
+      if (buffer.getInt(0) != 0xfeedfacf) None
+      else {
+        val commands = buffer.getInt(16)
+        var offset = 32
+        var uuid = Option.empty[String]
+        var i = 0
+        while (uuid.isEmpty && i < commands) {
+          val size = buffer.getInt(offset + 4)
+          if (buffer.getInt(offset) == LcUuid) {
+            val hex = (0 until 16)
+              .map(j => f"${buffer.get(offset + 8 + j) & 0xff}%02X")
+              .mkString
+            uuid = Some(
+              Seq(0 -> 8, 8 -> 12, 12 -> 16, 16 -> 20, 20 -> 32)
+                .map { case (from, to) => hex.substring(from, to) }
+                .mkString("-")
+            )
+          }
+          offset += size
+          i += 1
+        }
+        uuid
+      }
+    } catch {
+      // Not a Mach-O file, or a damaged one
+      case _: java.io.IOException | _: IndexOutOfBoundsException => None
+    }
+  }
 
   /** This function allows a project to have multiple `main` files by copying
    *  the one selected to the same parent directory as the `workDir` which is by

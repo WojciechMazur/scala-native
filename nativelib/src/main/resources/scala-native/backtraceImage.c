@@ -1,6 +1,11 @@
 #if defined(SCALANATIVE_COMPILE_ALWAYS) ||                                     \
     defined(__SCALANATIVE_BACKTRACE_IMAGE)
 
+// Before any header: glibc declares dl_iterate_phdr only for GNU sources
+#if defined(__linux__) && !defined(_GNU_SOURCE)
+#define _GNU_SOURCE
+#endif
+
 #include <stdint.h>
 
 #define SCALANATIVE_IMAGE_UNKNOWN 0
@@ -32,10 +37,8 @@ int scalanative_backtrace_image(int64_t address, const char **path,
 }
 
 #elif defined(__linux__)
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
 #include <link.h>
+#include <stddef.h>
 
 struct ImageSearch {
     uintptr_t address;

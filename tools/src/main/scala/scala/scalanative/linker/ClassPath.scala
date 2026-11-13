@@ -45,9 +45,10 @@ object ClassPath {
       library: build.units.Library.Reader
   ): ClassPath = new FromLibrary(library)
 
-  // Not caching loaded definitions: whoever loads them keeps what it needs,
-  // and granular builds load every class of a library unit, which would stay
-  // in memory for the whole build
+  // Not caching loaded definitions per build: whoever loads them keeps what
+  // it needs, and granular builds load every class of a library unit, which
+  // would stay in memory for the whole build. The library keeps a bounded set
+  // of recently decoded ones for later builds
   private final class FromLibrary(library: build.units.Library.Reader)
       extends ClassPath {
     def contains(name: nir.Global): Boolean = library.contains(name.top)

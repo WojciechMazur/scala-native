@@ -136,26 +136,76 @@ private[scalanative] object Library {
   final class Reader private (
       file: Path,
       channel: FileChannel,
-      val index: LibraryIndex,
-      locations: Map[nir.Global.Top, (Long, Int)],
+      contents: Contents,
       origin: Path
   ) extends AutoCloseable {
-    val classes: Map[nir.Global.Top, ClassIndex] =
-      index.classes.map(c => c.name -> c).toMap
+    def index: LibraryIndex = contents.index
+    def classes: Map[nir.Global.Top, ClassIndex] = contents.classes
 
     def contains(name: nir.Global.Top): Boolean = classes.contains(name)
 
     def load(name: nir.Global.Top): Option[Seq[nir.Defn]] =
       classes.get(name).map { cls =>
-        val (position, size) = locations(name)
-        val buffer = read(channel, position, size)
-        new BinaryDeserializer(
-          buffer,
-          nir.NIRSource(origin, Paths.get(cls.path))
-        ).deserialize()
+        val (position, size) = contents.locations(name)
+        val key = (index.digest.hash, origin.toString, name.id)
+        Definitions.get(key).getOrElse {
+          val buffer = read(channel, position, size)
+          val defns = new BinaryDeserializer(
+            buffer,
+            nir.NIRSource(origin, Paths.get(cls.path))
+          ).deserialize()
+          Definitions.put(key, defns, size)
+          defns
+        }
       }
 
     def close(): Unit = channel.close()
+  }
+
+  /** The index of a library and where its classes are. */
+  private final class Contents(
+      val index: LibraryIndex,
+      val locations: Map[nir.Global.Top, (Long, Int)]
+  ) {
+    val classes: Map[nir.Global.Top, ClassIndex] =
+      index.classes.map(c => c.name -> c).toMap
+  }
+
+  // Libraries are named after the digest of what they were derived from, and
+  // every build reaching the same classes of the same library decodes them
+  // alike: builds in this JVM share the indexes and the decoded definitions
+  private val contentsOf =
+    new java.util.concurrent.ConcurrentHashMap[(String, Long), Contents]()
+  private final val MaxContents = 64
+
+  /** Definitions recently decoded, least recently used first, bounded by the
+   *  size of their serialized form.
+   */
+  private object Definitions {
+    private type Key = (String, String, String)
+    private val budget: Long = sys.props
+      .get("scala.scalanative.build.nirMemoBytes")
+      .flatMap(v => scala.util.Try(v.toLong).toOption)
+      .getOrElse(16L * 1024 * 1024)
+    private val entries =
+      new java.util.LinkedHashMap[Key, (Seq[nir.Defn], Int)](256, 0.75f, true)
+    private var bytes = 0L
+
+    def get(key: Key): Option[Seq[nir.Defn]] = synchronized {
+      Option(entries.get(key)).map(_._1)
+    }
+
+    def put(key: Key, defns: Seq[nir.Defn], size: Int): Unit =
+      if (size <= budget / 4) synchronized {
+        val previous = entries.put(key, (defns, size))
+        if (previous != null) bytes -= previous._2
+        bytes += size
+        val it = entries.values().iterator()
+        while (bytes > budget && it.hasNext()) {
+          bytes -= it.next()._2
+          it.remove()
+        }
+      }
   }
 
   object Reader {
@@ -166,28 +216,45 @@ private[scalanative] object Library {
     def open(file: Path, origin: Path): Option[Reader] = {
       val channel = FileChannel.open(file, StandardOpenOption.READ)
       try {
-        val header = read(channel, 0, HeaderSize)
-        val compatible =
-          header.getInt() == Magic && header.getInt() == FormatVersion &&
-            header.getInt() == nir.Versions.compat &&
-            header.getInt() == nir.Versions.revision
-        if (!compatible) {
-          channel.close()
-          None
-        } else {
-          val indexSize = header.getInt()
-          val bodies = HeaderSize.toLong + indexSize
-          val (index, locations) =
-            readIndex(read(channel, HeaderSize, indexSize), file)
-          val absolute = locations.map {
-            case (name, (offset, size)) => name -> (bodies + offset, size)
-          }
-          Some(new Reader(file, channel, index, absolute, origin))
+        val key = (file.getFileName().toString, channel.size())
+        Option(contentsOf.get(key))
+          .orElse(readContents(channel, file).map { contents =>
+            if (contentsOf.size() >= MaxContents) contentsOf.clear()
+            contentsOf.put(key, contents)
+            contents
+          }) match {
+          case None =>
+            channel.close()
+            None
+          case Some(contents) =>
+            Some(new Reader(file, channel, contents, origin))
         }
       } catch {
         case ex: Throwable =>
           channel.close()
           throw ex
+      }
+    }
+
+    private def readContents(
+        channel: FileChannel,
+        file: Path
+    ): Option[Contents] = {
+      val header = read(channel, 0, HeaderSize)
+      val compatible =
+        header.getInt() == Magic && header.getInt() == FormatVersion &&
+          header.getInt() == nir.Versions.compat &&
+          header.getInt() == nir.Versions.revision
+      if (!compatible) None
+      else {
+        val indexSize = header.getInt()
+        val bodies = HeaderSize.toLong + indexSize
+        val (index, locations) =
+          readIndex(read(channel, HeaderSize, indexSize), file)
+        val absolute = locations.map {
+          case (name, (offset, size)) => name -> (bodies + offset, size)
+        }
+        Some(new Contents(index, absolute))
       }
     }
   }

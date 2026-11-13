@@ -51,16 +51,22 @@ private[scalanative] final class BuildCache private (
     val produced = outputDigests.get(path).collect {
       case input if input.size == size && input.mtime == mtime => input.digest
     }
-    val known =
-      produced.orElse(current.get(path).orElse(previous.get(path)).collect {
-        case input: InputEntry
-            if input.size == size && input.mtime == mtime &&
-              input.isTrustworthy =>
-          input.digest
-      })
+    val recorded = current
+      .get(path)
+      .orElse(previous.get(path))
+      .orElse(Option(hashedInputs.get(path)))
+    val known = produced.orElse(recorded.collect {
+      case input: InputEntry
+          if input.size == size && input.mtime == mtime &&
+            input.isTrustworthy =>
+        input.digest
+    })
     known.getOrElse {
       val digest = Digest.of(file)
-      current(path) = InputEntry(size, mtime, digest, recordedAt = buildStart)
+      val entry = InputEntry(size, mtime, digest, recordedAt = buildStart)
+      current(path) = entry
+      if (hashedInputs.size() >= MaxHashedInputs) hashedInputs.clear()
+      hashedInputs.put(path, entry)
       digest
     }
   }
@@ -253,6 +259,11 @@ private[scalanative] object BuildCache {
   private final val RacyIntervalMillis = 2000L
 
   private val locks = new ConcurrentHashMap[String, Object]()
+
+  // Inputs hashed by builds in this JVM, for builds in other directories
+  // reading the same files, such as the jars of the classpath
+  private val hashedInputs = new ConcurrentHashMap[String, InputEntry]()
+  private final val MaxHashedInputs = 4096
 
   /** The store used by `config`, if any: granular builds use the store at
    *  `Discover.buildCacheDir()`.

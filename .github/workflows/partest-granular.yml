@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        leg: [baseline, static, dynamic, dynamic-lld]
+        leg: [baseline, static, dynamic]
         include:
           - leg: baseline
             granular: false
@@ -33,10 +33,6 @@ jobs:
           - leg: dynamic
             granular: true
             dynamic: true
-          - leg: dynamic-lld
-            granular: true
-            dynamic: true
-            linking-options: -fuse-ld=lld
     env:
       SCALANATIVE_MODE: debug
       SCALANATIVE_GRANULAR: ${{ matrix.granular }}
@@ -57,10 +53,9 @@ jobs:
 
       - name: Prepare partests
         run: |
-          if [ -n "${{ matrix.linking-options }}" ]; then
-            sudo apt-get install -y lld
-            ld.lld --version
-          fi
+          # Granular builds link with lld when clang finds it
+          sudo apt-get install -y lld
+          ld.lld --version
           mkdir -p "/tmp/sn-partest/out"
           sbt "scalaPartest${{ env.project-version }}/fetchScalaSource; scalaPartestTests${{ env.project-version }}/Test/compile"
 

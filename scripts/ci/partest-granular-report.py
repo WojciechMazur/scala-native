@@ -11,7 +11,7 @@ import statistics
 import sys
 from pathlib import Path
 
-LEGS = ["baseline", "static", "dynamic", "dynamic-lld"]
+LEGS = ["baseline", "static", "dynamic"]
 
 
 def read_env(path):

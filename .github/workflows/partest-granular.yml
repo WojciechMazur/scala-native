@@ -1,0 +1,133 @@
+name: Partests with granular builds
+# Measures the whole partest suite built as today, with granular builds and
+# with granular builds linking dynamically: time, sharing through the build
+# cache and failures compared with today's builds.
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+# Each commit measures on its own: a later push must not cancel legs still
+# measuring an earlier one
+concurrency:
+  group: partest-granular-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  partest:
+    name: Partest (${{ matrix.leg }})
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.body, '[partest-granular]')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      matrix:
+        leg: [baseline, static, dynamic]
+        include:
+          - leg: baseline
+            granular: false
+            dynamic: false
+          - leg: static
+            granular: true
+            dynamic: false
+          - leg: dynamic
+            granular: true
+            dynamic: true
+    env:
+      SCALANATIVE_MODE: debug
+      SCALANATIVE_GRANULAR: ${{ matrix.granular }}
+      SCALANATIVE_GRANULAR_DYNAMIC: ${{ matrix.dynamic }}
+      # Programs are built in the partest JVM, as build tools build them, not
+      # in a JVM started per test
+      SCALANATIVE_PARTEST_IN_PROCESS: true
+      # Job-wide: the sbt server started by the first step runs the tests and
+      # keeps the environment it started with
+      SCALANATIVE_CACHE_DIR: /tmp/sn-partest/cache
+      SCALANATIVE_PARTEST_STATS: /tmp/sn-partest/out/stats.csv
+      SCALANATIVE_PARTEST_LINKING_OPTIONS: ${{ matrix.linking-options }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/linux-setup-env
+        with:
+          scala-version: "2.13"
+
+      - name: Prepare partests
+        run: |
+          # Granular builds link with lld when clang finds it
+          sudo apt-get install -y lld
+          ld.lld --version
+          mkdir -p "/tmp/sn-partest/out"
+          sbt "scalaPartest${{ env.project-version }}/fetchScalaSource; scalaPartestTests${{ env.project-version }}/Test/compile"
+
+      - name: Run all partests
+        id: partest
+        continue-on-error: true
+        run: |
+          out="/tmp/sn-partest/out"
+          mkdir -p "$out"
+          # Runners exhausting memory or disk are shut down without a trace:
+          # sample both into the log
+          (while true; do
+            echo "[resources] $(date +%T) $(free -m | awk '/Mem:/ {print "mem_used=" $3 "M mem_avail=" $7 "M"}') $(free -m | awk '/Swap:/ {print "swap_used=" $3 "M"}') $(df -m "${{ runner.temp }}" /tmp | awk 'NR>1 {printf "free(%s)=%sM ", $6, $4}') top: $(ps -eo rss,comm --sort=-rss | awk 'NR>1 && NR<=6 {printf "%s=%dM ", $2, $1/1024}') procs(clang)=$(pgrep -c clang || true)"
+            sleep 15
+          done) &
+          sampler=$!
+          start=$(date +%s)
+          set +e
+          # One command line: sbt runs its arguments as a single command
+          /usr/bin/time -v -o "$out/time.txt" sbt "-J-Xmx3G" \
+            "set LocalProject(\"scalaPartestTests${{ env.project-version }}\") / Test / javaOptions += \"-Xmx4G\"; scalaPartestTests${{ env.project-version }}/testOnly partest-* -- --showDiff" \
+            2>&1 | tee "$out/partest.log"
+          status=${PIPESTATUS[0]}
+          kill $sampler || true
+          set -e
+          end=$(date +%s)
+          {
+            echo "leg=${{ matrix.leg }}"
+            echo "exit=$status"
+            echo "wall_seconds=$((end - start))"
+            echo "max_rss_kb=$(grep -oP 'Maximum resident set size \(kbytes\): \K[0-9]+' "$out/time.txt" || echo 0)"
+          } > "$out/summary.env"
+          exit $status
+
+      - name: Collect results
+        if: always()
+        run: |
+          out="/tmp/sn-partest/out"
+          cache="/tmp/sn-partest/cache"
+          mkdir -p "$out"
+          # Tests partest reported as failed
+          grep -oE '!! +[0-9]+ - [^ ]+' "$out/partest.log" \
+            | sed -E 's/!! +[0-9]+ - //' | sort -u > "$out/failed.txt" || true
+          {
+            if [ -d "$cache" ]; then
+              echo "store_bytes=$(du -sb "$cache" | cut -f1)"
+              echo "cas_blobs=$(find "$cache/cas" -type f 2>/dev/null | wc -l)"
+              echo "actions=$(find "$cache/ac" -type f 2>/dev/null | wc -l)"
+              echo "libraries=$(find "$cache/lib" -maxdepth 1 -type f 2>/dev/null | wc -l)"
+              echo "library_bytes=$(find "$cache/lib" -maxdepth 1 -type f -printf '%s\n' 2>/dev/null | awk '{s+=$1} END {print s+0}')"
+              echo "programs=$(find "$cache/lib/programs" -type f 2>/dev/null | wc -l)"
+            fi
+          } >> "$out/summary.env"
+          tail -n 200 "$out/partest.log" > "$out/partest-tail.log" || true
+          rm -f "$out/partest.log"
+          cat "$out/summary.env"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: partest-${{ matrix.leg }}
+          path: /tmp/sn-partest/out
+
+  report:
+    name: Partest report
+    needs: partest
+    if: always() && needs.partest.result != 'skipped'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          path: results
+      - name: Compare legs
+        run: python3 scripts/ci/partest-granular-report.py results | tee -a "$GITHUB_STEP_SUMMARY"

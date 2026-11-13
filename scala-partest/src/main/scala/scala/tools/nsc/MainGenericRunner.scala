@@ -21,7 +21,12 @@ import scala.scalanative.util.Scope
 class MainGenericRunner {
   private def errorFn(str: String) = Defaults.errorFn(str)
 
-  def process(args: Array[String]): Boolean = {
+  def process(args: Array[String]): Boolean = process(args, None)
+
+  /** Builds and runs the program, with its output appended to `output` if
+   *  given, else to the output of this process.
+   */
+  def process(args: Array[String], output: Option[java.io.File]): Boolean = {
     val command =
       new GenericRunnerCommand(args.toList, (x: String) => errorFn(x))
 
@@ -39,6 +44,7 @@ class MainGenericRunner {
       Option(System.getProperty(s"scalanative.partest.$name")).fold(default)(fn)
 
     val dir = Defaults.workDir()
+    val started = System.nanoTime()
     val execPath: Path = {
       val config = Defaults.config
         .withCompilerConfig {
@@ -69,16 +75,59 @@ class MainGenericRunner {
         .withMainClass(Some(command.thingToRun))
         .withBaseDir(dir)
 
-      Scope { implicit s =>
-        val build = Build.build(config)
-        Await.result(build, Duration.Inf)
+      try
+        Scope { implicit s =>
+          val build = Build.build(config)
+          Await.result(build, Duration.Inf)
+        }
+      catch {
+        case ex: Throwable =>
+          Stats.record(
+            test = testName(command),
+            buildNanos = System.nanoTime() - started,
+            runNanos = 0L,
+            binaryBytes = -1L,
+            passed = false
+          )
+          throw ex
       }
     }
+    val built = System.nanoTime()
 
     val res = {
       val cmd = execPath.toAbsolutePath.toFile.toString :: command.arguments
-      sys.process.Process(cmd, dir.toFile).run().exitValue() == 0
+      output match {
+        case None =>
+          sys.process.Process(cmd, dir.toFile).run().exitValue() == 0
+        case Some(file) =>
+          val log = ProcessBuilder.Redirect.appendTo(file)
+          // Processes forked meanwhile by other builds of this JVM may hold
+          // the executable open for writing for a moment (ETXTBSY)
+          def start(attempt: Int): Process =
+            try
+              new ProcessBuilder(cmd: _*)
+                .directory(dir.toFile)
+                .redirectOutput(log)
+                .redirectError(log)
+                .start()
+            catch {
+              case e: java.io.IOException
+                  if attempt < 10 && String
+                    .valueOf(e.getMessage)
+                    .contains("Text file busy") =>
+                Thread.sleep(50L * (attempt + 1))
+                start(attempt + 1)
+            }
+          start(0).waitFor() == 0
+      }
     }
+    Stats.record(
+      test = testName(command),
+      buildNanos = built - started,
+      runNanos = System.nanoTime() - built,
+      binaryBytes = Files.size(execPath),
+      passed = res
+    )
 
     val deleteFn = new function.Function[Path, Boolean] {
       override def apply(path: Path): Boolean = path.toFile.delete()
@@ -98,11 +147,52 @@ class MainGenericRunner {
     res
   }
 
+  // The output directory of the test, e.g. foo-run.obj
+  private def testName(command: GenericRunnerCommand): String =
+    command.settings.classpathURLs
+      .map(urlToPath)
+      .filter(_.getNameCount > 0)
+      .map(_.getFileName.toString)
+      .find(_.endsWith(".obj"))
+      .getOrElse(command.thingToRun)
+
   private def urlToPath(url: java.net.URL) = {
     try {
       Paths.get(url.toURI())
     } catch {
       case e: java.net.URISyntaxException => Paths.get(url.getPath())
+    }
+  }
+}
+
+/** Timings of the tests run, appended as CSV to the file named by the
+ *  SCALANATIVE_PARTEST_STATS env var, if set.
+ */
+private object Stats {
+  private val file = sys.env.get("SCALANATIVE_PARTEST_STATS").map(Paths.get(_))
+
+  def record(
+      test: String,
+      buildNanos: Long,
+      runNanos: Long,
+      binaryBytes: Long,
+      passed: Boolean
+  ): Unit = file.foreach { path =>
+    val line = Seq(
+      test,
+      System.currentTimeMillis(),
+      buildNanos / 1000000,
+      runNanos / 1000000,
+      binaryBytes,
+      passed
+    ).mkString("", ",", "\n")
+    synchronized {
+      Files.write(
+        path,
+        line.getBytes("UTF-8"),
+        StandardOpenOption.CREATE,
+        StandardOpenOption.APPEND
+      )
     }
   }
 }

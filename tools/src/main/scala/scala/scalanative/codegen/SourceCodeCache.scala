@@ -11,7 +11,17 @@ import scala.collection.mutable
 
 import scala.scalanative.io.VirtualDirectory
 
-private[codegen] class SourceCodeCache(config: build.Config) {
+/** Finds the sources of NIR definitions.
+ *
+ *  @param jarSources
+ *    unpacks the sources of a jar to a shared location, and tells the location
+ *    debug information shall name instead, see
+ *    `build.store.BuildCache.jarSources`
+ */
+private[codegen] class SourceCodeCache(
+    config: build.Config,
+    jarSources: Path => Option[(Path, String)] = _ => None
+) {
   lazy val sourceCodeDir = {
     val dir = config.workDir.resolve("sources")
     if (!Files.exists(dir)) Files.createDirectories(dir)
@@ -40,6 +50,25 @@ private[codegen] class SourceCodeCache(config: build.Config) {
 
   private val cache: mutable.Map[nir.SourceFile, Option[Path]] =
     TrieMap.empty
+  // Unpacked sources named by another location in debug information
+  private val renamed: mutable.Map[Path, String] = TrieMap.empty
+
+  /** The directory of `source`, found by `findSources`, as named in debug
+   *  information.
+   */
+  def debugDirectory(source: Path): String = {
+    val directory = source.getParent()
+    renamed
+      .collectFirst {
+        case (root, name) if directory.startsWith(root) =>
+          val relative = root.relativize(directory)
+          val names = (0 until relative.getNameCount())
+            .map(relative.getName(_).toString())
+            .filter(_.nonEmpty)
+          (name +: names).mkString("/")
+      }
+      .getOrElse(directory.toString())
+  }
   private val loggedMissingSourcesForCp = mutable.Set.empty[Path]
 
   private val cwd = Paths.get(".").toRealPath()
@@ -207,20 +236,28 @@ private[codegen] class SourceCodeCache(config: build.Config) {
     }
     if (!jarPath.getFileName().toString.endsWith(".jar")) None
     else if (!Files.exists(jarPath)) None
-    else {
-      val sourcesDir = sourceCodeDir.resolve(outputPath)
-      def shouldUnzip = {
-        !Files.exists(sourcesDir) ||
-        Files
-          .getLastModifiedTime(jarPath)
-          .compareTo(Files.getLastModifiedTime(sourcesDir)) > 0
+    else
+      jarSources(jarPath) match {
+        case Some((dir, name)) =>
+          renamed(dir) = name
+          Some(dir)
+        case None => unpackToWorkDir(jarPath, outputPath)
       }
-      if (shouldUnzip) {
-        build.IO.deleteRecursive(sourcesDir)
-        build.IO.unzip(jarPath, sourcesDir)
-      }
-      Some(sourcesDir)
+  }
+
+  private def unpackToWorkDir(jarPath: Path, outputPath: Path): Option[Path] = {
+    val sourcesDir = sourceCodeDir.resolve(outputPath)
+    def shouldUnzip = {
+      !Files.exists(sourcesDir) ||
+      Files
+        .getLastModifiedTime(jarPath)
+        .compareTo(Files.getLastModifiedTime(sourcesDir)) > 0
     }
+    if (shouldUnzip) {
+      build.IO.deleteRecursive(sourcesDir)
+      build.IO.unzip(jarPath, sourcesDir)
+    }
+    Some(sourcesDir)
   }
 
   private def sourcesJarToJar(sourcesJar: Path): Path = {

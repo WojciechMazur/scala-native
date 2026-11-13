@@ -3,12 +3,12 @@ package build
 package store
 
 import java.io.IOException
+import java.nio.channels.FileChannel
 import java.nio.charset.StandardCharsets
 import java.nio.file.attribute.FileTime
 import java.nio.file.{
-  AtomicMoveNotSupportedException, DirectoryNotEmptyException,
-  FileAlreadyExistsException, FileSystemException, Files, NoSuchFileException,
-  Path, StandardCopyOption
+  AtomicMoveNotSupportedException, FileSystemException, Files,
+  NoSuchFileException, Path, StandardCopyOption, StandardOpenOption
 }
 import java.security.DigestOutputStream
 import java.util.UUID
@@ -25,6 +25,7 @@ import scala.collection.mutable
  *  <root>/lib/                       shared libraries programs load, linked
  *                                    to their blobs
  *  <root>/tmp/                       staging area for atomic publishing
+ *  <root>/locks/<2 hex>/<action key> locks of long actions, see `lockAction`
  *  }}}
  *
  *  Every entry is written to `tmp` and moved into place, so readers see either
@@ -38,12 +39,13 @@ import scala.collection.mutable
  *  place.
  */
 private[scalanative] final class DiskStore(val root: Path) extends ActionStore {
-  import DiskStore.linksBlobs
+  import DiskStore.{LockPollMillis, linksBlobs}
 
   private val acDir = root.resolve("ac")
   private val casDir = root.resolve("cas")
   private val sourcesDir = root.resolve("sources")
   private val tmpDir = root.resolve("tmp")
+  private val locksDir = root.resolve("locks")
 
   /** Where shared libraries of library units are placed, see
    *  `units.UnitCompile`.
@@ -130,7 +132,7 @@ private[scalanative] final class DiskStore(val root: Path) extends ActionStore {
       val tmp = parent.resolve(s".sn-blob-${UUID.randomUUID()}.tmp")
       try {
         val restored =
-          if (linksBlobs && link(blob, tmp)) hashOf(blob) == digest.hash
+          if (linksBlobs && link(blob, tmp)) isIntact(blob, digest)
           else copy(blob, tmp) == digest.hash
         if (!restored) {
           deleteQuietly(blob)
@@ -164,6 +166,21 @@ private[scalanative] final class DiskStore(val root: Path) extends ActionStore {
     Digest.hex(md.digest())
   }
 
+  /** Whether the content of `blob` has `digest`. Blobs are read-only, each is
+   *  hashed once per JVM while its size and modification time stay the same.
+   */
+  private def isIntact(blob: Path, digest: Digest): Boolean = {
+    val path = blob.toAbsolutePath().toString
+    val stamp = (Files.size(blob), Files.getLastModifiedTime(blob).toMillis())
+    if (DiskStore.verifiedBlobs.get(path) == stamp) true
+    else {
+      val intact = hashOf(blob) == digest.hash
+      if (intact) DiskStore.verifiedBlobs.put(path, stamp)
+      else DiskStore.verifiedBlobs.remove(path)
+      intact
+    }
+  }
+
   private def hashOf(file: Path): String = {
     val md = Digest.newMessageDigest()
     val in = Files.newInputStream(file)
@@ -181,29 +198,84 @@ private[scalanative] final class DiskStore(val root: Path) extends ActionStore {
   private def makeReadOnly(path: Path): Unit =
     if (linksBlobs) path.toFile().setWritable(false, false)
 
-  /** A copy of `tree`, made if not stored yet. Object files built from the tree
-   *  refer to this location in their debug info, so it stays valid whichever
-   *  build compiled them.
+  /** Locks the action `key` against other processes using this store, waiting
+   *  while another one holds it, so that builds running at once do not all run
+   *  the same long action: the ones waiting find its result afterwards. Locks
+   *  of a process are released when it exits. The lock of one action must be
+   *  taken once per process: file locks do not exclude threads.
    */
-  def sources(tree: SourceTree): Path = {
-    val dir = sourcesDir.resolve(tree.digest.hash)
+  def lockAction(key: ActionKey, onWait: () => Unit): AutoCloseable = {
+    val path = locksDir.resolve(key.hash.substring(0, 2)).resolve(key.hash)
+    Files.createDirectories(path.getParent())
+    val channel = FileChannel.open(
+      path,
+      StandardOpenOption.CREATE,
+      StandardOpenOption.WRITE
+    )
+    try {
+      // Polling: a blocking lock fails when the kernel sees a cycle between
+      // processes, each holding a lock in one thread and waiting in another,
+      // although every thread would get its lock eventually
+      var lock = channel.tryLock()
+      if (lock == null) {
+        onWait()
+        while (lock == null) {
+          Thread.sleep(LockPollMillis)
+          lock = channel.tryLock()
+        }
+      }
+      val held = lock
+      new AutoCloseable {
+        def close(): Unit =
+          try held.release()
+          finally channel.close()
+      }
+    } catch {
+      case ex: Throwable =>
+        channel.close()
+        throw ex
+    }
+  }
+
+  /** The files referred to by the virtual paths of debug information, see
+   *  `DiskStore.virtualSources`.
+   */
+  def sourcesRoot: Path = sourcesDir
+
+  /** A copy of `tree`, made if not stored yet. Object files built from the tree
+   *  refer to it through `DiskStore.virtualSources(tree.digest)`.
+   */
+  def sources(tree: SourceTree): Path =
+    publishSources(tree.digest) { tmp =>
+      tree.files.foreach {
+        case (relative, _) =>
+          val target = tmp.resolve(relative)
+          Files.createDirectories(target.getParent())
+          Files.copy(tree.root.resolve(relative), target)
+      }
+    }
+
+  /** The sources of the jar `archive`, whose digest is `digest`, unpacked if
+   *  not stored yet. Code generated from them refers to them through
+   *  `DiskStore.virtualSources(digest)`.
+   */
+  def unpackedSources(archive: Path, digest: Digest): Path =
+    publishSources(digest)(IO.unzip(archive, _))
+
+  private def publishSources(digest: Digest)(fill: Path => Unit): Path = {
+    val dir = sourcesDir.resolve(digest.hash)
     if (Files.isDirectory(dir)) touch(dir)
     else {
       Files.createDirectories(tmpDir)
       val tmp = Files.createTempDirectory(tmpDir, "sources-")
       try {
-        tree.files.foreach {
-          case (relative, _) =>
-            val target = tmp.resolve(relative)
-            Files.createDirectories(target.getParent())
-            Files.copy(tree.root.resolve(relative), target)
-        }
+        fill(tmp)
         Files.createDirectories(sourcesDir)
         try Files.move(tmp, dir, StandardCopyOption.ATOMIC_MOVE)
         catch {
-          // Published concurrently
-          case _: FileAlreadyExistsException | _: DirectoryNotEmptyException =>
-            ()
+          // Published concurrently: the failure is a plain
+          // FileSystemException on macOS
+          case _: FileSystemException if Files.isDirectory(dir) => ()
         }
       } finally if (Files.exists(tmp)) IO.deleteRecursive(tmp)
     }
@@ -410,7 +482,23 @@ private[scalanative] object DiskStore {
    */
   final val ProgramsDir = "programs"
 
+  private final val LockPollMillis = 25L
+
+  /** Blobs found intact, with their size and modification time then. */
+  private val verifiedBlobs =
+    new java.util.concurrent.ConcurrentHashMap[String, (Long, Long)]
+
   private val linksBlobs = !scala.util.Properties.isWin
+
+  /** Where debug information of stored code says its sources are: the same on
+   *  every machine, so that stored code does not depend on the location of the
+   *  store. Debuggers map it to `sourcesRoot`.
+   */
+  final val VirtualSourceRoot = "/scala-native-sources"
+
+  /** The virtual location of the sources with `digest`. */
+  def virtualSources(digest: Digest): String =
+    s"$VirtualSourceRoot/${digest.hash}"
 
   final case class GcStats(
       actions: Int,

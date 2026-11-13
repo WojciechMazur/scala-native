@@ -375,6 +375,12 @@ object Build {
     config.logger.time("Postprocessing") {
       if (config.targetsMac && config.compilerConfig.sourceLevelDebuggingConfig.generateFunctionSourcePositions) {
         LLVM.dsymutil(config, artifact)
+        // Code compiled through the store names sources by virtual paths
+        if (usesUnits(config))
+          store.BuildCache
+            .open(config)
+            .flatMap(_.sourcesRoot)
+            .foreach(LLVM.writeSourceRemapping(artifact, _))
       }
       artifact
     }

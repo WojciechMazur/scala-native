@@ -77,7 +77,8 @@ class UnitCompileTest {
       dir: Path,
       main: String,
       exclusions: Seq[String] = Nil,
-      dynamic: Boolean = false
+      dynamic: Boolean = false,
+      debugInfo: Boolean = false
   ): (Config, Either[Throwable, Path]) = {
     // Compiled together, then split into the library jar and the program
     val classes = Files.createDirectories(dir.resolve("classes"))
@@ -91,6 +92,10 @@ class UnitCompileTest {
     // Missing from the classpath of programs
     IO.deleteRecursive(classes.resolve("missing"))
     val libJar = jar(libClasses, dir.resolve("lib.jar"))
+    // Found next to the jar, like sources fetched by build tools
+    val libSources = Files.createDirectories(dir.resolve("lib-sources/lib"))
+    IO.write(libSources.resolve("Api.scala"), library)
+    jar(libSources.getParent(), dir.resolve("lib-sources.jar"))
     val appClasses = classes
 
     val classpath = ScalaNativeBuildInfo.nativeRuntimeClasspath
@@ -109,6 +114,9 @@ class UnitCompileTest {
           .withGranularBuild(true)
           .withLibraryExclusions(exclusions)
           .withDynamicLibraries(dynamic)
+          .withSourceLevelDebuggingConfig(config =>
+            if (debugInfo) config.enableAll else config
+          )
       )
       .withLogger(Logger.nullLogger)
     val result =
@@ -248,5 +256,76 @@ class UnitCompileTest {
     assertTrue(plan.restorable)
     Files.delete(libraries.head)
     assertFalse(plan.restorable)
+  }
+
+  // The unit made of lib.jar
+  private def libraryUnitDir(config: Config): Path =
+    Files
+      .list(config.workDir.resolve("units"))
+      .toArray
+      .toSeq
+      .map(_.asInstanceOf[Path])
+      .find { unit =>
+        val exports = unit.resolve("unit.exports")
+        Files.exists(exports) &&
+          new String(Files.readAllBytes(exports), StandardCharsets.UTF_8)
+            .contains("lib.Api")
+      }
+      .getOrElse(fail("No unit for lib.jar").asInstanceOf[Path])
+
+  @Test def unitsNameSourcesOfJarsByVirtualPaths(): Unit = withDir { dir =>
+    val (config, result) = build(dir, usesApi, debugInfo = true)
+    result.fold(throw _, identity)
+    val ir = Files
+      .walk(libraryUnitDir(config).resolve("ir"))
+      .toArray
+      .toSeq
+      .map(_.asInstanceOf[Path])
+      .filter(_.toString.endsWith(".ll"))
+      .map(path => new String(Files.readAllBytes(path), StandardCharsets.UTF_8))
+      .mkString
+    assertTrue(ir.contains("Api.scala"))
+    // The same in every build directory and on every machine
+    assertTrue(ir.contains(store.DiskStore.VirtualSourceRoot + "/"))
+    assertFalse(ir.contains(dir.toString))
+  }
+
+  @Test def librariesComeWithTheirDebugInfo(): Unit = withDir { dir =>
+    assumeFalse("Static only", scala.util.Properties.isWin)
+    val (config, result) =
+      build(dir, usesApi, dynamic = true, debugInfo = true)
+    val binary = result.fold(throw _, identity)
+    assertEquals("84", Process(binary.toString).!!.trim)
+    val libraryDir = store.BuildCache.libraryDir(config)
+    val libraries = new String(
+      Files.readAllBytes(
+        libraryDir
+          .resolve("programs")
+          .resolve(Build.plan(config).outputKey)
+      ),
+      StandardCharsets.UTF_8
+    ).split('\n').toSeq.map(libraryDir.resolve(_))
+    def contains(file: Path, text: String) =
+      new String(Files.readAllBytes(file), StandardCharsets.ISO_8859_1)
+        .contains(text)
+    libraries.foreach { library =>
+      if (config.targetsMac) {
+        // Linked out of the objects, which may be gone
+        val dwarf = LLVM.dsymFiles(library).head
+        LLVM
+          .dsymFiles(library)
+          .foreach(f => assertTrue(f.toString, Files.exists(f)))
+        assertTrue(contains(dwarf, "__debug_info"))
+        // lldb finds the sources of the virtual root in the store
+        val remapping = Files
+          .list(dwarf.getParent().getParent())
+          .toArray
+          .toSeq
+          .map(_.asInstanceOf[Path])
+          .filter(_.getFileName.toString.endsWith(".plist"))
+        assertEquals(remapping.mkString(", "), 1, remapping.size)
+        assertTrue(contains(remapping.head, store.DiskStore.VirtualSourceRoot))
+      } else assertTrue(contains(library, ".debug_info"))
+    }
   }
 }

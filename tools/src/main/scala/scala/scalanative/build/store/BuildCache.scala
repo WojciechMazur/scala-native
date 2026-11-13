@@ -36,6 +36,11 @@ private[scalanative] final class BuildCache private (
   private val current = TrieMap.empty[String, IndexEntry]
   private val buildStart = System.currentTimeMillis()
 
+  /** Digests of the outputs this build restored or stored, known without
+   *  hashing them.
+   */
+  private val outputDigests = TrieMap.empty[String, InputEntry]
+
   /** The digest of `file`, reusing the one recorded by an earlier build if the
    *  file has not been modified since.
    */
@@ -43,23 +48,42 @@ private[scalanative] final class BuildCache private (
     val path = file.toAbsolutePath().toString
     val size = Files.size(file)
     val mtime = Files.getLastModifiedTime(file).toMillis()
-    val known = current.get(path).orElse(previous.get(path)).collect {
+    val produced = outputDigests.get(path).collect {
+      case input if input.size == size && input.mtime == mtime => input.digest
+    }
+    val recorded = current
+      .get(path)
+      .orElse(previous.get(path))
+      .orElse(Option(hashedInputs.get(path)))
+    val known = produced.orElse(recorded.collect {
       case input: InputEntry
           if input.size == size && input.mtime == mtime &&
             input.isTrustworthy =>
         input.digest
-    }
+    })
     known.getOrElse {
       val digest = Digest.of(file)
-      current(path) = InputEntry(size, mtime, digest, recordedAt = buildStart)
+      val entry = InputEntry(size, mtime, digest, recordedAt = buildStart)
+      current(path) = entry
+      if (hashedInputs.size() >= MaxHashedInputs) hashedInputs.clear()
+      hashedInputs.put(path, entry)
       digest
     }
   }
 
   /** Makes the named `outputs` of the action `key` exist, running `execute`
    *  only if neither `workDir` nor the store has them.
+   *
+   *  @param exclusive
+   *    whether builds in other processes wait for this action instead of
+   *    running it at the same time, for actions taking long or much memory: the
+   *    waiting ones restore its outputs afterwards
    */
-  def run(key: ActionKey, outputs: Seq[(String, Path)])(
+  def run(
+      key: ActionKey,
+      outputs: Seq[(String, Path)],
+      exclusive: Boolean = false
+  )(
       execute: => Unit
   ): Outcome = {
     def isUpToDate(output: Path): Boolean =
@@ -75,25 +99,34 @@ private[scalanative] final class BuildCache private (
       withStore(s"touch action $key")(())(_.touchAction(key))
       UpToDate
     } else
-      withLock(key) {
-        val restored = withStore(s"read action $key")(false) { store =>
-          store.getAction(key).exists { result =>
-            outputs.forall {
-              case (name, path) =>
-                result.output(name).exists(store.getBlob(_, path))
+      withLock(key, exclusive) {
+        val restored =
+          withStore(s"read action $key")(Option.empty[ActionResult]) { store =>
+            store.getAction(key).filter { result =>
+              outputs.forall {
+                case (name, path) =>
+                  result.output(name).exists(store.getBlob(_, path))
+              }
             }
           }
+        restored.foreach { result =>
+          outputs.foreach {
+            case (name, path) =>
+              recordOutput(key, path)
+              result.output(name).foreach(recordDigest(path, _))
+          }
         }
-        if (restored) {
-          outputs.foreach { case (_, path) => recordOutput(key, path) }
-          Restored
-        } else {
+        if (restored.isDefined) Restored
+        else {
           // Restored outputs may be links to stored blobs, never written to
           outputs.foreach { case (_, path) => Files.deleteIfExists(path) }
           execute
           withStore(s"store action $key")(()) { store =>
             val result = ActionResult(outputs.map {
-              case (name, path) => name -> store.putBlob(path)
+              case (name, path) =>
+                val digest = store.putBlob(path)
+                recordDigest(path, digest)
+                name -> digest
             })
             store.putAction(key, result)
           }
@@ -109,10 +142,31 @@ private[scalanative] final class BuildCache private (
   def libraryDir: Path =
     storeOption.fold(workDir.resolve("lib"))(_.libraries)
 
-  /** The location of `tree` in the store, see `DiskStore.sources`. */
-  def sources(tree: SourceTree): Option[Path] =
-    withStore(s"store sources ${tree.root}")(Option.empty[Path]) { store =>
-      Some(store.sources(tree))
+  /** Where the store keeps the sources of virtual locations, see
+   *  `DiskStore.sourcesRoot`.
+   */
+  def sourcesRoot: Option[Path] = storeOption.map(_.sourcesRoot)
+
+  /** The virtual location of `tree`, stored if not yet, see
+   *  `DiskStore.sources`.
+   */
+  def sources(tree: SourceTree): Option[String] =
+    withStore(s"store sources ${tree.root}")(Option.empty[String]) { store =>
+      store.sources(tree)
+      Some(DiskStore.virtualSources(tree.digest))
+    }
+
+  /** The unpacked sources of the jar `archive` and their virtual location, see
+   *  `DiskStore.unpackedSources`.
+   */
+  def jarSources(archive: Path): Option[(Path, String)] =
+    withStore(s"store sources of $archive")(Option.empty[(Path, String)]) {
+      store =>
+        val digest = this.digest(archive)
+        Some(
+          store.unpackedSources(archive, digest) ->
+            DiskStore.virtualSources(digest)
+        )
     }
 
   /** Saves the index and occasionally collects garbage in the store. */
@@ -131,6 +185,14 @@ private[scalanative] final class BuildCache private (
       }
     }
   }
+
+  private def recordDigest(output: Path, digest: Digest): Unit =
+    outputDigests(output.toAbsolutePath().toString) = InputEntry(
+      Files.size(output),
+      Files.getLastModifiedTime(output).toMillis(),
+      digest,
+      recordedAt = buildStart
+    )
 
   private def recordOutput(key: ActionKey, output: Path): Unit =
     current(output.toAbsolutePath().toString) = OutputEntry(
@@ -153,15 +215,35 @@ private[scalanative] final class BuildCache private (
   }
 
   // Builds in this JVM running the same action wait for each other instead of
-  // repeating it; across processes the work may be repeated, which is safe
-  private def withLock[T](key: ActionKey)(body: => T): T = {
+  // repeating it; across processes only exclusive actions do, other ones may
+  // be repeated, which is safe
+  private def withLock[T](key: ActionKey, exclusive: Boolean)(
+      body: => T
+  ): T = {
     val lockKey = s"${storeOption.fold(workDir)(_.root)}:${key.hash}"
     val lock = new Object
     val existing = locks.putIfAbsent(lockKey, lock)
     val owned = if (existing == null) lock else existing
     owned.synchronized {
-      try body
-      finally locks.remove(lockKey, lock)
+      try {
+        val processLock =
+          if (!exclusive) None
+          else
+            withStore(s"lock action $key")(Option.empty[AutoCloseable]) {
+              store =>
+                Some(
+                  store.lockAction(
+                    key,
+                    () =>
+                      logger.info(
+                        s"Waiting for another build running the same action in ${store.root}"
+                      )
+                  )
+                )
+            }
+        try body
+        finally processLock.foreach(_.close())
+      } finally locks.remove(lockKey, lock)
     }
   }
 }
@@ -177,6 +259,11 @@ private[scalanative] object BuildCache {
   private final val RacyIntervalMillis = 2000L
 
   private val locks = new ConcurrentHashMap[String, Object]()
+
+  // Inputs hashed by builds in this JVM, for builds in other directories
+  // reading the same files, such as the jars of the classpath
+  private val hashedInputs = new ConcurrentHashMap[String, InputEntry]()
+  private final val MaxHashedInputs = 4096
 
   /** The store used by `config`, if any: granular builds use the store at
    *  `Discover.buildCacheDir()`.

@@ -50,11 +50,26 @@ private[runtime] object Backtrace {
     if (LinktimeInfo.isMac || LinktimeInfo.isLinux) {
       val path = fromRawPtr[CString](Intrinsics.stackalloc[CString]())
       val bias = fromRawPtr[Long](Intrinsics.stackalloc[Long]())
-      if (backtraceImage.imageOf(pc, path, bias) == LibraryImage)
+      val image = backtraceImage.imageOf(pc, path, bias)
+      if (image == LibraryImage)
         decodeLibraryPosition(fromCString(!path), pc - !bias)
-      else decodeExecutablePosition(pc)
+      else if (LinktimeInfo.isLinux) {
+        // The load address of an ELF executable is its only bias, whatever
+        // file offsets its linker gave its segments (lld places them at
+        // other addresses than GNU ld)
+        if (image == ExecutableImage) decodeExecutableAddress(pc - !bias)
+        else decodeExecutablePosition(pc)
+      } else decodeExecutablePosition(pc)
     } else decodeExecutablePosition(pc)
 
+  private def decodeExecutableAddress(address: Long): Position =
+    dwarfInfo
+      .flatMap { info =>
+        search(info.subprograms, address).map(position(info.strings, _))
+      }
+      .getOrElse(Position.empty)
+
+  private final val ExecutableImage = 1
   private final val LibraryImage = 2
 
   private def decodeLibraryPosition(path: String, address: Long): Position = {

@@ -257,6 +257,31 @@ private[scalanative] object LLVM {
     out
   }
 
+  /** The linker of granular builds on Linux: lld when clang can find it and the
+   *  linking options choose none. Granular links read large unit archives and
+   *  libraries, which lld links several times faster than GNU ld.
+   */
+  private def granularLinker(implicit config: Config): Seq[String] =
+    if (!config.compilerConfig.useGranularBuild || !config.targetsLinux ||
+        config.linkingOptions
+          .exists(o => o.startsWith("-fuse-ld") || o.startsWith("--ld-path")) ||
+        config.compilerConfig.lto != LTO.none) Nil
+    else if (hasLld(config.clang)) Seq("-fuse-ld=lld")
+    else Nil
+
+  private val lldOf = scala.collection.concurrent.TrieMap.empty[Path, Boolean]
+
+  // Clang looks for ld.lld next to itself, then on the PATH
+  private def hasLld(clang: Path): Boolean =
+    lldOf.getOrElseUpdate(
+      clang.toAbsolutePath(), {
+        val sibling = Option(clang.toAbsolutePath().getParent())
+          .map(_.resolve("ld.lld"))
+        sibling.exists(Files.isExecutable(_)) ||
+          Discover.tryDiscover("ld.lld").isSuccess
+      }
+    )
+
   /** Links the shared library `out` of a library unit from every object of
    *  `archives` and `objects`, against the shared libraries `dependencies` of
    *  the same directory. Weak references to `weakSymbols` may stay undefined:
@@ -299,7 +324,7 @@ private[scalanative] object LLVM {
       IO.write(
         list,
         (flags ++ sourceLevelDebugFlags ++ sanitizer ++ target ++
-          Seq("-o", tmp.abs) ++ config.linkingOptions ++
+          Seq("-o", tmp.abs) ++ granularLinker ++ config.linkingOptions ++
           allLinks.map("-l" + _))
           .map(flag => escapeWhitespaces(flag.replace("\\", "/")))
           .mkString("", "\n", "\n")
@@ -639,6 +664,7 @@ private[scalanative] object LLVM {
 
       try {
         buildTargetLinkOpts.foreach(add)
+        granularLinker.foreach(add)
         flto().foreach(add)
         debugFlags.foreach(add)
         platformFlags.foreach(add)

@@ -135,7 +135,9 @@ object BuildResourceReport {
             s"children peak ${samples.map(_.children).foldLeft(0)(math.max)}\n"
         )
       }
-    } finally IO.deleteRecursive(root)
+    } finally
+      if (options.get("keep").exists(_.toBoolean)) println(s"Kept $root")
+      else IO.deleteRecursive(root)
 
     print(out)
     print(totals)
@@ -217,7 +219,8 @@ object BuildResourceReport {
     def result: Seq[(String, Long, Long)] = synchronized(buffer.toList)
 
     def trace(msg: Throwable): Unit = ()
-    def debug(msg: String): Unit = ()
+    def debug(msg: String): Unit =
+      if (sys.env.contains("REPORT_DEBUG")) System.err.println(s"[debug] $msg")
     def info(msg: String): Unit = msg match {
       case Timed(phase, ms) =>
         val name = phase match {

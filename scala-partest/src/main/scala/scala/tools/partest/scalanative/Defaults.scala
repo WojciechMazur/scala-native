@@ -41,7 +41,12 @@ object Defaults {
           .withMode(Discover.mode())
           .withGC(Discover.GC())
           .withLTO(Discover.LTO())
-          .withLinkingOptions(Discover.linkingOptions())
+          .withLinkingOptions(
+            Discover.linkingOptions() ++ sys.env
+              .get("SCALANATIVE_PARTEST_LINKING_OPTIONS")
+              .toSeq
+              .flatMap(_.split(' ').filter(_.nonEmpty))
+          )
           .withCompileOptions(Discover.compileOptions())
           .withMultithreading(true)
           .withGranularBuild(Discover.granularBuild())

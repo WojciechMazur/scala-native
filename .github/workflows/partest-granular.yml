@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        leg: [baseline, static, dynamic]
+        leg: [baseline, static, dynamic, dynamic-lld]
         include:
           - leg: baseline
             granular: false
@@ -33,6 +33,10 @@ jobs:
           - leg: dynamic
             granular: true
             dynamic: true
+          - leg: dynamic-lld
+            granular: true
+            dynamic: true
+            linking-options: -fuse-ld=lld
     env:
       SCALANATIVE_MODE: debug
       SCALANATIVE_GRANULAR: ${{ matrix.granular }}
@@ -44,6 +48,7 @@ jobs:
       # keeps the environment it started with
       SCALANATIVE_CACHE_DIR: /tmp/sn-partest/cache
       SCALANATIVE_PARTEST_STATS: /tmp/sn-partest/out/stats.csv
+      SCALANATIVE_PARTEST_LINKING_OPTIONS: ${{ matrix.linking-options }}
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/linux-setup-env
@@ -52,6 +57,10 @@ jobs:
 
       - name: Prepare partests
         run: |
+          if [ -n "${{ matrix.linking-options }}" ]; then
+            sudo apt-get install -y lld
+            ld.lld --version
+          fi
           mkdir -p "/tmp/sn-partest/out"
           sbt "scalaPartest${{ env.project-version }}/fetchScalaSource; scalaPartestTests${{ env.project-version }}/Test/compile"
 

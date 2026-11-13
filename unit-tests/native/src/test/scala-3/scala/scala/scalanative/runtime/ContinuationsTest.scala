@@ -10,6 +10,7 @@ import scala.util.control.ControlThrowable
 import org.junit.Assert._
 import org.junit.Test
 
+import scala.scalanative.junit.utils.AssumesHelper
 import scala.scalanative.meta.LinktimeInfo.{
   is32BitPlatform, isContinuationsSupported
 }
@@ -269,6 +270,7 @@ class ContinuationsTest:
 
   @Test def stressSuspendResumeAcrossPlatformThreads(): Unit =
     if isContinuationsSupported then {
+      AssumesHelper.assumeThreadYieldIsCheap()
       val fibers = 50
       val iterations = 1000
       val workers = math.max(4, Runtime.getRuntime().availableProcessors())

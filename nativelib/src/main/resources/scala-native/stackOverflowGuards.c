@@ -23,6 +23,16 @@
 
 __attribute((noreturn)) extern void scalanative_throwStackOverflowError();
 
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+// tvOS and watchOS do not allow to use sigaltstack. The signal handlers are
+// executed on the stack of the thread, as a result a stack overflow cannot be
+// handled there, but the handlers chained to it (e.g. GC safepoints) can.
+#if TARGET_OS_TV || TARGET_OS_WATCH
+#define SCALANATIVE_NO_SIGALTSTACK 1
+#endif
+#endif
+
 size_t scalanative_StackOverflowGuards_size() {
     return stackGuardPages() * resolvePageSize();
 }
@@ -286,6 +296,10 @@ static size_t sigHandlerStackSize() {
     return size;
 }
 static void setupSignalHandlerAltstack() {
+#ifdef SCALANATIVE_NO_SIGALTSTACK
+    currentThreadInfo.signalHandlerStack = NULL;
+    currentThreadInfo.signalHandlerStackSize = 0;
+#else
     stack_t handlerStack = {};
     handlerStack.ss_size =
         (size_t)alignToNextPage((void *)sigHandlerStackSize());
@@ -302,11 +316,15 @@ static void setupSignalHandlerAltstack() {
     }
     currentThreadInfo.signalHandlerStack = handlerStack.ss_sp;
     currentThreadInfo.signalHandlerStackSize = handlerStack.ss_size;
+#endif
 }
 static void setupSignalHandler(int signal) {
     struct sigaction sa = {};
     sa.sa_sigaction = stackOverflowHandler;
-    sa.sa_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK;
+    sa.sa_flags = SA_SIGINFO | SA_RESTART;
+#ifndef SCALANATIVE_NO_SIGALTSTACK
+    sa.sa_flags |= SA_ONSTACK;
+#endif
     sigemptyset(&sa.sa_mask);
     if (sigaddset(&sa.sa_mask, signal) == -1) {
         perror(SN_ERROR_MSG("StackOverflowHandler failed to set signal mask"));
@@ -362,6 +380,7 @@ void scalanative_StackOverflowGuards_close() {
 #else
     unprotectStackGuardPage();
     currentThreadInfo.stackGuardPage = NULL;
+#ifndef SCALANATIVE_NO_SIGALTSTACK
     if (currentThreadInfo.signalHandlerStack) {
         // The thread can still receive signals after this point, e.g. a GC
         // safepoint trap. Unregister the alternate stack before releasing
@@ -379,5 +398,6 @@ void scalanative_StackOverflowGuards_close() {
         free(currentThreadInfo.signalHandlerStack);
         currentThreadInfo.signalHandlerStack = NULL;
     }
+#endif
 #endif
 }

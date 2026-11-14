@@ -58,6 +58,15 @@ private[build] object Validator {
         "LTO.thin is unstable on MacOS, it can lead to compilation errors. Consider using LTO.full (legacy, slower) or LTO.none (disabled)"
       )
 
+    for {
+      sdk <- config.appleSdkName
+      if !sys.env.get("SDKROOT").exists(_.nonEmpty)
+      if !c.compileOptions.exists(_.contains("-isysroot"))
+    } warn(
+      s"Target ${c.targetTriple.mkString} requires the $sdk SDK, but no sysroot is set. " +
+        "Use Discover.compileOptions(targetTriple) and Discover.linkingOptions(targetTriple) or set SDKROOT environment variable"
+    )
+
     issues.result() match {
       case Nil    => config
       case issues =>

@@ -25,9 +25,8 @@ __attribute((noreturn)) extern void scalanative_throwStackOverflowError();
 
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
-// tvOS and watchOS do not allow to use sigaltstack. The signal handlers are
-// executed on the stack of the thread, as a result a stack overflow cannot be
-// handled there, but the handlers chained to it (e.g. GC safepoints) can.
+// sigaltstack is prohibited on tvOS and watchOS: handlers run on the thread
+// stack, so stack overflow is fatal there.
 #if TARGET_OS_TV || TARGET_OS_WATCH
 #define SCALANATIVE_NO_SIGALTSTACK 1
 #endif
@@ -382,12 +381,8 @@ void scalanative_StackOverflowGuards_close() {
     currentThreadInfo.stackGuardPage = NULL;
 #ifndef SCALANATIVE_NO_SIGALTSTACK
     if (currentThreadInfo.signalHandlerStack) {
-        // The thread can still receive signals after this point, e.g. a GC
-        // safepoint trap. Unregister the alternate stack before releasing
-        // it: otherwise the kernel would build the signal frame in freed
-        // memory, which either fails (uncatchable SIGILL on Darwin) or
-        // overwrites whatever reuses that memory, typically the alternate
-        // stack of a thread started later.
+        // Unregister before freeing: a late signal (e.g. GC safepoint trap)
+        // would otherwise run on released memory.
         stack_t disabled = {};
         disabled.ss_flags = SS_DISABLE;
         if (sigaltstack(&disabled, NULL) == -1) {

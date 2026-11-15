@@ -16,6 +16,7 @@ import org.junit.Assert._
 import org.junit.Assume._
 import org.junit.{BeforeClass, Ignore, Test}
 
+import org.scalanative.testsuite.utils.AssertThrows.assertThrows
 import org.scalanative.testsuite.utils.Platform
 
 import scala.scalanative.junit.utils.AssumesHelper._
@@ -47,11 +48,6 @@ class ProcessTest {
 
     assertEquals("1", out)
   }
-
-  /* 'pathOverride()' and 'pathPrefixOverride()' test that SN does
-   * what JDK does.  They do not check that SN does not do what
-   * JDK does not do.  See SN Issue 4705.
-   */
 
   @Test def pathOverride(): Unit = {
     assumeFalse(
@@ -87,6 +83,106 @@ class ProcessTest {
     val pb = new ProcessBuilder("./ls")
     pb.directory(new File(resourceDir))
     checkPathOverride(pb) // off-label use of checkPathOverride() here.
+  }
+
+  private def withScriptDir(body: File => Unit): Unit = {
+    val dir = Files.createTempDirectory("process-path").toFile
+    try body(dir)
+    finally {
+      dir.listFiles().foreach(_.delete())
+      dir.delete()
+    }
+  }
+
+  private def writeScript(
+      dir: File,
+      name: String,
+      output: String,
+      executable: Boolean = true
+  ): File = {
+    val f = new File(dir, name)
+    Files.write(
+      f.toPath,
+      s"#!$shellCommand\necho $output\n".getBytes(StandardCharsets.UTF_8)
+    )
+    f.setExecutable(executable)
+    f
+  }
+
+  private def assertCannotRun(pb: ProcessBuilder, errnum: Int): Unit = {
+    val e = assertThrows(classOf[IOException], pb.start())
+    val msg = e.getMessage
+    assertTrue(
+      msg,
+      msg.startsWith(s"""Cannot run program "${pb.command().get(0)}"""")
+    )
+    // JDK 22+ formats it as "error: N (...)"
+    assertTrue(
+      msg,
+      msg.contains(s"error=$errnum,") || msg.contains(s"error: $errnum (")
+    )
+  }
+
+  // Issue #4705
+  @Test def childPathIsNotUsedToFindExecutable(): Unit = {
+    assumeFalse("Not tested in Windows", isWindows)
+    withScriptDir { dir =>
+      val name = "sn-4705-only-in-child-path"
+      writeScript(dir, name, "child")
+      val pb = new ProcessBuilder(name)
+      pb.environment().put("PATH", dir.getAbsolutePath())
+      assertCannotRun(pb, 2)
+    }
+  }
+
+  @Test def emptyChildPathStillFindsExecutable(): Unit = {
+    assumeFalse("Not tested in Windows", isWindows)
+    val pb = new ProcessBuilder("ls", resourceDir)
+    pb.environment().put("PATH", "")
+    val proc = pb.start()
+    val out = readInputStream(proc.getInputStream)
+    assertProcessExitOrTimeout(proc)
+    assertEquals(scripts, out.split(EOL).toSet)
+  }
+
+  @Test def commandWithSlashIgnoresPath(): Unit = {
+    assumeFalse("Not tested in Windows", isWindows)
+    withScriptDir { dir =>
+      val script = writeScript(dir, "with-slash", "slash")
+      val pb = new ProcessBuilder(script.getAbsolutePath())
+      pb.environment().put("PATH", "")
+      val proc = pb.start()
+      val out = readInputStream(proc.getInputStream)
+      assertProcessExitOrTimeout(proc)
+      assertEquals("slash", out.trim)
+    }
+  }
+
+  @Test def nonExistentCommand(): Unit = {
+    assumeFalse("Not tested in Windows", isWindows)
+    assertCannotRun(new ProcessBuilder("sn-4705-no-such-command"), 2)
+    withScriptDir { dir =>
+      assertCannotRun(
+        new ProcessBuilder(new File(dir, "no-such-file").getAbsolutePath()),
+        2
+      )
+    }
+  }
+
+  @Test def directoryAsCommand(): Unit = {
+    assumeFalse("Not tested in Windows", isWindows)
+    withScriptDir { dir =>
+      assertCannotRun(new ProcessBuilder(dir.getAbsolutePath()), 13)
+    }
+  }
+
+  @Test def nonExecutableFile(): Unit = {
+    assumeFalse("Not tested in Windows", isWindows)
+    assumeNotRoot()
+    withScriptDir { dir =>
+      val script = writeScript(dir, "not-executable", "x", executable = false)
+      assertCannotRun(new ProcessBuilder(script.getAbsolutePath()), 13)
+    }
   }
 
   @Test def inputAndErrorStream(): Unit = {
@@ -373,6 +469,45 @@ class ProcessTest {
     }
   }
 
+  // Issue 4965
+  @Test def waitForWithTimeoutAcceptsHugeTimeouts(): Unit = {
+    val timeouts = Seq(
+      (Long.MaxValue, TimeUnit.NANOSECONDS),
+      (Long.MaxValue, TimeUnit.MILLISECONDS),
+      (Long.MaxValue, TimeUnit.SECONDS),
+      (Long.MaxValue, TimeUnit.DAYS),
+      (Long.MaxValue / 2, TimeUnit.NANOSECONDS),
+      (1L << 32, TimeUnit.MILLISECONDS),
+      (100000L * 365, TimeUnit.DAYS)
+    )
+    for ((timeout, unit) <- timeouts) {
+      val proc = processSleep(0.2).start()
+      try {
+        assertTrue(
+          s"process should have exited (limit: $timeout $unit)",
+          proc.waitFor(timeout, unit)
+        )
+        assertEquals(s"exit code (limit: $timeout $unit)", 0, proc.exitValue)
+      } finally {
+        proc.destroyForcibly()
+      }
+    }
+  }
+
+  @Test def waitForWithNonPositiveTimeoutDoesNotWait(): Unit = {
+    val proc = processSleep(2.0).start()
+    try {
+      for (timeout <- Seq(0L, -1L, Long.MinValue))
+        assertFalse(
+          s"waitFor($timeout) should not wait",
+          proc.waitFor(timeout, TimeUnit.SECONDS)
+        )
+      assertTrue("process should be alive", proc.isAlive)
+    } finally {
+      proc.destroyForcibly()
+    }
+  }
+
   private def processForDestruction(): Process = {
     /* Return a Process that is suitable to receive a SIGTERM or SIGKILL
      * signal and return that signal as its exit code.
@@ -454,6 +589,66 @@ class ProcessTest {
       s"hello$EOL",
       readInputStream(proc.getInputStream())
     )
+  }
+
+  // Issue #5241
+  @Test def shellFallbackPreservesArguments(): Unit = {
+    assumeFalse("Not tested in Windows", isWindows)
+    assumeNotCrossCompiling()
+    val dir = Files.createTempDirectory("process-5241")
+    val script = dir.resolve("noshebang")
+    val marker = dir.resolve("INJECTED")
+    try {
+      Files.write(
+        script,
+        "for a in \"$@\"; do printf '[%s]\\n' \"$a\"; done\n"
+          .getBytes(StandardCharsets.UTF_8)
+      )
+      assertTrue(script.toFile().setExecutable(true))
+
+      val proc = processForCommand(
+        script.toString,
+        "a b",
+        s"c;touch $marker",
+        "$HOME"
+      ).start()
+
+      assertProcessExitOrTimeout(proc)
+      assertEquals("", readInputStream(proc.getErrorStream()))
+      assertEquals(
+        s"[a b]$EOL[c;touch $marker]$EOL[$$HOME]$EOL",
+        readInputStream(proc.getInputStream())
+      )
+      assertEquals(0, proc.exitValue())
+      assertFalse("shell injection", Files.exists(marker))
+    } finally {
+      Files.deleteIfExists(marker)
+      Files.deleteIfExists(script)
+      Files.deleteIfExists(dir)
+    }
+  }
+
+  // Issue #5241
+  @Test def programNotFoundOnPathThrows(): Unit = {
+    assumeFalse("Not tested in Windows", isWindows)
+    assumeNotCrossCompiling()
+    val dir = Files.createTempDirectory("process-5241")
+    val marker = dir.resolve("INJECTED")
+    try {
+      val pb = processForCommand(
+        "scala-native-no-such-program-5241",
+        s"x; touch $marker"
+      )
+      val proc =
+        try Some(pb.start())
+        catch { case _: IOException => None }
+      proc.foreach(_.waitFor(5, TimeUnit.SECONDS))
+      assertFalse("shell injection", Files.exists(marker))
+      assertTrue("expected IOException", proc.isEmpty)
+    } finally {
+      Files.deleteIfExists(marker)
+      Files.deleteIfExists(dir)
+    }
   }
 
   /* concurrentPipe() Design Note: Issue 4164

@@ -5,6 +5,7 @@ import java.{util => ju}
 
 import scala.annotation.tailrec
 
+import scalanative.libc.LibcExt
 import scalanative.meta.LinktimeInfo
 import scalanative.posix.errno._
 import scalanative.posix.spawn._
@@ -13,7 +14,6 @@ import scalanative.unsafe._
 import scalanative.unsigned._
 
 import ju.ArrayList
-import ju.ScalaOps._
 
 private[process] object UnixProcessFactory {
   val haveSpawnAddChdir = JavalibSpawn.hasFileActionsAddChdir()
@@ -53,6 +53,12 @@ private[process] object UnixProcessFactory {
    */
 
   def forkChild(builder: ProcessBuilder)(implicit z: Zone): GenericProcess = {
+    val cmd = builder.command()
+    val candidates = binaryPaths(builder, cmd.get(0)).toList
+    if (candidates.isEmpty) throw cannotRun(cmd, ENOENT)
+    val binaries = candidates.filter(isExecutableIn(builder, _))
+    if (binaries.isEmpty) throw cannotRun(cmd, EACCES)
+
     var success = false
     val (infds, outfds, errfds) = createPipes(builder)
 
@@ -69,8 +75,6 @@ private[process] object UnixProcessFactory {
     }
 
     def runChild(): Nothing = {
-      val cmd = builder.command()
-      val binaries = binaryPaths(builder.environment(), cmd.get(0))
       val argv = nullTerminate(cmd)
       val envp = nullTerminate(builder.getEnvironmentAsList())
 
@@ -103,11 +107,9 @@ private[process] object UnixProcessFactory {
       binaries.foreach { b =>
         val bin = toCString(b)
         if (unistd.execve(bin, argv, envp) == -1 && errno == ENOEXEC) {
-          val al = new ArrayList[String](3)
-          al.add(shell); al.add("-c")
-          al.add(cmd.scalaOps.mkString(sep = " "))
-          val newArgv = nullTerminate(al)
+          val newArgv = nullTerminate(shellFallbackCommand(b, cmd))
           unistd.execve(toCString(shell), newArgv, envp)
+          unistd._exit(127)
         }
       }
 
@@ -243,19 +245,27 @@ private[process] object UnixProcessFactory {
         } else status
       }
 
-      var status = ENOEXEC
-      val execIter = binaryPaths(builder.environment(), cmd.get(0))
-
-      while (status == ENOEXEC && execIter.hasNext)
-        status = spawn(execIter.next(), argv)
-
-      if (status == ENOEXEC) { // try falling back to shell script
-        val shCmd = shell
-        val fallbackCmd = Array(shCmd, "-c", cmd.scalaOps.mkString(sep = " "))
-        status = spawn(shCmd, nullTerminate(ju.Arrays.asList(fallbackCmd)))
+      // Like execvp: skip candidates that cannot be executed, report
+      // EACCES if any candidate was found but none could be run.
+      val execIter = binaryPaths(builder, cmd.get(0))
+      var status = ENOENT
+      var sawEACCES = false
+      var done = false
+      while (!done && execIter.hasNext) {
+        val candidate = execIter.next()
+        status =
+          if (isDirectoryIn(builder, candidate)) EACCES
+          else spawn(candidate, argv)
+        if (status == ENOEXEC) {
+          status =
+            spawn(shell, nullTerminate(shellFallbackCommand(candidate, cmd)))
+          done = true
+        } else if (status == EACCES) sawEACCES = true
+        else if (!isSkippable(status)) done = true
       }
+      if (status != 0 && sawEACCES && isSkippable(status)) status = EACCES
 
-      UnixProcess.throwOnErrnum(status, "Unable to posix_spawn process")
+      if (status != 0) throw cannotRun(cmd, status)
 
       success = true
       val handle = new UnixProcessHandle(!pidPtr)(builder)
@@ -276,6 +286,27 @@ private[process] object UnixProcessFactory {
         "posix_spawn_file_actions_destroy"
       )
     }
+  }
+
+  private def isSkippable(errnum: CInt): Boolean =
+    errnum == ENOENT || errnum == ENOTDIR || errnum == EACCES
+
+  private def cannotRun(cmd: ju.List[String], errnum: CInt): IOException =
+    new IOException(
+      "Cannot run program \"" + cmd.get(0) + "\": error=" + errnum + ", " +
+        LibcExt.strError(errnum)
+    )
+
+  // ENOEXEC fallback like execvp: `sh ./file args...`, args never joined.
+  private def shellFallbackCommand(
+      file: String,
+      cmd: ju.List[String]
+  ): ju.List[String] = {
+    val res = new ArrayList[String](cmd.size() + 1)
+    res.add(shell)
+    res.add(if (file.startsWith("/")) file else "./" + file)
+    res.addAll(cmd.subList(1, cmd.size()))
+    res
   }
 
   private def nullTerminate(
@@ -404,24 +435,50 @@ private[process] object UnixProcessFactory {
   private def getFileNameCString(f: File)(implicit z: Zone) =
     toCString(f.getAbsolutePath())
 
-  // The execvpe function isn't available on all platforms so find the
-  // possible binaries to exec.
-  private def binaryPaths(
-      environment: java.util.Map[String, String],
-      bin: String
+  private def inChildDir(builder: ProcessBuilder, path: String): File = {
+    val f = new File(path)
+    if (builder.isCwd || f.isAbsolute()) f
+    else new File(builder.directory(), path)
+  }
+
+  /* exec of a directory fails with EACCES, but some setups (fork path,
+   * qemu-user) cannot report exec failures to the parent, so check here.
+   */
+  private def isDirectoryIn(builder: ProcessBuilder, path: String): Boolean =
+    inChildDir(builder, path).isDirectory()
+
+  private def isExecutableIn(builder: ProcessBuilder, path: String): Boolean =
+    !isDirectoryIn(builder, path) && inChildDir(builder, path).canExecute()
+
+  // Like execvp, skip only candidates that do not exist; other errors
+  // are left for the exec attempt to report.
+  private def mayExist(builder: ProcessBuilder, path: String)(implicit
+      z: Zone
+  ): Boolean = {
+    val p = toCString(inChildDir(builder, path).getPath())
+    unistd.access(p, unistd.F_OK) == 0 || (errno != ENOENT && errno != ENOTDIR)
+  }
+
+  /* Executable lookup follows the JVM: a command without '/' is searched in
+   * the PATH of this (parent) process, not in the PATH set in the child's
+   * environment. Relative PATH entries are resolved against the child's
+   * working directory.
+   */
+  private def binaryPaths(builder: ProcessBuilder, bin: String)(implicit
+      z: Zone
   ): Iterator[String] = {
-    if (bin.indexOf('/') >= 0 || bin.startsWith(".")) {
-      Iterator(bin)
-    } else {
-      val path = environment.get("PATH") match {
-        case null => "/bin:/usr/bin:/usr/local/bin"
-        case p    => p
+    val candidates =
+      if (bin.indexOf('/') >= 0) Iterator(bin)
+      else {
+        val path = System.getenv("PATH") match {
+          case null => "/bin:/usr/bin"
+          case p    => p
+        }
+        path.split(File.pathSeparator, -1).iterator.map { dir =>
+          if (dir.isEmpty) bin else new File(dir, bin).getPath()
+        }
       }
-      path.split(File.pathSeparator).iterator.flatMap { absPath =>
-        val f = if (absPath.isEmpty) new File(bin) else new File(absPath, bin)
-        if (f.canExecute()) Some(f.toString()) else None
-      }
-    }
+    candidates.filter(mayExist(builder, _))
   }
 
 }

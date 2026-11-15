@@ -17,6 +17,7 @@
 #include "shared/jmx.h"
 #include <time.h>
 #include "WeakReferences.h"
+#include "immix_commix/References.h"
 #include "immix_commix/Synchronizer.h"
 
 /**
@@ -226,7 +227,7 @@ static bool Heap_overheadLimitReached(Heap *heap, uint64_t start_ns,
 }
 
 static bool Heap_collect(Heap *heap, Stack *stack, size_t allocationSize,
-                         uint64_t generation) {
+                         uint64_t generation, bool clearSoftReferences) {
     SpillCalleeSavedRegisters();
     // Stopping the other mutators is part of the pause.
     uint64_t request_ns = Time_current_nanos();
@@ -245,6 +246,7 @@ static bool Heap_collect(Heap *heap, Stack *stack, size_t allocationSize,
     Stats *stats = heap->stats;
     GC_LOG_INFO("GC collection started");
     start_ns = Time_current_nanos();
+    References_StartCollection(clearSoftReferences);
     GCHooks_markStarted();
     Marker_MarkRoots(heap, stack);
     GCHooks_markCompleted();
@@ -252,6 +254,7 @@ static bool Heap_collect(Heap *heap, Stack *stack, size_t allocationSize,
         nullify_start_ns = Time_current_nanos();
     }
     WeakReferences_Nullify();
+    References_EndCollection();
     if (stats != NULL) {
         sweep_start_ns = Time_current_nanos();
     }
@@ -311,13 +314,16 @@ static bool Heap_collect(Heap *heap, Stack *stack, size_t allocationSize,
     return available;
 }
 
-void Heap_Collect(Heap *heap, Stack *stack) { Heap_collect(heap, stack, 0, 0); }
+void Heap_Collect(Heap *heap, Stack *stack) {
+    Heap_collect(heap, stack, 0, 0, false);
+}
 
-bool Heap_RecoverAllocation(Heap *heap, size_t size, uint64_t generation) {
+bool Heap_RecoverAllocation(Heap *heap, size_t size, uint64_t generation,
+                            bool clearSoftReferences) {
     if (atomic_load_explicit(&heap->collectionGeneration,
                              memory_order_acquire) != generation)
         return true;
-    return Heap_collect(heap, &stack, size, generation);
+    return Heap_collect(heap, &stack, size, generation, clearSoftReferences);
 }
 
 bool Heap_shouldGrow(Heap *heap) {

@@ -54,8 +54,21 @@ The layout is defined by `codegen.CommonMemoryLayouts` and mirrored by
 | 8-31 | traits: low 24 bits of the itable key                          |
 
 The garbage collectors and `java.lang.Class` read these bits instead of
-comparing class ids. Only weak references clear their referent today; soft and
-phantom references are marked for future support.
+comparing class ids. Immix and Commix use the reference kind to decide when
+to clear a referent:
+
+- weak and phantom references never keep their referent alive. After marking,
+  the collector clears every referent that nothing else marked, and the
+  javalib enqueues the reference on its queue;
+- soft references keep their referent alive, except in the
+  collection that runs right before an allocation would fail with an
+  `OutOfMemoryError`. That collection runs only when the previous one found a
+  soft reference, clears unmarked soft referents like weak ones, and the
+  allocation is then retried.
+
+There are no finalizers, so a phantom reference is cleared and enqueued in the
+same collection as a weak reference to the same object. Boehm treats phantom
+references like weak ones and soft references as strong.
 
 ## Reference map and arrays
 
@@ -67,9 +80,10 @@ example to an array element, and be the only thing keeping it alive.
 
 The referent of `java.lang.ref.Reference` is its only field, so it directly
 follows the object header in every reference object, like the fields of
-`String` and `Class`; the toolchain fails the build otherwise. Weak references
-leave it out of their reference map: the GC does not mark it, and clears it
-once nothing else keeps it alive. Soft and phantom references keep it marked.
+`String` and `Class`; the toolchain fails the build otherwise. References leave
+it out of their reference map: the GC marks the referent of a soft reference
+itself, unless it clears soft references, and clears any referent once nothing
+else keeps it alive.
 
 Arrays have no fields to scan, the GC uses the element scan kind from the flags
 instead. In array RTTI the same slot holds the RTTI of the element type, read

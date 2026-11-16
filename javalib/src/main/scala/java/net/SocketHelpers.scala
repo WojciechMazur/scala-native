@@ -2,7 +2,6 @@ package java.net
 
 import java.io.{FileDescriptor, IOException}
 
-import scala.scalanative.meta.LinktimeInfo
 import scala.scalanative.meta.LinktimeInfo.isWindows
 import scala.scalanative.posix.netinet.{in, inOps}
 import scala.scalanative.posix.string.memcpy
@@ -425,16 +424,9 @@ object SocketHelpers {
 
   /* Return the wildcard address corresponding directly to the IP stack in use.
    * This address has not been selected by getPreferIPv6Addresses().
-   *
-   * This section will need to be revisited as more robust FreeBSD support
-   * is added.  The assumption here is that FreeBSD always returns the
-   * IPv4 wildcard. That assumption/guess needs to be verified.
-   * FreeBSD & NetBSD are reported to separate IPv4 & IPv6 stacks.
    */
-
   private[net] def getWildcardAddressForBind(): InetAddress = {
-    if (LinktimeInfo.isFreeBSD) wildcardIPv4
-    else if (useIPv4Stack) wildcardIPv4
+    if (useIPv4Stack) wildcardIPv4
     else wildcardIPv6
   }
 

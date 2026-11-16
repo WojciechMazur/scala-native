@@ -344,12 +344,16 @@ class DatagramSocketTest {
         )
       )
 
-      val result = new DatagramPacket(new Array[Byte](bytes.length), bytes.length)
+      val result =
+        new DatagramPacket(new Array[Byte](bytes.length), bytes.length)
       receiver.setSoTimeout(500)
       receiver.receive(result)
 
       assertTrue(ju.Arrays.equals(bytes, result.getData()))
-      assertEquals(ipv4Loopback, result.getAddress())
+      assertArrayEquals(
+        ipv4Loopback.getAddress(),
+        result.getAddress().getAddress()
+      )
       assertEquals(sender.getLocalPort(), result.getPort())
     } finally {
       sender.close()

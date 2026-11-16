@@ -146,7 +146,10 @@ class ServerSocketTest {
       try {
         val accepted = server.accept()
         try {
-          assertEquals(ipv4Loopback, accepted.getInetAddress)
+          assertArrayEquals(
+            ipv4Loopback.getAddress,
+            accepted.getInetAddress.getAddress
+          )
           client.getOutputStream.write(42)
           assertEquals(42, accepted.getInputStream.read())
         } finally accepted.close()

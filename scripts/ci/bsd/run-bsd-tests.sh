@@ -31,6 +31,7 @@ java -version
 clang --version
 IF6=$(ifconfig -l | tr ' ' '\n' | grep -v '^lo' | head -1)
 ifconfig "$IF6" inet6 fd00:3630::1 prefixlen 64 alias
+route add -inet6 default fd00:3630::2 || true
 sleep 3
 ifconfig "$IF6"
 sysctl net.inet6.ip6.v6only

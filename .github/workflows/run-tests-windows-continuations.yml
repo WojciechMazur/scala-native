@@ -16,8 +16,17 @@ on:
       build-mode:
         description: "Mode(s): all, debug or release-fast"
         default: all
+      yieldpoints:
+        description: "Safepoints: auto, trap or poll"
+        default: auto
+      gc-nprocs:
+        description: "GC_NPROCS for the test binary (empty: default)"
+        default: ""
+      only:
+        description: "Run only this test class, five times (empty: all suites)"
+        default: ""
 concurrency:
-  group: windows-continuations-${{ github.ref }}
+  group: windows-continuations-${{ github.ref }}-${{ inputs.os }}-${{ inputs.gc }}-${{ inputs.build-mode }}-${{ inputs.yieldpoints }}-${{ inputs.gc-nprocs }}-${{ inputs.only }}
   cancel-in-progress: true
 
 jobs:
@@ -72,8 +81,12 @@ jobs:
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
           # Cover both safepoint kinds against fiber stacks: polling in
           # debug/commix, trap-based everywhere else (the release default).
-          SCALANATIVE_GC_TRAP_BASED_YIELDPOINTS: ${{ matrix.build-mode == 'debug' && matrix.gc == 'commix' && '0' || '1' }}
-        run: sbt "test-continuations 3"
+          SCALANATIVE_GC_TRAP_BASED_YIELDPOINTS: ${{ (inputs.yieldpoints == 'trap' && '1') || (inputs.yieldpoints == 'poll' && '0') || (matrix.build-mode == 'debug' && matrix.gc == 'commix' && '0' || '1') }}
+          ONLY_TEST: ${{ inputs.only }}
+          ONLY_GC_NPROCS: ${{ inputs.gc-nprocs }}
+        run: |
+          if not "%ONLY_GC_NPROCS%"=="" set GC_NPROCS=%ONLY_GC_NPROCS%
+          if "%ONLY_TEST%"=="" (sbt "test-continuations 3") else (sbt "tests3/testOnly %ONLY_TEST%" "tests3/testOnly %ONLY_TEST%" "tests3/testOnly %ONLY_TEST%" "tests3/testOnly %ONLY_TEST%" "tests3/testOnly %ONLY_TEST%")
         shell: cmd
 
       - name: Shutdown sbt server

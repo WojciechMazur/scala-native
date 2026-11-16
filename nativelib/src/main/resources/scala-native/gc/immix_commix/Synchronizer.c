@@ -124,7 +124,11 @@ static LONG WINAPI SafepointTrapHandler(EXCEPTION_POINTERS *ex) {
         void *faultAddress =
             (void *)(uintptr_t)ex->ExceptionRecord->ExceptionInformation[1];
         if (isTrapFault(faultAddress, currentMutatorThread)) {
+            // The registers of the interrupted code, in this frame, where
+            // the collector scans the stack.
+            CONTEXT interrupted = *ex->ContextRecord;
             Synchronizer_yield();
+            __asm__ volatile("" : : "r"(&interrupted) : "memory");
             return EXCEPTION_CONTINUE_EXECUTION;
         }
         GC_LOG_WARN("Caught exception code %p in GC exception handler",

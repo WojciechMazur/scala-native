@@ -46,9 +46,18 @@ object ExternalThreadScenarios {
     scalaVersion.startsWith("3.") && sys
       .props("java.specification.version")
       .toInt >= 21 &&
-      Seq("linux", "mac", "freebsd", "openbsd", "netbsd").exists(os.contains) &&
+      Seq("linux", "mac", "freebsd", "openbsd", "netbsd", "windows")
+        .exists(os.contains) &&
       Set("x86_64", "amd64", "aarch64", "arm64")(arch)
   }
+
+  // Continuations do not support Boehm GC on Windows.
+  private def virtualThreadsIn(
+      cfg: NativeConfig,
+      virtualThreads: Boolean
+  ): Boolean =
+    virtualThreads &&
+      !(ExternalThreadPlatform.current.windows && cfg.gc == GC.boehm)
 
   def prepare(
       root: File,
@@ -56,8 +65,9 @@ object ExternalThreadScenarios {
       cfg: NativeConfig,
       library: File,
       name: String,
-      virtualThreads: Boolean
+      available: Boolean
   ): Unit = {
+    val virtualThreads = virtualThreadsIn(cfg, available)
     records(root)
     val hosts = out / "configurations" / name
     IO.delete(hosts)
@@ -112,9 +122,10 @@ object ExternalThreadScenarios {
       out: File,
       cfg: NativeConfig,
       name: String,
-      virtualThreads: Boolean,
+      available: Boolean,
       log: Logger
   ): Unit = {
+    val virtualThreads = virtualThreadsIn(cfg, available)
     val hosts = out / "configurations" / name
     val applicable = records(root).filter(_.accepts(cfg))
     require(applicable.nonEmpty, "No scenarios for " + name)

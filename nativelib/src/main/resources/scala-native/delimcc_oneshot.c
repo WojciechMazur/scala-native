@@ -1,5 +1,6 @@
-#if !defined(_WIN32) && (defined(SCALANATIVE_COMPILE_ALWAYS) ||                \
-                         defined(__SCALANATIVE_DELIMCC_ONESHOT))
+#if (defined(SCALANATIVE_COMPILE_ALWAYS) ||                                    \
+     defined(__SCALANATIVE_DELIMCC_ONESHOT)) &&                                \
+    (!defined(_WIN32) || defined(__x86_64__) || defined(__aarch64__))
 
 /*
  * One-shot delimited continuations.
@@ -27,19 +28,28 @@
  * before a switch until the receiving side has taken over, and around every
  * change of what the callbacks read. None of this code has a safepoint, so
  * the pauses are no-ops for the other collectors.
+ *
+ * Windows differs only in the platform layer: stack memory, locks, the
+ * cleanup at thread exit, and the switch, which also switches the stack
+ * fields of the TEB (see `switchStacks`).
  */
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
+#include <pthread.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
 #include "delimcc_oneshot.h"
 #include "nativeThreadTLS.h"
 #include "stackOverflowGuards.h"
 #include "gc/shared/GCHooks.h"
-#include <pthread.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <sys/mman.h>
-#include <unistd.h>
 
 extern void scalanative_GC_collect(void);
 extern size_t scalanative_StackOverflowGuards_size(void);
@@ -64,6 +74,18 @@ extern void scalanative_continuation_entry(void);
         fputc('\n', stderr);                                                   \
         abort();                                                               \
     } while (0)
+
+#ifdef _WIN32
+typedef SRWLOCK Lock;
+#define LOCK_INITIALIZER SRWLOCK_INIT
+static inline void lock(Lock *l) { AcquireSRWLockExclusive(l); }
+static inline void unlock(Lock *l) { ReleaseSRWLockExclusive(l); }
+#else
+typedef pthread_mutex_t Lock;
+#define LOCK_INITIALIZER PTHREAD_MUTEX_INITIALIZER
+static inline void lock(Lock *l) { pthread_mutex_lock(l); }
+static inline void unlock(Lock *l) { pthread_mutex_unlock(l); }
+#endif
 
 // The stack fields of ThreadInfo.
 typedef struct StackBounds {
@@ -144,6 +166,11 @@ struct Coroutine {
     void *threadBottom; // of a THREAD coroutine, as the collector knows it
     void *mapping;      // start of the stack mapping this struct lives in
     StackBounds bounds;
+#ifdef _WIN32
+    // The lowest committed address above the guard page, the TEB StackLimit
+    // a new frame on this stack starts with.
+    void *stackLimit;
+#endif
     // ThreadInfo.pendingStackOverflowException while this stack does not run.
     bool pendingOverflow;
     // ThreadInfo.stackGuardOpen while this stack does not run.
@@ -173,14 +200,55 @@ typedef struct ThreadState {
 // On the heap: it has to outlive the thread-local block for the cleanup
 // that runs when the thread exits.
 static SN_ThreadLocal ThreadState *threadState;
-static pthread_key_t threadStateKey;
-static pthread_once_t threadStateKeyOnce = PTHREAD_ONCE_INIT;
 
 static void releaseThreadState(void *state);
+
+#ifdef _WIN32
+/* A fiber local storage callback runs when the thread exits. It also runs
+ * for the thread that ends the process, after the others were terminated,
+ * possibly holding a lock taken here: nothing is released from then on. */
+static DWORD threadStateKey = FLS_OUT_OF_INDEXES;
+static INIT_ONCE threadStateKeyOnce = INIT_ONCE_STATIC_INIT;
+static volatile bool processExiting;
+
+static void markProcessExiting(void) { processExiting = true; }
+
+static void WINAPI releaseThreadStateAtExit(void *state) {
+    if (state != NULL && !processExiting)
+        releaseThreadState(state);
+}
+
+static BOOL CALLBACK createThreadStateKey(PINIT_ONCE once, void *param,
+                                          void **context) {
+    (void)once;
+    (void)param;
+    (void)context;
+    threadStateKey = FlsAlloc(releaseThreadStateAtExit);
+    if (threadStateKey == FLS_OUT_OF_INDEXES)
+        return FALSE;
+    atexit(markProcessExiting);
+    return TRUE;
+}
+
+static void registerThreadState(ThreadState *thread) {
+    if (!InitOnceExecuteOnce(&threadStateKeyOnce, createThreadStateKey, NULL,
+                             NULL) ||
+        !FlsSetValue(threadStateKey, thread))
+        FATAL("cannot register the thread state");
+}
+#else
+static pthread_key_t threadStateKey;
+static pthread_once_t threadStateKeyOnce = PTHREAD_ONCE_INIT;
 
 static void createThreadStateKey(void) {
     pthread_key_create(&threadStateKey, releaseThreadState);
 }
+
+static void registerThreadState(ThreadState *thread) {
+    pthread_once(&threadStateKeyOnce, createThreadStateKey);
+    pthread_setspecific(threadStateKey, thread);
+}
+#endif
 
 // Not inlined: a coroutine can continue on another thread, so the result
 // must not be used across a switch.
@@ -192,8 +260,7 @@ __attribute__((noinline)) static ThreadState *currentThread(void) {
             FATAL("out of memory");
         thread->info = scalanative_currentThreadInfo();
         threadState = thread;
-        pthread_once(&threadStateKeyOnce, createThreadStateKey);
-        pthread_setspecific(threadStateKey, thread);
+        registerThreadState(thread);
     }
     return thread;
 }
@@ -206,12 +273,12 @@ __attribute__((noinline)) static ThreadState *currentThread(void) {
  * linked through `returnTo`. */
 static Coroutine *sharedPool;
 static int sharedPoolSize;
-static pthread_mutex_t sharedPoolLock = PTHREAD_MUTEX_INITIALIZER;
+static Lock sharedPoolLock = LOCK_INITIALIZER;
 
 // Slots are never returned to the system; free ones are linked through
 // `bottom`, which is not read while `waitingTop` is unset.
 static StackSlot *freeSlots;
-static pthread_mutex_t slotsLock = PTHREAD_MUTEX_INITIALIZER;
+static Lock slotsLock = LOCK_INITIALIZER;
 
 // Skips the guard page: a frame larger than the room below the guard can
 // leave the stack pointer under it.
@@ -265,7 +332,7 @@ static void scanAnchoredStacks(void **fields, GC_ScanRangeFn *scan, void *ctx) {
 }
 
 static StackSlot *acquireSlot(void) {
-    pthread_mutex_lock(&slotsLock);
+    lock(&slotsLock);
     StackSlot *slot = freeSlots;
     if (slot != NULL) {
         freeSlots = slot->bottom;
@@ -283,24 +350,101 @@ static StackSlot *acquireSlot(void) {
         }
         slot = &block->slots[block->used++];
     }
-    pthread_mutex_unlock(&slotsLock);
+    unlock(&slotsLock);
     return slot;
 }
 
 static void releaseSlot(StackSlot *slot) {
-    pthread_mutex_lock(&slotsLock);
+    lock(&slotsLock);
     slot->bottom = freeSlots;
     freeSlots = slot;
-    pthread_mutex_unlock(&slotsLock);
+    unlock(&slotsLock);
 }
 
-static size_t pageSize(void) {
-    static size_t size;
-    if (size == 0)
-        size = (size_t)sysconf(_SC_PAGESIZE);
-    return size;
+static size_t pageSize(void) { return resolvePageSize(); }
+
+#ifdef _WIN32
+/* Low to high: reserved memory the stack grows into, a PAGE_GUARD page, and
+ * the committed page that holds the coroutine. The stack grows as the stack
+ * of a thread does, with no committed memory it does not use: the system
+ * moves the guard page down on each touch, keeps the TEB StackLimit at the
+ * committed end, and raises EXCEPTION_STACK_OVERFLOW once only the
+ * GuaranteedStackBytes of the TEB are left above DeallocationStack, which
+ * stackOverflowGuards.c handles. All of it reads the TEB, which describes
+ * the running stack: `switchStacks` switches its stack fields.
+ *
+ * The guard fields of the bounds follow those of a thread, which
+ * stackOverflowGuards.c reads; nothing in [stack pointer, bottom) is
+ * inaccessible, which `guardLow` tells the scans. */
+
+// Leaves only the page of the coroutine committed, and the guard page below
+// it. Returns false when the system refuses to commit the guard page.
+static bool resetStackMemory(Coroutine *coroutine) {
+    size_t page = pageSize();
+    char *low = coroutine->mapping;
+    char *committed = alignToPageStart(coroutine);
+    VirtualFree(low, (size_t)(committed - low), MEM_DECOMMIT);
+    if (VirtualAlloc(committed - page, page, MEM_COMMIT,
+                     PAGE_READWRITE | PAGE_GUARD) == NULL)
+        return false;
+    coroutine->stackLimit = committed;
+    return true;
 }
 
+// Returns NULL when the system refuses the memory.
+static Coroutine *mapCoroutine(void) {
+    char *low = VirtualAlloc(NULL, STACK_SIZE, MEM_RESERVE, PAGE_READWRITE);
+    if (low == NULL)
+        return NULL;
+    char *high = low + STACK_SIZE;
+    Coroutine *coroutine =
+        (Coroutine *)(((uintptr_t)high - sizeof(Coroutine)) & ~(uintptr_t)15);
+    char *committed = alignToPageStart(coroutine);
+    if (VirtualAlloc(committed, (size_t)(high - committed), MEM_COMMIT,
+                     PAGE_READWRITE) == NULL) {
+        VirtualFree(low, 0, MEM_RELEASE);
+        return NULL;
+    }
+    coroutine->mapping = low;
+    if (!resetStackMemory(coroutine)) {
+        VirtualFree(low, 0, MEM_RELEASE);
+        return NULL;
+    }
+    size_t usable = (size_t)((char *)coroutine - low);
+    coroutine->bounds =
+        (StackBounds){.top = low,
+                      .bottom = coroutine,
+                      .guardPage = low + scalanative_StackOverflowGuards_size(),
+                      .guardLow = low,
+                      .size = usable,
+                      .maxSize = usable};
+    coroutine->slot = acquireSlot();
+    return coroutine;
+}
+
+static void unmapCoroutine(Coroutine *coroutine) {
+    releaseSlot(coroutine->slot);
+    VirtualFree(coroutine->mapping, 0, MEM_RELEASE);
+}
+
+static bool releaseStackMemory(Coroutine *coroutine) {
+    return resetStackMemory(coroutine);
+}
+
+static void reuseStackMemory(Coroutine *coroutine) { (void)coroutine; }
+
+static void *savedStackLimit(Coroutine *coroutine);
+
+/* Whether a stack that will run no more can be pooled. Its committed end is
+ * the StackLimit its last switch saved. One that came that close to its end
+ * may have overflowed, which uses up the guard page; it starts over. */
+static bool restoreGuard(Coroutine *coroutine) {
+    coroutine->stackLimit = savedStackLimit(coroutine);
+    char *safe = (char *)coroutine->bounds.guardPage +
+                 scalanative_StackOverflowGuards_size();
+    return (char *)coroutine->stackLimit >= safe || resetStackMemory(coroutine);
+}
+#else
 // Low to high: an inaccessible page, room to handle a stack overflow, the
 // guard page that detects one (stackOverflowGuards.c), then the stack and
 // the coroutine itself. The room stays inaccessible until an overflow, so a
@@ -361,36 +505,65 @@ static void adviseStack(Coroutine *coroutine, int advice) {
 #define RELEASE_PAGES MADV_FREE
 #endif
 
+static bool releaseStackMemory(Coroutine *coroutine) {
+    adviseStack(coroutine, RELEASE_PAGES);
+    return true;
+}
+
+static void reuseStackMemory(Coroutine *coroutine) {
+#if defined(__APPLE__)
+    // Without it the pages used again are not accounted to the process.
+    adviseStack(coroutine, MADV_FREE_REUSE);
+#else
+    (void)coroutine;
+#endif
+}
+
+// Whether a stack that will run no more can be pooled.
+static bool restoreGuard(Coroutine *coroutine) {
+    // An overflow opened the guard and nothing closed it again.
+    if (coroutine->guardOpen) {
+        char *guardLow = coroutine->bounds.guardLow;
+        char *guardEnd = (char *)coroutine->bounds.guardPage + pageSize();
+        mprotect(guardLow, (size_t)(guardEnd - guardLow), PROT_NONE);
+        coroutine->guardOpen = false;
+    }
+    return true;
+}
+#endif
+
 // Stacks in the shared pool hold no memory besides the coroutine.
 static bool giveShared(Coroutine *coroutine) {
-    pthread_mutex_lock(&sharedPoolLock);
+    lock(&sharedPoolLock);
     bool pooled = sharedPoolSize < SHARED_POOL_CAPACITY;
     if (pooled)
         sharedPoolSize++;
-    pthread_mutex_unlock(&sharedPoolLock);
+    unlock(&sharedPoolLock);
     if (!pooled)
         return false;
-    adviseStack(coroutine, RELEASE_PAGES);
-    pthread_mutex_lock(&sharedPoolLock);
+    if (!releaseStackMemory(coroutine)) {
+        lock(&sharedPoolLock);
+        sharedPoolSize--;
+        unlock(&sharedPoolLock);
+        return false;
+    }
+    lock(&sharedPoolLock);
     coroutine->returnTo = sharedPool;
     sharedPool = coroutine;
-    pthread_mutex_unlock(&sharedPoolLock);
+    unlock(&sharedPoolLock);
     return true;
 }
 
 static Coroutine *takeShared(void) {
-    pthread_mutex_lock(&sharedPoolLock);
+    lock(&sharedPoolLock);
     Coroutine *coroutine = sharedPool;
     if (coroutine != NULL) {
         sharedPool = coroutine->returnTo;
         sharedPoolSize--;
     }
-    pthread_mutex_unlock(&sharedPoolLock);
-#if defined(__APPLE__)
-    // Without it the pages used again are not accounted to the process.
+    unlock(&sharedPoolLock);
     if (coroutine != NULL)
-        adviseStack(coroutine, MADV_FREE_REUSE);
-#endif
+        reuseStackMemory(coroutine);
     return coroutine;
 }
 
@@ -425,15 +598,10 @@ static Coroutine *acquire(ThreadState *thread) {
 }
 
 static void destroy(ThreadState *thread, Coroutine *coroutine) {
-    // An overflow opened the guard and nothing closed it again.
-    if (coroutine->guardOpen) {
-        char *guardLow = coroutine->bounds.guardLow;
-        char *guardEnd = (char *)coroutine->bounds.guardPage + pageSize();
-        mprotect(guardLow, (size_t)(guardEnd - guardLow), PROT_NONE);
-        coroutine->guardOpen = false;
-    }
     coroutine->pendingOverflow = false;
-    if (thread->poolSize < LOCAL_POOL_CAPACITY) {
+    if (!restoreGuard(coroutine)) {
+        unmapCoroutine(coroutine);
+    } else if (thread->poolSize < LOCAL_POOL_CAPACITY) {
         coroutine->returnTo = thread->pool;
         thread->pool = coroutine;
         thread->poolSize++;
@@ -460,7 +628,212 @@ static void destroy(ThreadState *thread, Coroutine *coroutine) {
  *
  * SWITCH_FRAME bytes are used below the stack pointer, past any red zone.
  */
-#if defined(__aarch64__)
+#if defined(_WIN32)
+/* Windows: the switch also saves and restores the stack fields of the TEB
+ * (x64: gs, ARM64: x18), the same on both. Exception dispatch and unwinding
+ * accept only frames in [StackLimit, StackBase], __chkstk probes from
+ * StackLimit, and the growth of the stack and the overflow it raises go by
+ * DeallocationStack and GuaranteedStackBytes (see `mapCoroutine`). They have
+ * to describe the running stack before anything can touch a page that is
+ * not committed yet, so the switch writes them before it returns. StackLimit
+ * is read once the frame is written: a guard page the frame touches has
+ * grown the stack it belongs to by then. */
+#define TEB_STACK_BASE 0x08
+#define TEB_STACK_LIMIT 0x10
+#define TEB_DEALLOCATION_STACK 0x1478
+#define TEB_GUARANTEED_STACK_BYTES 0x1748
+#define STR_(x) #x
+#define STR(x) STR_(x)
+
+static ULONG guaranteedStackBytes(void) {
+    return *(ULONG *)((char *)NtCurrentTeb() + TEB_GUARANTEED_STACK_BYTES);
+}
+#endif
+
+#if defined(__aarch64__) && defined(_WIN32)
+/* Frame: x29, resume address, fpcr, GuaranteedStackBytes, StackBase,
+ * StackLimit, DeallocationStack, padding. x18 holds the TEB. */
+#define SWITCH_FRAME 64
+#define SAVED_STACK_LIMIT 5
+static inline __attribute__((always_inline)) void switchStacks(void **saveSp,
+                                                               void *loadSp) {
+    register void **save __asm__("x0") = saveSp;
+    register void *load __asm__("x1") = loadSp;
+    __asm__ volatile(
+        "adr x9, 1f\n"
+        "mrs x10, fpcr\n"
+        "stp x29, x9, [sp, #-64]!\n"
+        "ldr w11, [x18, #" STR(
+            TEB_GUARANTEED_STACK_BYTES) "]\n"
+                                        "stp x10, x11, [sp, #16]\n"
+                                        "ldp x11, x12, [x18, #" STR(
+                                            TEB_STACK_BASE) "]\n"
+                                                            "stp x11, x12, "
+                                                            "[sp, #32]\n"
+                                                            "ldr x11, [x18, "
+                                                            "#" STR(
+                                                                TEB_DEALLOCATION_STACK) "]\n"
+                                                                                        "str x11, [sp, #48]\n"
+                                                                                        "mov x9, sp\n"
+                                                                                        "str x9, [x0]\n"
+                                                                                        "mov sp, x1\n"
+                                                                                        "ldr x11, [sp, #48]\n"
+                                                                                        "str x11, [x18, #" STR(
+                                                                                            TEB_DEALLOCATION_STACK) "]\n"
+                                                                                                                    "ldp x11, x12, [sp, #32]\n"
+                                                                                                                    "stp x11, x12, [x18, #" STR(
+                                                                                                                        TEB_STACK_BASE) "]\n"
+                                                                                                                                        "ldp x10, x11, [sp, #16]\n"
+                                                                                                                                        "str w11, [x18, #" STR(
+                                                                                                                                            TEB_GUARANTEED_STACK_BYTES) "]\n"
+                                                                                                                                                                        "mrs x11, fpcr\n"
+                                                                                                                                                                        "cmp x10, x11\n"
+                                                                                                                                                                        "b.eq 2f\n"
+                                                                                                                                                                        "msr fpcr, x10\n" // slow, and rarely needed
+                                                                                                                                                                        "2: ldp x29, x9, [sp], #64\n"
+                                                                                                                                                                        "br x9\n"
+                                                                                                                                                                        "1:\n"
+        : "+r"(save), "+r"(load)
+        :
+        : "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11", "x12",
+          "x13", "x14", "x15", "x16", "x17", "x19", "x20", "x21", "x22", "x23",
+          "x24", "x25", "x26", "x27", "x28", "x30", "v0", "v1", "v2", "v3",
+          "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14",
+          "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24",
+          "v25", "v26", "v27", "v28", "v29", "v30", "v31", "cc", "memory");
+}
+
+// Builds what the first switch to `coroutine` pops: a null frame pointer,
+// scalanative_continuation_entry, the control state of the creating context
+// and the TEB fields of the new stack, with the coroutine at its base.
+static void prepareStack(Coroutine *coroutine) {
+    void **frame = (void **)((char *)coroutine - SWITCH_FRAME);
+    uint64_t fpcr;
+    __asm__("mrs %0, fpcr" : "=r"(fpcr));
+    coroutine->sp = frame;
+    frame[0] = NULL;
+    frame[1] = (void *)scalanative_continuation_entry;
+    frame[2] = (void *)fpcr;
+    frame[3] = (void *)(uintptr_t)guaranteedStackBytes();
+    frame[4] = coroutine;             // StackBase
+    frame[5] = coroutine->stackLimit; // StackLimit
+    frame[6] = coroutine->mapping;    // DeallocationStack
+}
+#elif defined(__x86_64__) && defined(_WIN32)
+/* Frame: control words, GuaranteedStackBytes, DeallocationStack,
+ * StackLimit, StackBase, rbp, resume address, padding. */
+#define SWITCH_FRAME 64
+#define SAVED_STACK_LIMIT 3
+static inline __attribute__((always_inline)) void switchStacks(void **saveSp,
+                                                               void *loadSp) {
+    register void **save __asm__("rdi") = saveSp;
+    register void *load __asm__("rsi") = loadSp;
+    __asm__ volatile(
+        "subq $64, %%rsp\n"
+        "leaq 1f(%%rip), %%rax\n"
+        "movq %%rax, 48(%%rsp)\n"
+        "movq %%rbp, 40(%%rsp)\n"
+        "stmxcsr (%%rsp)\n"
+        "fnstcw 4(%%rsp)\n"
+        "movq %%gs:" STR(
+            TEB_STACK_BASE) ", %%rax\n"
+                            "movq %%rax, 32(%%rsp)\n"
+                            "movq %%gs:" STR(
+                                TEB_STACK_LIMIT) ", %%rax\n"
+                                                 "movq %%rax, 24(%%rsp)\n"
+                                                 "movq %%gs:" STR(
+                                                     TEB_DEALLOCATION_STACK) ","
+                                                                             " "
+                                                                             "%"
+                                                                             "%"
+                                                                             "r"
+                                                                             "a"
+                                                                             "x"
+                                                                             "\n"
+                                                                             "m"
+                                                                             "o"
+                                                                             "v"
+                                                                             "q"
+                                                                             " "
+                                                                             "%"
+                                                                             "%"
+                                                                             "r"
+                                                                             "a"
+                                                                             "x"
+                                                                             ","
+                                                                             " "
+                                                                             "1"
+                                                                             "6"
+                                                                             "("
+                                                                             "%"
+                                                                             "%"
+                                                                             "r"
+                                                                             "s"
+                                                                             "p"
+                                                                             ")"
+                                                                             "\n"
+                                                                             "m"
+                                                                             "o"
+                                                                             "v"
+                                                                             "l"
+                                                                             " "
+                                                                             "%"
+                                                                             "%"
+                                                                             "g"
+                                                                             "s"
+                                                                             ":" STR(
+                                                                                 TEB_GUARANTEED_STACK_BYTES) ", %%eax\n"
+                                                                                                             "movq %%rax, 8(%%rsp)\n"
+                                                                                                             "movq %%rsp, (%%rdi)\n"
+                                                                                                             "movq %%rsi, %%rsp\n"
+                                                                                                             "movq 8(%%rsp), %%rax\n"
+                                                                                                             "movl %%eax, %%gs:" STR(
+                                                                                                                 TEB_GUARANTEED_STACK_BYTES) "\n"
+                                                                                                                                             "movq 16(%%rsp), %%rax\n"
+                                                                                                                                             "movq %%rax, %%gs:" STR(
+                                                                                                                                                 TEB_DEALLOCATION_STACK) "\n"
+                                                                                                                                                                         "movq 24(%%rsp), %%rax\n"
+                                                                                                                                                                         "movq %%rax, %%gs:" STR(
+                                                                                                                                                                             TEB_STACK_LIMIT) "\n"
+                                                                                                                                                                                              "movq 32(%%rsp), %%rax\n"
+                                                                                                                                                                                              "movq %%rax, %%gs:" STR(
+                                                                                                                                                                                                  TEB_STACK_BASE) "\n"
+                                                                                                                                                                                                                  "ldmxcsr (%%rsp)\n"
+                                                                                                                                                                                                                  "fldcw 4(%%rsp)\n"
+                                                                                                                                                                                                                  "movq 40(%%rsp), %%rbp\n"
+                                                                                                                                                                                                                  "movq 48(%%rsp), %%rax\n"
+                                                                                                                                                                                                                  "addq $64, %%rsp\n"
+                                                                                                                                                                                                                  "jmpq *%%rax\n"
+                                                                                                                                                                                                                  "1:\n"
+        : "+r"(save), "+r"(load)
+        :
+        : "rax", "rbx", "rcx", "rdx", "r8", "r9", "r10", "r11", "r12", "r13",
+          "r14", "r15", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6",
+          "xmm7", "xmm8", "xmm9", "xmm10", "xmm11", "xmm12", "xmm13", "xmm14",
+          "xmm15", "cc", "memory");
+}
+
+// Builds what the first switch to `coroutine` pops, above it a null return
+// address for scalanative_continuation_entry, whose unwind info ends stack
+// walks there: the control state of the creating context, the TEB fields of
+// the new stack with the coroutine at its base, and a null frame pointer.
+static void prepareStack(Coroutine *coroutine) {
+    void **frame = (void **)((char *)coroutine - sizeof(void *) - SWITCH_FRAME);
+    coroutine->sp = frame;
+    ((void **)coroutine)[-1] = NULL;
+    __asm__("stmxcsr (%0)\n"
+            "fnstcw 4(%0)"
+            :
+            : "r"(frame)
+            : "memory");
+    frame[1] = (void *)(uintptr_t)guaranteedStackBytes();
+    frame[2] = coroutine->mapping;    // DeallocationStack
+    frame[3] = coroutine->stackLimit; // StackLimit
+    frame[4] = coroutine;             // StackBase
+    frame[5] = NULL;
+    frame[6] = (void *)scalanative_continuation_entry;
+}
+#elif defined(__aarch64__)
 #define SWITCH_FRAME 144
 // x18 is reserved by the platform on Apple; elsewhere it is an ordinary
 // register that the switch does not preserve.
@@ -549,6 +922,7 @@ static void prepareControlState(void **frame) {
 #error "Unsupported architecture"
 #endif
 
+#ifndef _WIN32
 // Builds what the first switch to `coroutine` pops: a null frame pointer,
 // scalanative_continuation_entry, which finds the coroutine at the stack
 // pointer and calls scalanative_continuation_main, and the control state of
@@ -565,6 +939,12 @@ static void prepareStack(Coroutine *coroutine) {
     frame[1] = (void *)scalanative_continuation_entry;
     prepareControlState(frame);
 }
+#else
+// The StackLimit saved by the last switch from this coroutine.
+static void *savedStackLimit(Coroutine *coroutine) {
+    return ((void **)coroutine->sp)[SAVED_STACK_LIMIT];
+}
+#endif
 
 // =============================
 // Switching
@@ -704,6 +1084,35 @@ scalanative_continuation_main(Coroutine *self) {
     FATAL("a finished coroutine was resumed");
 }
 
+#ifdef _WIN32
+/* The exception handler of scalanative_continuation_entry, the frame at the
+ * base of every continuation stack. It does what RtlUserThreadStart does at
+ * the base of the stack of a thread, the only place the unhandled exception
+ * filter is called from otherwise: that filter handles the safepoint traps
+ * (gc/immix_commix/Synchronizer.c), and decides on any other exception that
+ * no frame handles. */
+EXCEPTION_DISPOSITION
+scalanative_continuation_exception_handler(EXCEPTION_RECORD *record,
+                                           void *establisherFrame,
+                                           CONTEXT *context,
+                                           void *dispatcherContext) {
+    (void)establisherFrame;
+    (void)dispatcherContext;
+    if (record->ExceptionFlags & (EXCEPTION_UNWINDING | EXCEPTION_EXIT_UNWIND))
+        return ExceptionContinueSearch;
+    EXCEPTION_POINTERS pointers = {record, context};
+    switch (UnhandledExceptionFilter(&pointers)) {
+    case EXCEPTION_CONTINUE_EXECUTION:
+        return ExceptionContinueExecution;
+    case EXCEPTION_CONTINUE_SEARCH:
+        return ExceptionContinueSearch;
+    default:
+        TerminateProcess(GetCurrentProcess(), record->ExceptionCode);
+        return ExceptionContinueSearch;
+    }
+}
+#endif
+
 // =============================
 // Continuations
 
@@ -752,7 +1161,7 @@ static void reclaimUnreachable(ThreadState *thread) {
     }
     Coroutine *unreachable = NULL;
     size_t count = 0;
-    pthread_mutex_lock(&slotsLock);
+    lock(&slotsLock);
     FOREACH_STACK_SLOT(slot) {
         // Another thread may resume this continuation and capture the stack
         // again meanwhile. The exchange fails then, as the number changed,
@@ -767,7 +1176,7 @@ static void reclaimUnreachable(ThreadState *thread) {
             count++;
         }
     }
-    pthread_mutex_unlock(&slotsLock);
+    unlock(&slotsLock);
     resumeCollections();
     size_t remaining = atomic_fetch_sub(&capturedCount, count) - count;
     atomic_store(&capturedLimit, remaining * 2 > MIN_CAPTURED_LIMIT
@@ -971,7 +1380,7 @@ void *scalanative_continuation_suspend(ContinuationBoundaryLabel label,
 
 #elif defined(_WIN32) && defined(__SCALANATIVE_DELIMCC_ONESHOT)
 
-// Not supported on Windows yet. Programs that only mention continuations
+// Not supported on 32-bit Windows. Programs that only mention continuations
 // still have to link; the Scala side reports the unsupported feature.
 #include "delimcc_oneshot.h"
 #include <stdio.h>
@@ -979,8 +1388,9 @@ void *scalanative_continuation_suspend(ContinuationBoundaryLabel label,
 
 #define UNSUPPORTED(signature)                                                 \
     signature {                                                                \
-        fprintf(stderr, "[ScalaNative Continuations | Error] one-shot "        \
-                        "continuations are not supported on Windows\n");       \
+        fprintf(stderr,                                                        \
+                "[ScalaNative Continuations | Error] one-shot "                \
+                "continuations are not supported on 32-bit Windows\n");        \
         abort();                                                               \
     }
 

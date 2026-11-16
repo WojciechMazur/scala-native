@@ -96,7 +96,8 @@ object Commands {
         "scala.scalanative.runtime.VirtualThread*",
         "scala.scalanative.meta.LinktimeInfoTest",
         "org.scalanative.testsuite.javalib.lang.VirtualThread*",
-        "org.scalanative.testsuite.javalib.lang.ThreadBuilderTestOnJDK19"
+        "org.scalanative.testsuite.javalib.lang.ThreadBuilderTestOnJDK19",
+        "org.scalanative.testsuite.javalib.lang.StackOverflowTest"
       ).mkString(" ")
       s"$sandboxId/run" ::
         s"$testsId/testOnly $suites" ::

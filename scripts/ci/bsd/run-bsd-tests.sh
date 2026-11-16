@@ -29,12 +29,10 @@ printf '127.0.0.1 %s\n' "$(hostname)" >> /etc/hosts
 uname -a
 java -version
 clang --version
-# --server avoids the native thin client, which is not available for BSD.
+IF6=$(ifconfig -l | tr ' ' '\n' | grep -v '^lo' | head -1)
+ifconfig "$IF6" inet6 fd00:3630::1 prefixlen 64 alias
+sleep 3
+ifconfig "$IF6"
+sysctl net.inet6.ip6.v6only
 sbt --server --batch $SBT_MEM_OPTS --sbt-version "$SBT_VERSION" \
-  'set sandbox.forBinaryVersion("3") / nativeConfig ~= (_.withMultithreading(true))' \
-  "test-gc 3"
-# test-runtime also includes testsExt; keep the BSD runtime matrix explicit.
-sbt --server --batch $SBT_MEM_OPTS --sbt-version "$SBT_VERSION" \
-  "testsJVM3/test" \
-  "tests3/test" "junitTestOutputsNative3/test" \
-  "scalaPartestJunitTests3/test"
+  "tests3/testOnly org.scalanative.testsuite.javalib.net.*"

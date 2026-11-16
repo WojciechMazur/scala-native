@@ -593,13 +593,13 @@ static void destroy(ThreadState *thread, Coroutine *coroutine) {
 /* SwitchToFiber keeps the callee-saved registers and the floating point
  * control state in the fiber, where the collector does not look. The callers'
  * callee-saved registers are spilled into this frame first, above the saved
- * stack pointer. */
+ * stack pointer. A tail call would restore and pop them before the switch. */
 __attribute__((noinline)) static void *frameOfCallee(void) {
     return __builtin_frame_address(0);
 }
 
-__attribute__((noinline)) static void switchFiber(void **saveSp,
-                                                  LPVOID target) {
+__attribute__((noinline, disable_tail_calls)) static void
+switchFiber(void **saveSp, LPVOID target) {
     __builtin_unwind_init();
     *saveSp = (void *)((uintptr_t)frameOfCallee() & ~(uintptr_t)15);
     SwitchToFiber(target);

@@ -95,8 +95,33 @@ object SocketHelpers {
         System.getProperty("java.net.preferIPv4Stack", "false")
       )
 
-    // Do the expensive test last.
-    systemPropertyForcesIPv4 || !isIPv6Configured()
+    // Do the expensive tests last.
+    systemPropertyForcesIPv4 || !isIPv6Configured() || !isDualStackSupported()
+  }
+
+  /* Sockets are dual-stack: AF_INET6 sockets also serve IPv4 peers through
+   * IPv4-mapped addresses. Some systems disable it by default (FreeBSD,
+   * NetBSD: net.inet6.ip6.v6only=1) or do not support it at all (OpenBSD).
+   */
+  private[net] def setDualStack(fd: CInt): Boolean = {
+    val v6Only = stackalloc[CInt]()
+    !v6Only = 0
+    setsockopt(
+      fd,
+      in.IPPROTO_IPV6,
+      in.IPV6_V6ONLY,
+      v6Only.asInstanceOf[Ptr[Byte]],
+      sizeof[CInt].toUInt
+    ) == 0
+  }
+
+  private def isDualStackSupported(): Boolean = if (isWindows) false
+  else {
+    val fd = socket.socket(AF_INET6, SOCK_STREAM, 0)
+    if (fd < 0) false
+    else
+      try setDualStack(fd)
+      finally scala.scalanative.posix.unistd.close(fd)
   }
 
   private[net] def getUseIPv4Stack(): Boolean = useIPv4Stack

@@ -60,9 +60,14 @@ object LinktimeInfo {
       !is32BitPlatform &&
       (target.arch == "x86_64" || target.arch == "aarch64")
 
-  /** `Continuations` and `Continuations.single`. */
+  /** `Continuations` and `Continuations.single`. On Windows they run on OS
+   *  fibers, whose stacks the Boehm GC does not follow.
+   */
   @resolvedAtLinktime()
-  def isContinuationsSupported: Boolean = isMultiShotContinuationsSupported
+  def isContinuationsSupported: Boolean =
+    isMultiShotContinuationsSupported || (isWindows && !is32BitPlatform &&
+    (target.arch == "x86_64" || target.arch == "aarch64") &&
+    garbageCollector != "boehm")
 
   @resolvedAtLinktime()
   def isVirtualThreadsSupported: Boolean =

@@ -94,6 +94,9 @@ object Commands {
       val suites = List(
         "scala.scalanative.runtime.Continuations*",
         "scala.scalanative.runtime.VirtualThread*",
+        "scala.scalanative.runtime.MultiShotContinuationsTest",
+        "scala.scalanative.runtime.PlatformUnparkCompensationTest",
+        "org.scalanative.testsuite.javalib.lang.StackOverflowTest",
         "scala.scalanative.meta.LinktimeInfoTest",
         "org.scalanative.testsuite.javalib.lang.VirtualThread*",
         "org.scalanative.testsuite.javalib.lang.ThreadBuilderTestOnJDK19"

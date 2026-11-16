@@ -40,13 +40,18 @@ object ExternalThreadScenarios {
       .getOrElse(sys.error("Unknown configuration: " + name))
       .configure(base)
 
-  def virtualThreadsAvailable(scalaVersion: String): Boolean = {
+  // Mirrors LinktimeInfo.isContinuationsSupported: on Windows continuations
+  // run on fibers, which Boehm GC does not support.
+  def virtualThreadsAvailable(scalaVersion: String, gc: GC): Boolean = {
     val os = sys.props("os.name").toLowerCase
     val arch = sys.props("os.arch").toLowerCase
     scalaVersion.startsWith("3.") && sys
       .props("java.specification.version")
       .toInt >= 21 &&
-      Seq("linux", "mac", "freebsd", "openbsd", "netbsd").exists(os.contains) &&
+      (Seq("linux", "mac", "freebsd", "openbsd", "netbsd").exists(
+        os.contains
+      ) ||
+      (os.contains("windows") && gc != GC.boehm)) &&
       Set("x86_64", "amd64", "aarch64", "arm64")(arch)
   }
 

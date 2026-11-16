@@ -1,5 +1,5 @@
-#if !defined(_WIN32) && (defined(SCALANATIVE_COMPILE_ALWAYS) ||                \
-                         defined(__SCALANATIVE_DELIMCC_ONESHOT))
+#if defined(SCALANATIVE_COMPILE_ALWAYS) ||                                     \
+    defined(__SCALANATIVE_DELIMCC_ONESHOT)
 
 /*
  * One-shot delimited continuations.
@@ -27,36 +27,74 @@
  * before a switch until the receiving side has taken over, and around every
  * change of what the callbacks read. None of this code has a safepoint, so
  * the pauses are no-ops for the other collectors.
+ *
+ * Windows: every coroutine is an OS fiber, and SwitchToFiber switches
+ * stacks. Exceptions are dispatched by walking frames within the stack limits
+ * kept in the TEB, and stack probes and the stack guarantee are kept there
+ * too; a fiber switch updates all of them. A fiber cannot be restarted, so it
+ * runs bodies in a loop and is pooled only once a body finished on it.
  */
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 #include "delimcc_oneshot.h"
 #include "nativeThreadTLS.h"
 #include "stackOverflowGuards.h"
 #include "gc/shared/GCHooks.h"
-#include <pthread.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
+#ifdef _WIN32
+#include <stdint.h>
+#else
+#include <pthread.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#endif
+
+#if defined(_WIN32) && (!defined(_WIN32_WINNT) || _WIN32_WINNT < 0x0602)
+WINBASEAPI VOID WINAPI GetCurrentThreadStackLimits(PULONG_PTR LowLimit,
+                                                   PULONG_PTR HighLimit);
+#endif
 
 extern void scalanative_GC_collect(void);
 extern size_t scalanative_StackOverflowGuards_size(void);
 
+#ifndef _WIN32
 // delimcc/switch.S
 extern void scalanative_continuation_entry(void);
+#endif
 
 #define STACK_SIZE ((size_t)1024 * 1024)
 // Free stacks kept per thread, and by all threads together.
 #define LOCAL_POOL_CAPACITY 16
+#ifdef _WIN32
+// A pooled fiber keeps the memory its stack committed.
+#define SHARED_POOL_CAPACITY 256
+#else
 #define SHARED_POOL_CAPACITY 1024
+#endif
 // Continuations waiting to be resumed before a collection is requested to
 // find the unreachable ones. Their stacks are invisible to the GC heap.
 #define MIN_CAPTURED_LIMIT 1024
 
 #define pauseCollections scalanative_GC_pause_collections
 #define resumeCollections scalanative_GC_resume_collections
+
+#ifdef _WIN32
+typedef SRWLOCK Mutex;
+#define MUTEX_INITIALIZER SRWLOCK_INIT
+static inline void mutexLock(Mutex *mutex) { AcquireSRWLockExclusive(mutex); }
+static inline void mutexUnlock(Mutex *mutex) { ReleaseSRWLockExclusive(mutex); }
+#else
+typedef pthread_mutex_t Mutex;
+#define MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
+static inline void mutexLock(Mutex *mutex) { pthread_mutex_lock(mutex); }
+static inline void mutexUnlock(Mutex *mutex) { pthread_mutex_unlock(mutex); }
+#endif
 
 #define FATAL(...)                                                             \
     do {                                                                       \
@@ -144,6 +182,11 @@ struct Coroutine {
     void *threadBottom; // of a THREAD coroutine, as the collector knows it
     void *mapping;      // start of the stack mapping this struct lives in
     StackBounds bounds;
+#ifdef _WIN32
+    LPVOID fiber;
+    // Waits at the end of a finished body, so it can run another one.
+    bool atRest;
+#endif
     // ThreadInfo.pendingStackOverflowException while this stack does not run.
     bool pendingOverflow;
     // ThreadInfo.stackGuardOpen while this stack does not run.
@@ -173,14 +216,48 @@ typedef struct ThreadState {
 // On the heap: it has to outlive the thread-local block for the cleanup
 // that runs when the thread exits.
 static SN_ThreadLocal ThreadState *threadState;
-static pthread_key_t threadStateKey;
-static pthread_once_t threadStateKeyOnce = PTHREAD_ONCE_INIT;
 
 static void releaseThreadState(void *state);
+
+#ifdef _WIN32
+/* A fiber local slot of the thread's own fiber: its callback runs when the
+ * thread exits. Only that fiber sets the slot. */
+static DWORD threadStateKey = FLS_OUT_OF_INDEXES;
+static INIT_ONCE threadStateKeyOnce = INIT_ONCE_STATIC_INIT;
+
+static VOID WINAPI releaseThreadStateOnExit(PVOID state) {
+    if (state != NULL)
+        releaseThreadState(state);
+}
+
+static BOOL CALLBACK createThreadStateKey(PINIT_ONCE once, PVOID param,
+                                          PVOID *context) {
+    (void)once;
+    (void)param;
+    (void)context;
+    threadStateKey = FlsAlloc(releaseThreadStateOnExit);
+    return threadStateKey != FLS_OUT_OF_INDEXES;
+}
+
+static void registerThreadState(ThreadState *thread) {
+    if (!InitOnceExecuteOnce(&threadStateKeyOnce, createThreadStateKey, NULL,
+                             NULL) ||
+        !FlsSetValue(threadStateKey, thread))
+        FATAL("cannot register the thread state");
+}
+#else
+static pthread_key_t threadStateKey;
+static pthread_once_t threadStateKeyOnce = PTHREAD_ONCE_INIT;
 
 static void createThreadStateKey(void) {
     pthread_key_create(&threadStateKey, releaseThreadState);
 }
+
+static void registerThreadState(ThreadState *thread) {
+    pthread_once(&threadStateKeyOnce, createThreadStateKey);
+    pthread_setspecific(threadStateKey, thread);
+}
+#endif
 
 // Not inlined: a coroutine can continue on another thread, so the result
 // must not be used across a switch.
@@ -192,8 +269,7 @@ __attribute__((noinline)) static ThreadState *currentThread(void) {
             FATAL("out of memory");
         thread->info = scalanative_currentThreadInfo();
         threadState = thread;
-        pthread_once(&threadStateKeyOnce, createThreadStateKey);
-        pthread_setspecific(threadStateKey, thread);
+        registerThreadState(thread);
     }
     return thread;
 }
@@ -206,12 +282,12 @@ __attribute__((noinline)) static ThreadState *currentThread(void) {
  * linked through `returnTo`. */
 static Coroutine *sharedPool;
 static int sharedPoolSize;
-static pthread_mutex_t sharedPoolLock = PTHREAD_MUTEX_INITIALIZER;
+static Mutex sharedPoolLock = MUTEX_INITIALIZER;
 
 // Slots are never returned to the system; free ones are linked through
 // `bottom`, which is not read while `waitingTop` is unset.
 static StackSlot *freeSlots;
-static pthread_mutex_t slotsLock = PTHREAD_MUTEX_INITIALIZER;
+static Mutex slotsLock = MUTEX_INITIALIZER;
 
 // Skips the guard page: a frame larger than the room below the guard can
 // leave the stack pointer under it.
@@ -265,7 +341,7 @@ static void scanAnchoredStacks(void **fields, GC_ScanRangeFn *scan, void *ctx) {
 }
 
 static StackSlot *acquireSlot(void) {
-    pthread_mutex_lock(&slotsLock);
+    mutexLock(&slotsLock);
     StackSlot *slot = freeSlots;
     if (slot != NULL) {
         freeSlots = slot->bottom;
@@ -283,17 +359,58 @@ static StackSlot *acquireSlot(void) {
         }
         slot = &block->slots[block->used++];
     }
-    pthread_mutex_unlock(&slotsLock);
+    mutexUnlock(&slotsLock);
     return slot;
 }
 
 static void releaseSlot(StackSlot *slot) {
-    pthread_mutex_lock(&slotsLock);
+    mutexLock(&slotsLock);
     slot->bottom = freeSlots;
     freeSlots = slot;
-    pthread_mutex_unlock(&slotsLock);
+    mutexUnlock(&slotsLock);
 }
 
+#ifdef _WIN32
+static VOID CALLBACK fiberMain(LPVOID param);
+
+// The stack bounds are known once the fiber runs, see fiberMain. Returns NULL
+// when the system refuses a new fiber.
+static Coroutine *mapCoroutine(void) {
+    Coroutine *coroutine = calloc(1, sizeof(Coroutine));
+    if (coroutine == NULL)
+        return NULL;
+    coroutine->fiber = CreateFiberEx(0, STACK_SIZE, FIBER_FLAG_FLOAT_SWITCH,
+                                     fiberMain, coroutine);
+    if (coroutine->fiber == NULL) {
+        free(coroutine);
+        return NULL;
+    }
+    coroutine->slot = acquireSlot();
+    return coroutine;
+}
+
+static void unmapCoroutine(Coroutine *coroutine) {
+    releaseSlot(coroutine->slot);
+    DeleteFiber(coroutine->fiber);
+    free(coroutine);
+}
+
+/* Whether the stack still ends in a guard page. After an overflow the system
+ * re-arms it only when the overflow is handled on that stack, and a fiber
+ * that consumed its whole stack has none left. */
+static bool hasStackGuard(Coroutine *coroutine) {
+    MEMORY_BASIC_INFORMATION region;
+    char *address = coroutine->bounds.top;
+    if (VirtualQuery(address, &region, sizeof(region)) == 0)
+        return false;
+    if (region.State == MEM_RESERVE) {
+        address = (char *)region.BaseAddress + region.RegionSize;
+        if (VirtualQuery(address, &region, sizeof(region)) == 0)
+            return false;
+    }
+    return region.State == MEM_COMMIT && (region.Protect & PAGE_GUARD) != 0;
+}
+#else
 static size_t pageSize(void) {
     static size_t size;
     if (size == 0)
@@ -361,31 +478,35 @@ static void adviseStack(Coroutine *coroutine, int advice) {
 #define RELEASE_PAGES MADV_FREE
 #endif
 
+#endif
+
 // Stacks in the shared pool hold no memory besides the coroutine.
 static bool giveShared(Coroutine *coroutine) {
-    pthread_mutex_lock(&sharedPoolLock);
+    mutexLock(&sharedPoolLock);
     bool pooled = sharedPoolSize < SHARED_POOL_CAPACITY;
     if (pooled)
         sharedPoolSize++;
-    pthread_mutex_unlock(&sharedPoolLock);
+    mutexUnlock(&sharedPoolLock);
     if (!pooled)
         return false;
+#ifndef _WIN32
     adviseStack(coroutine, RELEASE_PAGES);
-    pthread_mutex_lock(&sharedPoolLock);
+#endif
+    mutexLock(&sharedPoolLock);
     coroutine->returnTo = sharedPool;
     sharedPool = coroutine;
-    pthread_mutex_unlock(&sharedPoolLock);
+    mutexUnlock(&sharedPoolLock);
     return true;
 }
 
 static Coroutine *takeShared(void) {
-    pthread_mutex_lock(&sharedPoolLock);
+    mutexLock(&sharedPoolLock);
     Coroutine *coroutine = sharedPool;
     if (coroutine != NULL) {
         sharedPool = coroutine->returnTo;
         sharedPoolSize--;
     }
-    pthread_mutex_unlock(&sharedPoolLock);
+    mutexUnlock(&sharedPoolLock);
 #if defined(__APPLE__)
     // Without it the pages used again are not accounted to the process.
     if (coroutine != NULL)
@@ -425,6 +546,13 @@ static Coroutine *acquire(ThreadState *thread) {
 }
 
 static void destroy(ThreadState *thread, Coroutine *coroutine) {
+#ifdef _WIN32
+    // A fiber stopped inside a body cannot run another one.
+    if (!coroutine->atRest || !hasStackGuard(coroutine)) {
+        unmapCoroutine(coroutine);
+        return;
+    }
+#else
     // An overflow opened the guard and nothing closed it again.
     if (coroutine->guardOpen) {
         char *guardLow = coroutine->bounds.guardLow;
@@ -432,6 +560,7 @@ static void destroy(ThreadState *thread, Coroutine *coroutine) {
         mprotect(guardLow, (size_t)(guardEnd - guardLow), PROT_NONE);
         coroutine->guardOpen = false;
     }
+#endif
     coroutine->pendingOverflow = false;
     if (thread->poolSize < LOCAL_POOL_CAPACITY) {
         coroutine->returnTo = thread->pool;
@@ -460,7 +589,25 @@ static void destroy(ThreadState *thread, Coroutine *coroutine) {
  *
  * SWITCH_FRAME bytes are used below the stack pointer, past any red zone.
  */
-#if defined(__aarch64__)
+#if defined(_WIN32)
+/* SwitchToFiber keeps the callee-saved registers and the floating point
+ * control state in the fiber, where the collector does not look. The callers'
+ * callee-saved registers are spilled into this frame first, above the saved
+ * stack pointer. A tail call would restore and pop them before the switch. */
+__attribute__((noinline)) static void *frameOfCallee(void) {
+    return __builtin_frame_address(0);
+}
+
+__attribute__((noinline, disable_tail_calls)) static void
+switchFiber(void **saveSp, LPVOID target) {
+    __builtin_unwind_init();
+    *saveSp = (void *)((uintptr_t)frameOfCallee() & ~(uintptr_t)15);
+    SwitchToFiber(target);
+}
+
+// A fiber starts in fiberMain; nothing to build.
+static void prepareStack(Coroutine *coroutine) { (void)coroutine; }
+#elif defined(__aarch64__)
 #define SWITCH_FRAME 144
 // x18 is reserved by the platform on Apple; elsewhere it is an ordinary
 // register that the switch does not preserve.
@@ -549,6 +696,7 @@ static void prepareControlState(void **frame) {
 #error "Unsupported architecture"
 #endif
 
+#ifndef _WIN32
 // Builds what the first switch to `coroutine` pops: a null frame pointer,
 // scalanative_continuation_entry, which finds the coroutine at the stack
 // pointer and calls scalanative_continuation_main, and the control state of
@@ -565,6 +713,7 @@ static void prepareStack(Coroutine *coroutine) {
     frame[1] = (void *)scalanative_continuation_entry;
     prepareControlState(frame);
 }
+#endif
 
 // =============================
 // Switching
@@ -589,6 +738,16 @@ static void applyBounds(ThreadState *thread, Coroutine *coroutine) {
     info->maxStackSize = coroutine->bounds.maxSize;
 }
 
+#ifdef _WIN32
+// Below the stack pointer of a parked stack there is only what the system
+// keeps uncommitted or guarded; above it every page is committed.
+static void *closedGuardPage(Coroutine *coroutine) {
+    (void)coroutine;
+    return NULL;
+}
+
+static void *scanTop(Coroutine *coroutine) { return coroutine->sp; }
+#else
 // The page a scan of the parked stack has to skip. The guard region of a
 // continuation stack opens as a whole, so a stack that reaches into it is
 // readable there; on the stack of a thread a large frame can step over the
@@ -624,6 +783,7 @@ static void *scanTop(Coroutine *coroutine) {
                ? low
                : (void *)((char *)coroutine->bounds.guardPage + pageSize());
 }
+#endif
 
 // Read by the collector only while this thread is stopped at a safepoint.
 static void addRoots(Coroutine *coroutine) {
@@ -669,7 +829,11 @@ switchTo(ThreadState *thread, Coroutine *self, Coroutine *target) {
     self->pendingOverflow = thread->info->pendingStackOverflowException;
     self->guardOpen = thread->info->stackGuardOpen;
     target->from = self;
+#ifdef _WIN32
+    switchFiber(&self->sp, target->fiber);
+#else
     switchStacks(&self->sp, target->sp);
+#endif
     return arrive(self);
 }
 
@@ -681,12 +845,65 @@ static Coroutine *currentCoroutine(ThreadState *thread) {
         self->state = THREAD;
         self->thread = thread->info;
         self->threadBottom = scalanative_GC_current_stack_bottom();
+#ifdef _WIN32
+        self->fiber =
+            IsThreadAFiber()
+                ? GetCurrentFiber()
+                : ConvertThreadToFiberEx(NULL, FIBER_FLAG_FLOAT_SWITCH);
+        if (self->fiber == NULL)
+            FATAL("cannot run the thread as a fiber");
+#endif
         self->slot = acquireSlot();
         thread->current = self;
     }
     return thread->current;
 }
 
+#ifdef _WIN32
+/* Exceptions that no handler on a fiber takes do not reach the filter set
+ * with SetUnhandledExceptionFilter, as they do on a thread. The GC handles
+ * safepoint traps there. */
+static void *runBody(Coroutine *self, ContinuationBody *body, void *bodyArg) {
+    void *result = NULL;
+    __try {
+        result = body((ContinuationBoundaryLabel)self, bodyArg);
+    } __except (UnhandledExceptionFilter(GetExceptionInformation())) {
+        TerminateProcess(GetCurrentProcess(), (UINT)GetExceptionCode());
+    }
+    return result;
+}
+
+// Runs bodies until the fiber is deleted, one per boundary that takes it.
+static VOID CALLBACK fiberMain(LPVOID param) {
+    Coroutine *self = (Coroutine *)param;
+    ULONG_PTR low = 0, high = 0;
+    GetCurrentThreadStackLimits(&low, &high);
+    self->mapping = (void *)low;
+    self->bounds = (StackBounds){.top = (void *)low,
+                                 .bottom = (void *)high,
+                                 .size = (size_t)(high - low),
+                                 .maxSize = (size_t)(high - low)};
+    ThreadState *thread = arrive(self);
+    // The stack guarantee is kept per fiber.
+    scalanative_StackOverflowGuards_setup(false);
+    self->bounds.guardPage = thread->info->stackGuardPage;
+    for (;;) {
+        self->state = RUNNING;
+        self->atRest = false;
+        ContinuationBody *body = self->body;
+        void *bodyArg = self->bodyArg;
+        resumeCollections();
+        // The body catches every Throwable, nothing unwinds past this frame.
+        void *result = runBody(self, body, bodyArg);
+        pauseCollections();
+        self->result = result;
+        self->state = FINISHED;
+        self->atRest = true;
+        // Returns when a boundary takes this fiber from a pool.
+        switchTo(currentThread(), self, self->returnTo);
+    }
+}
+#else
 // Entered through scalanative_continuation_entry.
 __attribute__((visibility("hidden"))) void
 scalanative_continuation_main(Coroutine *self) {
@@ -703,6 +920,7 @@ scalanative_continuation_main(Coroutine *self) {
     switchTo(currentThread(), self, self->returnTo);
     FATAL("a finished coroutine was resumed");
 }
+#endif
 
 // =============================
 // Continuations
@@ -752,7 +970,7 @@ static void reclaimUnreachable(ThreadState *thread) {
     }
     Coroutine *unreachable = NULL;
     size_t count = 0;
-    pthread_mutex_lock(&slotsLock);
+    mutexLock(&slotsLock);
     FOREACH_STACK_SLOT(slot) {
         // Another thread may resume this continuation and capture the stack
         // again meanwhile. The exchange fails then, as the number changed,
@@ -767,7 +985,7 @@ static void reclaimUnreachable(ThreadState *thread) {
             count++;
         }
     }
-    pthread_mutex_unlock(&slotsLock);
+    mutexUnlock(&slotsLock);
     resumeCollections();
     size_t remaining = atomic_fetch_sub(&capturedCount, count) - count;
     atomic_store(&capturedLimit, remaining * 2 > MIN_CAPTURED_LIMIT
@@ -968,40 +1186,5 @@ void *scalanative_continuation_suspend(ContinuationBoundaryLabel label,
         FATAL("suspension across a multi-shot boundary");
     return scalanative_continuation_oneshot_suspend(label, f, arg);
 }
-
-#elif defined(_WIN32) && defined(__SCALANATIVE_DELIMCC_ONESHOT)
-
-// Not supported on Windows yet. Programs that only mention continuations
-// still have to link; the Scala side reports the unsupported feature.
-#include "delimcc_oneshot.h"
-#include <stdio.h>
-#include <stdlib.h>
-
-#define UNSUPPORTED(signature)                                                 \
-    signature {                                                                \
-        fprintf(stderr, "[ScalaNative Continuations | Error] one-shot "        \
-                        "continuations are not supported on Windows\n");       \
-        abort();                                                               \
-    }
-
-UNSUPPORTED(void *scalanative_continuation_oneshot_boundary(
-    ContinuationBody *body, void *arg))
-UNSUPPORTED(void *scalanative_continuation_oneshot_suspend(
-    ContinuationBoundaryLabel label, SuspendFn *f, void *arg))
-UNSUPPORTED(void scalanative_continuation_oneshot_leave(
-    ContinuationBoundaryLabel label, void *result))
-UNSUPPORTED(void *scalanative_continuation_oneshot_captured(
-    Continuation *continuation, void *owner))
-UNSUPPORTED(
-    void scalanative_continuation_oneshot_discard(Continuation *continuation))
-UNSUPPORTED(void *scalanative_continuation_oneshot_resume(void **stacks,
-                                                          void *arg))
-UNSUPPORTED(void scalanative_continuation_oneshot_watch_multishot(void *probe))
-UNSUPPORTED(bool scalanative_continuation_oneshot_crosses_multishot(
-    ContinuationBoundaryLabel label))
-UNSUPPORTED(void *scalanative_continuation_boundary(ContinuationBody *body,
-                                                    void *arg))
-UNSUPPORTED(void *scalanative_continuation_suspend(
-    ContinuationBoundaryLabel label, SuspendFn *f, void *arg, void *alloc_arg))
 
 #endif

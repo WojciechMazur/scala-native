@@ -3,9 +3,7 @@ package scala.scalanative.runtime
 import org.junit.Assert._
 import org.junit.Test
 
-import scala.scalanative.meta.LinktimeInfo.{
-  isContinuationsSupported, isMultiShotContinuationsSupported
-}
+import scala.scalanative.meta.LinktimeInfo.isMultiShotContinuationsSupported
 
 import Continuations.multi._
 
@@ -25,7 +23,8 @@ class MultiShotContinuationsTest extends ContinuationsApiTest:
       assertEquals(3, resume(2))
 
   @Test def cannotCaptureAcrossOneShotBoundary(): Unit =
-    if isContinuationsSupported then
+    // Both kinds: multi-shot implies one-shot support.
+    if isMultiShotContinuationsSupported then
       val result = boundary[Int] { label ?=>
         Continuations.single.boundary[Int] {
           assertThrows(
@@ -38,7 +37,8 @@ class MultiShotContinuationsTest extends ContinuationsApiTest:
       assertEquals(2, result)
 
   @Test def oneShotCannotSuspendAcrossMultiShotBoundary(): Unit =
-    if isContinuationsSupported then
+    // Both kinds: multi-shot implies one-shot support.
+    if isMultiShotContinuationsSupported then
       val single = Continuations.single
       val result = single.boundary[Int] { label ?=>
         boundary[Int] {

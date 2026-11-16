@@ -468,7 +468,16 @@ void Synchronizer_init(void) {
 void Synchronizer_yield(void) {
     SpillCalleeSavedRegisters();
     MutatorThread *self = currentMutatorThread;
-    MutatorThread_switchState(self, GC_MutatorThreadState_Unmanaged);
+    /* An unmanaged thread, e.g. one polling right after a blocking call, is
+     * already at a safepoint: a collector may be scanning the registers and
+     * stack it saved when it left managed code. Capturing again would replace
+     * them during the scan with this frame's, or the trap handler's, which do
+     * not hold the managed code's registers. */
+    bool wasManaged =
+        atomic_load_explicit(&self->state, memory_order_relaxed) ==
+        GC_MutatorThreadState_Managed;
+    if (wasManaged)
+        MutatorThread_switchState(self, GC_MutatorThreadState_Unmanaged);
     atomic_thread_fence(memory_order_seq_cst);
 
     atomic_fetch_add_explicit(&Synchronizer_lifecycleWaiters, 1,
@@ -483,8 +492,11 @@ void Synchronizer_yield(void) {
     atomic_store_explicit(&self->isWaiting, false, memory_order_release);
 
     /* A subsequent collection can begin after the resume notification. Admit
-     * under the lifecycle lock before executing managed code again. */
-    MutatorThread_admit(self);
+     * under the lifecycle lock before executing managed code again. A thread
+     * that was unmanaged stays so; it is admitted when it returns to managed
+     * code. */
+    if (wasManaged)
+        MutatorThread_admit(self);
     atomic_fetch_sub_explicit(&Synchronizer_lifecycleWaiters, 1,
                               memory_order_release);
     atomic_thread_fence(memory_order_seq_cst);

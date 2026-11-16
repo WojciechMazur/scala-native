@@ -35,4 +35,4 @@ sleep 3
 ifconfig "$IF6"
 sysctl net.inet6.ip6.v6only
 sbt --server --batch $SBT_MEM_OPTS --sbt-version "$SBT_VERSION" \
-  "tests3/testOnly org.scalanative.testsuite.javalib.net.*"
+  "tests3/testOnly org.scalanative.testsuite.javalib.net.* java.net.*"

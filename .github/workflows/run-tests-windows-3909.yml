@@ -1,0 +1,52 @@
+# Fork-only CI loop for #3909 (Windows fileKey). Not for upstream.
+name: Run tests Windows 3909
+on:
+  push:
+    branches:
+      - "claude/windows-3909"
+concurrency:
+  group: windows-3909-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-nio-file:
+    name: nio.file (${{ matrix.os }}, ${{ matrix.build-mode }})
+    runs-on: ${{ matrix.os }}
+    env:
+      VCPKG_DEFAULT_HOST_TRIPLET: ${{ matrix.os == 'windows-11-arm' && 'arm64-windows' || 'x64-windows' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-11-arm]
+        build-mode: [debug]
+    steps:
+      - name: Setup git config
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/windows-setup-env
+        if: matrix.os == 'windows-2022'
+        id: setup
+        with:
+          scala-version: "3"
+      - uses: ./.github/actions/windows-arm-setup-env
+        if: matrix.os == 'windows-11-arm'
+        id: setup-arm
+        with:
+          scala-version: "3"
+
+      - name: Test java.nio.file
+        timeout-minutes: 60
+        env:
+          SCALANATIVE_GC: immix
+          SCALANATIVE_MODE: ${{ matrix.build-mode }}
+          SCALANATIVE_INCLUDE_DIRS: ${{ steps.setup.outputs.vcpkg-dir || steps.setup-arm.outputs.vcpkg-dir }}\include
+          SCALANATIVE_LIB_DIRS: ${{ steps.setup.outputs.vcpkg-dir || steps.setup-arm.outputs.vcpkg-dir }}\lib
+          SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
+        run: sbt "testsJVM3/testOnly org.scalanative.testsuite.javalib.nio.file.FilesTest" "tests3/testOnly org.scalanative.testsuite.javalib.nio.file.* org.scalanative.testsuite.javalib.io.*"
+        shell: cmd
+
+      - name: Shutdown sbt server
+        if: always()
+        continue-on-error: true
+        run: sbt shutdown
+        shell: cmd

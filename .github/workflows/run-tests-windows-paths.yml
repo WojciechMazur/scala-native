@@ -1,0 +1,46 @@
+# Fork-only focused Windows CI for java.nio.file path tests (#3212).
+name: Run tests Windows nio paths
+on:
+  push:
+    branches:
+      - "claude/windows-3212"
+concurrency:
+  group: windows-paths-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-paths:
+    name: Paths (${{ matrix.os }}, ${{ matrix.project }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-11-arm]
+        project: [tests3, testsJVM3]
+    steps:
+      - name: Setup git config
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/windows-setup-env
+        if: matrix.os == 'windows-2022'
+        id: setup
+        with:
+          scala-version: "3"
+      - uses: ./.github/actions/windows-arm-setup-env
+        if: matrix.os == 'windows-11-arm'
+        id: setup-arm
+        with:
+          scala-version: "3"
+      - name: Test nio paths
+        timeout-minutes: 45
+        env:
+          SCALANATIVE_MODE: debug
+          SCALANATIVE_INCLUDE_DIRS: ${{ steps.setup.outputs.vcpkg-dir || steps.setup-arm.outputs.vcpkg-dir }}\include
+          SCALANATIVE_LIB_DIRS: ${{ steps.setup.outputs.vcpkg-dir || steps.setup-arm.outputs.vcpkg-dir }}\lib
+        run: sbt "${{ matrix.project }}/testOnly org.scalanative.testsuite.javalib.nio.file.* org.scalanative.testsuite.javalib.io.File* -- -v"
+        shell: cmd
+      - name: Shutdown sbt server
+        if: always()
+        continue-on-error: true
+        run: sbt shutdown
+        shell: cmd

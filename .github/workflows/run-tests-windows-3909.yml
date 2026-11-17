@@ -34,6 +34,10 @@ jobs:
         with:
           scala-version: "3"
 
+      - name: Observe JVM fileKey
+        shell: cmd
+        run: java .github\ci-3909\FileKeyProbe.java
+
       - name: Test java.nio.file
         timeout-minutes: 60
         env:
@@ -42,7 +46,7 @@ jobs:
           SCALANATIVE_INCLUDE_DIRS: ${{ steps.setup.outputs.vcpkg-dir || steps.setup-arm.outputs.vcpkg-dir }}\include
           SCALANATIVE_LIB_DIRS: ${{ steps.setup.outputs.vcpkg-dir || steps.setup-arm.outputs.vcpkg-dir }}\lib
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
-        run: sbt "testsJVM3/testOnly org.scalanative.testsuite.javalib.nio.file.FilesTest" "tests3/testOnly org.scalanative.testsuite.javalib.nio.file.* org.scalanative.testsuite.javalib.io.*"
+        run: sbt ";testsJVM3/testOnly org.scalanative.testsuite.javalib.nio.file.FilesTest;tests3/testOnly org.scalanative.testsuite.javalib.nio.file.* org.scalanative.testsuite.javalib.io.*"
         shell: cmd
 
       - name: Shutdown sbt server

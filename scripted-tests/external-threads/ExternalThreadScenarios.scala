@@ -119,7 +119,16 @@ object ExternalThreadScenarios {
     val applicable = records(root).filter(_.accepts(cfg))
     require(applicable.nonEmpty, "No scenarios for " + name)
     IO.delete(hosts / "completed")
-    applicable.foreach { scenario =>
+    // VERIFY-ONLY: loop selected scenarios, count hangs instead of failing fast.
+    val only = sys.env.get("EXTERNAL_THREADS_ONLY").map(_.split(',').toSet)
+    val repeat = sys.env.get("EXTERNAL_THREADS_REPEAT").map(_.toInt).getOrElse(1)
+    val timeoutSec = sys.env.get("EXTERNAL_THREADS_TIMEOUT").map(_.toLong).getOrElse(60L)
+    var hangs = 0
+    var runs = 0
+    val looped = applicable.filter(s => only.forall(_(s.id)))
+    (1 to repeat).foreach { iteration =>
+    looped.foreach { scenario =>
+      runs += 1
       if (scenario.id == "CALL-04" && !virtualThreads)
         log.info(
           "SKIP CALL-04: virtual threads require Scala 3, JDK 21+, and runtime continuation support"
@@ -144,7 +153,7 @@ object ExternalThreadScenarios {
           builder.environment().put("SCALANATIVE_NO_DYLIB_CTOR", "1")
         ExternalThreadPlatform.configureLoading(builder, hosts)
         val child = builder.start()
-        val finished = child.waitFor(60, TimeUnit.SECONDS)
+        val finished = child.waitFor(timeoutSec, TimeUnit.SECONDS)
         if (!finished) {
           child.destroyForcibly()
           require(
@@ -153,7 +162,7 @@ object ExternalThreadScenarios {
           )
         }
         val text = IO.read(output)
-        log.info(text)
+        if (repeat == 1 || !finished) log.info(text)
         // Keep logs after scripted removes successful temporary builds; avoid archiving binaries.
         sys.props.get("external.threads.results.dir").foreach { directory =>
           val category = IO.read(root / "category").trim
@@ -162,7 +171,10 @@ object ExternalThreadScenarios {
             file(directory) / category / name / output.getName
           )
         }
-        require(finished, "Timed out: " + output)
+        if (!finished) {
+          hangs += 1
+          log.error(s"HANG ${name}/${scenario.id} iteration ${iteration}")
+        } else {
         scenario.milestones.foreach(marker =>
           require(
             text.contains("MILESTONE " + marker),
@@ -184,9 +196,13 @@ object ExternalThreadScenarios {
               "Expected fatal diagnostic missing: " + output
             )
         }
-        log.info(name + "/" + scenario.id + ": OK")
+        if (repeat == 1) log.info(name + "/" + scenario.id + ": OK")
+        }
       }
     }
+    }
+    log.info(s"LOOP SUMMARY ${name}: runs=${runs} hangs=${hangs}")
+    require(hangs == 0, s"${hangs} of ${runs} runs hung in ${name}")
     IO.write(hosts / "completed", applicable.map(_.id).sorted.mkString("\n"))
   }
 

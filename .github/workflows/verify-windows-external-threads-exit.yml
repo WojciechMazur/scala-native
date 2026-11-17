@@ -1,0 +1,44 @@
+# VERIFY-ONLY (fork): loop external-threads commix-mt ID-01 with and without the
+# Windows exit-hang fix. Not meant for upstream.
+name: Verify Windows external-threads exit hang
+on:
+  push:
+    branches:
+      - claude/windows-external-threads-exit-verify
+  workflow_dispatch:
+
+jobs:
+  loop:
+    name: ID-01 loop (${{ matrix.variant }})
+    runs-on: windows-2022
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [with-fix, without-fix]
+    steps:
+      - name: Setup git config
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 3
+      - name: Revert runtime fix (baseline)
+        if: matrix.variant == 'without-fix'
+        shell: bash
+        run: |
+          git checkout HEAD~2 -- nativelib/src/main/resources/scala-native/externalThreads.c
+          git diff --stat HEAD
+      - uses: ./.github/actions/windows-setup-env
+        id: setup
+        with:
+          scala-version: 3
+      - name: Loop scripted external-threads/runtime
+        timeout-minutes: 100
+        env:
+          SCALANATIVE_INCLUDE_DIRS: ${{steps.setup.outputs.vcpkg-dir}}\include
+          SCALANATIVE_LIB_DIRS: ${{steps.setup.outputs.vcpkg-dir}}\lib
+          EXTERNAL_THREADS_ONLY: ID-01
+          EXTERNAL_THREADS_REPEAT: "400"
+          EXTERNAL_THREADS_TIMEOUT: "20"
+        run: sbt --server -Dsbt.server.autostart=false "test-scripted 3 external-threads/runtime"
+        shell: cmd

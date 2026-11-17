@@ -37,11 +37,35 @@ void scalanative_threads_init_failed(void);
 #ifdef _WIN32
 static INIT_ONCE storageOnce = INIT_ONCE_STATIC_INIT;
 static DWORD storageKey = FLS_OUT_OF_INDEXES;
-static void CALLBACK onWindowsThreadExit(void *raw) { onThreadExit(raw); }
+typedef BOOLEAN(NTAPI *ShutdownInProgressFn)(void);
+static ShutdownInProgressFn shutdownInProgress;
+static atomic_bool processExiting;
+static void markProcessExiting(void) {
+    atomic_store_explicit(&processExiting, true, memory_order_release);
+}
+static void CALLBACK onWindowsThreadExit(void *raw) {
+    /* ExitProcess terminates every other thread, GC workers included, and
+     * then runs the exiting thread's FLS callbacks. Collector state may be
+     * mid-sweep or locked by a terminated thread, so cleanup could wait
+     * forever. The process is going away: leave its records alone. */
+    if (atomic_load_explicit(&processExiting, memory_order_acquire) ||
+        (shutdownInProgress != NULL && shutdownInProgress()))
+        return;
+    onThreadExit(raw);
+}
 static BOOL CALLBACK createStorage(PINIT_ONCE once, PVOID arg, PVOID *context) {
     (void)once;
     (void)arg;
     (void)context;
+    // Resolved dynamically to avoid adding ntdll to user link lines.
+    HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+    FARPROC probe =
+        ntdll ? GetProcAddress(ntdll, "RtlDllShutdownInProgress") : NULL;
+    shutdownInProgress = (ShutdownInProgressFn)(uintptr_t)probe;
+    /* exit() runs atexit handlers before ExitProcess kills other threads.
+     * Registered at init, it runs after later registrations (shutdown hooks).
+     */
+    atexit(markProcessExiting);
     storageKey = FlsAlloc(onWindowsThreadExit);
     return storageKey != FLS_OUT_OF_INDEXES;
 }

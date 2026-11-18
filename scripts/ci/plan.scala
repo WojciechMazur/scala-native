@@ -65,6 +65,7 @@ val toolchainPaths = globs(
   "project/**"
 )
 val gcPaths = globs("nativelib/src/main/resources/scala-native/gc/**")
+val nativeRuntimePaths = globs("nativelib/src/main/resources/**")
 val posixPaths = globs(
   "posixlib/**",
   "clib/**",
@@ -98,6 +99,13 @@ enum Workflow(
         base = Trigger.Always,
         extended = Trigger.Changed(gcPaths),
         release = true
+      )
+  // test-gc: Linux on every pull request, every OS for native runtime changes
+  case GC
+      extends Workflow(
+        "gc",
+        base = Trigger.Always,
+        extended = Trigger.Changed(nativeRuntimePaths)
       )
   case MacOS
       extends Workflow(

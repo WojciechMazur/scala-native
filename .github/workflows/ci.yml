@@ -43,6 +43,7 @@ jobs:
       publish: ${{ steps.plan.outputs.publish }}
       toolchain: ${{ steps.plan.outputs.toolchain }}
       linux: ${{ steps.plan.outputs.linux }}
+      gc: ${{ steps.plan.outputs.gc }}
       macos: ${{ steps.plan.outputs.macos }}
       windows: ${{ steps.plan.outputs.windows }}
       apple: ${{ steps.plan.outputs.apple }}
@@ -203,6 +204,14 @@ jobs:
     with:
       extended: ${{ needs.plan.outputs.linux == 'extended' }}
 
+  gc:
+    name: GC
+    needs: [plan, gate, gate-sbt-plugin]
+    if: needs.plan.outputs.gc != 'off'
+    uses: ./.github/workflows/run-tests-gc.yml
+    with:
+      extended: ${{ needs.plan.outputs.gc == 'extended' }}
+
   macos:
     name: macOS
     needs: [plan, gate, gate-sbt-plugin]
@@ -291,7 +300,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: always()
-    needs: [plan, checks, gate, gate-sbt-plugin, gate-macos, gate-windows, toolchain, linux, macos, windows, apple, linux-multiarch, bsd, termux, sbt-plugin, partests]
+    needs: [plan, checks, gate, gate-sbt-plugin, gate-macos, gate-windows, toolchain, linux, gc, macos, windows, apple, linux-multiarch, bsd, termux, sbt-plugin, partests]
     runs-on: ubuntu-24.04
     steps:
       - name: Check results

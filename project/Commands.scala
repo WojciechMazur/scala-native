@@ -322,13 +322,13 @@ object Commands {
 
   // Usage: publish-release-for-version <binary version> [base | cross <versions>]
   //   base             - only artifacts for the base Scala version
-  //   cross 3.4        - only cross-published artifacts for Scala 3.4.x
-  //   cross 3.10+      - only cross-published artifacts for Scala 3.10 and newer
+  //   cross 3.1-3.3    - only cross-published artifacts for Scala 3.1 up to 3.3
+  //   cross 3.9+       - only cross-published artifacts for Scala 3.9 and newer
   // Without a part publishes all of them.
   lazy val publishReleaseForVersion =
     Command.args(
       "publish-release-for-version",
-      "<binary version> [base | cross <minor> | cross <minor>+]"
+      "<binary version> [base | cross <from>-<to> | cross <from>+]"
     ) {
       case (state, args) =>
         val binVersion = args.headOption
@@ -355,17 +355,17 @@ object Commands {
             import scala.math.Ordering.Implicits._
             minor(v) >= minor(from) && to.forall(minor(v) <= minor(_))
           }
-        val Minor = """(\d+\.\d+)""".r
+        val Range = """(\d+\.\d+)-(\d+\.\d+)""".r
         val From = """(\d+\.\d+)\+""".r
         val (publishBase, crossVersions) = args.drop(1) match {
-          case Nil                        => (true, allCrossVersions)
-          case Seq("base")                => (true, Nil)
-          case Seq("cross", Minor(minor)) =>
-            (false, crossVersionsIn(minor, Some(minor)))
+          case Nil                           => (true, allCrossVersions)
+          case Seq("base")                   => (true, Nil)
+          case Seq("cross", Range(from, to)) =>
+            (false, crossVersionsIn(from, Some(to)))
           case Seq("cross", From(from)) => (false, crossVersionsIn(from, None))
           case other                    =>
             sys.error(
-              s"Unknown part ${other.mkString(" ")}, expected 'base', 'cross <minor>' or 'cross <minor>+'"
+              s"Unknown part ${other.mkString(" ")}, expected 'base', 'cross <from>-<to>' or 'cross <from>+'"
             )
         }
         val publishCommand = "publishSigned"

@@ -1,0 +1,30 @@
+name: "Restore build outputs"
+description: "Download sbt compilation outputs produced by the gate job of the same run. Best effort: sbt compiles anything missing."
+inputs:
+  scala-version:
+    description: "Scala binary version of the outputs"
+    required: true
+  enabled:
+    description: "Set to true to enable, controlled by repository variable CI_SHARE_BUILD_OUTPUTS"
+    default: "false"
+runs:
+  using: "composite"
+  steps:
+    - name: Download build outputs
+      id: download
+      if: inputs.enabled == 'true'
+      continue-on-error: true
+      uses: actions/download-artifact@v8
+      with:
+        name: sbt-out-${{ inputs.scala-version }}
+        path: ${{ runner.temp }}/sbt-out
+    - name: Unpack build outputs
+      if: inputs.enabled == 'true' && steps.download.outcome == 'success'
+      continue-on-error: true
+      shell: bash
+      run: |
+        # GNU tar on Windows would treat 'D:' in the archive path as a remote host
+        flags=""
+        if [[ "$RUNNER_OS" == "Windows" ]]; then flags="--force-local"; fi
+        tar $flags -xzf "$RUNNER_TEMP/sbt-out/sbt-out.tgz"
+        du -sh target/out/*

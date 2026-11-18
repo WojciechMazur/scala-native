@@ -1,0 +1,269 @@
+name: CI
+# Single entry point for all tests. Platform workflows (run-tests-*.yml) are
+# called from here with inputs computed by the `plan` job (scripts/ci/plan.scala):
+#   nightly: run the full set of jobs
+#   category flags (gc, sbt-plugin, ...): extra jobs on pull requests enabled
+#   by modified paths, all true for nightly runs.
+# Pull requests run a reduced set of jobs, the rest runs nightly on main.
+# `ci-ok` is the only check that should be marked as required.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  schedule:
+    # Every day at 2 AM UTC, skipped when nothing was committed since the last run
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "Set of jobs to run"
+        type: choice
+        default: nightly
+        options: [nightly, pr]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  plan:
+    name: Plan
+    if: github.event_name != 'schedule' || github.repository == 'scala-native/scala-native'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    outputs:
+      tier: ${{ steps.plan.outputs.tier }}
+      partest-full: ${{ steps.plan.outputs.partest_full }}
+      tools: ${{ steps.plan.outputs.tools }}
+      compiler: ${{ steps.plan.outputs.compiler }}
+      gc: ${{ steps.plan.outputs.gc }}
+      native-runtime: ${{ steps.plan.outputs.native_runtime }}
+      posix: ${{ steps.plan.outputs.posix }}
+      apple: ${{ steps.plan.outputs.apple }}
+      sbt-plugin: ${{ steps.plan.outputs.sbt_plugin }}
+      partest: ${{ steps.plan.outputs.partest }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts/ci
+      - uses: coursier/cache-action@v8
+      - uses: VirtusLab/scala-cli-setup@v1.19
+      - name: Select jobs
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_DRAFT: ${{ github.event.pull_request.draft }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          DISPATCH_TIER: ${{ inputs.tier }}
+        run: scala-cli run --server=false scripts/ci/plan.scala
+
+  # Lint and documentation, independent from the build
+  checks:
+    name: Lint and docs
+    needs: plan
+    if: needs.plan.outputs.tier != 'skip'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # docs use git history for last-updated dates
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      # Formatting is checked with clang-format 14, not shipped with Ubuntu 24.04
+      - name: Install clang-format
+        run: pip install clang-format==14.0.6
+      - name: Lint
+        run: CLANG_FORMAT_PATH="$(command -v clang-format)" ./scripts/check-lint.sh
+      - name: Build docs
+        run: |
+          pip install -r docs/requirements.txt
+          cd docs && SPHINXOPTS="-W" make html
+
+  # Stop gate: compiles all sources once per Scala version and runs the minimal
+  # native program and test infrastructure. Everything below depends on it and
+  # reuses its compilation outputs (sbt-out-<version> artifact).
+  gate:
+    name: Gate (${{ matrix.scala }})
+    needs: plan
+    if: needs.plan.outputs.tier != 'skip' && needs.plan.outputs.tier != 'docs'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ["2.12", "2.13", "3"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/linux-setup-env
+        with:
+          scala-version: ${{ matrix.scala }}
+      - name: Compile all sources and run sandbox
+        timeout-minutes: 60
+        run: >
+          sbt
+          "compile-all ${{ matrix.scala }}"
+          "sandbox${{ env.project-version }}/run"
+          "testInterface${{ env.project-version }}/test"
+      - uses: ./.github/actions/save-build-outputs
+        with:
+          scala-version: ${{ matrix.scala }}
+          enabled: ${{ vars.CI_SHARE_BUILD_OUTPUTS == 'true' }}
+      - name: Test runtime on JVM
+        timeout-minutes: 30
+        run: sbt "test-runtime-jvm ${{ matrix.scala }}"
+      - name: Check binary compatibility
+        timeout-minutes: 30
+        run: sbt "test-mima ${{ matrix.scala }}"
+
+  # sbt plugins, compiled with the Scala version of their sbt
+  gate-sbt-plugin:
+    name: Gate sbt ${{ matrix.sbt }} plugin
+    needs: plan
+    if: needs.plan.outputs.tier != 'skip' && needs.plan.outputs.tier != 'docs'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - sbt: "1.x"
+            scala: "2.12"
+          - sbt: "2.x"
+            scala: "3"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/linux-setup-env
+        with:
+          scala-version: ${{ matrix.scala }}
+      - name: Compile sbt plugin
+        timeout-minutes: 30
+        run: sbt "compile-sbt-plugin ${{ matrix.scala }}"
+
+  # JVM half of the runtime tests and the test infrastructure on the remaining
+  # OSes. Not a dependency of platform jobs (macOS runner queues are long).
+  gate-macos:
+    name: Gate macOS
+    needs: plan
+    if: needs.plan.outputs.tier != 'skip' && needs.plan.outputs.tier != 'docs'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/macos-setup-env
+        with:
+          scala-version: "3"
+      - name: Test runtime on JVM and test interface
+        timeout-minutes: 45
+        run: sbt "test-runtime-jvm 3" "testInterface3/test"
+
+  gate-windows:
+    name: Gate Windows
+    needs: plan
+    if: needs.plan.outputs.tier != 'skip' && needs.plan.outputs.tier != 'docs'
+    runs-on: windows-2022
+    steps:
+      # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
+      - name: Setup git config
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/windows-setup-env
+        id: setup
+        with:
+          scala-version: "3"
+      - name: Test runtime on JVM and test interface
+        timeout-minutes: 45
+        shell: cmd
+        env:
+          SCALANATIVE_INCLUDE_DIRS: ${{ steps.setup.outputs.vcpkg-dir }}\include
+          SCALANATIVE_LIB_DIRS: ${{ steps.setup.outputs.vcpkg-dir }}\lib
+        run: sbt "test-runtime-jvm 3" "testInterface3/test"
+
+  linux:
+    name: Linux
+    needs: [plan, gate, gate-sbt-plugin]
+    if: needs.plan.outputs.tier == 'pr' || needs.plan.outputs.tier == 'nightly'
+    uses: ./.github/workflows/run-tests-linux.yml
+    with:
+      nightly: ${{ needs.plan.outputs.tier == 'nightly' }}
+      tools: ${{ needs.plan.outputs.tools == 'true' }}
+      compiler: ${{ needs.plan.outputs.compiler == 'true' }}
+      gc: ${{ needs.plan.outputs.gc == 'true' }}
+      sbt-plugin: ${{ needs.plan.outputs.sbt-plugin == 'true' }}
+      partest: ${{ needs.plan.outputs.partest == 'true' }}
+      partest-full: ${{ needs.plan.outputs.partest-full == 'true' }}
+
+  macos:
+    name: macOS
+    needs: [plan, gate, gate-sbt-plugin]
+    if: needs.plan.outputs.tier == 'pr' || needs.plan.outputs.tier == 'nightly'
+    uses: ./.github/workflows/run-tests-macos.yml
+    with:
+      nightly: ${{ needs.plan.outputs.tier == 'nightly' }}
+      native-runtime: ${{ needs.plan.outputs.native-runtime == 'true' }}
+      sbt-plugin: ${{ needs.plan.outputs.sbt-plugin == 'true' }}
+
+  windows:
+    name: Windows
+    needs: [plan, gate, gate-sbt-plugin]
+    if: needs.plan.outputs.tier == 'pr' || needs.plan.outputs.tier == 'nightly'
+    uses: ./.github/workflows/run-tests-windows.yml
+    with:
+      nightly: ${{ needs.plan.outputs.tier == 'nightly' }}
+      native-runtime: ${{ needs.plan.outputs.native-runtime == 'true' }}
+      sbt-plugin: ${{ needs.plan.outputs.sbt-plugin == 'true' }}
+
+  apple:
+    name: Apple
+    needs: [plan, gate, gate-sbt-plugin]
+    if: needs.plan.outputs.tier == 'pr' || needs.plan.outputs.tier == 'nightly'
+    uses: ./.github/workflows/run-tests-apple.yml
+    with:
+      nightly: ${{ needs.plan.outputs.tier == 'nightly' }}
+      native-runtime: ${{ needs.plan.outputs.native-runtime == 'true' }}
+      apple: ${{ needs.plan.outputs.apple == 'true' }}
+
+  multiarch:
+    name: Multiarch
+    needs: [plan, gate, gate-sbt-plugin]
+    if: needs.plan.outputs.tier == 'pr' || needs.plan.outputs.tier == 'nightly'
+    uses: ./.github/workflows/run-tests-linux-multiarch.yml
+
+  bsd:
+    name: BSD
+    needs: [plan, gate, gate-sbt-plugin]
+    if: needs.plan.outputs.tier == 'pr' || needs.plan.outputs.tier == 'nightly'
+    uses: ./.github/workflows/run-tests-bsd.yml
+    with:
+      nightly: ${{ needs.plan.outputs.tier == 'nightly' }}
+      posix: ${{ needs.plan.outputs.posix == 'true' }}
+
+  termux:
+    name: Termux
+    needs: [plan, gate, gate-sbt-plugin]
+    if: needs.plan.outputs.tier == 'pr' || needs.plan.outputs.tier == 'nightly'
+    uses: ./.github/workflows/run-tests-termux.yml
+
+  # Single required status check. Skipped jobs (filtered by `plan`) count as passed.
+  ci-ok:
+    name: CI OK
+    if: always()
+    needs: [plan, checks, gate, gate-sbt-plugin, gate-macos, gate-windows, linux, macos, windows, apple, multiarch, bsd, termux]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check results
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "$RESULTS"
+          if echo "$RESULTS" | grep -Eq '"(failure|cancelled)"'; then
+            echo "::error::Some of the required jobs failed or were cancelled"
+            exit 1
+          fi

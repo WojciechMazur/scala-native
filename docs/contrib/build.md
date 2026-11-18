@@ -211,6 +211,35 @@ directories exists it will fail. It is also possible to define
 explicitly overrides directory to use by passing it as the third
 argument to the script.
 
+## Continuous integration
+
+All tests are started from the `CI` workflow (`.github/workflows/ci.yml`).
+Its `plan` job selects which jobs run:
+
+- every pull request runs a gate first: all sources compiled for Scala
+  2.12, 2.13 and 3 (`compile-all <version>`), the sandbox, the test
+  interface, the runtime tests on the JVM and MiMa checks. Platform tests
+  start only once the gate passes;
+- pull requests run a reduced set of platform tests, extended by the
+  modified paths, for example changes to the GC run the GC test matrix and
+  changes to the sbt plugin run scripted tests;
+- draft pull requests run only the gate, documentation-only changes only the
+  lint and documentation checks;
+- the full set of tests runs every night on `main`, unless nothing was
+  committed since the previous run. Adding `[test-extended]` to the pull
+  request description (or the `ci:full` label) runs it for a pull request,
+  `[test-partest]` (or the `ci:partest` label) runs all partests.
+
+The `CI OK` job aggregates the results and is the only required check.
+Repository variables control CI without code changes:
+`NIGHTLY_CREATE_ISSUES=true` reports nightly failures as issues labelled
+`ci-nightly`, `CI_SHARE_BUILD_OUTPUTS=true` reuses compilation outputs of
+the gate in other jobs.
+
+The sbt commands used by the CI can be run locally, e.g.
+`test-runtime-native 3`, `test-runtime-jvm 3`, `test-gc 3`, `test-tools 3`,
+`test-mima 3` or `test-cross-compile 3 edges`.
+
 The next section has more build and development information for those
 wanting to work on [compiler](./compiler.md).
 

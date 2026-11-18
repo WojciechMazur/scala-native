@@ -184,6 +184,17 @@ jobs:
         shell: cmd
         run: sbt "test-runtime-jvm 3" "testInterface3/test"
 
+  toolchain:
+    name: Toolchain
+    needs: [plan, gate, gate-sbt-plugin]
+    # Skipped together with the gate for the skip and docs tiers
+    if: needs.plan.outputs.tier != 'draft'
+    uses: ./.github/workflows/run-tests-toolchain.yml
+    with:
+      nightly: ${{ needs.plan.outputs.tier == 'nightly' }}
+      tools: ${{ needs.plan.outputs.tools == 'true' }}
+      compiler: ${{ needs.plan.outputs.compiler == 'true' }}
+
   linux:
     name: Linux
     needs: [plan, gate, gate-sbt-plugin]
@@ -192,8 +203,6 @@ jobs:
     uses: ./.github/workflows/run-tests-linux.yml
     with:
       nightly: ${{ needs.plan.outputs.tier == 'nightly' }}
-      tools: ${{ needs.plan.outputs.tools == 'true' }}
-      compiler: ${{ needs.plan.outputs.compiler == 'true' }}
       gc: ${{ needs.plan.outputs.gc == 'true' }}
       sbt-plugin: ${{ needs.plan.outputs.sbt-plugin == 'true' }}
       partest: ${{ needs.plan.outputs.partest == 'true' }}
@@ -232,8 +241,8 @@ jobs:
       native-runtime: ${{ needs.plan.outputs.native-runtime == 'true' }}
       apple: ${{ needs.plan.outputs.apple == 'true' }}
 
-  multiarch:
-    name: Multiarch
+  linux-multiarch:
+    name: Linux Multiarch
     needs: [plan, gate, gate-sbt-plugin]
     # Skipped together with the gate for the skip and docs tiers
     if: needs.plan.outputs.tier != 'draft'
@@ -260,7 +269,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: always()
-    needs: [plan, checks, gate, gate-sbt-plugin, gate-macos, gate-windows, linux, macos, windows, apple, multiarch, bsd, termux]
+    needs: [plan, checks, gate, gate-sbt-plugin, gate-macos, gate-windows, toolchain, linux, linux-multiarch, macos, windows, apple, bsd, termux]
     runs-on: ubuntu-24.04
     steps:
       - name: Check results

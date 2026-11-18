@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   # Checks the list of disabled partests and runs a single test of each kind
-  partests:
+  smoketest:
     name: Partests infrastructure (2.13)
     runs-on: ubuntu-24.04
     steps:
@@ -35,7 +35,7 @@ jobs:
           "scalaPartestTests2_13/testOnly -- --showDiff neg/abstract.scala pos/abstract.scala run/Course-2002-01.scala"
 
   # Running all partests takes ~4h
-  partests-extended:
+  partests:
     name: Partests (2.13)
     if: inputs.extended
     runs-on: ubuntu-24.04

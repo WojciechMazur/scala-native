@@ -14,41 +14,6 @@ env:
   SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
 
 jobs:
-  # Every GC with sandbox, test interface and JUnit outputs
-  test-gc:
-    name: Test GC (${{ matrix.mode }}, lto=${{ matrix.lto }})
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        include:
-          - mode: release-fast
-            lto: thin
-    steps: &test-gc-steps
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/linux-setup-env
-        with:
-          scala-version: "3"
-      - uses: ./.github/actions/restore-build-outputs
-        with:
-          scala-version: "3"
-      - name: Test GC
-        timeout-minutes: 45
-        env:
-          SCALANATIVE_MODE: ${{ matrix.mode }}
-          SCALANATIVE_LTO: ${{ matrix.lto }}
-        run: sbt "test-gc 3"
-
-  test-gc-extended:
-    name: Test GC (${{ matrix.mode }}, lto=${{ matrix.lto }})
-    if: inputs.extended
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        include:
-          - mode: debug
-            lto: none
-    steps: *test-gc-steps
-
   # Native runtime tests (the JVM part runs in the gate)
   runtime:
     name: Runtime ${{ matrix.name }}

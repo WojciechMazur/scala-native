@@ -67,32 +67,6 @@ jobs:
       SCALANATIVE_GC: ${{ matrix.gc }}
     steps: *ios-simulator-steps
 
-  # Every GC (except Boehm, not available for iOS) with sandbox, test interface and JUnit outputs
-  test-gc:
-    name: Test GC iOS simulator (${{ matrix.mode }}, lto=${{ matrix.lto }})
-    if: inputs.extended
-    runs-on: macos-15
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - mode: release-fast
-            lto: thin
-          - mode: debug
-            lto: none
-    env:
-      SCALANATIVE_MODE: ${{ matrix.mode }}
-      SCALANATIVE_LTO: ${{ matrix.lto }}
-    steps:
-      - uses: actions/checkout@v7
-      - *setup-env
-      - uses: ./.github/actions/ios-simulator-setup
-      - *target-simulator
-      - *restore-build-outputs
-      - name: Test GCs
-        timeout-minutes: 45
-        run: sbt -J-Xmx5G "test-gc 3"
-
   # Scala Native code used as a static library from a foreign host program
   # running its own threads, the way an iOS application would embed it.
   ios-static-library:

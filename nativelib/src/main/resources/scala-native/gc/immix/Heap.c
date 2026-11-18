@@ -277,6 +277,15 @@ static bool Heap_collect(Heap *heap, Stack *stack, size_t allocationSize,
         if (!available) {
             uint32_t blocks =
                 (allocationSize + BLOCK_TOTAL_SIZE - 1ULL) / BLOCK_TOTAL_SIZE;
+            // Growth merges with a free extent at the end of the heap, so
+            // the heap needs to grow only by what that extent lacks. Growing
+            // by the whole size fails near the size limit even when the
+            // remaining room and that extent together would fit the object,
+            // e.g. a 256 MB array in a 1 GB heap grown past three quarters.
+            uint32_t tail = BlockAllocator_FreeBlocksBefore(
+                &blockAllocator, (BlockMeta *)heap->blockMetaEnd);
+            if (tail < blocks)
+                blocks -= tail;
             GC_LOG_DEBUG(
                 "Allocation recovery: size=%zu, generation=%" PRIuFAST64,
                 allocationSize, atomic_load(&heap->collectionGeneration));
@@ -526,8 +535,8 @@ bool Heap_TryGrow(Heap *heap, uint32_t incrementInBlocks) {
     };
 #endif // WIN32
 
-    BlockAllocator_AddFreeBlocks(&blockAllocator, (BlockMeta *)blockMetaEnd,
-                                 incrementInBlocks);
+    BlockAllocator_AddFreeBlocksAtEnd(
+        &blockAllocator, (BlockMeta *)blockMetaEnd, incrementInBlocks);
 
     heap->blockCount += incrementInBlocks;
 

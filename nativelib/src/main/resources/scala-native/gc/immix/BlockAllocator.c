@@ -54,24 +54,73 @@ static void BlockAllocator_addFreeExtent(BlockAllocator *blockAllocator,
     BlockList_AddLast(&blockAllocator->freeSuperblocks[i], superblock);
 }
 
+static void BlockAllocator_unlink(BlockList *list, BlockMeta *previous,
+                                  BlockMeta *block, BlockMeta *next) {
+    if (previous != NULL)
+        BlockList_SetNext(list, previous, next);
+    else
+        list->first = next;
+    if (list->last == block)
+        list->last = previous;
+    block->nextBlock = LAST_BLOCK;
+}
+
 static BlockMeta *BlockAllocator_pollList(BlockList *list, uint32_t size) {
     BlockMeta *previous = NULL;
     for (BlockMeta *block = list->first; block != NULL;) {
         BlockMeta *next = BlockList_getNextBlock(list->blockMetaStart, block);
         if (BlockMeta_SuperblockSize(block) >= size) {
-            if (previous != NULL)
-                BlockList_SetNext(list, previous, next);
-            else
-                list->first = next;
-            if (list->last == block)
-                list->last = previous;
-            block->nextBlock = LAST_BLOCK;
+            BlockAllocator_unlink(list, previous, block, next);
             return block;
         }
         previous = block;
         block = next;
     }
     return NULL;
+}
+
+/**
+ * The free extent that ends at `end`: the rest of the smallest superblock, or
+ * an extent on the free lists. Returns its first block, or NULL when the block
+ * before `end` is not the end of an available extent. With `detach`, the
+ * extent is also taken out of the allocator; its blocks stay free and
+ * counted, for the caller to publish again. Must hold the allocation lock.
+ */
+static BlockMeta *BlockAllocator_extentEndingAt(BlockAllocator *blockAllocator,
+                                                BlockMeta *end, bool detach) {
+    BlockMeta *cursor = blockAllocator->smallestSuperblock.cursor;
+    if (cursor < blockAllocator->smallestSuperblock.limit &&
+        blockAllocator->smallestSuperblock.limit == end) {
+        if (detach)
+            blockAllocator->smallestSuperblock.limit = cursor;
+        return cursor;
+    }
+    int maxNonEmptyIndex = blockAllocator->maxNonEmptyIndex;
+    for (int i = blockAllocator->minNonEmptyIndex; i <= maxNonEmptyIndex; i++) {
+        BlockList *list = &blockAllocator->freeSuperblocks[i];
+        BlockMeta *previous = NULL;
+        for (BlockMeta *block = list->first; block != NULL;) {
+            BlockMeta *next =
+                BlockList_getNextBlock(list->blockMetaStart, block);
+            if (block + BlockMeta_SuperblockSize(block) == end) {
+                if (detach)
+                    BlockAllocator_unlink(list, previous, block, next);
+                return block;
+            }
+            previous = block;
+            block = next;
+        }
+    }
+    return NULL;
+}
+
+uint32_t BlockAllocator_FreeBlocksBefore(BlockAllocator *blockAllocator,
+                                         BlockMeta *end) {
+    BlockAllocator_Acquire(blockAllocator);
+    BlockMeta *start =
+        BlockAllocator_extentEndingAt(blockAllocator, end, false);
+    BlockAllocator_Release(blockAllocator);
+    return start == NULL ? 0 : (uint32_t)(end - start);
 }
 
 inline static BlockMeta *
@@ -218,6 +267,22 @@ void BlockAllocator_AddFreeBlocks(BlockAllocator *blockAllocator,
 #ifdef SCALANATIVE_MULTITHREADING_ENABLED
     atomic_thread_fence(memory_order_release);
 #endif
+}
+
+void BlockAllocator_AddFreeBlocksAtEnd(BlockAllocator *blockAllocator,
+                                       BlockMeta *end, uint32_t count) {
+    // Outside a sweep, a free extent ending where the new blocks start is
+    // already published: take it back so that both form one extent. During a
+    // sweep, such an extent is still being coalesced and merges on its own.
+    if (blockAllocator->coalescingSuperblock.first == NULL) {
+        BlockMeta *start =
+            BlockAllocator_extentEndingAt(blockAllocator, end, true);
+        if (start != NULL) {
+            blockAllocator->coalescingSuperblock.first = start;
+            blockAllocator->coalescingSuperblock.limit = end;
+        }
+    }
+    BlockAllocator_AddFreeBlocks(blockAllocator, end, count);
 }
 
 void BlockAllocator_SweepDone(BlockAllocator *blockAllocator) {

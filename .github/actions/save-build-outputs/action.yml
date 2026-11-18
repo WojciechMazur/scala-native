@@ -12,9 +12,10 @@ runs:
       shell: bash
       # Native binaries and link outputs are platform specific, sbt task caches
       # (streams, value) hold machine specific state; leave them out.
-      # Symlinks into the sbt action cache are dereferenced.
+      # Symlinks into the sbt action cache are dereferenced, their read-only
+      # permissions are dropped so that sbt can overwrite the restored files.
       run: |
-        tar -czhf "$RUNNER_TEMP/sbt-out.tgz" --ignore-failed-read \
+        tar -czhf "$RUNNER_TEMP/sbt-out.tgz" --ignore-failed-read --mode=u+w \
           --exclude='target/out/value' \
           --exclude='native' --exclude='native-test' --exclude='*.dSYM' \
           --exclude='streams' --exclude='test-reports' \

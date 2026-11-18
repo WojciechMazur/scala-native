@@ -24,4 +24,6 @@ runs:
         flags=""
         if [[ "$RUNNER_OS" == "Windows" ]]; then flags="--force-local"; fi
         tar $flags -xzf "$RUNNER_TEMP/sbt-out/sbt-out.tgz"
+        # sbt rewrites some of the restored files, e.g. generated sources
+        chmod -R u+w target/out
         du -sh target/out/*

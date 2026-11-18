@@ -1,13 +1,10 @@
 name: Run tests Linux
-# Called from ci.yml, inputs are computed by its plan job (scripts/ci/plan.scala).
+# Called from ci.yml, see scripts/ci/plan.scala. Jobs with `if: inputs.extended`
+# run nightly and on pull requests listed in its extended triggers.
 on:
   workflow_call:
     inputs:
-      nightly: { type: boolean, default: false }
-      gc: { type: boolean, default: false }
-      sbt-plugin: { type: boolean, default: false }
-      partest: { type: boolean, default: false }
-      partest-full: { type: boolean, default: false }
+      extended: { type: boolean, default: false }
 
 permissions:
   contents: read
@@ -41,9 +38,9 @@ jobs:
           SCALANATIVE_LTO: ${{ matrix.lto }}
         run: sbt "test-gc 3"
 
-  test-gc-nightly:
+  test-gc-extended:
     name: Test GC (${{ matrix.mode }}, lto=${{ matrix.lto }})
-    if: inputs.nightly
+    if: inputs.extended
     runs-on: ubuntu-24.04
     strategy:
       matrix:
@@ -101,9 +98,9 @@ jobs:
           SCALANATIVE_OPTIMIZE: ${{ matrix.optimize }}
         run: sbt "test-runtime-native ${{ matrix.scala }}"
 
-  runtime-nightly:
+  runtime-extended:
     name: Runtime ${{ matrix.name }}
-    if: inputs.nightly
+    if: inputs.extended
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -126,19 +123,33 @@ jobs:
             optimize: true
     steps: *runtime-steps
 
-  # GC rows of the runtime extension matrix, on pull requests changing the GC
-  runtime-ext-gc:
-    name: Runtime extension (3, release-fast, thin, ${{ matrix.gc }})
-    if: inputs.gc && !inputs.nightly
+  runtime-ext:
+    name: Runtime extension
+    if: inputs.extended
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        scala: ["3"]
-        build-mode: [release-fast]
-        lto: [thin]
-        gc: [immix, commix, boehm]
-    steps: &runtime-ext-steps
+        scala: ["2.13", "3"]
+        build-mode: [debug, release-fast]
+        lto: [none, thin]
+        gc: [boehm, immix, commix]
+        exclude:
+          # Covered by runtime-extended
+          - scala: "3"
+            build-mode: debug
+          - scala: "2.13"
+            build-mode: debug
+            gc: immix
+          # Slow, leads to timeouts
+          - build-mode: release-fast
+            lto: none
+        include:
+          - scala: "3"
+            build-mode: release-size
+            lto: thin
+            gc: immix
+    steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/linux-setup-env
         with:
@@ -155,37 +166,9 @@ jobs:
           SCALANATIVE_OPTIMIZE: true
         run: sbt "test-runtime-native ${{ matrix.scala }}"
 
-  runtime-ext:
-    name: Runtime extension
-    if: inputs.nightly
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        scala: ["2.13", "3"]
-        build-mode: [debug, release-fast]
-        lto: [none, thin]
-        gc: [boehm, immix, commix]
-        exclude:
-          # Covered by runtime-nightly
-          - scala: "3"
-            build-mode: debug
-          - scala: "2.13"
-            build-mode: debug
-            gc: immix
-          # Slow, leads to timeouts
-          - build-mode: release-fast
-            lto: none
-        include:
-          - scala: "3"
-            build-mode: release-size
-            lto: thin
-            gc: immix
-    steps: *runtime-ext-steps
-
   llvm-versions:
     name: LLVM ${{ matrix.llvm }}
-    if: inputs.nightly
+    if: inputs.extended
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -207,70 +190,3 @@ jobs:
           SCALANATIVE_MODE: release-fast
           SCALANATIVE_LTO: thin
         run: sbt "test-runtime-native 3"
-
-  # Scala 3 tests the sbt 2.x plugin
-  scripted:
-    name: Scripted (${{ matrix.scala }})
-    if: inputs.sbt-plugin
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        scala: ["3"]
-    steps: &scripted-steps
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/linux-setup-env
-        with:
-          scala-version: ${{ matrix.scala }}
-      - name: Run tests
-        timeout-minutes: 90
-        env:
-          SCALANATIVE_MODE: release-fast
-          SCALANATIVE_GC: immix
-          SCALANATIVE_OPTIMIZE: true
-        run: sbt "test-scripted ${{ matrix.scala }}"
-
-  # Scala 2.12 tests the sbt 1.x plugin
-  scripted-sbt1:
-    name: Scripted (${{ matrix.scala }})
-    if: inputs.nightly
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        scala: ["2.12"]
-    steps: *scripted-steps
-
-  partests:
-    name: Partests (2.13)
-    if: inputs.partest || inputs.partest-full
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/linux-setup-env
-        with:
-          scala-version: "2.13"
-
-      # Make sure that Scala partest denylisted tests contain only valid test names
-      - name: Setup Scala-cli
-        uses: VirtusLab/scala-cli-setup@v1.19
-      - name: Check partest disabled tests list
-        run: |
-          sbt "scalaPartest2_13/fetchScalaSource"
-          scala-cli scripts/partest-check-files.scala
-
-      # scala-cli-setup can override default java version
-      - uses: ./.github/actions/linux-setup-env
-        with:
-          scala-version: "2.13"
-
-      # Running all partests takes ~4h, without full run check a single test of each kind
-      - name: Test partests infrastructure
-        if: ${{ !inputs.partest-full }}
-        timeout-minutes: 45
-        run: >
-          sbt "-J-Xmx3G"
-          "scalaPartestTests2_13/testOnly -- --showDiff neg/abstract.scala pos/abstract.scala run/Course-2002-01.scala"
-
-      - name: Run all of partests
-        if: inputs.partest-full
-        timeout-minutes: 300
-        run: sbt "-J-Xmx3G" "scalaPartestTests2_13/testOnly -- --showDiff"

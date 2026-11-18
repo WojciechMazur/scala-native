@@ -1,11 +1,10 @@
 name: Run tests Windows
-# Called from ci.yml, inputs are computed by its plan job (scripts/ci/plan.scala).
+# Called from ci.yml, see scripts/ci/plan.scala. Jobs with `if: inputs.extended`
+# run nightly and on pull requests listed in its extended triggers.
 on:
   workflow_call:
     inputs:
-      nightly: { type: boolean, default: false }
-      native-runtime: { type: boolean, default: false }
-      sbt-plugin: { type: boolean, default: false }
+      extended: { type: boolean, default: false }
 
 permissions:
   contents: read
@@ -17,14 +16,17 @@ jobs:
   # Every GC with sandbox, test interface and JUnit outputs
   test-gc:
     name: Test GC x64 (${{ matrix.mode }}, lto=${{ matrix.lto }})
-    if: inputs.native-runtime
+    if: inputs.extended
     runs-on: windows-2022
     strategy:
+      fail-fast: false
       matrix:
         include:
           - mode: release-fast
             lto: thin
-    steps: &test-gc-steps
+          - mode: debug
+            lto: none
+    steps:
       # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
       - name: Setup git config
         run: git config --global core.autocrlf false
@@ -42,17 +44,6 @@ jobs:
           SCALANATIVE_LTO: ${{ matrix.lto }}
         run: sbt "test-gc 3"
         shell: cmd
-
-  test-gc-nightly:
-    name: Test GC x64 (${{ matrix.mode }}, lto=${{ matrix.lto }})
-    if: inputs.nightly
-    runs-on: windows-2022
-    strategy:
-      matrix:
-        include:
-          - mode: debug
-            lto: none
-    steps: *test-gc-steps
 
   # Native runtime tests (the JVM part runs in the gate)
   runtime:
@@ -98,9 +89,9 @@ jobs:
           sbt "test-runtime-native ${{ matrix.scala }}"
         shell: cmd
 
-  runtime-nightly:
+  runtime-extended:
     name: Runtime ${{ matrix.arch }} (${{ matrix.scala }}, ${{ matrix.mode }})
-    if: inputs.nightly
+    if: inputs.extended
     runs-on: ${{ matrix.os }}
     env:
       VCPKG_DEFAULT_HOST_TRIPLET: ${{ matrix.arch }}-windows
@@ -128,7 +119,7 @@ jobs:
 
   runtime-ext:
     name: Runtime extension
-    if: inputs.nightly
+    if: inputs.extended
     runs-on: windows-2022
     strategy:
       fail-fast: false
@@ -138,7 +129,7 @@ jobs:
         lto: [none, thin]
         gc: [boehm, immix, commix]
         exclude:
-          # Covered by runtime-nightly
+          # Covered by runtime-extended
           - scala: "3"
             build-mode: debug
           - scala: "2.13"
@@ -176,7 +167,7 @@ jobs:
 
   llvm-versions:
     name: LLVM ${{ matrix.llvm }}
-    if: inputs.nightly
+    if: inputs.extended
     runs-on: windows-2022
     # LLVM 21.1.8 crashes in clang codegen on Windows; keep for visibility.
     continue-on-error: ${{ matrix.llvm == '21.1.8' }}
@@ -203,35 +194,3 @@ jobs:
         run: >
           set SCALANATIVE &
           sbt "show tests3/nativeConfig" "test-runtime-native 3"
-
-  # Scala 3 tests the sbt 2.x plugin
-  scripted:
-    name: Scripted (${{ matrix.scala }})
-    if: inputs.sbt-plugin
-    runs-on: windows-2022
-    strategy:
-      matrix:
-        scala: ["3"]
-    steps: &scripted-steps
-      # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
-      - name: Setup git config
-        run: git config --global core.autocrlf false
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/windows-setup-env
-        with:
-          scala-version: ${{ matrix.scala }}
-      - name: Test scripted
-        timeout-minutes: 120
-        # Run in the foreground without the boot server's Windows named pipe.
-        run: sbt --server -Dsbt.server.autostart=false "test-scripted ${{ matrix.scala }}"
-        shell: cmd
-
-  # Scala 2.12 tests the sbt 1.x plugin
-  scripted-sbt1:
-    name: Scripted (${{ matrix.scala }})
-    if: inputs.nightly
-    runs-on: windows-2022
-    strategy:
-      matrix:
-        scala: ["2.12"]
-    steps: *scripted-steps

@@ -215,11 +215,12 @@ Its `plan` job selects which jobs run:
   2.12, 2.13 and 3 (`compile-all <version>`), the sandbox, the test
   interface, the runtime tests on the JVM and MiMa checks. Platform tests
   start only once the gate passes;
-- pull requests run a reduced set of platform tests, extended by the
-  modified paths, for example changes to the GC run the GC test matrix and
-  changes to the sbt plugin run scripted tests;
-- Linux multiarch, BSD, Termux and the iOS simulator run on pull requests
-  only for changes to posixlib, clib, the GC or the toolchain;
+- each platform workflow (`run-tests-*.yml`) then runs off, at its base
+  level (jobs without a condition) or extended (also the jobs with
+  `if: inputs.extended`). The `Workflow` table in `scripts/ci/plan.scala`
+  decides it from the modified paths, e.g. changes to the GC run the
+  extended Linux tests and the multiarch, BSD, Termux and iOS simulator
+  workflows;
 - draft pull requests run only the gate, documentation-only changes only the
   lint and documentation checks;
 - the full set of tests runs every night on `main`, unless nothing was
@@ -235,7 +236,7 @@ the gate in other jobs.
 
 The sbt commands used by the CI can be run locally, e.g.
 `test-runtime-native 3`, `test-runtime-jvm 3`, `test-gc 3`, `test-tools 3`,
-`test-mima 3` or `test-cross-compile 3 edges`.
+`test-mima 3` or `test-cross-compile 3`.
 
 The next section has more build and development information for those
 wanting to work on [compiler](./compiler.md).

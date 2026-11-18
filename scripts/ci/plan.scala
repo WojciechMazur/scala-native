@@ -3,8 +3,12 @@
 //> using file gh.scala
 
 /** Selects the CI jobs to run for the current event, used by the plan job of
- *  .github/workflows/ci.yml. Writes `tier`, `partest-full` and one entry per
- *  `Category` to $GITHUB_OUTPUT.
+ *  .github/workflows/ci.yml.
+ *
+ *  Every `Workflow` runs at one of the levels: off, base (its jobs without a
+ *  condition) or extended (also its `if: inputs.extended` jobs). The table
+ *  below is the only place deciding when each of them runs. Writes `tier` and
+ *  one `<workflow>=off|base|extended` entry per workflow to $GITHUB_OUTPUT.
  *
  *  Environment: EVENT_NAME, GH_REPO, SHA, GH_TOKEN, GITHUB_OUTPUT; for pull
  *  requests PR_NUMBER, PR_DRAFT, PR_BODY, PR_LABELS (JSON list of names);
@@ -31,106 +35,129 @@ def globs(patterns: String*): Seq[Pattern] = patterns.map(Glob(_))
 extension (patterns: Seq[Pattern])
   def matchAny(path: String): Boolean = patterns.exists(_.matches(path))
 
-val toolsPaths = globs(
+/** When a workflow (or its extended jobs) runs on pull requests */
+enum Trigger:
+  case Always, Never
+  case Changed(paths: Seq[Pattern])
+
+  def matches(files: Seq[String]): Boolean = this match
+    case Always         => true
+    case Never          => false
+    case Changed(paths) => files.exists(paths.matchAny)
+
+val toolchainPaths = globs(
   "tools/**",
   "nir/**",
   "util/**",
   "nscplugin/**",
+  "junit-plugin/**",
   "test-runner/**",
   "test-interface*/**",
   "testing-compiler*/**",
+  "scalalib/**",
+  "scala3lib/**",
   "project/**"
 )
 val gcPaths = globs("nativelib/src/main/resources/scala-native/gc/**")
+val nativeRuntimePaths = globs("nativelib/src/main/resources/**")
 val posixPaths = globs(
   "posixlib/**",
   "clib/**",
   "nativelib/src/main/resources/scala-native/platform/posix/**"
 )
+val applePaths =
+  Seq(Re("(?i)darwin|apple|macos|(^|[/_.-])ios([/_.-]|$)".r))
 // Platforms tested on pull requests only for changes to the toolchain, GC or POSIX bindings
-val extraPlatformPaths = toolsPaths ++ gcPaths ++ posixPaths
+val extraPlatformPaths = toolchainPaths ++ gcPaths ++ posixPaths
 
-/** Extra jobs on pull requests enabled by modified paths */
-enum Category(val output: String, val paths: Seq[Pattern]):
-  // tools tests for Scala 2.12 and 2.13
-  case Tools extends Category(output = "tools", paths = toolsPaths)
-
-  // cross compilation for all supported Scala versions
-  case Compiler
-      extends Category(
-        output = "compiler",
-        paths = globs(
-          "nscplugin/**",
-          "junit-plugin/**",
-          "scalalib/**",
-          "scala3lib/**",
-          "project/ScalaVersions.scala"
-        )
+/** Workflows called from ci.yml: when they run (`base`) and when they also run
+ *  their extended jobs (`extended`) on pull requests. Nightly runs everything
+ *  extended.
+ */
+enum Workflow(val output: String, val base: Trigger, val extended: Trigger):
+  case Toolchain
+      extends Workflow(
+        "toolchain",
+        base = Trigger.Always,
+        extended = Trigger.Changed(toolchainPaths)
       )
-
-  // GC rows of the runtime extension matrix
-  case GC extends Category(output = "gc", paths = gcPaths)
-
-  // test-gc on every OS
-  case NativeRuntime
-      extends Category(
-        output = "native-runtime",
-        paths = globs("nativelib/src/main/resources/**")
+  case Linux
+      extends Workflow(
+        "linux",
+        base = Trigger.Always,
+        extended = Trigger.Changed(gcPaths)
       )
-
-  // NetBSD
-  case Posix extends Category(output = "posix", paths = posixPaths)
-
-  case Multiarch
-      extends Category(output = "multiarch", paths = extraPlatformPaths)
-
-  // FreeBSD
-  case BSD extends Category(output = "bsd", paths = extraPlatformPaths)
-
-  case Termux extends Category(output = "termux", paths = extraPlatformPaths)
-
-  case IOSSimulator
-      extends Category(output = "ios-simulator", paths = extraPlatformPaths)
-
-  // tvOS, watchOS and iOS device link-only builds
+  case MacOS
+      extends Workflow(
+        "macos",
+        base = Trigger.Always,
+        extended = Trigger.Changed(nativeRuntimePaths)
+      )
+  case Windows
+      extends Workflow(
+        "windows",
+        base = Trigger.Always,
+        extended = Trigger.Changed(nativeRuntimePaths)
+      )
   case Apple
-      extends Category(
-        output = "apple",
-        paths = Seq(Re("(?i)darwin|apple|macos|(^|[/_.-])ios([/_.-]|$)".r))
+      extends Workflow(
+        "apple",
+        base = Trigger.Changed(extraPlatformPaths ++ applePaths),
+        extended = Trigger.Changed(applePaths)
       )
-
-  // scripted tests (sbt 2) on every OS
+  case LinuxMultiarch
+      extends Workflow(
+        "linux-multiarch",
+        base = Trigger.Changed(extraPlatformPaths),
+        extended = Trigger.Never
+      )
+  case BSD
+      extends Workflow(
+        "bsd",
+        base = Trigger.Changed(extraPlatformPaths),
+        extended = Trigger.Changed(posixPaths)
+      )
+  case Termux
+      extends Workflow(
+        "termux",
+        base = Trigger.Changed(extraPlatformPaths),
+        extended = Trigger.Never
+      )
   case SbtPlugin
-      extends Category(
-        output = "sbt-plugin",
-        paths = globs(
-          "sbt-scala-native/**",
-          "scripted-tests/**",
-          "project/**",
-          "tools/**",
-          "test-runner/**"
-        )
+      extends Workflow(
+        "sbt-plugin",
+        base = Trigger.Changed(
+          globs(
+            "sbt-scala-native/**",
+            "scripted-tests/**",
+            "project/**",
+            "tools/**",
+            "test-runner/**"
+          )
+        ),
+        extended = Trigger.Never
+      )
+  case Partests
+      extends Workflow(
+        "partests",
+        base = Trigger.Changed(
+          globs("scala-partest*/**", "scripts/partest-check-files.scala")
+        ),
+        extended = Trigger.Never
       )
 
-  // partest infrastructure smoke test
-  case Partest
-      extends Category(
-        output = "partest",
-        paths = globs("scala-partest*/**", "scripts/partest-check-files.scala")
-      )
+enum Level:
+  case Off, Base, Extended
+
+  def output: String = toString.toLowerCase
 
 enum Tier:
   case Skip, Docs, Draft, PR, Nightly
 
   def output: String = toString.toLowerCase
 
-object Tier:
-  def fromOutput(value: String): Tier =
-    values
-      .find(_.output == value)
-      .getOrElse(sys.error(s"Unknown tier: $value"))
-
-/** Changes to the CI or build definition run every pull request job */
+/** Changes to the CI or build definition run every workflow at its base level
+ */
 val fullPrPaths = globs(
   ".github/**",
   "ci-docker/**",
@@ -162,11 +189,29 @@ def lastNightlySha(): Option[String] =
       println(s"Cannot find the last nightly run: ${e.result.err.text().trim}")
       None
 
-case class Plan(tier: Tier, categories: Set[Category], partestFull: Boolean)
+case class Plan(tier: Tier, levels: Map[Workflow, Level])
+
+object Plan:
+  def all(tier: Tier, level: Level) =
+    Plan(tier, Workflow.values.map(_ -> level).toMap)
+  def nightly = all(Tier.Nightly, Level.Extended)
+
+  def pullRequest(files: Seq[String]): Plan =
+    val fullPr = files.isEmpty || files.exists(fullPrPaths.matchAny)
+    if fullPr then
+      println("CI or build definition changed: running every workflow")
+    Plan(
+      Tier.PR,
+      Workflow.values.map { w =>
+        val level =
+          if w.extended.matches(files) then Level.Extended
+          else if fullPr || w.base.matches(files) then Level.Base
+          else Level.Off
+        w -> level
+      }.toMap
+    )
 
 def plan(): Plan =
-  val all = Category.values.toSet
-  val repo = env("GH_REPO")
   env("EVENT_NAME") match
     case "schedule" =>
       val previous = lastNightlySha()
@@ -174,14 +219,13 @@ def plan(): Plan =
         println(
           s"Nothing committed since the last nightly (${previous.get}), skipping"
         )
-        Plan(Tier.Skip, Set.empty, partestFull = false)
-      else Plan(Tier.Nightly, all, partestFull = true)
+        Plan.all(Tier.Skip, Level.Off)
+      else Plan.nightly
 
     case "workflow_dispatch" =>
-      val tier = Option(env("DISPATCH_TIER"))
-        .filter(_.nonEmpty)
-        .fold(Tier.Nightly)(Tier.fromOutput)
-      Plan(tier, all, partestFull = tier == Tier.Nightly)
+      if env("DISPATCH_TIER") == Tier.PR.output then
+        Plan.all(Tier.PR, Level.Base)
+      else Plan.nightly
 
     case "pull_request" =>
       val body = env("PR_BODY")
@@ -190,32 +234,26 @@ def plan(): Plan =
         .arr
         .map(_.str)
         .toSet
-      val files = changedFiles(repo, env("PR_NUMBER"))
+      val files = changedFiles(env("GH_REPO"), env("PR_NUMBER"))
       println(s"${files.size} changed files")
-      val partestFull = body.contains("[test-partest]") || labels("ci:partest")
-      if body.contains("[test-extended]") || labels("ci:full") then
-        Plan(Tier.Nightly, all, partestFull)
-      else if env("PR_DRAFT") == "true" then
-        Plan(Tier.Draft, Set.empty, partestFull = false)
+      if body.contains("[test-extended]") || labels("ci:full") then Plan.nightly
+      else if env("PR_DRAFT") == "true" then Plan.all(Tier.Draft, Level.Off)
       else if files.nonEmpty && files.forall(docsPaths.matchAny) then
-        Plan(Tier.Docs, Set.empty, partestFull = false)
-      else if files.isEmpty || files.exists(fullPrPaths.matchAny) then
-        println("CI or build definition changed: running every PR job")
-        Plan(Tier.PR, all, partestFull)
+        Plan.all(Tier.Docs, Level.Off)
       else
-        val enabled = all.filter(c => files.exists(c.paths.matchAny))
-        Plan(Tier.PR, enabled, partestFull)
+        val plan = Plan.pullRequest(files)
+        if body.contains("[test-partest]") || labels("ci:partest") then
+          plan.copy(levels =
+            plan.levels.updated(Workflow.Partests, Level.Extended)
+          )
+        else plan
 
     case other =>
       sys.error(s"Unsupported event: $other")
 
 @main def run(): Unit =
   val result = plan()
-  val lines =
-    s"tier=${result.tier.output}" +:
-      s"partest-full=${result.partestFull}" +:
-      Category.values.toSeq.map(c =>
-        s"${c.output}=${result.categories.contains(c)}"
-      )
+  val lines = s"tier=${result.tier.output}" +:
+    Workflow.values.toSeq.map(w => s"${w.output}=${result.levels(w).output}")
   lines.foreach(println)
   os.write.append(os.Path(env("GITHUB_OUTPUT")), lines.mkString("", "\n", "\n"))

@@ -1,5 +1,5 @@
 name: Run tests Linux multiarch
-# Called from ci.yml, runs the same jobs on pull requests and nightly.
+# Called from ci.yml, see scripts/ci/plan.scala.
 on:
   workflow_call:
 

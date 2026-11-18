@@ -101,37 +101,17 @@ object Commands {
   }
 
   // Compile compiler plugins and the Scala standard library for each supported version of given binary version
-  // Usage: test-cross-compile <binary version> [all|edges], edges = first and last patch release of each minor version
-  lazy val testCrossCompile =
-    Command.args("test-cross-compile", "<binary version> [all|edges]") {
-      case (state, args) =>
-        val binVersion = args.headOption
-          .map(CrossVersion.binaryScalaVersion)
-          .getOrElse(sys.error("Expected Scala binary version argument"))
-        val versions = MultiScalaProject.scalaCrossVersions.getOrElse(
-          binVersion,
-          sys.error(s"Unsupported Scala binary version: $binVersion")
-        )
-        val selected = args.lift(1).getOrElse("all") match {
-          case "all"   => versions
-          case "edges" =>
-            val edges = versions
-              .groupBy(CrossVersion.partialVersion)
-              .values
-              .flatMap(vs => Seq(vs.head, vs.last))
-              .toSet
-            versions.filter(edges.contains)
-          case other =>
-            sys.error(s"Unknown mode '$other', expected 'all' or 'edges'")
-        }
-        // Compiling the standard library builds the compiler plugin for the same Scala version
-        val stdlib = (if (binVersion == "3") scala3lib else scalalib)
-          .forBinaryVersion(binVersion)
-          .id
-        println(s"Cross compiling $stdlib for: ${selected.mkString(", ")}")
-        selected.toList.flatMap(v => List(s"++$v", s"$stdlib/compile")) :::
-          state
-    }
+  lazy val testCrossCompile = projectVersionCommand("test-cross-compile") {
+    case (version, state) =>
+      // Compiling the standard library builds the compiler plugin for the same Scala version
+      val stdlib = (if (version == "3") scala3lib else scalalib)
+        .forBinaryVersion(version)
+        .id
+      MultiScalaProject
+        .scalaCrossVersions(version)
+        .toList
+        .flatMap(v => List(s"++$v", s"$stdlib/compile")) ::: state
+  }
 
   private def runtimeJVMTests(version: String): List[String] =
     List(testsJVM, testsExtJVM, junitTestOutputsJVM)

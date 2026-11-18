@@ -8,7 +8,7 @@ inputs:
     description: "Java version to use in tests"
     default: "25"
   llvm-version:
-    description: "LLVM toolchain version installed from apt.llvm.org, the runner's preinstalled LLVM 18 when empty"
+    description: "LLVM toolchain version installed from apt.llvm.org, the runner's preinstalled LLVM when empty"
     default: ""
 runs:
   using: "composite"
@@ -29,6 +29,12 @@ runs:
           echo "project-version=3" >> $GITHUB_ENV
         fi
 
+    # Preinstalled LLVM of the runner image, unless a version is requested
+    - name: Resolve LLVM version
+      id: llvm
+      shell: bash
+      run: echo "version=${{ inputs.llvm-version || '18' }}" >> "$GITHUB_OUTPUT"
+
     - name: Install dependencies
       uses: nick-fields/retry@v4
       with:
@@ -36,33 +42,27 @@ runs:
         max_attempts: 10
         retry_on: error
         shell: bash
-        # lld is needed for LTO, the runner image ships only clang
+        # The runner image ships clang without lld, needed for LTO
         command: |
           sudo apt-get update
-          sudo apt-get install -y libgc-dev ${{ inputs.llvm-version == '' && 'lld-18' || '' }}
+          sudo apt-get install -y libgc-dev ${{ inputs.llvm-version == '' && format('lld-{0}', steps.llvm.outputs.version) || '' }}
 
-    - name: Use preinstalled LLVM toolchain
-      shell: bash
-      if: ${{ inputs.llvm-version == '' }}
-      run: |
-        LLVM_TOOLCHAIN=/usr/lib/llvm-18/bin
-        echo "LLVM_BIN=$LLVM_TOOLCHAIN" >> "$GITHUB_ENV"
-        echo "$LLVM_TOOLCHAIN" >> "$GITHUB_PATH"
-        echo "Using toolchain: $("$LLVM_TOOLCHAIN/clang" --version | head -1)"
-
-    - name: Install explicit LLVM toolchain
+    - name: Install LLVM toolchain
       shell: bash
       if: ${{ inputs.llvm-version != '' }}
+      run: sudo ./ci-docker/install-llvm.sh ${{ inputs.llvm-version }}
+
+    # Prefer the selected LLVM over /usr/bin/clang (Discover uses LLVM_BIN / PATH)
+    - name: Expose LLVM toolchain
+      shell: bash
       run: |
-        sudo ./ci-docker/install-llvm.sh ${{ inputs.llvm-version }}
-        # Prefer apt.llvm.org install over /usr/bin/clang (Discover uses LLVM_BIN / PATH).
-        LLVM_TOOLCHAIN="/usr/lib/llvm-${{ inputs.llvm-version }}/bin"
+        LLVM_TOOLCHAIN="/usr/lib/llvm-${{ steps.llvm.outputs.version }}/bin"
         if [[ -d "$LLVM_TOOLCHAIN" ]]; then
           echo "LLVM_BIN=$LLVM_TOOLCHAIN" >> "$GITHUB_ENV"
           echo "$LLVM_TOOLCHAIN" >> "$GITHUB_PATH"
           echo "Using toolchain: $("$LLVM_TOOLCHAIN/clang" --version | head -1)"
         else
-          echo "::warning::No directory $LLVM_TOOLCHAIN (e.g. llvm-version=latest); set LLVM_BIN on the step if needed."
+          echo "::warning::No directory $LLVM_TOOLCHAIN; set LLVM_BIN on the step if needed."
         fi
 
     - uses: ./.github/actions/sbt-warmup

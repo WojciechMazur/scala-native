@@ -408,10 +408,7 @@ object Build {
     "sbtScalaNative",
     base = Some(file("sbt-scala-native")),
     crossVersions = Some(
-      Map(
-        "2.12" -> Seq(ScalaVersions.sbt10ScalaVersion),
-        "3" -> Seq(ScalaVersions.sbt2ScalaVersion)
-      )
+      ScalaVersions.sbtScalaVersions.map { case (k, v) => k -> Seq(v) }
     )
   )
     .enablePlugins(ScriptedPlugin)

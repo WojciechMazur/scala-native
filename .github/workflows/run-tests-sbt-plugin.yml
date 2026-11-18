@@ -50,7 +50,7 @@ jobs:
       - name: Test scripted
         if: runner.os == 'Windows'
         timeout-minutes: 120
-        # Run in the foreground without the boot server's Windows named pipe.
+        # Default build settings on Windows. Run in the foreground without the boot server's Windows named pipe.
         run: sbt --server -Dsbt.server.autostart=false "test-scripted ${{ matrix.scala }}"
         shell: cmd
 

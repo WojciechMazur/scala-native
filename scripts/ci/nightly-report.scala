@@ -1,5 +1,6 @@
 //> using scala 3.9
 //> using toolkit default
+//> using file gh.scala
 
 /** Reports results of a scheduled CI run as GitHub issues, used by
  *  .github/workflows/nightly-report.yml.
@@ -19,32 +20,11 @@ val TitlePrefix = "Nightly CI failure: "
 val IgnoredJobs = Set("Plan", "CI OK")
 val FailedConclusions = Set("failure", "timed_out", "cancelled")
 
-def env(name: String): String =
-  sys.env.getOrElse(name, sys.error(s"Missing environment variable $name"))
-
-/** Runs `gh <command> --<flag> <value>...` in the repository from GH_REPO. The
- *  command is split on spaces, flag values are passed as they are.
- */
-def gh(command: String, flags: (String, String)*): String =
-  val args =
-    command.split(' ').toSeq ++ flags.flatMap((f, v) => Seq(s"--$f", v))
-  os.proc("gh" +: args).call(stderr = os.Pipe).out.text()
-
-def ghJson(command: String): ujson.Value =
-  val out = gh(command)
-  if out.trim.isEmpty then ujson.Null else ujson.read(out)
-
 case class Job(name: String, conclusion: Option[String])
 
 def runJobs(repo: String, runId: String): Seq[Job] =
-  val jobs = s"repos/$repo/actions/runs/$runId/jobs?filter=latest&per_page=100"
-  Iterator
-    .from(1)
-    .map(page => ghJson(s"api $jobs&page=$page")("jobs").arr.toSeq)
-    .takeWhile(_.nonEmpty)
-    .flatten
+  ghApiPages(s"repos/$repo/actions/runs/$runId/jobs?filter=latest", _("jobs"))
     .map(j => Job(j("name").str, j("conclusion").strOpt))
-    .toSeq
 
 @main def run(): Unit =
   val repo = env("GH_REPO")

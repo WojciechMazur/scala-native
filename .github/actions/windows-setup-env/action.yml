@@ -95,4 +95,10 @@ runs:
       run: |
         & "${{ github.workspace }}/scripts/ci/windows/export-vcpkg-zlib-link-option.ps1" -LibDir '${{ steps.resolve-env.outputs.VcpkgLibs }}\lib'
 
+    - name: Expose libraries to Scala Native builds
+      shell: pwsh
+      run: |
+        "SCALANATIVE_INCLUDE_DIRS=${{ steps.resolve-env.outputs.VcpkgLibs }}\include" >> $env:GITHUB_ENV
+        "SCALANATIVE_LIB_DIRS=${{ steps.resolve-env.outputs.VcpkgLibs }}\lib" >> $env:GITHUB_ENV
+
     - uses: ./.github/actions/sbt-warmup

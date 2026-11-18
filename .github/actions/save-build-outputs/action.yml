@@ -1,17 +1,14 @@
 name: "Save build outputs"
-description: "Upload sbt compilation outputs (JVM classes, NIR) of the gate for reuse in downstream jobs of the same run"
+description: "Enabled by repository variable CI_SHARE_BUILD_OUTPUTS=true. Upload sbt compilation outputs (JVM classes, NIR) of the gate for reuse in downstream jobs of the same run"
 inputs:
   scala-version:
     description: "Scala binary version of the outputs"
     required: true
-  enabled:
-    description: "Set to true to enable, controlled by repository variable CI_SHARE_BUILD_OUTPUTS"
-    default: "false"
 runs:
   using: "composite"
   steps:
     - name: Pack build outputs
-      if: inputs.enabled == 'true'
+      if: env.CI_SHARE_BUILD_OUTPUTS == 'true'
       shell: bash
       # Native binaries and link outputs are platform specific, sbt task caches
       # (streams, value) hold machine specific state; leave them out.
@@ -24,7 +21,7 @@ runs:
           target/out
         ls -lh "$RUNNER_TEMP/sbt-out.tgz"
     - name: Upload build outputs
-      if: inputs.enabled == 'true'
+      if: env.CI_SHARE_BUILD_OUTPUTS == 'true'
       uses: actions/upload-artifact@v7
       with:
         name: sbt-out-${{ inputs.scala-version }}

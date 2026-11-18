@@ -27,6 +27,9 @@ concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  CI_SHARE_BUILD_OUTPUTS: ${{ vars.CI_SHARE_BUILD_OUTPUTS }}
+
 jobs:
   plan:
     name: Plan
@@ -38,14 +41,14 @@ jobs:
       actions: read
     outputs:
       tier: ${{ steps.plan.outputs.tier }}
-      partest-full: ${{ steps.plan.outputs.partest_full }}
+      partest-full: ${{ steps.plan.outputs.partest-full }}
       tools: ${{ steps.plan.outputs.tools }}
       compiler: ${{ steps.plan.outputs.compiler }}
       gc: ${{ steps.plan.outputs.gc }}
-      native-runtime: ${{ steps.plan.outputs.native_runtime }}
+      native-runtime: ${{ steps.plan.outputs.native-runtime }}
       posix: ${{ steps.plan.outputs.posix }}
       apple: ${{ steps.plan.outputs.apple }}
-      sbt-plugin: ${{ steps.plan.outputs.sbt_plugin }}
+      sbt-plugin: ${{ steps.plan.outputs.sbt-plugin }}
       partest: ${{ steps.plan.outputs.partest }}
     steps:
       - uses: actions/checkout@v7
@@ -117,7 +120,6 @@ jobs:
       - uses: ./.github/actions/save-build-outputs
         with:
           scala-version: ${{ matrix.scala }}
-          enabled: ${{ vars.CI_SHARE_BUILD_OUTPUTS == 'true' }}
       - name: Test runtime on JVM
         timeout-minutes: 30
         run: sbt "test-runtime-jvm ${{ matrix.scala }}"
@@ -175,21 +177,18 @@ jobs:
         run: git config --global core.autocrlf false
       - uses: actions/checkout@v7
       - uses: ./.github/actions/windows-setup-env
-        id: setup
         with:
           scala-version: "3"
       - name: Test runtime on JVM and test interface
         timeout-minutes: 45
         shell: cmd
-        env:
-          SCALANATIVE_INCLUDE_DIRS: ${{ steps.setup.outputs.vcpkg-dir }}\include
-          SCALANATIVE_LIB_DIRS: ${{ steps.setup.outputs.vcpkg-dir }}\lib
         run: sbt "test-runtime-jvm 3" "testInterface3/test"
 
   linux:
     name: Linux
     needs: [plan, gate, gate-sbt-plugin]
-    if: needs.plan.outputs.tier == 'pr' || needs.plan.outputs.tier == 'nightly'
+    # Skipped together with the gate for the skip and docs tiers
+    if: needs.plan.outputs.tier != 'draft'
     uses: ./.github/workflows/run-tests-linux.yml
     with:
       nightly: ${{ needs.plan.outputs.tier == 'nightly' }}
@@ -203,7 +202,8 @@ jobs:
   macos:
     name: macOS
     needs: [plan, gate, gate-sbt-plugin]
-    if: needs.plan.outputs.tier == 'pr' || needs.plan.outputs.tier == 'nightly'
+    # Skipped together with the gate for the skip and docs tiers
+    if: needs.plan.outputs.tier != 'draft'
     uses: ./.github/workflows/run-tests-macos.yml
     with:
       nightly: ${{ needs.plan.outputs.tier == 'nightly' }}
@@ -213,7 +213,8 @@ jobs:
   windows:
     name: Windows
     needs: [plan, gate, gate-sbt-plugin]
-    if: needs.plan.outputs.tier == 'pr' || needs.plan.outputs.tier == 'nightly'
+    # Skipped together with the gate for the skip and docs tiers
+    if: needs.plan.outputs.tier != 'draft'
     uses: ./.github/workflows/run-tests-windows.yml
     with:
       nightly: ${{ needs.plan.outputs.tier == 'nightly' }}
@@ -223,7 +224,8 @@ jobs:
   apple:
     name: Apple
     needs: [plan, gate, gate-sbt-plugin]
-    if: needs.plan.outputs.tier == 'pr' || needs.plan.outputs.tier == 'nightly'
+    # Skipped together with the gate for the skip and docs tiers
+    if: needs.plan.outputs.tier != 'draft'
     uses: ./.github/workflows/run-tests-apple.yml
     with:
       nightly: ${{ needs.plan.outputs.tier == 'nightly' }}
@@ -233,13 +235,15 @@ jobs:
   multiarch:
     name: Multiarch
     needs: [plan, gate, gate-sbt-plugin]
-    if: needs.plan.outputs.tier == 'pr' || needs.plan.outputs.tier == 'nightly'
+    # Skipped together with the gate for the skip and docs tiers
+    if: needs.plan.outputs.tier != 'draft'
     uses: ./.github/workflows/run-tests-linux-multiarch.yml
 
   bsd:
     name: BSD
     needs: [plan, gate, gate-sbt-plugin]
-    if: needs.plan.outputs.tier == 'pr' || needs.plan.outputs.tier == 'nightly'
+    # Skipped together with the gate for the skip and docs tiers
+    if: needs.plan.outputs.tier != 'draft'
     uses: ./.github/workflows/run-tests-bsd.yml
     with:
       nightly: ${{ needs.plan.outputs.tier == 'nightly' }}
@@ -248,7 +252,8 @@ jobs:
   termux:
     name: Termux
     needs: [plan, gate, gate-sbt-plugin]
-    if: needs.plan.outputs.tier == 'pr' || needs.plan.outputs.tier == 'nightly'
+    # Skipped together with the gate for the skip and docs tiers
+    if: needs.plan.outputs.tier != 'draft'
     uses: ./.github/workflows/run-tests-termux.yml
 
   # Single required status check. Skipped jobs (filtered by `plan`) count as passed.

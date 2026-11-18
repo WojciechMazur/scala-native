@@ -1,8 +1,9 @@
 //> using scala 3.9
 //> using toolkit default
+//> using file gh.scala
 
 /** Selects the CI jobs to run for the current event, used by the plan job of
- *  .github/workflows/ci.yml. Writes `tier`, `partest_full` and one entry per
+ *  .github/workflows/ci.yml. Writes `tier`, `partest-full` and one entry per
  *  `Category` to $GITHUB_OUTPUT.
  *
  *  Environment: EVENT_NAME, GH_REPO, SHA, GH_TOKEN, GITHUB_OUTPUT; for pull
@@ -71,7 +72,7 @@ enum Category(val output: String, val paths: Seq[Pattern]):
   // test-gc on every OS
   case NativeRuntime
       extends Category(
-        output = "native_runtime",
+        output = "native-runtime",
         paths = globs("nativelib/src/main/resources/**")
       )
 
@@ -96,7 +97,7 @@ enum Category(val output: String, val paths: Seq[Pattern]):
   // scripted tests (sbt 2) on every OS
   case SbtPlugin
       extends Category(
-        output = "sbt_plugin",
+        output = "sbt-plugin",
         paths = globs(
           "sbt-scala-native/**",
           "scripted-tests/**",
@@ -140,31 +141,16 @@ val fullPrPaths = globs(
 
 val docsPaths = globs("docs/**", "*.md", "**/*.md")
 
-def env(name: String): String = sys.env.getOrElse(name, "")
-
-/** Runs `gh <command>` in the repository from GH_REPO and parses its JSON
- *  output. The command is split on spaces.
- */
-def gh(command: String): ujson.Value =
-  val args = "gh" +: command.split(' ').toSeq
-  val out = os.proc(args).call(stderr = os.Pipe).out.text()
-  if out.trim.isEmpty then ujson.Null else ujson.read(out)
-
 def changedFiles(repo: String, pr: String): Seq[String] =
-  Iterator
-    .from(1)
-    .map(page => gh(s"api repos/$repo/pulls/$pr/files?per_page=100&page=$page"))
-    .map(_.arr.toSeq)
-    .takeWhile(_.nonEmpty)
-    .flatten
-    .flatMap(f =>
-      f("filename").str +: f.obj.get("previous_filename").map(_.str).toSeq
-    )
-    .toSeq
+  ghApiPages(s"repos/$repo/pulls/$pr/files").flatMap(f =>
+    f("filename").str +: f.obj.get("previous_filename").map(_.str).toSeq
+  )
 
 def lastNightlySha(): Option[String] =
   val query = "--workflow ci.yml --event schedule --status completed --limit 1"
-  try gh(s"run list $query --json headSha").arr.headOption.map(_("headSha").str)
+  try
+    ghJson(s"run list $query --json headSha").arr.headOption
+      .map(_("headSha").str)
   catch
     case e: os.SubprocessException =>
       // e.g. no scheduled run yet: run the nightly
@@ -222,7 +208,7 @@ def plan(): Plan =
   val result = plan()
   val lines =
     s"tier=${result.tier.output}" +:
-      s"partest_full=${result.partestFull}" +:
+      s"partest-full=${result.partestFull}" +:
       Category.values.toSeq.map(c =>
         s"${c.output}=${result.categories.contains(c)}"
       )

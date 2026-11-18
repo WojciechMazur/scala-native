@@ -2,7 +2,6 @@ name: Run tests Termux
 # Called from ci.yml, runs the same jobs on pull requests and nightly.
 on:
   workflow_call:
-  workflow_dispatch:
 
 permissions:
   contents: read

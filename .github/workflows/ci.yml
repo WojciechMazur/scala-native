@@ -50,6 +50,10 @@ jobs:
       apple: ${{ steps.plan.outputs.apple }}
       sbt-plugin: ${{ steps.plan.outputs.sbt-plugin }}
       partest: ${{ steps.plan.outputs.partest }}
+      multiarch: ${{ steps.plan.outputs.multiarch }}
+      bsd: ${{ steps.plan.outputs.bsd }}
+      termux: ${{ steps.plan.outputs.termux }}
+      ios-simulator: ${{ steps.plan.outputs.ios-simulator }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -240,19 +244,18 @@ jobs:
       nightly: ${{ needs.plan.outputs.tier == 'nightly' }}
       native-runtime: ${{ needs.plan.outputs.native-runtime == 'true' }}
       apple: ${{ needs.plan.outputs.apple == 'true' }}
+      ios-simulator: ${{ needs.plan.outputs.ios-simulator == 'true' }}
 
   linux-multiarch:
     name: Linux Multiarch
     needs: [plan, gate, gate-sbt-plugin]
-    # Skipped together with the gate for the skip and docs tiers
-    if: needs.plan.outputs.tier != 'draft'
+    if: needs.plan.outputs.tier != 'draft' && needs.plan.outputs.multiarch == 'true'
     uses: ./.github/workflows/run-tests-linux-multiarch.yml
 
   bsd:
     name: BSD
     needs: [plan, gate, gate-sbt-plugin]
-    # Skipped together with the gate for the skip and docs tiers
-    if: needs.plan.outputs.tier != 'draft'
+    if: needs.plan.outputs.tier != 'draft' && needs.plan.outputs.bsd == 'true'
     uses: ./.github/workflows/run-tests-bsd.yml
     with:
       nightly: ${{ needs.plan.outputs.tier == 'nightly' }}
@@ -261,8 +264,7 @@ jobs:
   termux:
     name: Termux
     needs: [plan, gate, gate-sbt-plugin]
-    # Skipped together with the gate for the skip and docs tiers
-    if: needs.plan.outputs.tier != 'draft'
+    if: needs.plan.outputs.tier != 'draft' && needs.plan.outputs.termux == 'true'
     uses: ./.github/workflows/run-tests-termux.yml
 
   # Single required status check. Skipped jobs (filtered by `plan`) count as passed.

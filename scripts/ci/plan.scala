@@ -10,9 +10,9 @@
  *  below is the only place deciding when each of them runs. Writes `tier` and
  *  one `<workflow>=off|base|extended` entry per workflow to $GITHUB_OUTPUT.
  *
- *  Environment: EVENT_NAME, REF_TYPE, GH_REPO, SHA, GH_TOKEN, GITHUB_OUTPUT;
- *  for pull requests PR_NUMBER, PR_DRAFT, PR_BODY, PR_LABELS (JSON list of
- *  names); DISPATCH_TIER for workflow_dispatch.
+ *  Environment: EVENT_NAME, REF, REF_TYPE, GH_REPO, SHA, GH_TOKEN,
+ *  GITHUB_OUTPUT; for pull requests PR_NUMBER, PR_DRAFT, PR_BODY, PR_LABELS
+ *  (JSON list of names); DISPATCH_TIER for workflow_dispatch.
  */
 import java.nio.file.{FileSystems, Paths}
 
@@ -80,7 +80,13 @@ val extraPlatformPaths = toolchainPaths ++ gcPaths ++ posixPaths
  *  their extended jobs (`extended`) on pull requests. Nightly runs everything
  *  extended.
  */
-enum Workflow(val output: String, val base: Trigger, val extended: Trigger):
+enum Workflow(
+    val output: String,
+    val base: Trigger,
+    val extended: Trigger,
+    // tested before publishing a release
+    val release: Boolean = false
+):
   case Toolchain
       extends Workflow(
         "toolchain",
@@ -91,19 +97,22 @@ enum Workflow(val output: String, val base: Trigger, val extended: Trigger):
       extends Workflow(
         "linux",
         base = Trigger.Always,
-        extended = Trigger.Changed(gcPaths)
+        extended = Trigger.Changed(gcPaths),
+        release = true
       )
   case MacOS
       extends Workflow(
         "macos",
         base = Trigger.Always,
-        extended = Trigger.Changed(nativeRuntimePaths)
+        extended = Trigger.Changed(nativeRuntimePaths),
+        release = true
       )
   case Windows
       extends Workflow(
         "windows",
         base = Trigger.Always,
-        extended = Trigger.Changed(nativeRuntimePaths)
+        extended = Trigger.Changed(nativeRuntimePaths),
+        release = true
       )
   case Apple
       extends Workflow(
@@ -195,12 +204,23 @@ def lastNightlySha(): Option[String] =
       println(s"Cannot find the last nightly run: ${e.result.err.text().trim}")
       None
 
-case class Plan(tier: Tier, levels: Map[Workflow, Level])
+case class Plan(tier: Tier, levels: Map[Workflow, Level]):
+  /** Snapshots are published by nightly runs on main, releases from tags */
+  def publish: String = tier match
+    case Tier.Release                                    => "release"
+    case Tier.Nightly if env("REF") == "refs/heads/main" => "snapshot"
+    case _                                               => "off"
 
 object Plan:
   def all(tier: Tier, level: Level) =
     Plan(tier, Workflow.values.map(_ -> level).toMap)
   def nightly = all(Tier.Nightly, Level.Extended)
+  def release = Plan(
+    Tier.Release,
+    Workflow.values
+      .map(w => w -> (if w.release then Level.Base else Level.Off))
+      .toMap
+  )
 
   def pullRequest(pr: PullRequest): Plan =
     val fullPr = pr.files.isEmpty || pr.files.exists(fullPrPaths.matchAny)
@@ -228,15 +248,7 @@ def plan(): Plan =
         Plan.all(Tier.Skip, Level.Off)
       else Plan.nightly
 
-    // Release tag: published once the base Linux, macOS and Windows tests pass
-    case "push" if env("REF_TYPE") == "tag" =>
-      val tested = Set(Workflow.Linux, Workflow.MacOS, Workflow.Windows)
-      Plan(
-        Tier.Release,
-        Workflow.values
-          .map(w => w -> (if tested(w) then Level.Base else Level.Off))
-          .toMap
-      )
+    case "push" if env("REF_TYPE") == "tag" => Plan.release
 
     case "workflow_dispatch" =>
       if env("DISPATCH_TIER") == Tier.PR.output then
@@ -268,7 +280,7 @@ def plan(): Plan =
 
 @main def run(): Unit =
   val result = plan()
-  val lines = s"tier=${result.tier.output}" +:
+  val lines = s"tier=${result.tier.output}" +: s"publish=${result.publish}" +:
     Workflow.values.toSeq.map(w => s"${w.output}=${result.levels(w).output}")
   lines.foreach(println)
   os.write.append(os.Path(env("GITHUB_OUTPUT")), lines.mkString("", "\n", "\n"))

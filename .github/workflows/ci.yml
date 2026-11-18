@@ -40,6 +40,7 @@ jobs:
       actions: read
     outputs:
       tier: ${{ steps.plan.outputs.tier }}
+      publish: ${{ steps.plan.outputs.publish }}
       toolchain: ${{ steps.plan.outputs.toolchain }}
       linux: ${{ steps.plan.outputs.linux }}
       macos: ${{ steps.plan.outputs.macos }}
@@ -63,6 +64,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           GH_REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
+          REF: ${{ github.ref }}
           REF_TYPE: ${{ github.ref_type }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_DRAFT: ${{ github.event.pull_request.draft }}
@@ -265,23 +267,25 @@ jobs:
   publish-snapshot:
     name: Publish snapshot
     needs: [plan, gate, gate-sbt-plugin]
-    if: >
-      needs.plan.outputs.tier == 'nightly' && github.ref == 'refs/heads/main' &&
-      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    if: needs.plan.outputs.publish == 'snapshot'
     permissions:
       contents: write
     uses: ./.github/workflows/publish.yml
     secrets: inherit
+    with:
+      snapshot: true
 
-  # Release from a tag, requires the base Linux, macOS and Windows tests
+  # Release from a tag, requires every job of the release plan (CI OK)
   publish-release:
     name: Publish release
-    needs: [plan, gate, gate-sbt-plugin, gate-macos, gate-windows, linux, macos, windows]
-    if: needs.plan.outputs.tier == 'release'
+    needs: [plan, ci-ok]
+    if: needs.plan.outputs.publish == 'release'
     permissions:
       contents: write
     uses: ./.github/workflows/publish.yml
     secrets: inherit
+    with:
+      snapshot: false
 
   # Single required status check. Skipped jobs (filtered by `plan`) count as passed.
   ci-ok:

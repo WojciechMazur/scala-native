@@ -228,6 +228,10 @@ Its `plan` job selects which jobs run:
   request description (or the `ci:full` label) runs it for a pull request,
   `[test-partest]` (or the `ci:partest` label) runs all partests.
 
+Snapshots are published from the nightly run once the gate passes. Pushing
+a `v0.5.*` tag runs the gate and the base Linux, macOS and Windows tests,
+then publishes the release.
+
 The `CI OK` job aggregates the results and is the only required check.
 Repository variables control CI without code changes:
 `NIGHTLY_CREATE_ISSUES=true` reports nightly failures as issues labelled

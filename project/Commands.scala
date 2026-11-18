@@ -320,9 +320,19 @@ object Commands {
     }
   }
 
+  // Usage: publish-release-for-version <binary version> [base | cross <i>/<n>]
+  //   base      - only artifacts for the base Scala version
+  //   cross i/n - only cross-published artifacts for every n-th Scala version, starting at i (1-based)
+  // Without a part publishes all of them.
   lazy val publishReleaseForVersion =
-    projectVersionCommand("publish-release-for-version") {
-      case (binVersion, state) =>
+    Command.args(
+      "publish-release-for-version",
+      "<binary version> [base | cross <i>/<n>]"
+    ) {
+      case (state, args) =>
+        val binVersion = args.headOption
+          .map(CrossVersion.binaryScalaVersion)
+          .getOrElse(sys.error("Expected Scala binary version argument"))
         val (scalaVersion, crossScalaVersions) = binVersion match {
           case "2.12" => ScalaVersions.scala212 -> ScalaVersions.crossScala212
           case "2.13" => ScalaVersions.scala213 -> ScalaVersions.crossScala213
@@ -330,24 +340,38 @@ object Commands {
             ScalaVersions.scala3PublishVersion -> ScalaVersions.crossScala3
           case _ => sys.error(s"Invalid Scala binary version: '$binVersion'")
         }
+        // exclude already published base version
+        val allCrossVersions =
+          crossScalaVersions.diff(scalaVersion :: Nil).toList
+        val Shard = """(\d+)/(\d+)""".r
+        val (publishBase, crossVersions) = args.drop(1) match {
+          case Nil                       => (true, allCrossVersions)
+          case Seq("base")               => (true, Nil)
+          case Seq("cross", Shard(i, n)) =>
+            val shard = i.toInt - 1
+            false -> allCrossVersions.zipWithIndex.collect {
+              case (v, idx) if idx % n.toInt == shard => v
+            }
+          case other =>
+            sys.error(
+              s"Unknown part ${other.mkString(" ")}, expected 'base' or 'cross <i>/<n>'"
+            )
+        }
         val publishCommand = "publishSigned"
-        val publishBaseVersion = s"++$scalaVersion; $publishCommand"
-        val publishCrossVersions = crossScalaVersions
-          .diff(scalaVersion :: Nil) // exclude already published base version
-          .toList
-          .map { crossVersion =>
-            Build.crossPublishedMultiScalaProjects
-              .map(_.forBinaryVersion(binVersion))
-              .map(project => s"${project.id}/$publishCommand")
-              .mkString(s"++ $crossVersion; all ", " ", "")
-          }
+        val publishBaseVersion =
+          if (publishBase) List(s"++$scalaVersion; $publishCommand") else Nil
+        val publishCrossVersions = crossVersions.map { crossVersion =>
+          Build.crossPublishedMultiScalaProjects
+            .map(_.forBinaryVersion(binVersion))
+            .map(project => s"${project.id}/$publishCommand")
+            .mkString(s"++ $crossVersion; all ", " ", "")
+        }
         val isSnapshotVersion =
           state.getSetting(ThisBuild / version).exists(_.endsWith("-SNAPSHOT"))
         val release = if (isSnapshotVersion) Nil else ("sonaUpload" :: Nil)
-        val crossPublish = ScalaVersions
         val commandsToExecute =
           "clean" ::
-            publishBaseVersion ::
+            publishBaseVersion :::
             publishCrossVersions :::
             release
 

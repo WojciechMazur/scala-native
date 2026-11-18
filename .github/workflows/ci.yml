@@ -6,6 +6,8 @@ name: CI
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    tags: ["v0.5.*"]
   schedule:
     # Every day at 2 AM UTC, skipped when nothing was committed since the last run
     - cron: "0 2 * * *"
@@ -61,6 +63,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           GH_REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
+          REF_TYPE: ${{ github.ref_type }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_DRAFT: ${{ github.event.pull_request.draft }}
           PR_BODY: ${{ github.event.pull_request.body }}
@@ -257,6 +260,22 @@ jobs:
     uses: ./.github/workflows/run-tests-partests.yml
     with:
       extended: ${{ needs.plan.outputs.partests == 'extended' }}
+
+  # Nightly snapshot, requires only the gates
+  publish-snapshot:
+    name: Publish snapshot
+    needs: [plan, gate, gate-sbt-plugin]
+    if: github.event_name == 'schedule' && needs.plan.outputs.tier == 'nightly'
+    uses: ./.github/workflows/publish.yml
+    secrets: inherit
+
+  # Release from a tag, requires the base Linux, macOS and Windows tests
+  publish-release:
+    name: Publish release
+    needs: [plan, gate, gate-sbt-plugin, gate-macos, gate-windows, linux, macos, windows]
+    if: needs.plan.outputs.tier == 'release'
+    uses: ./.github/workflows/publish.yml
+    secrets: inherit
 
   # Single required status check. Skipped jobs (filtered by `plan`) count as passed.
   ci-ok:

@@ -1,0 +1,61 @@
+# Temporary fork-only check: run the Windows setup actions against vcpkg zlib
+# 1.3.2 and 1.4 ports, then link and run a zlib-using sandbox program.
+name: CI check - Windows zlib
+on:
+  push:
+    branches:
+      - ci-check/windows-zlib-*
+jobs:
+  zlib:
+    name: ${{ matrix.os }} zlib ${{ matrix.zlib }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-11-arm]
+        zlib: ["1.4", "1.3.2"]
+        include:
+          - zlib: "1.4"
+            vcpkg-sha: 98d7375b79be7551ac3db6fbe668a08da9b1cac5
+          - zlib: "1.3.2"
+            vcpkg-sha: fe8e78fac7df2793f9848ed0d27aa59d9c035998
+    steps:
+      - name: Setup git config
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+
+      - name: Pin vcpkg zlib port
+        shell: pwsh
+        run: |
+          $root = $env:VCPKG_INSTALLATION_ROOT
+          if ([string]::IsNullOrWhiteSpace($root)) { $root = 'C:\vcpkg' }
+          git -C $root fetch --depth 1 origin ${{ matrix.vcpkg-sha }}
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git -C $root checkout ${{ matrix.vcpkg-sha }} -- ports/zlib
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-Content (Join-Path $root 'ports\zlib\vcpkg.json')
+
+      - uses: ./.github/actions/windows-setup-env
+        if: matrix.os == 'windows-2022'
+        id: setup
+        with:
+          scala-version: "3"
+      - uses: ./.github/actions/windows-arm-setup-env
+        if: matrix.os == 'windows-11-arm'
+        id: setup-arm
+        with:
+          scala-version: "3"
+
+      - name: Show installed zlib
+        shell: pwsh
+        run: |
+          vcpkg list zlib
+          Get-ChildItem -LiteralPath '${{ steps.setup.outputs.vcpkg-dir || steps.setup-arm.outputs.vcpkg-dir }}\lib' | ForEach-Object { Write-Host "  $($_.Name)" }
+
+      - name: Run zlib sandbox
+        timeout-minutes: 30
+        env:
+          SCALANATIVE_INCLUDE_DIRS: ${{ steps.setup.outputs.vcpkg-dir || steps.setup-arm.outputs.vcpkg-dir }}\include
+          SCALANATIVE_LIB_DIRS: ${{ steps.setup.outputs.vcpkg-dir || steps.setup-arm.outputs.vcpkg-dir }}\lib
+        run: sbt "sandbox3/run"
+        shell: cmd

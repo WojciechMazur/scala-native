@@ -31,23 +31,29 @@ def globs(patterns: String*): Seq[Pattern] = patterns.map(Glob(_))
 extension (patterns: Seq[Pattern])
   def matchAny(path: String): Boolean = patterns.exists(_.matches(path))
 
+val toolsPaths = globs(
+  "tools/**",
+  "nir/**",
+  "util/**",
+  "nscplugin/**",
+  "test-runner/**",
+  "test-interface*/**",
+  "testing-compiler*/**",
+  "project/**"
+)
+val gcPaths = globs("nativelib/src/main/resources/scala-native/gc/**")
+val posixPaths = globs(
+  "posixlib/**",
+  "clib/**",
+  "nativelib/src/main/resources/scala-native/platform/posix/**"
+)
+// Platforms tested on pull requests only for changes to the toolchain, GC or POSIX bindings
+val extraPlatformPaths = toolsPaths ++ gcPaths ++ posixPaths
+
 /** Extra jobs on pull requests enabled by modified paths */
 enum Category(val output: String, val paths: Seq[Pattern]):
   // tools tests for Scala 2.12 and 2.13
-  case Tools
-      extends Category(
-        output = "tools",
-        paths = globs(
-          "tools/**",
-          "nir/**",
-          "util/**",
-          "nscplugin/**",
-          "test-runner/**",
-          "test-interface*/**",
-          "testing-compiler*/**",
-          "project/**"
-        )
-      )
+  case Tools extends Category(output = "tools", paths = toolsPaths)
 
   // cross compilation for all supported Scala versions
   case Compiler
@@ -63,11 +69,7 @@ enum Category(val output: String, val paths: Seq[Pattern]):
       )
 
   // GC rows of the runtime extension matrix
-  case GC
-      extends Category(
-        output = "gc",
-        paths = globs("nativelib/src/main/resources/scala-native/gc/**")
-      )
+  case GC extends Category(output = "gc", paths = gcPaths)
 
   // test-gc on every OS
   case NativeRuntime
@@ -77,15 +79,18 @@ enum Category(val output: String, val paths: Seq[Pattern]):
       )
 
   // NetBSD
-  case Posix
-      extends Category(
-        output = "posix",
-        paths = globs(
-          "posixlib/**",
-          "clib/**",
-          "nativelib/src/main/resources/scala-native/platform/posix/**"
-        )
-      )
+  case Posix extends Category(output = "posix", paths = posixPaths)
+
+  case Multiarch
+      extends Category(output = "multiarch", paths = extraPlatformPaths)
+
+  // FreeBSD
+  case BSD extends Category(output = "bsd", paths = extraPlatformPaths)
+
+  case Termux extends Category(output = "termux", paths = extraPlatformPaths)
+
+  case IOSSimulator
+      extends Category(output = "ios-simulator", paths = extraPlatformPaths)
 
   // tvOS, watchOS and iOS device link-only builds
   case Apple

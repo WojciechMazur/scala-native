@@ -223,6 +223,8 @@ Its `plan` job selects which jobs run:
 - pull requests run a reduced set of platform tests, extended by the
   modified paths, for example changes to the GC run the GC test matrix and
   changes to the sbt plugin run scripted tests;
+- Linux multiarch, BSD, Termux and the iOS simulator run on pull requests
+  only for changes to posixlib, clib, the GC or the toolchain;
 - draft pull requests run only the gate, documentation-only changes only the
   lint and documentation checks;
 - the full set of tests runs every night on `main`, unless nothing was

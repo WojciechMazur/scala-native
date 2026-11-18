@@ -7,6 +7,7 @@ on:
       nightly: { type: boolean, default: false }
       native-runtime: { type: boolean, default: false }
       apple: { type: boolean, default: false }
+      ios-simulator: { type: boolean, default: false }
 
 permissions:
   contents: read
@@ -19,6 +20,7 @@ jobs:
   # Builds and runs the tests inside of the iOS simulator
   ios-simulator:
     name: iOS simulator (3, ${{ matrix.mode }}, ${{ matrix.gc }})
+    if: inputs.ios-simulator
     runs-on: macos-15
     strategy:
       matrix:

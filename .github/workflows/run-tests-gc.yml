@@ -18,10 +18,12 @@ jobs:
     name: Test GC Linux (${{ matrix.mode }}, lto=${{ matrix.lto }})
     runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false
       matrix:
         include:
           - { mode: release-fast, lto: thin }
-    steps: &linux-steps
+          - { mode: debug, lto: none }
+    steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/linux-setup-env
         with:
@@ -35,16 +37,6 @@ jobs:
           SCALANATIVE_MODE: ${{ matrix.mode }}
           SCALANATIVE_LTO: ${{ matrix.lto }}
         run: sbt "test-gc 3"
-
-  linux-extended:
-    name: Test GC Linux (${{ matrix.mode }}, lto=${{ matrix.lto }})
-    if: inputs.extended
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        include:
-          - { mode: debug, lto: none }
-    steps: *linux-steps
 
   macos:
     name: Test GC macOS (${{ matrix.mode }}, lto=${{ matrix.lto }})

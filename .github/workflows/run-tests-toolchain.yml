@@ -1,13 +1,12 @@
 name: Run tests Toolchain
 # Compiler plugins, NIR, linker and test infrastructure on the JVM, and cross
 # compilation for every supported Scala version.
-# Called from ci.yml, inputs are computed by its plan job (scripts/ci/plan.scala).
+# Called from ci.yml, see scripts/ci/plan.scala. Jobs with `if: inputs.extended`
+# run nightly and on pull requests listed in its extended triggers.
 on:
   workflow_call:
     inputs:
-      nightly: { type: boolean, default: false }
-      tools: { type: boolean, default: false }
-      compiler: { type: boolean, default: false }
+      extended: { type: boolean, default: false }
 
 permissions:
   contents: read
@@ -36,7 +35,7 @@ jobs:
 
   tools-tests-scala2:
     name: Tools tests (${{ matrix.scala }})
-    if: inputs.tools
+    if: inputs.extended
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -45,10 +44,9 @@ jobs:
     steps: *tools-tests-steps
 
   # Compiler plugins and the patched Scala standard library for every supported Scala version.
-  # Pull requests check only the first and last patch release of each minor version.
   cross-compile:
     name: Cross compile (${{ matrix.scala }})
-    if: inputs.compiler
+    if: inputs.extended
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -62,4 +60,4 @@ jobs:
           java-version: 17
       - name: Cross compile compiler plugins and Scala standard library
         timeout-minutes: 120
-        run: sbt "test-cross-compile ${{ matrix.scala }} ${{ inputs.nightly && 'all' || 'edges' }}"
+        run: sbt "test-cross-compile ${{ matrix.scala }}"

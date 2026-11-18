@@ -1,13 +1,11 @@
 name: Run tests Apple
 # Apple embedded targets: iOS simulator, tvOS, watchOS.
-# Called from ci.yml, inputs are computed by its plan job (scripts/ci/plan.scala).
+# Called from ci.yml, see scripts/ci/plan.scala. Jobs with `if: inputs.extended`
+# run nightly and on pull requests listed in its extended triggers.
 on:
   workflow_call:
     inputs:
-      nightly: { type: boolean, default: false }
-      native-runtime: { type: boolean, default: false }
-      apple: { type: boolean, default: false }
-      ios-simulator: { type: boolean, default: false }
+      extended: { type: boolean, default: false }
 
 permissions:
   contents: read
@@ -20,7 +18,6 @@ jobs:
   # Builds and runs the tests inside of the iOS simulator
   ios-simulator:
     name: iOS simulator (3, ${{ matrix.mode }}, ${{ matrix.gc }})
-    if: inputs.ios-simulator
     runs-on: macos-15
     strategy:
       matrix:
@@ -51,9 +48,9 @@ jobs:
         timeout-minutes: 60
         run: sbt -J-Xmx5G "tests3/test"
 
-  ios-simulator-nightly:
+  ios-simulator-extended:
     name: iOS simulator (3, ${{ matrix.mode }}, ${{ matrix.gc }})
-    if: inputs.nightly
+    if: inputs.extended
     runs-on: macos-15
     strategy:
       fail-fast: false
@@ -73,17 +70,20 @@ jobs:
   # Every GC (except Boehm, not available for iOS) with sandbox, test interface and JUnit outputs
   test-gc:
     name: Test GC iOS simulator (${{ matrix.mode }}, lto=${{ matrix.lto }})
-    if: inputs.native-runtime
+    if: inputs.extended
     runs-on: macos-15
     strategy:
+      fail-fast: false
       matrix:
         include:
           - mode: release-fast
             lto: thin
+          - mode: debug
+            lto: none
     env:
       SCALANATIVE_MODE: ${{ matrix.mode }}
       SCALANATIVE_LTO: ${{ matrix.lto }}
-    steps: &test-gc-steps
+    steps:
       - uses: actions/checkout@v7
       - *setup-env
       - uses: ./.github/actions/ios-simulator-setup
@@ -93,25 +93,11 @@ jobs:
         timeout-minutes: 45
         run: sbt -J-Xmx5G "test-gc 3"
 
-  test-gc-nightly:
-    name: Test GC iOS simulator (${{ matrix.mode }}, lto=${{ matrix.lto }})
-    if: inputs.nightly
-    runs-on: macos-15
-    strategy:
-      matrix:
-        include:
-          - mode: debug
-            lto: none
-    env:
-      SCALANATIVE_MODE: ${{ matrix.mode }}
-      SCALANATIVE_LTO: ${{ matrix.lto }}
-    steps: *test-gc-steps
-
   # Scala Native code used as a static library from a foreign host program
   # running its own threads, the way an iOS application would embed it.
   ios-static-library:
     name: iOS static library
-    if: inputs.nightly
+    if: inputs.extended
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
@@ -127,7 +113,7 @@ jobs:
   # runtime and tests can be compiled and linked for these targets.
   build-apple-platforms:
     name: Build ${{ matrix.target }}
-    if: inputs.apple
+    if: inputs.extended
     runs-on: macos-15
     strategy:
       fail-fast: false

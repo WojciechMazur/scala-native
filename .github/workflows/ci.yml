@@ -1,11 +1,8 @@
 name: CI
-# Single entry point for all tests. Platform workflows (run-tests-*.yml) are
-# called from here with inputs computed by the `plan` job (scripts/ci/plan.scala):
-#   nightly: run the full set of jobs
-#   category flags (gc, sbt-plugin, ...): extra jobs on pull requests enabled
-#   by modified paths, all true for nightly runs.
-# Pull requests run a reduced set of jobs, the rest runs nightly on main.
-# `ci-ok` is the only check that should be marked as required.
+# Single entry point for all tests. The plan job (scripts/ci/plan.scala) sets
+# each platform workflow to off, base or extended (base jobs plus the jobs
+# with `if: inputs.extended`). Pull requests run a reduced set of jobs, the
+# rest runs nightly on main. `ci-ok` is the only check that should be marked as required.
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -41,19 +38,16 @@ jobs:
       actions: read
     outputs:
       tier: ${{ steps.plan.outputs.tier }}
-      partest-full: ${{ steps.plan.outputs.partest-full }}
-      tools: ${{ steps.plan.outputs.tools }}
-      compiler: ${{ steps.plan.outputs.compiler }}
-      gc: ${{ steps.plan.outputs.gc }}
-      native-runtime: ${{ steps.plan.outputs.native-runtime }}
-      posix: ${{ steps.plan.outputs.posix }}
+      toolchain: ${{ steps.plan.outputs.toolchain }}
+      linux: ${{ steps.plan.outputs.linux }}
+      macos: ${{ steps.plan.outputs.macos }}
+      windows: ${{ steps.plan.outputs.windows }}
       apple: ${{ steps.plan.outputs.apple }}
-      sbt-plugin: ${{ steps.plan.outputs.sbt-plugin }}
-      partest: ${{ steps.plan.outputs.partest }}
-      multiarch: ${{ steps.plan.outputs.multiarch }}
+      linux-multiarch: ${{ steps.plan.outputs.linux-multiarch }}
       bsd: ${{ steps.plan.outputs.bsd }}
       termux: ${{ steps.plan.outputs.termux }}
-      ios-simulator: ${{ steps.plan.outputs.ios-simulator }}
+      sbt-plugin: ${{ steps.plan.outputs.sbt-plugin }}
+      partests: ${{ steps.plan.outputs.partests }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -191,87 +185,84 @@ jobs:
   toolchain:
     name: Toolchain
     needs: [plan, gate, gate-sbt-plugin]
-    # Skipped together with the gate for the skip and docs tiers
-    if: needs.plan.outputs.tier != 'draft'
+    if: needs.plan.outputs.toolchain != 'off'
     uses: ./.github/workflows/run-tests-toolchain.yml
     with:
-      nightly: ${{ needs.plan.outputs.tier == 'nightly' }}
-      tools: ${{ needs.plan.outputs.tools == 'true' }}
-      compiler: ${{ needs.plan.outputs.compiler == 'true' }}
+      extended: ${{ needs.plan.outputs.toolchain == 'extended' }}
 
   linux:
     name: Linux
     needs: [plan, gate, gate-sbt-plugin]
-    # Skipped together with the gate for the skip and docs tiers
-    if: needs.plan.outputs.tier != 'draft'
+    if: needs.plan.outputs.linux != 'off'
     uses: ./.github/workflows/run-tests-linux.yml
     with:
-      nightly: ${{ needs.plan.outputs.tier == 'nightly' }}
-      gc: ${{ needs.plan.outputs.gc == 'true' }}
-      sbt-plugin: ${{ needs.plan.outputs.sbt-plugin == 'true' }}
-      partest: ${{ needs.plan.outputs.partest == 'true' }}
-      partest-full: ${{ needs.plan.outputs.partest-full == 'true' }}
+      extended: ${{ needs.plan.outputs.linux == 'extended' }}
 
   macos:
     name: macOS
     needs: [plan, gate, gate-sbt-plugin]
-    # Skipped together with the gate for the skip and docs tiers
-    if: needs.plan.outputs.tier != 'draft'
+    if: needs.plan.outputs.macos != 'off'
     uses: ./.github/workflows/run-tests-macos.yml
     with:
-      nightly: ${{ needs.plan.outputs.tier == 'nightly' }}
-      native-runtime: ${{ needs.plan.outputs.native-runtime == 'true' }}
-      sbt-plugin: ${{ needs.plan.outputs.sbt-plugin == 'true' }}
+      extended: ${{ needs.plan.outputs.macos == 'extended' }}
 
   windows:
     name: Windows
     needs: [plan, gate, gate-sbt-plugin]
-    # Skipped together with the gate for the skip and docs tiers
-    if: needs.plan.outputs.tier != 'draft'
+    if: needs.plan.outputs.windows != 'off'
     uses: ./.github/workflows/run-tests-windows.yml
     with:
-      nightly: ${{ needs.plan.outputs.tier == 'nightly' }}
-      native-runtime: ${{ needs.plan.outputs.native-runtime == 'true' }}
-      sbt-plugin: ${{ needs.plan.outputs.sbt-plugin == 'true' }}
+      extended: ${{ needs.plan.outputs.windows == 'extended' }}
 
   apple:
     name: Apple
     needs: [plan, gate, gate-sbt-plugin]
-    # Skipped together with the gate for the skip and docs tiers
-    if: needs.plan.outputs.tier != 'draft'
+    if: needs.plan.outputs.apple != 'off'
     uses: ./.github/workflows/run-tests-apple.yml
     with:
-      nightly: ${{ needs.plan.outputs.tier == 'nightly' }}
-      native-runtime: ${{ needs.plan.outputs.native-runtime == 'true' }}
-      apple: ${{ needs.plan.outputs.apple == 'true' }}
-      ios-simulator: ${{ needs.plan.outputs.ios-simulator == 'true' }}
+      extended: ${{ needs.plan.outputs.apple == 'extended' }}
 
   linux-multiarch:
     name: Linux Multiarch
     needs: [plan, gate, gate-sbt-plugin]
-    if: needs.plan.outputs.tier != 'draft' && needs.plan.outputs.multiarch == 'true'
+    if: needs.plan.outputs.linux-multiarch != 'off'
     uses: ./.github/workflows/run-tests-linux-multiarch.yml
 
   bsd:
     name: BSD
     needs: [plan, gate, gate-sbt-plugin]
-    if: needs.plan.outputs.tier != 'draft' && needs.plan.outputs.bsd == 'true'
+    if: needs.plan.outputs.bsd != 'off'
     uses: ./.github/workflows/run-tests-bsd.yml
     with:
-      nightly: ${{ needs.plan.outputs.tier == 'nightly' }}
-      posix: ${{ needs.plan.outputs.posix == 'true' }}
+      extended: ${{ needs.plan.outputs.bsd == 'extended' }}
 
   termux:
     name: Termux
     needs: [plan, gate, gate-sbt-plugin]
-    if: needs.plan.outputs.tier != 'draft' && needs.plan.outputs.termux == 'true'
+    if: needs.plan.outputs.termux != 'off'
     uses: ./.github/workflows/run-tests-termux.yml
+
+  sbt-plugin:
+    name: sbt plugin
+    needs: [plan, gate, gate-sbt-plugin]
+    if: needs.plan.outputs.sbt-plugin != 'off'
+    uses: ./.github/workflows/run-tests-sbt-plugin.yml
+    with:
+      extended: ${{ needs.plan.outputs.sbt-plugin == 'extended' }}
+
+  partests:
+    name: Partests
+    needs: [plan, gate, gate-sbt-plugin]
+    if: needs.plan.outputs.partests != 'off'
+    uses: ./.github/workflows/run-tests-partests.yml
+    with:
+      extended: ${{ needs.plan.outputs.partests == 'extended' }}
 
   # Single required status check. Skipped jobs (filtered by `plan`) count as passed.
   ci-ok:
     name: CI OK
     if: always()
-    needs: [plan, checks, gate, gate-sbt-plugin, gate-macos, gate-windows, toolchain, linux, linux-multiarch, macos, windows, apple, bsd, termux]
+    needs: [plan, checks, gate, gate-sbt-plugin, gate-macos, gate-windows, toolchain, linux, macos, windows, apple, linux-multiarch, bsd, termux, sbt-plugin, partests]
     runs-on: ubuntu-24.04
     steps:
       - name: Check results

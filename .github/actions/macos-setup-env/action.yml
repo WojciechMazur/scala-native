@@ -8,8 +8,8 @@ inputs:
     description: "Java version to use in tests"
     default: "25"
   llvm-version:
-    description: "Custom version of LLVM to use"
-    default: "16"
+    description: "LLVM version installed from Homebrew, the runner's preinstalled llvm@18 when empty"
+    default: ""
   lld-version:
     description: "Version of the separate Homebrew LLD formula to use"
     default: ""
@@ -42,6 +42,15 @@ runs:
       shell: bash
       if: ${{ startsWith(inputs.gc, 'boehm') }}
       run: brew install bdw-gc
+
+    - name: Use preinstalled LLVM toolchain
+      shell: bash
+      if: ${{ inputs.llvm-version == '' }}
+      run: |
+        LLVM_TOOLCHAIN="$(brew --prefix llvm@18)/bin"
+        echo "LLVM_BIN=$LLVM_TOOLCHAIN" >> "$GITHUB_ENV"
+        echo "$LLVM_TOOLCHAIN" >> "$GITHUB_PATH"
+        echo "Using toolchain: $("$LLVM_TOOLCHAIN/clang" --version | head -1)"
 
     - name: Install and cache LLVM toolchain
       if: ${{ inputs.llvm-version != '' }}

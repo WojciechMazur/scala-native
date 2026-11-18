@@ -1,78 +1,50 @@
 name: Publish
+# Called from ci.yml: snapshots from the nightly run once its gates pass,
+# releases from a v0.5.* tag once the Linux, macOS and Windows tests pass.
 on:
-  push:
-    tags:
-    - 'v0.5.*'
+  workflow_call:
   workflow_dispatch:
-  schedule:
-  # Snapshot release every day at midnight
-  - cron: '0 0 * * *'
 
-env:
-  LAST_PUBLISHED_TAG: last-published
+permissions:
+  contents: read
 
 jobs:
-  load_tag:
-    name: Check last nightly tag
-    outputs:
-      skip: ${{ steps.check.outputs.skip }}
-    runs-on: ubuntu-24.04
-    if: github.repository == 'scala-native/scala-native'
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Check if there are changes since last run
-        id: check
-        run: |
-          PREV_SHA=none
-          if \
-            [[ "${{ github.event_name }}" != "push" || "${{ github.ref_type }}" != "tag"  ]] \
-            && git fetch origin tag ${LAST_PUBLISHED_TAG} 2> /dev/null
-          then # if this is not a tag push (so, not a release) and the tag exists
-            PREV_SHA=$(git rev-parse --verify --quiet refs/tags/${LAST_PUBLISHED_TAG} || true)
-          fi
-
-          echo "Previous SHA: $PREV_SHA"
-          echo "Current  SHA: $GITHUB_SHA"
-
-          if [ "$PREV_SHA" = "$GITHUB_SHA" ]; then
-            echo "No changes since last run."
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
-
+  # Scala 3 artifacts are published with the oldest supported Scala 3 version,
+  # other versions are compiled by the CI gate
   check-compiles:
-    name: Test compilation of all modules
+    name: Test compilation with Scala 3 publish version
+    if: github.repository == 'scala-native/scala-native'
     runs-on: ubuntu-24.04
-    needs: [load_tag]
-    if: needs.load_tag.outputs.skip == 'false' # repository check is done in load_tag
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/linux-setup-env
         with:
-          scala-version: "2.13" #Unused, any version can be placed here
+          scala-version: "3"
           java-version: 17
-
       - name: Compile everything
-        run: sbt "-v" "-J-Xmx7G" "++3.1.3; Test/compile; ++2.13.18; Test/compile; ++2.12.21; Test/compile"
+        run: sbt "-J-Xmx7G" "++3.1.3; Test/compile"
 
   publish:
-    name: Publish for each Scala binary version
+    name: Publish ${{ matrix.scala }} ${{ matrix.part }}
     runs-on: ubuntu-24.04
-    needs: [load_tag, check-compiles]
-    if: needs.load_tag.outputs.skip == 'false' # repository check is done in load_tag
+    needs: [check-compiles]
     strategy:
       fail-fast: false
       matrix:
-        # Older Scala compiler version don't support -release flag, leading to java.lang.NoSuchMethodError: java.nio.ByteBuffer.position(I)Ljava/nio/ByteBuffer in nir.serialization.Prelude$
-        # Make sure to use JDK 8 to keep binary compatibility
-        scala: ["2.12", "2.13", "3"]
+        include:
+          - { scala: "2.12", part: "" }
+          - { scala: "2.13", part: "" }
+          # Scala 3 is cross-published for every supported Scala 3 version
+          - { scala: "3", part: "base" }
+          - { scala: "3", part: "cross 1/4" }
+          - { scala: "3", part: "cross 2/4" }
+          - { scala: "3", part: "cross 3/4" }
+          - { scala: "3", part: "cross 4/4" }
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/linux-setup-env
         with:
-          scala-version: ${{ matrix.scala }} #Unused, any version can be placed here
+          scala-version: ${{ matrix.scala }}
           java-version: 17
       - name: Setup PGP Key
         run: |
@@ -85,42 +57,26 @@ jobs:
           SONATYPE_USER: "${{ secrets.SONATYPE_USER }}"
           SONATYPE_PASSWORD: "${{ secrets.SONATYPE_PASSWORD }}"
           PGP_PASSPHRASE: "${{ secrets.PGP_PASSWORD }}"
-        run: sbt "-v" "-J-Xmx7G" "-J-XX:+UseG1GC" "publish-release-for-version ${{ matrix.scala }}"
+        run: sbt "-J-Xmx7G" "-J-XX:+UseG1GC" "publish-release-for-version ${{ matrix.scala }} ${{ matrix.part }}"
 
-  save_tag:
-    name: Save SHA as last published tag
-    runs-on: ubuntu-24.04
-    needs: [publish]
-    if: github.event_name != 'workflow_dispatch' || github.ref_name == 'main'
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Tag commit
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -f ${LAST_PUBLISHED_TAG} $GITHUB_SHA
-          git push origin -f ${LAST_PUBLISHED_TAG}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
   build_docs:
     name: Trigger documentation build
     runs-on: ubuntu-latest
-    needs: [save_tag]
+    needs: [publish]
     steps:
       - name: Trigger Read the Docs build
         shell: bash
-        run: | 
+        run: |
           curl -X POST \
             -H "Authorization: Token ${{ secrets.RTD_TOKEN }}" \
             https://app.readthedocs.org/api/v3/projects/scala-native/versions/latest/builds/
-      
+
   dispatch:
     name: Dispatch trigger builds for dependant projects
     runs-on: ubuntu-latest
     needs: [publish]
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # Snapshots only
+    if: github.ref_type != 'tag'
     strategy:
       matrix:
         repo: ['scala-native/scala-native-cli']

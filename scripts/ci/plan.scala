@@ -10,9 +10,9 @@
  *  below is the only place deciding when each of them runs. Writes `tier` and
  *  one `<workflow>=off|base|extended` entry per workflow to $GITHUB_OUTPUT.
  *
- *  Environment: EVENT_NAME, GH_REPO, SHA, GH_TOKEN, GITHUB_OUTPUT; for pull
- *  requests PR_NUMBER, PR_DRAFT, PR_BODY, PR_LABELS (JSON list of names);
- *  DISPATCH_TIER for workflow_dispatch.
+ *  Environment: EVENT_NAME, REF_TYPE, GH_REPO, SHA, GH_TOKEN, GITHUB_OUTPUT;
+ *  for pull requests PR_NUMBER, PR_DRAFT, PR_BODY, PR_LABELS (JSON list of
+ *  names); DISPATCH_TIER for workflow_dispatch.
  */
 import java.nio.file.{FileSystems, Paths}
 
@@ -158,7 +158,7 @@ enum Level:
   def output: String = toString.toLowerCase
 
 enum Tier:
-  case Skip, Docs, Draft, PR, Nightly
+  case Skip, Docs, Draft, PR, Nightly, Release
 
   def output: String = toString.toLowerCase
 
@@ -227,6 +227,16 @@ def plan(): Plan =
         )
         Plan.all(Tier.Skip, Level.Off)
       else Plan.nightly
+
+    // Release tag: published once the base Linux, macOS and Windows tests pass
+    case "push" if env("REF_TYPE") == "tag" =>
+      val tested = Set(Workflow.Linux, Workflow.MacOS, Workflow.Windows)
+      Plan(
+        Tier.Release,
+        Workflow.values
+          .map(w => w -> (if tested(w) then Level.Base else Level.Off))
+          .toMap
+      )
 
     case "workflow_dispatch" =>
       if env("DISPATCH_TIER") == Tier.PR.output then

@@ -23,7 +23,8 @@ object Commands {
     testScripted,
     disableActionCache,
     publishLocalDev,
-    publishReleaseForVersion
+    publishReleaseForVersion,
+    compilePublishVersion
   )
 
   // Recommended for working with compiler plugins, the actions cache might make testing local changes harder.
@@ -264,8 +265,16 @@ object Commands {
 
   private def projectVersionCommand(
       name: String
-  )(fn: (String, State) => State): Command = {
-    Command.args(name, "<args>") {
+  )(fn: (String, State) => State): Command =
+    projectVersionArgsCommand(name, "<args>") {
+      case (version, _, state) => fn(version, state)
+    }
+
+  // Scala binary version as the first argument, followed by command specific arguments
+  private def projectVersionArgsCommand(name: String, display: String)(
+      fn: (String, Seq[String], State) => State
+  ): Command = {
+    Command.args(name, display) {
       case (state, args) =>
         val version = args.headOption
           .map(CrossVersion.binaryScalaVersion)
@@ -274,9 +283,26 @@ object Commands {
             "Used command needs explicit Scala binary version as an argument"
           )
 
-        fn(version, state)
+        fn(version, args.drop(1), state)
     }
   }
+
+  // Scala version used to publish artifacts of given binary version, and versions they're cross-published for
+  private def publishScalaVersions(binVersion: String): (String, Seq[String]) =
+    binVersion match {
+      case "2.12" => ScalaVersions.scala212 -> ScalaVersions.crossScala212
+      case "2.13" => ScalaVersions.scala213 -> ScalaVersions.crossScala213
+      case "3"    =>
+        ScalaVersions.scala3PublishVersion -> ScalaVersions.crossScala3
+      case _ => sys.error(s"Invalid Scala binary version: '$binVersion'")
+    }
+
+  // Compile all sources with the Scala version used to publish artifacts of given binary version
+  lazy val compilePublishVersion =
+    projectVersionCommand("compile-publish-version") {
+      case (version, state) =>
+        s"++${publishScalaVersions(version)._1}" :: "Test/compile" :: state
+    }
 
   private def projectFullVersionCommand(
       name: String
@@ -320,78 +346,60 @@ object Commands {
     }
   }
 
-  // Usage: publish-release-for-version <binary version> [base | cross <versions>]
-  //   base             - only artifacts for the base Scala version
-  //   cross 3.1-3.3    - only cross-published artifacts for Scala 3.1 up to 3.3
-  //   cross 3.9+       - only cross-published artifacts for Scala 3.9 and newer
-  // Without a part publishes all of them.
-  lazy val publishReleaseForVersion =
-    Command.args(
-      "publish-release-for-version",
-      "<binary version> [base | cross <from>-<to> | cross <from>+]"
-    ) {
-      case (state, args) =>
-        val binVersion = args.headOption
-          .map(CrossVersion.binaryScalaVersion)
-          .getOrElse(sys.error("Expected Scala binary version argument"))
-        val (scalaVersion, crossScalaVersions) = binVersion match {
-          case "2.12" => ScalaVersions.scala212 -> ScalaVersions.crossScala212
-          case "2.13" => ScalaVersions.scala213 -> ScalaVersions.crossScala213
-          case "3"    =>
-            ScalaVersions.scala3PublishVersion -> ScalaVersions.crossScala3
-          case _ => sys.error(s"Invalid Scala binary version: '$binVersion'")
+  // Without a part publishes all artifacts, `base` only these for the base Scala version,
+  // `cross` only these cross-published for a range of versions, e.g. `cross 3.1-3.3`, `cross 3.9+`
+  lazy val publishReleaseForVersion = projectVersionArgsCommand(
+    "publish-release-for-version",
+    "<binary version> [base | cross <from>-<to> | cross <from>+]"
+  ) {
+    case (binVersion, part, state) =>
+      val (scalaVersion, crossScalaVersions) = publishScalaVersions(binVersion)
+      // exclude already published base version
+      val allCrossVersions = crossScalaVersions.diff(scalaVersion :: Nil).toList
+      def binary(version: String): (Long, Long) =
+        CrossVersion
+          .partialVersion(version)
+          .getOrElse(sys.error(s"Invalid Scala version: $version"))
+      def crossVersionsIn(from: String, to: Option[String]) =
+        allCrossVersions.filter { v =>
+          import scala.math.Ordering.Implicits._
+          binary(v) >= binary(from) && to.forall(binary(v) <= binary(_))
         }
-        // exclude already published base version
-        val allCrossVersions =
-          crossScalaVersions.diff(scalaVersion :: Nil).toList
-        def minor(version: String): (Long, Long) =
-          CrossVersion
-            .partialVersion(version)
-            .getOrElse(
-              sys.error(s"Invalid Scala version: $version")
-            )
-        def crossVersionsIn(from: String, to: Option[String]) =
-          allCrossVersions.filter { v =>
-            import scala.math.Ordering.Implicits._
-            minor(v) >= minor(from) && to.forall(minor(v) <= minor(_))
-          }
-        val Range = """(\d+\.\d+)-(\d+\.\d+)""".r
-        val From = """(\d+\.\d+)\+""".r
-        val (publishBase, crossVersions) = args.drop(1) match {
-          case Nil                           => (true, allCrossVersions)
-          case Seq("base")                   => (true, Nil)
-          case Seq("cross", Range(from, to)) =>
-            (false, crossVersionsIn(from, Some(to)))
-          case Seq("cross", From(from)) => (false, crossVersionsIn(from, None))
-          case other                    =>
-            sys.error(
-              s"Unknown part ${other.mkString(" ")}, expected 'base', 'cross <from>-<to>' or 'cross <from>+'"
-            )
-        }
-        val publishCommand = "publishSigned"
-        val publishBaseVersion =
-          if (publishBase) List(s"++$scalaVersion; $publishCommand") else Nil
-        val publishCrossVersions = crossVersions.map { crossVersion =>
-          Build.crossPublishedMultiScalaProjects
-            .map(_.forBinaryVersion(binVersion))
-            .map(project => s"${project.id}/$publishCommand")
-            .mkString(s"++ $crossVersion; all ", " ", "")
-        }
-        val isSnapshotVersion =
-          state.getSetting(ThisBuild / version).exists(_.endsWith("-SNAPSHOT"))
-        val release = if (isSnapshotVersion) Nil else ("sonaUpload" :: Nil)
-        val commandsToExecute =
-          "clean" ::
-            publishBaseVersion :::
-            publishCrossVersions :::
-            release
+      val Range = """(\d+\.\d+)-(\d+\.\d+)""".r
+      val From = """(\d+\.\d+)\+""".r
+      val (publishBase, crossVersions) = part match {
+        case Nil                           => (true, allCrossVersions)
+        case Seq("base")                   => (true, Nil)
+        case Seq("cross", Range(from, to)) =>
+          (false, crossVersionsIn(from, Some(to)))
+        case Seq("cross", From(from)) => (false, crossVersionsIn(from, None))
+        case other                    =>
+          sys.error(s"Unknown part '${other.mkString(" ")}'")
+      }
+      val publishCommand = "publishSigned"
+      val publishBaseVersion =
+        if (publishBase) List(s"++$scalaVersion; $publishCommand") else Nil
+      val publishCrossVersions = crossVersions.map { crossVersion =>
+        Build.crossPublishedMultiScalaProjects
+          .map(_.forBinaryVersion(binVersion))
+          .map(project => s"${project.id}/$publishCommand")
+          .mkString(s"++ $crossVersion; all ", " ", "")
+      }
+      val isSnapshotVersion =
+        state.getSetting(ThisBuild / version).exists(_.endsWith("-SNAPSHOT"))
+      val release = if (isSnapshotVersion) Nil else ("sonaUpload" :: Nil)
+      val commandsToExecute =
+        "clean" ::
+          publishBaseVersion :::
+          publishCrossVersions :::
+          release
 
-        println(
-          s"Publish for Scala $binVersion would execute following commands:"
-        )
-        commandsToExecute.foreach(println)
-        println("")
+      println(
+        s"Publish for Scala $binVersion would execute following commands:"
+      )
+      commandsToExecute.foreach(println)
+      println("")
 
-        commandsToExecute ::: state
-    }
+      commandsToExecute ::: state
+  }
 }

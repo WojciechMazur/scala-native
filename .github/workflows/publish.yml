@@ -3,7 +3,8 @@ name: Publish
 # releases from a v0.5.* tag once the Linux, macOS and Windows tests pass.
 on:
   workflow_call:
-  workflow_dispatch:
+    inputs:
+      snapshot: { type: boolean, required: true }
 
 permissions:
   contents: read
@@ -25,8 +26,9 @@ jobs:
         with:
           scala-version: "3"
           java-version: 17
+          native-toolchain: false
       - name: Compile everything
-        run: sbt "-J-Xmx7G" "++3.1.3; Test/compile"
+        run: sbt "-J-Xmx7G" "compile-publish-version 3"
 
   publish:
     name: Publish ${{ matrix.scala }} ${{ matrix.part }}
@@ -49,6 +51,7 @@ jobs:
         with:
           scala-version: ${{ matrix.scala }}
           java-version: 17
+          native-toolchain: false
       - name: Setup PGP Key
         run: |
           echo -n "$PGP_SECRET" | base64 --decode | gpg --batch --import
@@ -93,8 +96,7 @@ jobs:
     name: Dispatch trigger builds for dependant projects
     runs-on: ubuntu-latest
     needs: [publish]
-    # Snapshots only
-    if: github.ref_type != 'tag'
+    if: inputs.snapshot
     strategy:
       matrix:
         repo: ['scala-native/scala-native-cli']

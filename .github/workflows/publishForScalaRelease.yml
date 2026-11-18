@@ -19,8 +19,8 @@ env:
   EXTRA_CROSS_SCALA_VERSION: "${{ inputs.scala-version }}"
 
 jobs:
-  test:
-    name: Test with Scala ${{ inputs.scala-version }}
+  publish:
+    name: Test and publish for Scala ${{ inputs.scala-version }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -32,19 +32,6 @@ jobs:
           java-version: 17
       - name: Test runtime
         run: sbt "++${{ inputs.scala-version }} -v" "test-runtime ${{ inputs.scala-version }}"
-
-  publish:
-    name: Publish
-    needs: [test]
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.scala-native-version }}
-      - uses: ./.github/actions/linux-setup-env
-        with:
-          scala-version: ${{ inputs.scala-version }}
-          java-version: 17
       - name: Setup PGP Key
         run: |
           echo -n "$PGP_SECRET" | base64 --decode | gpg --batch --import

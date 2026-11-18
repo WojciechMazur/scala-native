@@ -10,6 +10,9 @@ inputs:
   llvm-version:
     description: "LLVM toolchain version installed from apt.llvm.org, the runner's preinstalled LLVM when empty"
     default: ""
+  native-toolchain:
+    description: "Install LLVM and native libraries, not needed only to compile or publish"
+    default: "true"
 runs:
   using: "composite"
   steps:
@@ -36,6 +39,7 @@ runs:
       run: echo "version=${{ inputs.llvm-version || '18' }}" >> "$GITHUB_OUTPUT"
 
     - name: Install dependencies
+      if: ${{ inputs.native-toolchain == 'true' }}
       uses: nick-fields/retry@v4
       with:
         timeout_minutes: 10
@@ -49,11 +53,12 @@ runs:
 
     - name: Install LLVM toolchain
       shell: bash
-      if: ${{ inputs.llvm-version != '' }}
+      if: ${{ inputs.native-toolchain == 'true' && inputs.llvm-version != '' }}
       run: sudo ./ci-docker/install-llvm.sh ${{ inputs.llvm-version }}
 
     # Prefer the selected LLVM over /usr/bin/clang (Discover uses LLVM_BIN / PATH)
     - name: Expose LLVM toolchain
+      if: ${{ inputs.native-toolchain == 'true' }}
       shell: bash
       run: |
         LLVM_TOOLCHAIN="/usr/lib/llvm-${{ steps.llvm.outputs.version }}/bin"

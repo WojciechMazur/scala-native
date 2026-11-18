@@ -1,0 +1,34 @@
+name: "Save build outputs"
+description: "Upload sbt compilation outputs (JVM classes, NIR) of the gate for reuse in downstream jobs of the same run"
+inputs:
+  scala-version:
+    description: "Scala binary version of the outputs"
+    required: true
+  enabled:
+    description: "Set to true to enable, controlled by repository variable CI_SHARE_BUILD_OUTPUTS"
+    default: "false"
+runs:
+  using: "composite"
+  steps:
+    - name: Pack build outputs
+      if: inputs.enabled == 'true'
+      shell: bash
+      # Native binaries and link outputs are platform specific, sbt task caches
+      # (streams, value) hold machine specific state; leave them out.
+      # Symlinks into the sbt action cache are dereferenced.
+      run: |
+        tar -czhf "$RUNNER_TEMP/sbt-out.tgz" --ignore-failed-read \
+          --exclude='target/out/value' \
+          --exclude='native' --exclude='native-test' --exclude='*.dSYM' \
+          --exclude='streams' --exclude='test-reports' \
+          target/out
+        ls -lh "$RUNNER_TEMP/sbt-out.tgz"
+    - name: Upload build outputs
+      if: inputs.enabled == 'true'
+      uses: actions/upload-artifact@v7
+      with:
+        name: sbt-out-${{ inputs.scala-version }}
+        path: ${{ runner.temp }}/sbt-out.tgz
+        retention-days: 1
+        compression-level: 0
+        if-no-files-found: error

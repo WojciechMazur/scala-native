@@ -1,0 +1,162 @@
+name: Run tests Apple
+# Apple embedded targets: iOS simulator, tvOS, watchOS.
+# Called from ci.yml, inputs are computed by its plan job (scripts/ci/plan.scala).
+# Defaults of workflow_dispatch run the nightly set of jobs.
+on:
+  workflow_call:
+    inputs:
+      nightly: { type: boolean, default: false }
+      native-runtime: { type: boolean, default: false }
+      apple: { type: boolean, default: false }
+  workflow_dispatch:
+    inputs:
+      nightly: { type: boolean, default: true }
+      native-runtime: { type: boolean, default: true }
+      apple: { type: boolean, default: true }
+
+permissions:
+  contents: read
+
+env:
+  SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
+
+jobs:
+  # Builds and runs the tests inside of the iOS simulator
+  ios-simulator:
+    name: iOS simulator (3, ${{ matrix.mode }}, ${{ matrix.gc }})
+    runs-on: macos-15
+    strategy:
+      matrix:
+        include:
+          - mode: release-fast
+            gc: commix
+    env:
+      SCALANATIVE_MODE: ${{ matrix.mode }}
+      SCALANATIVE_GC: ${{ matrix.gc }}
+    steps: &ios-simulator-steps
+      - uses: actions/checkout@v7
+      - &setup-env
+        uses: ./.github/actions/macos-setup-env
+        with:
+          scala-version: "3"
+          llvm-version: 19
+      - uses: ./.github/actions/ios-simulator-setup
+      - &target-simulator
+        name: Target simulator
+        run: |
+          echo "SCALANATIVE_TARGET_RUNNER=$GITHUB_WORKSPACE/scripts/ci/ios-simulator/run.sh" >> "$GITHUB_ENV"
+          echo "SCALANATIVE_TARGET_TRIPLE=$(uname -m)-apple-ios${IOS_MIN_VERSION}-simulator" >> "$GITHUB_ENV"
+      - &restore-build-outputs
+        uses: ./.github/actions/restore-build-outputs
+        with:
+          scala-version: "3"
+          enabled: ${{ vars.CI_SHARE_BUILD_OUTPUTS == 'true' }}
+      - name: Run unit tests
+        timeout-minutes: 60
+        run: sbt -J-Xmx5G "tests3/test"
+
+  ios-simulator-nightly:
+    name: iOS simulator (3, ${{ matrix.mode }}, ${{ matrix.gc }})
+    if: inputs.nightly
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: release-fast
+            gc: immix
+          - mode: debug
+            gc: immix
+          - mode: debug
+            gc: commix
+    env:
+      SCALANATIVE_MODE: ${{ matrix.mode }}
+      SCALANATIVE_GC: ${{ matrix.gc }}
+    steps: *ios-simulator-steps
+
+  # Every GC (except Boehm, not available for iOS) with sandbox, test interface and JUnit outputs
+  test-gc:
+    name: Test GC iOS simulator (${{ matrix.mode }}, lto=${{ matrix.lto }})
+    if: inputs.native-runtime
+    runs-on: macos-15
+    strategy:
+      matrix:
+        include:
+          - mode: release-fast
+            lto: thin
+    env:
+      SCALANATIVE_MODE: ${{ matrix.mode }}
+      SCALANATIVE_LTO: ${{ matrix.lto }}
+    steps: &test-gc-steps
+      - uses: actions/checkout@v7
+      - *setup-env
+      - uses: ./.github/actions/ios-simulator-setup
+      - *target-simulator
+      - *restore-build-outputs
+      - name: Test GCs
+        timeout-minutes: 45
+        run: sbt -J-Xmx5G "test-gc 3"
+
+  test-gc-nightly:
+    name: Test GC iOS simulator (${{ matrix.mode }}, lto=${{ matrix.lto }})
+    if: inputs.nightly
+    runs-on: macos-15
+    strategy:
+      matrix:
+        include:
+          - mode: debug
+            lto: none
+    env:
+      SCALANATIVE_MODE: ${{ matrix.mode }}
+      SCALANATIVE_LTO: ${{ matrix.lto }}
+    steps: *test-gc-steps
+
+  # Scala Native code used as a static library from a foreign host program
+  # running its own threads, the way an iOS application would embed it.
+  ios-static-library:
+    name: iOS static library
+    if: inputs.nightly
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+      - *setup-env
+      - uses: ./.github/actions/ios-simulator-setup
+      - *target-simulator
+      - name: Test static library
+        timeout-minutes: 60
+        run: sbt "test-scripted 3 run/ios-static-library"
+
+  # There is no way to execute binaries built for physical devices in the CI,
+  # tvOS and watchOS have no simulator launcher yet. Ensure at least that the
+  # runtime and tests can be compiled and linked for these targets.
+  build-apple-platforms:
+    name: Build ${{ matrix.target }}
+    if: inputs.apple
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: arm64-apple-ios16.0
+            sdk: iphoneos
+          - target: arm64-apple-tvos16.0
+            sdk: appletvos
+          - target: arm64-apple-tvos16.0-simulator
+            sdk: appletvsimulator
+          - target: arm64-apple-watchos9.0-simulator
+            sdk: watchsimulator
+    steps:
+      - uses: actions/checkout@v7
+      - *setup-env
+      - name: Set target
+        run: |
+          echo "SCALANATIVE_TARGET_TRIPLE=${{ matrix.target }}" >> "$GITHUB_ENV"
+          echo "SDKROOT=$(xcrun --sdk ${{ matrix.sdk }} --show-sdk-path)" >> "$GITHUB_ENV"
+      - *restore-build-outputs
+      - name: Link sandbox
+        timeout-minutes: 30
+        run: sbt "sandbox3/nativeLink"
+      - name: Link unit tests
+        if: ${{ !cancelled() }}
+        timeout-minutes: 45
+        run: sbt -J-Xmx5G "tests3/Test/nativeLink"

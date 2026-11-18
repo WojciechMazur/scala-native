@@ -16,7 +16,7 @@ jobs:
     name: Check last nightly tag
     outputs:
       skip: ${{ steps.check.outputs.skip }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: github.repository == 'scala-native/scala-native'
     steps:
       - uses: actions/checkout@v7
@@ -44,7 +44,7 @@ jobs:
 
   check-compiles:
     name: Test compilation of all modules
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [load_tag]
     if: needs.load_tag.outputs.skip == 'false' # repository check is done in load_tag
     steps:
@@ -59,7 +59,7 @@ jobs:
 
   publish:
     name: Publish for each Scala binary version
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [load_tag, check-compiles]
     if: needs.load_tag.outputs.skip == 'false' # repository check is done in load_tag
     strategy:
@@ -89,7 +89,7 @@ jobs:
 
   save_tag:
     name: Save SHA as last published tag
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [publish]
     if: github.event_name != 'workflow_dispatch' || github.ref_name == 'main'
     steps:

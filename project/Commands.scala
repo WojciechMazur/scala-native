@@ -13,7 +13,12 @@ object Commands {
     testAll,
     testGC,
     testTools,
+    compileAll,
+    compileSbtPlugin,
+    testCrossCompile,
     testRuntime,
+    testRuntimeNative,
+    testRuntimeJVM,
     testMima,
     testScripted,
     disableActionCache,
@@ -67,26 +72,101 @@ object Commands {
         state
   }
 
+  // Compile main and test sources of every project defined for given Scala binary version.
+  // sbt plugins are excluded, they need the Scala version of their sbt, see compile-sbt-plugin
+  lazy val compileAll = projectVersionCommand("compile-all") {
+    case (version, state) =>
+      val projects = Build.allMultiScalaProjects
+        .filterNot(Build.sbtPlugins.contains)
+        .flatMap(_.forBinaryVersionIfDefined(version))
+        .map(p => s"${p.id}/Test/compile")
+      projects.mkString("all ", " ", "") :: state
+  }
+
+  // Compile the sbt plugin for given Scala binary version using the Scala version of its sbt:
+  // 2.12 - sbt 1.x, 3 - sbt 2.x
+  lazy val compileSbtPlugin = projectVersionCommand("compile-sbt-plugin") {
+    case (version, state) =>
+      val sbtScalaVersion = version match {
+        case "2.12" => ScalaVersions.sbt10ScalaVersion
+        case "3"    => ScalaVersions.sbt2ScalaVersion
+        case other  =>
+          throw new MessageOnlyException(
+            s"No sbt plugin for Scala binary version $other"
+          )
+      }
+      val plugins = Build.sbtPlugins
+        .flatMap(_.forBinaryVersionIfDefined(version))
+        .map(p => s"${p.id}/compile")
+      s"++$sbtScalaVersion" :: plugins ::: state
+  }
+
+  // Compile compiler plugins and the Scala standard library for each supported version of given binary version
+  // Usage: test-cross-compile <binary version> [all|edges], edges = first and last patch release of each minor version
+  lazy val testCrossCompile =
+    Command.args("test-cross-compile", "<binary version> [all|edges]") {
+      case (state, args) =>
+        val binVersion = args.headOption
+          .map(CrossVersion.binaryScalaVersion)
+          .getOrElse(sys.error("Expected Scala binary version argument"))
+        val versions = MultiScalaProject.scalaCrossVersions.getOrElse(
+          binVersion,
+          sys.error(s"Unsupported Scala binary version: $binVersion")
+        )
+        val selected = args.lift(1).getOrElse("all") match {
+          case "all"   => versions
+          case "edges" =>
+            val edges = versions
+              .groupBy(CrossVersion.partialVersion)
+              .values
+              .flatMap(vs => Seq(vs.head, vs.last))
+              .toSet
+            versions.filter(edges.contains)
+          case other =>
+            sys.error(s"Unknown mode '$other', expected 'all' or 'edges'")
+        }
+        // Compiling the standard library builds the compiler plugin for the same Scala version
+        val stdlib = (if (binVersion == "3") scala3lib else scalalib)
+          .forBinaryVersion(binVersion)
+          .id
+        println(s"Cross compiling $stdlib for: ${selected.mkString(", ")}")
+        selected.toList.flatMap(v => List(s"++$v", s"$stdlib/compile")) :::
+          state
+    }
+
+  private def runtimeJVMTests(version: String): List[String] =
+    List(testsJVM, testsExtJVM, junitTestOutputsJVM)
+      .map(_.forBinaryVersion(version).id)
+      .map(id => s"$id/test")
+
+  private def runtimeNativeTests(version: String): List[String] = {
+    val runs = List(sandbox)
+      .map(_.forBinaryVersion(version).id)
+      .map(id => s"$id/run")
+    val tests = List(
+      Build.tests,
+      testsExt,
+      junitTestOutputsNative,
+      scalaPartestJunitTests
+    ).map(_.forBinaryVersion(version).id)
+      .map(id => s"$id/test")
+    runs ::: tests
+  }
+
   lazy val testRuntime = projectVersionCommand("test-runtime") {
     case (version, state) =>
-      val runs =
-        List(sandbox)
-          .map(_.forBinaryVersion(version).id)
-          .map(id => s"$id/run")
+      runtimeJVMTests(version) ::: runtimeNativeTests(version) ::: state
+  }
 
-      val tests = List(
-        testsJVM,
-        Build.tests,
-        testsExtJVM,
-        testsExt,
-        junitTestOutputsJVM,
-        junitTestOutputsNative,
-        scalaPartestJunitTests
-      ).map(_.forBinaryVersion(version).id)
-        .map(id => s"$id/test")
-      runs :::
-        tests :::
-        state
+  // Native part of the runtime tests, the JVM part is executed once per OS in the CI gate
+  lazy val testRuntimeNative =
+    projectVersionCommand("test-runtime-native") {
+      case (version, state) => runtimeNativeTests(version) ::: state
+    }
+
+  // JVM part of the runtime tests: validates test sources against JDK behaviour
+  lazy val testRuntimeJVM = projectVersionCommand("test-runtime-jvm") {
+    case (version, state) => runtimeJVMTests(version) ::: state
   }
 
   lazy val testTools = projectVersionCommand("test-tools") {
@@ -105,19 +185,16 @@ object Commands {
       )
         .map(_.forBinaryVersion(version).id)
         .map(id => s"$id/test")
+      tests ::: state
+  }
+
+  lazy val testMima = projectVersionCommand("test-mima") {
+    case (version, state) =>
       val prepareForMiMa = version match {
         // Ensure all projects are using compatible Scala 3 version (sbt might use older version then used by default in this project which would result in binary incompatibility)
         case "3" => s"++${ScalaVersions.sbt2ScalaVersion}" :: Nil
         case _   => Nil
       }
-      tests :::
-        prepareForMiMa :::
-        List(s"test-mima $version") :::
-        state
-  }
-
-  lazy val testMima = projectVersionCommand("test-mima") {
-    case (version, state) =>
       val tests = Build.publishedMultiScalaProjects
         .flatMap(_.forBinaryVersionIfDefined(version).map(_.id))
         .flatMap(id =>
@@ -125,7 +202,7 @@ object Commands {
         )
         .toList
 
-      tests ::: state
+      prepareForMiMa ::: tests ::: state
   }
 
   lazy val testScripted = Command.args("test-scripted", "<args>") {

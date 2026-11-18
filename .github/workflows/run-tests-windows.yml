@@ -1,141 +1,168 @@
 name: Run tests Windows
+# Called from ci.yml, inputs are computed by its plan job (scripts/ci/plan.scala).
+# Defaults of workflow_dispatch run the nightly set of jobs.
 on:
   workflow_call:
-  pull_request:
-  schedule:
-    # Every day at 2 AM UTC
-    - cron: "0 2 * * *"
+    inputs:
+      nightly: { type: boolean, default: false }
+      native-runtime: { type: boolean, default: false }
+      sbt-plugin: { type: boolean, default: false }
   workflow_dispatch:
-concurrency:
-  group: windows-${{ github.head_ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+    inputs:
+      nightly: { type: boolean, default: true }
+      native-runtime: { type: boolean, default: true }
+      sbt-plugin: { type: boolean, default: true }
+
+permissions:
+  contents: read
 
 jobs:
-  test-runtime:
-    name: Test runtime${{ matrix.os == 'windows-11-arm' && ' (Windows ARM64)' || '' }} (${{ matrix.scala }}, ${{ matrix.build-mode }})
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || ((github.event_name == 'schedule' || github.event_name == 'workflow_call') && github.repository == 'scala-native/scala-native')
-    runs-on: ${{ matrix.os }}
-    env:
-      VCPKG_DEFAULT_HOST_TRIPLET: ${{ matrix.os == 'windows-11-arm' && 'arm64-windows' || 'x64-windows' }}
+  # Every GC with sandbox, test interface and JUnit outputs
+  test-gc:
+    name: Test GC x64 (${{ matrix.mode }}, lto=${{ matrix.lto }})
+    if: inputs.native-runtime
+    runs-on: windows-2022
     strategy:
-      fail-fast: false
       matrix:
-        os: [windows-2022]
-        scala: [2.12, 2.13, 3]
-        build-mode: [debug]
         include:
-          - os: windows-2022
-            scala: 3
-            build-mode: release-fast
-          - os: windows-11-arm
-            scala: 3
-            build-mode: debug
-          - os: windows-11-arm
-            scala: 3
-            build-mode: release-fast
-    steps:
+          - mode: release-fast
+            lto: thin
+    steps: &test-gc-steps
       # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
       - name: Setup git config
         run: git config --global core.autocrlf false
       - uses: actions/checkout@v7
       - uses: ./.github/actions/windows-setup-env
-        if: matrix.os == 'windows-2022'
         id: setup
         with:
-          scala-version: ${{matrix.scala}}
+          scala-version: "3"
+      - uses: ./.github/actions/restore-build-outputs
+        with:
+          scala-version: "3"
+          enabled: ${{ vars.CI_SHARE_BUILD_OUTPUTS == 'true' }}
+      - name: Test GC
+        timeout-minutes: 45
+        env:
+          SCALANATIVE_INCLUDE_DIRS: ${{ steps.setup.outputs.vcpkg-dir }}\include
+          SCALANATIVE_LIB_DIRS: ${{ steps.setup.outputs.vcpkg-dir }}\lib
+          SCALANATIVE_MODE: ${{ matrix.mode }}
+          SCALANATIVE_LTO: ${{ matrix.lto }}
+        run: sbt "test-gc 3"
+        shell: cmd
+
+  test-gc-nightly:
+    name: Test GC x64 (${{ matrix.mode }}, lto=${{ matrix.lto }})
+    if: inputs.nightly
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        include:
+          - mode: debug
+            lto: none
+    steps: *test-gc-steps
+
+  # Native runtime tests (the JVM part runs in the gate)
+  runtime:
+    name: Runtime ${{ matrix.arch }} (${{ matrix.scala }}, ${{ matrix.mode }})
+    runs-on: ${{ matrix.os }}
+    env:
+      VCPKG_DEFAULT_HOST_TRIPLET: ${{ matrix.arch }}-windows
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            os: windows-2022
+            scala: "3"
+            mode: release-fast
+          - arch: arm64
+            os: windows-11-arm
+            scala: "3"
+            mode: release-fast
+    steps: &runtime-steps
+      # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
+      - name: Setup git config
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/windows-setup-env
+        if: matrix.arch == 'x64'
+        id: setup
+        with:
+          scala-version: ${{ matrix.scala }}
       - uses: ./.github/actions/windows-arm-setup-env
-        if: matrix.os == 'windows-11-arm'
+        if: matrix.arch == 'arm64'
         id: setup-arm
         with:
           scala-version: ${{ matrix.scala }}
-
-      - name: Test GC
-        timeout-minutes: 30
-        env:
-          SCALANATIVE_INCLUDE_DIRS: ${{ steps.setup.outputs.vcpkg-dir || steps.setup-arm.outputs.vcpkg-dir }}\include
-          SCALANATIVE_LIB_DIRS: ${{ steps.setup.outputs.vcpkg-dir || steps.setup-arm.outputs.vcpkg-dir }}\lib
-          SCALANATIVE_MODE: ${{ matrix.build-mode }}
-        run: sbt "test-gc ${{ matrix.scala }}"
-        shell: cmd
-
-      # sbt 2 leaves a background server that can keep nscplugin.jar locked on Windows;
-      - name: Shutdown sbt server
-        if: always()
-        continue-on-error: true
-        run: sbt shutdown
-        shell: cmd
-
+      - uses: ./.github/actions/restore-build-outputs
+        with:
+          scala-version: ${{ matrix.scala }}
+          enabled: ${{ vars.CI_SHARE_BUILD_OUTPUTS == 'true' }}
       - name: Test runtime
-        timeout-minutes: 45
+        timeout-minutes: 60
         run: >
           set SCALANATIVE_GC=&
-          set SCALANATIVE_MODE=${{ matrix.build-mode }}&
+          set SCALANATIVE_MODE=${{ matrix.mode }}&
           set SCALANATIVE_INCLUDE_DIRS=${{ steps.setup.outputs.vcpkg-dir || steps.setup-arm.outputs.vcpkg-dir }}\include&
           set SCALANATIVE_LIB_DIRS=${{ steps.setup.outputs.vcpkg-dir || steps.setup-arm.outputs.vcpkg-dir }}\lib&
           set SCALANATIVE_TEST_PREFETCH_DEBUG_INFO=1&
           set SCALANATIVE &
-          sbt
-          "test-runtime ${{matrix.scala}}"
-          "scalaPartestTests${{env.project-version}}/testOnly -- --showDiff neg/abstract.scala pos/abstract.scala run/Course-2002-01.scala"
+          sbt "test-runtime-native ${{ matrix.scala }}"
         shell: cmd
 
-  run-scripted-tests:
-    name: Scripted tests
-    if: github.event_name == 'pull_request' || ((github.event_name == 'schedule' || github.event_name == 'workflow_call') && github.repository == 'scala-native/scala-native')
+  runtime-nightly:
+    name: Runtime ${{ matrix.arch }} (${{ matrix.scala }}, ${{ matrix.mode }})
+    if: inputs.nightly
+    runs-on: ${{ matrix.os }}
+    env:
+      VCPKG_DEFAULT_HOST_TRIPLET: ${{ matrix.arch }}-windows
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            os: windows-2022
+            scala: "3"
+            mode: debug
+          - arch: arm64
+            os: windows-11-arm
+            scala: "3"
+            mode: debug
+          - arch: x64
+            os: windows-2022
+            scala: "2.13"
+            mode: debug
+          - arch: x64
+            os: windows-2022
+            scala: "2.12"
+            mode: debug
+    steps: *runtime-steps
+
+  runtime-ext:
+    name: Runtime extension
+    if: inputs.nightly
     runs-on: windows-2022
     strategy:
       fail-fast: false
       matrix:
-        scala: [2.12, 3]
-    steps:
-      # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
-      - name: Setup git config
-        run: git config --global core.autocrlf false
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/windows-setup-env
-        id: setup
-        with:
-          scala-version: ${{matrix.scala}}
-
-      - name: Test scripted
-        env:
-          SCALANATIVE_INCLUDE_DIRS: ${{steps.setup.outputs.vcpkg-dir}}\include
-          SCALANATIVE_LIB_DIRS: ${{steps.setup.outputs.vcpkg-dir}}\lib
-        # Run in the foreground without the boot server's Windows named pipe.
-        run: sbt --server -Dsbt.server.autostart=false "test-scripted ${{matrix.scala}}"
-        shell: cmd
-
-  test-runtime-ext:
-    name: Test runtime extension
-    if: ((github.event_name == 'schedule' || github.event_name == 'workflow_call')  && github.repository == 'scala-native/scala-native') || (github.event_name == 'pull_request' && !contains(github.event.pull_request.body, '[skip ci]') && contains(github.event.pull_request.body, '[test-extended]'))
-    runs-on: windows-2022
-    needs: [test-runtime]
-    strategy:
-      fail-fast: false
-      matrix:
-        scala: [2.13, 3]
+        scala: ["2.13", "3"]
         build-mode: [debug, release-fast]
         lto: [none, thin]
         gc: [boehm, immix, commix]
         exclude:
-          # Covered in basic test-runtime
-          - scala: 3
+          # Covered by runtime-nightly
+          - scala: "3"
             build-mode: debug
-          - scala: 2.13
+          - scala: "2.13"
             build-mode: debug
             gc: immix
           - build-mode: release-fast
             lto: none
         include:
-          - scala: 3
+          - scala: "3"
             build-mode: release-size
             lto: thin
             gc: immix
-          # ReleaseFull is flaky
-          # - scala: 3
-          #   build-mode: release-full
-          #   lto: thin
-          #   gc: commix
     steps:
       # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
       - name: Setup git config
@@ -144,31 +171,34 @@ jobs:
       - uses: ./.github/actions/windows-setup-env
         id: setup
         with:
-          scala-version: ${{matrix.scala}}
-
+          scala-version: ${{ matrix.scala }}
+      - uses: ./.github/actions/restore-build-outputs
+        with:
+          scala-version: ${{ matrix.scala }}
+          enabled: ${{ vars.CI_SHARE_BUILD_OUTPUTS == 'true' }}
       - name: Run tests
-        timeout-minutes: 45
+        timeout-minutes: 60
         run: >
-          set SCALANATIVE_GC=${{matrix.gc}}&
-          set SCALANATIVE_MODE=${{matrix.build-mode}}&
-          set SCALANATIVE_LTO=${{matrix.lto}}&
-          set SCALANATIVE_INCLUDE_DIRS=${{steps.setup.outputs.vcpkg-dir}}\include&
-          set SCALANATIVE_LIB_DIRS=${{steps.setup.outputs.vcpkg-dir}}\lib&
+          set SCALANATIVE_GC=${{ matrix.gc }}&
+          set SCALANATIVE_MODE=${{ matrix.build-mode }}&
+          set SCALANATIVE_LTO=${{ matrix.lto }}&
+          set SCALANATIVE_INCLUDE_DIRS=${{ steps.setup.outputs.vcpkg-dir }}\include&
+          set SCALANATIVE_LIB_DIRS=${{ steps.setup.outputs.vcpkg-dir }}\lib&
           set SCALANATIVE_TEST_PREFETCH_DEBUG_INFO=1&
           set SCALANATIVE_CI_NO_DEBUG_SYMBOLS=true&
           set SCALANATIVE &
-          sbt "test-runtime ${{matrix.scala}}"
+          sbt "test-runtime-native ${{ matrix.scala }}"
         shell: cmd
 
-  test-llvm-versions:
+  llvm-versions:
+    name: LLVM ${{ matrix.llvm }}
+    if: inputs.nightly
     runs-on: windows-2022
-    if: ((github.event_name == 'schedule' || github.event_name == 'workflow_call')  && github.repository == 'scala-native/scala-native') || (github.event_name == 'pull_request' && !contains(github.event.pull_request.body, '[skip ci]') && contains(github.event.pull_request.body, '[test-extended]'))
     # LLVM 21.1.8 crashes in clang codegen on Windows; keep for visibility.
     continue-on-error: ${{ matrix.llvm == '21.1.8' }}
     strategy:
       fail-fast: false
       matrix:
-        scala: [3]
         # 20.x stays the default in windows-setup-env. Each version needs a
         # SHA-256 entry in scripts/ci/windows/install-llvm.ps1.
         llvm: ["19.1.7", "21.1.8", "22.1.8", "23.1.3"]
@@ -179,14 +209,53 @@ jobs:
       - uses: ./.github/actions/windows-setup-env
         id: setup
         with:
-          scala-version: ${{matrix.scala}}
+          scala-version: "3"
           llvm-version: ${{ matrix.llvm }}
-
+      - uses: ./.github/actions/restore-build-outputs
+        with:
+          scala-version: "3"
+          enabled: ${{ vars.CI_SHARE_BUILD_OUTPUTS == 'true' }}
       - name: Run tests
         shell: cmd
-        timeout-minutes: 45
+        timeout-minutes: 60
         run: >
-          set SCALANATIVE_INCLUDE_DIRS=${{steps.setup.outputs.vcpkg-dir}}\include&
-          set SCALANATIVE_LIB_DIRS=${{steps.setup.outputs.vcpkg-dir}}\lib&
+          set SCALANATIVE_INCLUDE_DIRS=${{ steps.setup.outputs.vcpkg-dir }}\include&
+          set SCALANATIVE_LIB_DIRS=${{ steps.setup.outputs.vcpkg-dir }}\lib&
           set SCALANATIVE &
-          sbt ";show tests3/nativeConfig;test-runtime ${{matrix.scala}}"
+          sbt "show tests3/nativeConfig" "test-runtime-native 3"
+
+  # Scala 3 tests the sbt 2.x plugin
+  scripted:
+    name: Scripted (${{ matrix.scala }})
+    if: inputs.sbt-plugin
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        scala: ["3"]
+    steps: &scripted-steps
+      # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
+      - name: Setup git config
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/windows-setup-env
+        id: setup
+        with:
+          scala-version: ${{ matrix.scala }}
+      - name: Test scripted
+        timeout-minutes: 120
+        env:
+          SCALANATIVE_INCLUDE_DIRS: ${{ steps.setup.outputs.vcpkg-dir }}\include
+          SCALANATIVE_LIB_DIRS: ${{ steps.setup.outputs.vcpkg-dir }}\lib
+        # Run in the foreground without the boot server's Windows named pipe.
+        run: sbt --server -Dsbt.server.autostart=false "test-scripted ${{ matrix.scala }}"
+        shell: cmd
+
+  # Scala 2.12 tests the sbt 1.x plugin
+  scripted-sbt1:
+    name: Scripted (${{ matrix.scala }})
+    if: inputs.nightly
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        scala: ["2.12"]
+    steps: *scripted-steps

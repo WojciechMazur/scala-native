@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # Last published commit, used by the documentation of nightly versions
+  LAST_PUBLISHED_TAG: last-published
+
 jobs:
   # Scala 3 artifacts are published with the oldest supported Scala 3 version,
   # other versions are compiled by the CI gate
@@ -36,10 +40,17 @@ jobs:
           - { scala: "2.13", part: "" }
           # Scala 3 is cross-published for every supported Scala 3 version
           - { scala: "3", part: "base" }
-          - { scala: "3", part: "cross 1/4" }
-          - { scala: "3", part: "cross 2/4" }
-          - { scala: "3", part: "cross 3/4" }
-          - { scala: "3", part: "cross 4/4" }
+          - { scala: "3", part: "cross 3.1" }
+          - { scala: "3", part: "cross 3.2" }
+          - { scala: "3", part: "cross 3.3" }
+          - { scala: "3", part: "cross 3.4" }
+          - { scala: "3", part: "cross 3.5" }
+          - { scala: "3", part: "cross 3.6" }
+          - { scala: "3", part: "cross 3.7" }
+          - { scala: "3", part: "cross 3.8" }
+          - { scala: "3", part: "cross 3.9" }
+          # Newer minor versions, add a dedicated entry when a minor version gets more releases
+          - { scala: "3", part: "cross 3.10+" }
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/linux-setup-env
@@ -59,10 +70,25 @@ jobs:
           PGP_PASSPHRASE: "${{ secrets.PGP_PASSWORD }}"
         run: sbt "-J-Xmx7G" "-J-XX:+UseG1GC" "publish-release-for-version ${{ matrix.scala }} ${{ matrix.part }}"
 
+  save_tag:
+    name: Save SHA as last published tag
+    runs-on: ubuntu-24.04
+    needs: [publish]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Tag commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f ${LAST_PUBLISHED_TAG} $GITHUB_SHA
+          git push origin -f ${LAST_PUBLISHED_TAG}
+
   build_docs:
     name: Trigger documentation build
     runs-on: ubuntu-latest
-    needs: [publish]
+    needs: [save_tag]
     steps:
       - name: Trigger Read the Docs build
         shell: bash

@@ -320,14 +320,15 @@ object Commands {
     }
   }
 
-  // Usage: publish-release-for-version <binary version> [base | cross <i>/<n>]
-  //   base      - only artifacts for the base Scala version
-  //   cross i/n - only cross-published artifacts for every n-th Scala version, starting at i (1-based)
+  // Usage: publish-release-for-version <binary version> [base | cross <versions>]
+  //   base             - only artifacts for the base Scala version
+  //   cross 3.4        - only cross-published artifacts for Scala 3.4.x
+  //   cross 3.10+      - only cross-published artifacts for Scala 3.10 and newer
   // Without a part publishes all of them.
   lazy val publishReleaseForVersion =
     Command.args(
       "publish-release-for-version",
-      "<binary version> [base | cross <i>/<n>]"
+      "<binary version> [base | cross <minor> | cross <minor>+]"
     ) {
       case (state, args) =>
         val binVersion = args.headOption
@@ -343,18 +344,28 @@ object Commands {
         // exclude already published base version
         val allCrossVersions =
           crossScalaVersions.diff(scalaVersion :: Nil).toList
-        val Shard = """(\d+)/(\d+)""".r
+        def minor(version: String): (Long, Long) =
+          CrossVersion
+            .partialVersion(version)
+            .getOrElse(
+              sys.error(s"Invalid Scala version: $version")
+            )
+        def crossVersionsIn(from: String, to: Option[String]) =
+          allCrossVersions.filter { v =>
+            import scala.math.Ordering.Implicits._
+            minor(v) >= minor(from) && to.forall(minor(v) <= minor(_))
+          }
+        val Minor = """(\d+\.\d+)""".r
+        val From = """(\d+\.\d+)\+""".r
         val (publishBase, crossVersions) = args.drop(1) match {
-          case Nil                       => (true, allCrossVersions)
-          case Seq("base")               => (true, Nil)
-          case Seq("cross", Shard(i, n)) =>
-            val shard = i.toInt - 1
-            false -> allCrossVersions.zipWithIndex.collect {
-              case (v, idx) if idx % n.toInt == shard => v
-            }
-          case other =>
+          case Nil                        => (true, allCrossVersions)
+          case Seq("base")                => (true, Nil)
+          case Seq("cross", Minor(minor)) =>
+            (false, crossVersionsIn(minor, Some(minor)))
+          case Seq("cross", From(from)) => (false, crossVersionsIn(from, None))
+          case other                    =>
             sys.error(
-              s"Unknown part ${other.mkString(" ")}, expected 'base' or 'cross <i>/<n>'"
+              s"Unknown part ${other.mkString(" ")}, expected 'base', 'cross <minor>' or 'cross <minor>+'"
             )
         }
         val publishCommand = "publishSigned"

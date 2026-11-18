@@ -86,8 +86,8 @@ runs:
           Write-Host "zlib.lib already present"
           exit 0
         }
-        # The static library name depends on the zlib version: zs.lib (1.3), z.lib or zlibstatic.lib (1.4)
-        foreach ($name in 'zs.lib', 'z.lib', 'zlibstatic.lib') {
+        # The static library name depends on the zlib version: zs.lib (1.3), libzs.lib (1.4)
+        foreach ($name in 'zs.lib', 'libzs.lib') {
           $candidate = Join-Path $libDir $name
           if (Test-Path -LiteralPath $candidate) {
             Copy-Item -LiteralPath $candidate -Destination $zlib
@@ -95,8 +95,8 @@ runs:
             exit 0
           }
         }
-        # Any other single z*.lib, e.g. a new naming scheme
-        $other = @(Get-ChildItem -LiteralPath $libDir -Filter 'z*.lib')
+        # Any other single library named like zlib, e.g. a new naming scheme
+        $other = @(Get-ChildItem -LiteralPath $libDir -Filter '*z*.lib')
         if ($other.Count -eq 1) {
           Copy-Item -LiteralPath $other[0].FullName -Destination $zlib
           Write-Host "Installed zlib.lib (copy of $($other[0].Name)) for @link(zlib)"

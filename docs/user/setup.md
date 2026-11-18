@@ -249,8 +249,8 @@ Use native ARM64 versions of the JDK, LLVM and native dependencies:
 
 Set `SCALANATIVE_INCLUDE_DIRS` and `SCALANATIVE_LIB_DIRS` to the `include` and
 `lib` directories under `<vcpkg>/installed/arm64-windows-static`.
-If vcpkg produces `zs.lib`, copy it to `zlib.lib` in the same directory so
-Scala Native can find zlib.
+If vcpkg produces `libzs.lib` (zlib 1.4+) or `zs.lib` (zlib 1.3.x), copy it to
+`zlib.lib` in the same directory so Scala Native can find zlib.
 
 For repository builds and setup helpers, see
 [Windows on ARM64 contributor setup](../contrib/build-setup.md#windows-on-arm64).

@@ -8,12 +8,8 @@ inputs:
     description: "Java version to use in tests"
     default: "25"
   llvm-version:
-    description: "LLVM release installed from llvm-project, the runner's preinstalled LLVM 20 when empty"
+    description: "LLVM release installed from llvm-project, the runner's preinstalled LLVM when empty"
     default: ""
-outputs:
-  vcpkg-dir:
-    description: "Directory containing installed libraries"
-    value: ${{steps.resolve-env.outputs.VcpkgLibs}}
 runs:
   using: "composite"
   steps:
@@ -53,19 +49,9 @@ runs:
         }
 
     - uses: ./.github/actions/windows-llvm-setup
-      if: ${{ inputs.llvm-version != '' }}
       with:
         version: ${{ inputs.llvm-version }}
         architecture: x64
-
-    - name: Use preinstalled LLVM toolchain
-      if: ${{ inputs.llvm-version == '' }}
-      shell: pwsh
-      run: |
-        $llvmBin = Join-Path $env:ProgramFiles 'LLVM\bin'
-        Add-Content -Path $env:GITHUB_ENV -Value "LLVM_BIN=$llvmBin"
-        $llvmBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        & (Join-Path $llvmBin 'clang.exe') --version
 
     - name: Exclude workspace from Windows Defender
       shell: pwsh

@@ -35,15 +35,21 @@ def globs(patterns: String*): Seq[Pattern] = patterns.map(Glob(_))
 extension (patterns: Seq[Pattern])
   def matchAny(path: String): Boolean = patterns.exists(_.matches(path))
 
+case class PullRequest(files: Seq[String], labels: Set[String], body: String)
+
 /** When a workflow (or its extended jobs) runs on pull requests */
 enum Trigger:
   case Always, Never
   case Changed(paths: Seq[Pattern])
+  // label or marker in the pull request description
+  case Requested(label: String, marker: String)
 
-  def matches(files: Seq[String]): Boolean = this match
-    case Always         => true
-    case Never          => false
-    case Changed(paths) => files.exists(paths.matchAny)
+  def matches(pr: PullRequest): Boolean = this match
+    case Always                   => true
+    case Never                    => false
+    case Changed(paths)           => pr.files.exists(paths.matchAny)
+    case Requested(label, marker) =>
+      pr.labels(label) || pr.body.contains(marker)
 
 val toolchainPaths = globs(
   "tools/**",
@@ -102,7 +108,7 @@ enum Workflow(val output: String, val base: Trigger, val extended: Trigger):
   case Apple
       extends Workflow(
         "apple",
-        base = Trigger.Changed(extraPlatformPaths ++ applePaths),
+        base = Trigger.Changed(extraPlatformPaths),
         extended = Trigger.Changed(applePaths)
       )
   case LinuxMultiarch
@@ -143,7 +149,7 @@ enum Workflow(val output: String, val base: Trigger, val extended: Trigger):
         base = Trigger.Changed(
           globs("scala-partest*/**", "scripts/partest-check-files.scala")
         ),
-        extended = Trigger.Never
+        extended = Trigger.Requested("ci:partest", "[test-partest]")
       )
 
 enum Level:
@@ -196,16 +202,16 @@ object Plan:
     Plan(tier, Workflow.values.map(_ -> level).toMap)
   def nightly = all(Tier.Nightly, Level.Extended)
 
-  def pullRequest(files: Seq[String]): Plan =
-    val fullPr = files.isEmpty || files.exists(fullPrPaths.matchAny)
+  def pullRequest(pr: PullRequest): Plan =
+    val fullPr = pr.files.isEmpty || pr.files.exists(fullPrPaths.matchAny)
     if fullPr then
       println("CI or build definition changed: running every workflow")
     Plan(
       Tier.PR,
       Workflow.values.map { w =>
         val level =
-          if w.extended.matches(files) then Level.Extended
-          else if fullPr || w.base.matches(files) then Level.Base
+          if w.extended.matches(pr) then Level.Extended
+          else if fullPr || w.base.matches(pr) then Level.Base
           else Level.Off
         w -> level
       }.toMap
@@ -234,19 +240,18 @@ def plan(): Plan =
         .arr
         .map(_.str)
         .toSet
-      val files = changedFiles(env("GH_REPO"), env("PR_NUMBER"))
-      println(s"${files.size} changed files")
-      if body.contains("[test-extended]") || labels("ci:full") then Plan.nightly
+      val pr = PullRequest(
+        files = changedFiles(env("GH_REPO"), env("PR_NUMBER")),
+        labels = labels,
+        body = body
+      )
+      println(s"${pr.files.size} changed files")
+      if Trigger.Requested("ci:full", "[test-extended]").matches(pr) then
+        Plan.nightly
       else if env("PR_DRAFT") == "true" then Plan.all(Tier.Draft, Level.Off)
-      else if files.nonEmpty && files.forall(docsPaths.matchAny) then
+      else if pr.files.nonEmpty && pr.files.forall(docsPaths.matchAny) then
         Plan.all(Tier.Docs, Level.Off)
-      else
-        val plan = Plan.pullRequest(files)
-        if body.contains("[test-partest]") || labels("ci:partest") then
-          plan.copy(levels =
-            plan.levels.updated(Workflow.Partests, Level.Extended)
-          )
-        else plan
+      else Plan.pullRequest(pr)
 
     case other =>
       sys.error(s"Unsupported event: $other")

@@ -2,7 +2,7 @@ name: CI
 # Single entry point for all tests. The plan job (scripts/ci/plan.scala) sets
 # each platform workflow to off, base or extended (base jobs plus the jobs
 # with `if: inputs.extended`). Pull requests run a reduced set of jobs, the
-# rest runs nightly on main. `ci-ok` is the only check that should be marked as required.
+# rest runs nightly on main. `ci-ok` is the only required check.
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]

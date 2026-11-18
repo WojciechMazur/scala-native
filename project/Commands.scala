@@ -171,7 +171,6 @@ object Commands {
       // (sbt might use older version then used by default in this project which would result in binary incompatibility)
       val prepareForMiMa = ScalaVersions
         .sbtScalaVersion(version)
-        .filter(_ != MultiScalaProject.scalaVersions(version))
         .map(v => s"++$v")
         .toList
       val tests = Build.publishedMultiScalaProjects

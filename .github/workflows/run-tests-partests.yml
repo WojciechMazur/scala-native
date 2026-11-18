@@ -29,6 +29,8 @@ jobs:
         with:
           scala-version: "2.13"
       - name: Test partests infrastructure
+        # Covered by the partests job
+        if: ${{ !inputs.extended }}
         timeout-minutes: 45
         run: >
           sbt "-J-Xmx3G"

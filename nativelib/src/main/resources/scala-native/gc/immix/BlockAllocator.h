@@ -33,6 +33,13 @@ BlockMeta *BlockAllocator_GetFreeSuperblock(BlockAllocator *blockAllocator,
                                             uint32_t size);
 void BlockAllocator_AddFreeBlocks(BlockAllocator *blockAllocator,
                                   BlockMeta *block, uint32_t count);
+/** Adds `count` free blocks starting at `end`, merged with the free extent
+ * that ends there, if any. Must hold the allocation lock. */
+void BlockAllocator_AddFreeBlocksAtEnd(BlockAllocator *blockAllocator,
+                                       BlockMeta *end, uint32_t count);
+/** The size of the free extent that ends at `end`, or 0. */
+uint32_t BlockAllocator_FreeBlocksBefore(BlockAllocator *blockAllocator,
+                                         BlockMeta *end);
 void BlockAllocator_SweepDone(BlockAllocator *blockAllocator);
 void BlockAllocator_Clear(BlockAllocator *blockAllocator);
 void BlockAllocator_Acquire(BlockAllocator *blockAllocator);

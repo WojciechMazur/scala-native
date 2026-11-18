@@ -1,0 +1,9 @@
+# =============================================================================
+# GC Large Allocation Growth Test
+# =============================================================================
+# Allocates a large object in a fragmented Immix heap close to its size limit,
+# where only the free extent at the end of the heap together with the room left
+# to grow can hold it. The allocation used to fail with OutOfMemoryError while
+# most of the heap was free.
+
+> runLargeAllocation

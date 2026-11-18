@@ -1,15 +1,10 @@
 name: Run tests BSD
 # Called from ci.yml, inputs are computed by its plan job (scripts/ci/plan.scala).
-# Defaults of workflow_dispatch run the nightly set of jobs.
 on:
   workflow_call:
     inputs:
       nightly: { type: boolean, default: false }
       posix: { type: boolean, default: false }
-  workflow_dispatch:
-    inputs:
-      nightly: { type: boolean, default: true }
-      posix: { type: boolean, default: true }
 
 permissions:
   contents: read
@@ -47,7 +42,7 @@ jobs:
     name: Test runtime (NetBSD x86_64, Scala 3)
     env:
       SBT_VERSION: "2.0.9"
-    if: inputs.nightly || inputs.posix
+    if: inputs.posix
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:

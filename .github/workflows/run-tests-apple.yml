@@ -1,23 +1,18 @@
 name: Run tests Apple
 # Apple embedded targets: iOS simulator, tvOS, watchOS.
 # Called from ci.yml, inputs are computed by its plan job (scripts/ci/plan.scala).
-# Defaults of workflow_dispatch run the nightly set of jobs.
 on:
   workflow_call:
     inputs:
       nightly: { type: boolean, default: false }
       native-runtime: { type: boolean, default: false }
       apple: { type: boolean, default: false }
-  workflow_dispatch:
-    inputs:
-      nightly: { type: boolean, default: true }
-      native-runtime: { type: boolean, default: true }
-      apple: { type: boolean, default: true }
 
 permissions:
   contents: read
 
 env:
+  CI_SHARE_BUILD_OUTPUTS: ${{ vars.CI_SHARE_BUILD_OUTPUTS }}
   SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
 
 jobs:
@@ -50,7 +45,6 @@ jobs:
         uses: ./.github/actions/restore-build-outputs
         with:
           scala-version: "3"
-          enabled: ${{ vars.CI_SHARE_BUILD_OUTPUTS == 'true' }}
       - name: Run unit tests
         timeout-minutes: 60
         run: sbt -J-Xmx5G "tests3/test"
@@ -153,10 +147,6 @@ jobs:
           echo "SCALANATIVE_TARGET_TRIPLE=${{ matrix.target }}" >> "$GITHUB_ENV"
           echo "SDKROOT=$(xcrun --sdk ${{ matrix.sdk }} --show-sdk-path)" >> "$GITHUB_ENV"
       - *restore-build-outputs
-      - name: Link sandbox
-        timeout-minutes: 30
-        run: sbt "sandbox3/nativeLink"
-      - name: Link unit tests
-        if: ${{ !cancelled() }}
-        timeout-minutes: 45
-        run: sbt -J-Xmx5G "tests3/Test/nativeLink"
+      - name: Link sandbox and unit tests
+        timeout-minutes: 60
+        run: sbt -J-Xmx5G "sandbox3/nativeLink" "tests3/Test/nativeLink"

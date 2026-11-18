@@ -2,7 +2,6 @@ name: Run tests Linux multiarch
 # Called from ci.yml, runs the same jobs on pull requests and nightly.
 on:
   workflow_call:
-  workflow_dispatch:
 
 jobs:
   #Main tests grid. Builds and runs tests agains multiple combination of GC, Build mode and Scala Version

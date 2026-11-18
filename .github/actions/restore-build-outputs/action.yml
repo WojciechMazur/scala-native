@@ -1,25 +1,22 @@
 name: "Restore build outputs"
-description: "Download sbt compilation outputs produced by the gate job of the same run. Best effort: sbt compiles anything missing."
+description: "Enabled by repository variable CI_SHARE_BUILD_OUTPUTS=true. Download sbt compilation outputs produced by the gate job of the same run. Best effort: sbt compiles anything missing."
 inputs:
   scala-version:
     description: "Scala binary version of the outputs"
     required: true
-  enabled:
-    description: "Set to true to enable, controlled by repository variable CI_SHARE_BUILD_OUTPUTS"
-    default: "false"
 runs:
   using: "composite"
   steps:
     - name: Download build outputs
       id: download
-      if: inputs.enabled == 'true'
+      if: env.CI_SHARE_BUILD_OUTPUTS == 'true'
       continue-on-error: true
       uses: actions/download-artifact@v8
       with:
         name: sbt-out-${{ inputs.scala-version }}
         path: ${{ runner.temp }}/sbt-out
     - name: Unpack build outputs
-      if: inputs.enabled == 'true' && steps.download.outcome == 'success'
+      if: env.CI_SHARE_BUILD_OUTPUTS == 'true' && steps.download.outcome == 'success'
       continue-on-error: true
       shell: bash
       run: |

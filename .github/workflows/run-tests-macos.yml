@@ -1,6 +1,5 @@
 name: Run tests MacOs
 # Called from ci.yml, inputs are computed by its plan job (scripts/ci/plan.scala).
-# Defaults of workflow_dispatch run the nightly set of jobs.
 # Apple embedded targets (iOS, tvOS, watchOS) are tested in run-tests-apple.yml
 on:
   workflow_call:
@@ -8,16 +7,12 @@ on:
       nightly: { type: boolean, default: false }
       native-runtime: { type: boolean, default: false }
       sbt-plugin: { type: boolean, default: false }
-  workflow_dispatch:
-    inputs:
-      nightly: { type: boolean, default: true }
-      native-runtime: { type: boolean, default: true }
-      sbt-plugin: { type: boolean, default: true }
 
 permissions:
   contents: read
 
 env:
+  CI_SHARE_BUILD_OUTPUTS: ${{ vars.CI_SHARE_BUILD_OUTPUTS }}
   SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
 
 jobs:
@@ -41,7 +36,6 @@ jobs:
       - uses: ./.github/actions/restore-build-outputs
         with:
           scala-version: "3"
-          enabled: ${{ vars.CI_SHARE_BUILD_OUTPUTS == 'true' }}
       - name: Test GC
         timeout-minutes: 45
         env:
@@ -77,7 +71,6 @@ jobs:
       - uses: ./.github/actions/restore-build-outputs
         with:
           scala-version: ${{ matrix.scala }}
-          enabled: ${{ vars.CI_SHARE_BUILD_OUTPUTS == 'true' }}
       - name: Run tests
         timeout-minutes: 60
         env:
@@ -132,7 +125,6 @@ jobs:
       - uses: ./.github/actions/restore-build-outputs
         with:
           scala-version: ${{ matrix.scala }}
-          enabled: ${{ vars.CI_SHARE_BUILD_OUTPUTS == 'true' }}
       - name: Run tests
         timeout-minutes: 60
         env:
@@ -166,7 +158,6 @@ jobs:
       - uses: ./.github/actions/restore-build-outputs
         with:
           scala-version: "3"
-          enabled: ${{ vars.CI_SHARE_BUILD_OUTPUTS == 'true' }}
       - name: Run tests
         timeout-minutes: 60
         run: sbt "test-runtime-native 3"

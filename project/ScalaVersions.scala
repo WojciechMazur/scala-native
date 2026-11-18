@@ -57,6 +57,16 @@ object ScalaVersions {
   val crossSbtVersions = Seq(sbt10Version, sbt2Version)
   val crossSbtScalaVersions = Seq(sbt10ScalaVersion, sbt2ScalaVersion)
 
+  /** Scala version of the sbt the plugin built for given Scala binary version
+   *  targets
+   */
+  def sbtScalaVersion(binaryVersion: String): Option[String] =
+    binaryVersion match {
+      case "2.12" => Some(sbt10ScalaVersion)
+      case "3"    => Some(sbt2ScalaVersion)
+      case _      => None
+    }
+
   val libCrossScalaVersions: Seq[String] = Seq(
     crossScala212,
     crossScala213,

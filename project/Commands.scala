@@ -87,14 +87,13 @@ object Commands {
   // 2.12 - sbt 1.x, 3 - sbt 2.x
   lazy val compileSbtPlugin = projectVersionCommand("compile-sbt-plugin") {
     case (version, state) =>
-      val sbtScalaVersion = version match {
-        case "2.12" => ScalaVersions.sbt10ScalaVersion
-        case "3"    => ScalaVersions.sbt2ScalaVersion
-        case other  =>
+      val sbtScalaVersion = ScalaVersions
+        .sbtScalaVersion(version)
+        .getOrElse(
           throw new MessageOnlyException(
-            s"No sbt plugin for Scala binary version $other"
+            s"No sbt plugin for Scala binary version $version"
           )
-      }
+        )
       val plugins = Build.sbtPlugins
         .flatMap(_.forBinaryVersionIfDefined(version))
         .map(p => s"${p.id}/compile")
@@ -140,9 +139,7 @@ object Commands {
       .map(id => s"$id/test")
 
   private def runtimeNativeTests(version: String): List[String] = {
-    val runs = List(sandbox)
-      .map(_.forBinaryVersion(version).id)
-      .map(id => s"$id/run")
+    val run = s"${sandbox.forBinaryVersion(version).id}/run"
     val tests = List(
       Build.tests,
       testsExt,
@@ -150,7 +147,7 @@ object Commands {
       scalaPartestJunitTests
     ).map(_.forBinaryVersion(version).id)
       .map(id => s"$id/test")
-    runs ::: tests
+    run :: tests
   }
 
   lazy val testRuntime = projectVersionCommand("test-runtime") {
@@ -190,11 +187,13 @@ object Commands {
 
   lazy val testMima = projectVersionCommand("test-mima") {
     case (version, state) =>
-      val prepareForMiMa = version match {
-        // Ensure all projects are using compatible Scala 3 version (sbt might use older version then used by default in this project which would result in binary incompatibility)
-        case "3" => s"++${ScalaVersions.sbt2ScalaVersion}" :: Nil
-        case _   => Nil
-      }
+      // Ensure all projects are using the Scala version of sbt, sbt plugins depend on them
+      // (sbt might use older version then used by default in this project which would result in binary incompatibility)
+      val prepareForMiMa = ScalaVersions
+        .sbtScalaVersion(version)
+        .filter(_ != MultiScalaProject.scalaVersions(version))
+        .map(v => s"++$v")
+        .toList
       val tests = Build.publishedMultiScalaProjects
         .flatMap(_.forBinaryVersionIfDefined(version).map(_.id))
         .flatMap(id =>

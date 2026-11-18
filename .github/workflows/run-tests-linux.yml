@@ -1,6 +1,5 @@
 name: Run tests Linux
 # Called from ci.yml, inputs are computed by its plan job (scripts/ci/plan.scala).
-# Defaults of workflow_dispatch run the nightly set of jobs.
 on:
   workflow_call:
     inputs:
@@ -11,20 +10,12 @@ on:
       sbt-plugin: { type: boolean, default: false }
       partest: { type: boolean, default: false }
       partest-full: { type: boolean, default: false }
-  workflow_dispatch:
-    inputs:
-      nightly: { type: boolean, default: true }
-      tools: { type: boolean, default: true }
-      compiler: { type: boolean, default: true }
-      gc: { type: boolean, default: true }
-      sbt-plugin: { type: boolean, default: true }
-      partest: { type: boolean, default: true }
-      partest-full: { type: boolean, default: true }
 
 permissions:
   contents: read
 
 env:
+  CI_SHARE_BUILD_OUTPUTS: ${{ vars.CI_SHARE_BUILD_OUTPUTS }}
   SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
 
 jobs:
@@ -42,7 +33,6 @@ jobs:
       - uses: ./.github/actions/restore-build-outputs
         with:
           scala-version: ${{ matrix.scala }}
-          enabled: ${{ vars.CI_SHARE_BUILD_OUTPUTS == 'true' }}
       - name: Test tools
         timeout-minutes: 45
         run: sbt "test-tools ${{ matrix.scala }}" "toolsBenchmarks${{ env.project-version }}/Jmh/compile"
@@ -94,7 +84,6 @@ jobs:
       - uses: ./.github/actions/restore-build-outputs
         with:
           scala-version: "3"
-          enabled: ${{ vars.CI_SHARE_BUILD_OUTPUTS == 'true' }}
       - name: Test GC
         timeout-minutes: 45
         env:
@@ -154,7 +143,6 @@ jobs:
       - uses: ./.github/actions/restore-build-outputs
         with:
           scala-version: ${{ matrix.scala }}
-          enabled: ${{ vars.CI_SHARE_BUILD_OUTPUTS == 'true' }}
       - name: Run tests
         timeout-minutes: 60
         env:
@@ -208,7 +196,6 @@ jobs:
       - uses: ./.github/actions/restore-build-outputs
         with:
           scala-version: ${{ matrix.scala }}
-          enabled: ${{ vars.CI_SHARE_BUILD_OUTPUTS == 'true' }}
       - name: Run tests
         timeout-minutes: 60
         env:
@@ -264,7 +251,6 @@ jobs:
       - uses: ./.github/actions/restore-build-outputs
         with:
           scala-version: "3"
-          enabled: ${{ vars.CI_SHARE_BUILD_OUTPUTS == 'true' }}
       - name: Run tests
         timeout-minutes: 60
         env:

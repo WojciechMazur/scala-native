@@ -111,4 +111,4 @@ jobs:
       - *restore-build-outputs
       - name: Link sandbox and unit tests
         timeout-minutes: 60
-        run: sbt -J-Xmx5G "sandbox3/nativeLink" "tests3/Test/nativeLink"
+        run: sbt -J-Xmx5G "sandbox3/nativeLink; tests3/Test/nativeLink"

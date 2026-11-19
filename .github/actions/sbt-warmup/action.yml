@@ -20,7 +20,7 @@ runs:
       run: |
         mirror=https://maven-central.storage-download.googleapis.com/maven2
         echo "MAVEN_CENTRAL_MIRROR=$mirror/" >> "$GITHUB_ENV"
-        echo "COURSIER_REPOSITORIES=ivy2Local|$mirror|central" >> "$GITHUB_ENV"
+        echo "COURSIER_REPOSITORIES=ivy2Local|$mirror" >> "$GITHUB_ENV"
 
     # The build definition includes toolchain sources, see project/build.sbt
     - name: Restore compiled build definition

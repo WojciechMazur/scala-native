@@ -70,7 +70,7 @@ runs:
           echo "::warning::No directory $LLVM_TOOLCHAIN; set LLVM_BIN on the step if needed."
         fi
 
-    # Apport handles core dumps of aborting tests slowly enough to hit their timeouts
+    # systemd-coredump handles dumps of aborting tests slowly enough to hit their timeouts
     - name: Disable core dumps
       shell: bash
       run: |

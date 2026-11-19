@@ -215,7 +215,7 @@ Its `plan` job selects which jobs run:
   2.12, 2.13 and 3 (`compile-all <version>`), the sandbox, the test
   interface, the runtime tests on the JVM and on Native in the default
   configuration and MiMa checks, with the Scala 3 runtime tests also on
-  macOS and Windows. Platform tests start only once all gates pass;
+  macOS (x64) and Windows. Platform tests start only once all gates pass;
 - each platform workflow (`run-tests-*.yml`) then runs off, at its base
   level (jobs without a condition) or extended (also the jobs with
   `if: inputs.extended`). The `Workflow` table in `scripts/ci/plan.scala`

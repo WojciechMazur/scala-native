@@ -18,7 +18,7 @@ jobs:
   # GC tests: run-tests-gc.yml, static library: sbt plugin Scripted macOS
   ios-simulator:
     name: iOS simulator (3, release-fast, commix)
-    runs-on: macos-15
+    runs-on: macos-26
     env:
       SCALANATIVE_MODE: release-fast
       SCALANATIVE_GC: commix
@@ -28,7 +28,6 @@ jobs:
         uses: ./.github/actions/macos-setup-env
         with:
           scala-version: "3"
-          llvm-version: 19
       - uses: ./.github/actions/ios-simulator-setup
       - name: Target simulator
         run: |
@@ -48,7 +47,7 @@ jobs:
   build-apple-platforms:
     name: Build ${{ matrix.target }}
     if: inputs.extended
-    runs-on: macos-15
+    runs-on: macos-26
     strategy:
       fail-fast: false
       matrix:

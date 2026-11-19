@@ -40,7 +40,7 @@ jobs:
   macos:
     name: Test GC macOS (${{ matrix.mode }}, lto=${{ matrix.lto }})
     if: inputs.extended
-    runs-on: macos-15
+    runs-on: macos-26
     strategy:
       fail-fast: false
       matrix:
@@ -53,7 +53,6 @@ jobs:
         with:
           scala-version: "3"
           gc: boehm
-          llvm-version: 19
       - uses: ./.github/actions/restore-build-outputs
         with:
           scala-version: "3"
@@ -67,7 +66,7 @@ jobs:
   windows:
     name: Test GC Windows x64 (${{ matrix.mode }}, lto=${{ matrix.lto }})
     if: inputs.extended
-    runs-on: windows-2022
+    runs-on: windows-2025
     strategy:
       fail-fast: false
       matrix:
@@ -97,7 +96,7 @@ jobs:
   ios-simulator:
     name: Test GC iOS simulator (${{ matrix.mode }}, lto=${{ matrix.lto }})
     if: inputs.extended
-    runs-on: macos-15
+    runs-on: macos-26
     strategy:
       fail-fast: false
       matrix:
@@ -112,7 +111,6 @@ jobs:
       - uses: ./.github/actions/macos-setup-env
         with:
           scala-version: "3"
-          llvm-version: 19
       - uses: ./.github/actions/ios-simulator-setup
       - name: Target simulator
         run: |

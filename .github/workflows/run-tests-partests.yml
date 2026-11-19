@@ -1,5 +1,5 @@
 name: Run tests partests
-# Scala 2 partests. Called from ci.yml, see scripts/ci/plan.scala.
+# Scala 2 partests. Called from ci.yml, see scripts/ci/plan.scala
 on:
   workflow_call:
     inputs:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  # Checks the list of disabled partests and runs a single test of each kind
+  # Disabled tests list and a single test of each kind
   smoketest:
     name: Partests infrastructure (2.13)
     runs-on: ubuntu-24.04

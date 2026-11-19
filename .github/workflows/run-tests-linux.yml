@@ -1,6 +1,5 @@
 name: Run tests Linux
-# Called from ci.yml, see scripts/ci/plan.scala. Jobs with `if: inputs.extended`
-# run nightly and on pull requests listed in its extended triggers.
+# Called from ci.yml, see scripts/ci/plan.scala
 on:
   workflow_call:
     inputs:

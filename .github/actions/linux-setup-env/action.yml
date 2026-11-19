@@ -32,7 +32,7 @@ runs:
           echo "project-version=3" >> $GITHUB_ENV
         fi
 
-    # Preinstalled LLVM of the runner image, unless a version is requested
+    # Preinstalled LLVM unless a version is requested
     - name: Resolve LLVM version
       id: llvm
       shell: bash
@@ -46,7 +46,7 @@ runs:
         max_attempts: 10
         retry_on: error
         shell: bash
-        # The runner image ships clang without lld, needed for LTO
+        # lld is needed for LTO
         command: |
           sudo apt-get update
           sudo apt-get install -y libgc-dev ${{ inputs.llvm-version == '' && format('lld-{0}', steps.llvm.outputs.version) || '' }}
@@ -56,7 +56,7 @@ runs:
       if: ${{ inputs.native-toolchain == 'true' && inputs.llvm-version != '' }}
       run: sudo ./ci-docker/install-llvm.sh ${{ inputs.llvm-version }}
 
-    # Prefer the selected LLVM over /usr/bin/clang (Discover uses LLVM_BIN / PATH)
+    # Discover uses LLVM_BIN / PATH
     - name: Expose LLVM toolchain
       if: ${{ inputs.native-toolchain == 'true' }}
       shell: bash

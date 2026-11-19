@@ -1,6 +1,5 @@
 name: Nightly report
-# Turns failures of scheduled CI runs into GitHub issues (scripts/ci/nightly-report.scala).
-# Switch on and off with the repository variable NIGHTLY_CREATE_ISSUES ('true' enables).
+# Reports nightly failures as issues, enabled by NIGHTLY_CREATE_ISSUES=true
 on:
   workflow_run:
     workflows: [CI]

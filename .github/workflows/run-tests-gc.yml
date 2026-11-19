@@ -1,7 +1,6 @@
 name: Run tests GC
-# Every GC with sandbox, test interface and JUnit outputs (test-gc).
-# Called from ci.yml, see scripts/ci/plan.scala. Jobs with `if: inputs.extended`
-# run nightly and on pull requests listed in its extended triggers.
+# test-gc: sandbox, test interface and JUnit outputs with every GC
+# Called from ci.yml, see scripts/ci/plan.scala
 on:
   workflow_call:
     inputs:

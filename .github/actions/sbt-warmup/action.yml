@@ -1,12 +1,9 @@
 name: "sbt warm-up"
-description: "Bootstrap sbt and load the build with retries to survive transient artifact download failures. Caches the compiled build definition."
+description: "Load the sbt build with retries and cache its compiled definition"
 runs:
   using: "composite"
   steps:
-    # The build definition compiles project/ together with the sources of the
-    # toolchain used by the sbt plugin (see project/build.sbt). Its outputs
-    # point into sbt's content store through symlinks, so they are cached as a
-    # dereferenced archive. Only an identical build definition reuses it.
+    # The build definition includes toolchain sources, see project/build.sbt
     - name: Restore compiled build definition
       id: restore
       uses: actions/cache/restore@v5
@@ -40,6 +37,7 @@ runs:
       if: steps.restore.outputs.cache-hit != 'true'
       continue-on-error: true
       shell: bash
+      # Dereference symlinks into sbt's content store
       run: |
         flags=""
         if [[ "$RUNNER_OS" == "Windows" ]]; then flags="--force-local"; fi
@@ -48,7 +46,7 @@ runs:
           --exclude='streams' target/out/jvm/scala-*/*-build project/target/config-classes
         ls -lh "$RUNNER_TEMP/sbt-meta-build/meta-build.tgz"
 
-    # Jobs of the same run race to save the same key, all but the first are no-ops
+    # Concurrent jobs may race to save the same key
     - name: Save compiled build definition
       if: steps.restore.outputs.cache-hit != 'true' && steps.pack.outcome == 'success'
       continue-on-error: true

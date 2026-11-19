@@ -1,8 +1,6 @@
 name: Run tests Toolchain
-# Compiler plugins, NIR, linker and test infrastructure on the JVM, and cross
-# compilation for every supported Scala version.
-# Called from ci.yml, see scripts/ci/plan.scala. Jobs with `if: inputs.extended`
-# run nightly and on pull requests listed in its extended triggers.
+# Toolchain tests on the JVM and cross compilation
+# Called from ci.yml, see scripts/ci/plan.scala
 on:
   workflow_call:
     inputs:
@@ -43,7 +41,6 @@ jobs:
         scala: ["2.13", "2.12"]
     steps: *tools-tests-steps
 
-  # Compiler plugins and the patched Scala standard library for every supported Scala version.
   cross-compile:
     name: Cross compile (${{ matrix.scala }})
     if: inputs.extended

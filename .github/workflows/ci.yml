@@ -1,15 +1,13 @@
 name: CI
-# Single entry point for all tests. The plan job (scripts/ci/plan.scala) sets
-# each platform workflow to off, base or extended (base jobs plus the jobs
-# with `if: inputs.extended`). Pull requests run a reduced set of jobs, the
-# rest runs nightly on main. `ci-ok` is the only required check.
+# Entry point for all tests and publishing. The plan job (scripts/ci/plan.scala)
+# runs each workflow off, base or extended. `ci-ok` is the only required check.
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     tags: ["v0.5.*"]
   schedule:
-    # Every day at 2 AM UTC, skipped when nothing was committed since the last run
+    # Skipped when nothing was committed since the last run
     - cron: "0 2 * * *"
   workflow_dispatch:
     inputs:
@@ -74,7 +72,7 @@ jobs:
           DISPATCH_TIER: ${{ inputs.tier }}
         run: scala-cli run --server=false scripts/ci/plan.scala
 
-  # Lint and documentation, independent from the build
+  # Lint and documentation
   checks:
     name: Lint and docs
     needs: plan
@@ -87,7 +85,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
-      # Formatting is checked with clang-format 14, not shipped with Ubuntu 24.04
+      # Formatting requires clang-format 14
       - name: Install clang-format
         run: pip install clang-format==14.0.6
       - name: Lint
@@ -97,9 +95,7 @@ jobs:
           pip install -r docs/requirements.txt
           cd docs && SPHINXOPTS="-W" make html
 
-  # Stop gate: compiles all sources once per Scala version and runs the minimal
-  # native program and test infrastructure. Everything below depends on it and
-  # reuses its compilation outputs (sbt-out-<version> artifact).
+  # Compiles all sources and runs the sandbox, everything below depends on it
   gate:
     name: Gate (${{ matrix.scala }})
     needs: plan
@@ -131,7 +127,7 @@ jobs:
         timeout-minutes: 30
         run: sbt "test-mima ${{ matrix.scala }}"
 
-  # sbt plugins, compiled with the Scala version of their sbt
+  # sbt plugins, compiled with their sbt Scala version
   gate-sbt-plugin:
     name: Gate sbt ${{ matrix.sbt }} plugin
     needs: plan
@@ -154,8 +150,7 @@ jobs:
         timeout-minutes: 30
         run: sbt "compile-sbt-plugin ${{ matrix.scala }}"
 
-  # JVM half of the runtime tests and the test infrastructure on the remaining
-  # OSes. Not a dependency of platform jobs (macOS runner queues are long).
+  # JVM runtime tests on other OSes, not blocking platform jobs
   gate-macos:
     name: Gate macOS
     needs: plan
@@ -272,7 +267,7 @@ jobs:
     with:
       extended: ${{ needs.plan.outputs.partests == 'extended' }}
 
-  # Nightly snapshot (scheduled, or manual run on main), requires only the gates
+  # Nightly snapshot, requires the gates
   publish-snapshot:
     name: Publish snapshot
     needs: [plan, gate, gate-sbt-plugin]
@@ -284,7 +279,7 @@ jobs:
     with:
       snapshot: true
 
-  # Release from a tag, requires every job of the release plan (CI OK)
+  # Release from a tag, requires the release plan to pass
   publish-release:
     name: Publish release
     needs: [plan, ci-ok]
@@ -296,7 +291,7 @@ jobs:
     with:
       snapshot: false
 
-  # Single required status check. Skipped jobs (filtered by `plan`) count as passed.
+  # Skipped jobs count as passed
   ci-ok:
     name: CI OK
     if: always()

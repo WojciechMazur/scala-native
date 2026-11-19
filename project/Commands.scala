@@ -73,8 +73,7 @@ object Commands {
         state
   }
 
-  // Compile main and test sources of every project defined for given Scala binary version.
-  // sbt plugins are excluded, they need the Scala version of their sbt, see compile-sbt-plugin
+  // Compile main and test sources of all projects except sbt plugins, see compile-sbt-plugin
   lazy val compileAll = projectVersionCommand("compile-all") {
     case (version, state) =>
       val projects = Build.allMultiScalaProjects
@@ -84,8 +83,7 @@ object Commands {
       projects.mkString("all ", " ", "") :: state
   }
 
-  // Compile the sbt plugin for given Scala binary version using the Scala version of its sbt:
-  // 2.12 - sbt 1.x, 3 - sbt 2.x
+  // Compile the sbt plugin with the Scala version of its sbt: 2.12 - sbt 1.x, 3 - sbt 2.x
   lazy val compileSbtPlugin = projectVersionCommand("compile-sbt-plugin") {
     case (version, state) =>
       val sbtScalaVersion = ScalaVersions
@@ -101,10 +99,9 @@ object Commands {
       s"++$sbtScalaVersion" :: plugins ::: state
   }
 
-  // Compile compiler plugins and the Scala standard library for each supported version of given binary version
+  // Compile compiler plugins and the Scala library for every supported Scala version
   lazy val testCrossCompile = projectVersionCommand("test-cross-compile") {
     case (version, state) =>
-      // Compiling the standard library builds the compiler plugin for the same Scala version
       val stdlib = (if (version == "3") scala3lib else scalalib)
         .forBinaryVersion(version)
         .id
@@ -136,13 +133,13 @@ object Commands {
       runtimeJVMTests(version) ::: runtimeNativeTests(version) ::: state
   }
 
-  // Native part of the runtime tests, the JVM part is executed once per OS in the CI gate
+  // Native part of the runtime tests
   lazy val testRuntimeNative =
     projectVersionCommand("test-runtime-native") {
       case (version, state) => runtimeNativeTests(version) ::: state
     }
 
-  // JVM part of the runtime tests: validates test sources against JDK behaviour
+  // JVM part of the runtime tests, validates them against the JDK
   lazy val testRuntimeJVM = projectVersionCommand("test-runtime-jvm") {
     case (version, state) => runtimeJVMTests(version) ::: state
   }
@@ -168,8 +165,7 @@ object Commands {
 
   lazy val testMima = projectVersionCommand("test-mima") {
     case (version, state) =>
-      // Ensure all projects are using the Scala version of sbt, sbt plugins depend on them
-      // (sbt might use older version then used by default in this project which would result in binary incompatibility)
+      // sbt plugins depend on the other projects, use the Scala version of sbt for all of them
       val prepareForMiMa = ScalaVersions
         .sbtScalaVersion(version)
         .map(v => s"++$v")
@@ -270,7 +266,7 @@ object Commands {
       case (version, _, state) => fn(version, state)
     }
 
-  // Scala binary version as the first argument, followed by command specific arguments
+  // Scala binary version followed by command specific arguments
   private def projectVersionArgsCommand(name: String, display: String)(
       fn: (String, Seq[String], State) => State
   ): Command = {
@@ -287,7 +283,7 @@ object Commands {
     }
   }
 
-  // Scala version used to publish artifacts of given binary version, and versions they're cross-published for
+  // Publish Scala version and cross-published versions
   private def publishScalaVersions(binVersion: String): (String, Seq[String]) =
     binVersion match {
       case "2.12" => ScalaVersions.scala212 -> ScalaVersions.crossScala212
@@ -297,7 +293,7 @@ object Commands {
       case _ => sys.error(s"Invalid Scala binary version: '$binVersion'")
     }
 
-  // Compile all sources with the Scala version used to publish artifacts of given binary version
+  // Compile all sources with the publish Scala version
   lazy val compilePublishVersion =
     projectVersionCommand("compile-publish-version") {
       case (version, state) =>
@@ -346,8 +342,7 @@ object Commands {
     }
   }
 
-  // Without a part publishes all artifacts, `base` only these for the base Scala version,
-  // `cross` only these cross-published for a range of versions, e.g. `cross 3.1-3.3`, `cross 3.9+`
+  // Optional part: `base` or `cross` for a range of versions, e.g. `cross 3.1-3.3`, `cross 3.9+`
   lazy val publishReleaseForVersion = projectVersionArgsCommand(
     "publish-release-for-version",
     "<binary version> [base | cross <from>-<to> | cross <from>+]"

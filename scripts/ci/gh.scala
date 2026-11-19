@@ -1,10 +1,8 @@
-// GitHub CLI helpers shared by the CI scripts, included with `//> using file gh.scala`
+// GitHub CLI helpers shared by the CI scripts
 
 def env(name: String): String = sys.env.getOrElse(name, "")
 
-/** Runs `gh <command> --<flag> <value>...` in the repository from GH_REPO. The
- *  command is split on spaces, flag values are passed as they are.
- */
+/** Runs `gh <command> --<flag> <value>...`, the command is split on spaces */
 def gh(command: String, flags: (String, String)*): String =
   val args =
     command.split(' ').toSeq ++ flags.flatMap((f, v) => Seq(s"--$f", v))
@@ -14,9 +12,7 @@ def ghJson(command: String): ujson.Value =
   val out = gh(command)
   if out.trim.isEmpty then ujson.Null else ujson.read(out)
 
-/** All elements of a paginated GitHub API endpoint, `extract` selects the list
- *  from a page.
- */
+/** All elements of a paginated GitHub API endpoint */
 def ghApiPages(
     endpoint: String,
     extract: ujson.Value => ujson.Value = identity

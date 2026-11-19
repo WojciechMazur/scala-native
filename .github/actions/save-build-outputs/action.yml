@@ -10,10 +10,8 @@ runs:
     - name: Pack build outputs
       if: env.CI_SHARE_BUILD_OUTPUTS == 'true'
       shell: bash
-      # Native binaries and link outputs are platform specific, sbt task caches
-      # (streams, value) hold machine specific state; leave them out.
-      # Symlinks into the sbt action cache are dereferenced, their read-only
-      # permissions are dropped so that sbt can overwrite the restored files.
+      # Skip platform specific native outputs and machine specific task state.
+      # Dereference symlinks into sbt's read-only content store.
       run: |
         tar -czhf "$RUNNER_TEMP/sbt-out.tgz" --ignore-failed-read --mode=u+w \
           --exclude='target/out/value' \

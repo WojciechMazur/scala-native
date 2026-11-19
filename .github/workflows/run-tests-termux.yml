@@ -1,5 +1,5 @@
 name: Run tests Termux
-# Called from ci.yml, see scripts/ci/plan.scala.
+# Called from ci.yml, see scripts/ci/plan.scala
 on:
   workflow_call:
 

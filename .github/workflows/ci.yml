@@ -153,7 +153,7 @@ jobs:
         timeout-minutes: 30
         run: sbt "compile-sbt-plugin ${{ matrix.scala }}"
 
-  # Scala 3 runtime tests on other OSes, required by their platform jobs
+  # Scala 3 runtime tests on other OSes
   gate-macos:
     name: Gate macOS
     needs: plan
@@ -188,7 +188,7 @@ jobs:
 
   toolchain:
     name: Toolchain
-    needs: [plan, gate, gate-sbt-plugin]
+    needs: &gates [plan, gate, gate-sbt-plugin, gate-macos, gate-windows]
     if: needs.plan.outputs.toolchain != 'off'
     uses: ./.github/workflows/run-tests-toolchain.yml
     with:
@@ -196,7 +196,7 @@ jobs:
 
   linux:
     name: Linux
-    needs: [plan, gate, gate-sbt-plugin]
+    needs: *gates
     if: needs.plan.outputs.linux != 'off'
     uses: ./.github/workflows/run-tests-linux.yml
     with:
@@ -204,7 +204,7 @@ jobs:
 
   gc:
     name: GC
-    needs: [plan, gate, gate-sbt-plugin]
+    needs: *gates
     if: needs.plan.outputs.gc != 'off'
     uses: ./.github/workflows/run-tests-gc.yml
     with:
@@ -212,7 +212,7 @@ jobs:
 
   macos:
     name: macOS
-    needs: [plan, gate, gate-sbt-plugin, gate-macos]
+    needs: *gates
     if: needs.plan.outputs.macos != 'off'
     uses: ./.github/workflows/run-tests-macos.yml
     with:
@@ -220,7 +220,7 @@ jobs:
 
   windows:
     name: Windows
-    needs: [plan, gate, gate-sbt-plugin, gate-windows]
+    needs: *gates
     if: needs.plan.outputs.windows != 'off'
     uses: ./.github/workflows/run-tests-windows.yml
     with:
@@ -228,7 +228,7 @@ jobs:
 
   apple:
     name: Apple
-    needs: [plan, gate, gate-sbt-plugin, gate-macos]
+    needs: *gates
     if: needs.plan.outputs.apple != 'off'
     uses: ./.github/workflows/run-tests-apple.yml
     with:
@@ -236,13 +236,13 @@ jobs:
 
   linux-multiarch:
     name: Linux Multiarch
-    needs: [plan, gate, gate-sbt-plugin]
+    needs: *gates
     if: needs.plan.outputs.linux-multiarch != 'off'
     uses: ./.github/workflows/run-tests-linux-multiarch.yml
 
   bsd:
     name: BSD
-    needs: [plan, gate, gate-sbt-plugin]
+    needs: *gates
     if: needs.plan.outputs.bsd != 'off'
     uses: ./.github/workflows/run-tests-bsd.yml
     with:
@@ -250,13 +250,13 @@ jobs:
 
   termux:
     name: Termux
-    needs: [plan, gate, gate-sbt-plugin]
+    needs: *gates
     if: needs.plan.outputs.termux != 'off'
     uses: ./.github/workflows/run-tests-termux.yml
 
   sbt-plugin:
     name: sbt plugin
-    needs: [plan, gate, gate-sbt-plugin]
+    needs: *gates
     if: needs.plan.outputs.sbt-plugin != 'off'
     uses: ./.github/workflows/run-tests-sbt-plugin.yml
     with:
@@ -264,7 +264,7 @@ jobs:
 
   partests:
     name: Partests
-    needs: [plan, gate, gate-sbt-plugin]
+    needs: *gates
     if: needs.plan.outputs.partests != 'off'
     uses: ./.github/workflows/run-tests-partests.yml
     with:
@@ -273,7 +273,7 @@ jobs:
   # Nightly snapshot, requires the gates
   publish-snapshot:
     name: Publish snapshot
-    needs: [plan, gate, gate-sbt-plugin]
+    needs: *gates
     if: needs.plan.outputs.publish == 'snapshot'
     permissions:
       contents: write

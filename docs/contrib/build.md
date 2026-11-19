@@ -234,6 +234,8 @@ a `v0.5.*` tag runs the gate and the base Linux, macOS and Windows tests,
 then publishes the release.
 
 The `CI OK` job aggregates the results and is the only required check.
+Jobs that GitHub cancels because no runner picked them up, which happens
+with macOS arm64 runners, are re-run by `ci-retry.yml`, up to 3 attempts.
 Repository variables control CI without code changes:
 `NIGHTLY_CREATE_ISSUES=true` reports nightly failures as issues labelled
 `ci-nightly`, `CI_SHARE_BUILD_OUTPUTS=true` reuses compilation outputs of

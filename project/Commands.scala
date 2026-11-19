@@ -17,8 +17,6 @@ object Commands {
     compileSbtPlugin,
     testCrossCompile,
     testRuntime,
-    testRuntimeNative,
-    testRuntimeJVM,
     testMima,
     testScripted,
     disableActionCache,
@@ -131,17 +129,6 @@ object Commands {
   lazy val testRuntime = projectVersionCommand("test-runtime") {
     case (version, state) =>
       runtimeJVMTests(version) ::: runtimeNativeTests(version) ::: state
-  }
-
-  // Native part of the runtime tests
-  lazy val testRuntimeNative =
-    projectVersionCommand("test-runtime-native") {
-      case (version, state) => runtimeNativeTests(version) ::: state
-    }
-
-  // JVM part of the runtime tests, validates them against the JDK
-  lazy val testRuntimeJVM = projectVersionCommand("test-runtime-jvm") {
-    case (version, state) => runtimeJVMTests(version) ::: state
   }
 
   lazy val testTools = projectVersionCommand("test-tools") {

@@ -14,10 +14,13 @@ runs:
           fi
         done
 
-    # Maven Central rate limits CI, see project/MavenMirror.scala
+    # Maven Central rate limits CI: sbt, see project/MavenMirror.scala, coursier and scala-cli
     - name: Use Maven Central mirror
       shell: bash
-      run: echo "MAVEN_CENTRAL_MIRROR=https://maven-central.storage-download.googleapis.com/maven2/" >> "$GITHUB_ENV"
+      run: |
+        mirror=https://maven-central.storage-download.googleapis.com/maven2
+        echo "MAVEN_CENTRAL_MIRROR=$mirror/" >> "$GITHUB_ENV"
+        echo "COURSIER_REPOSITORIES=ivy2Local|$mirror|central" >> "$GITHUB_ENV"
 
     # The build definition includes toolchain sources, see project/build.sbt
     - name: Restore compiled build definition

@@ -152,7 +152,7 @@ jobs:
         timeout-minutes: 30
         run: sbt "compile-sbt-plugin ${{ matrix.scala }}"
 
-  # JVM runtime tests on other OSes, not blocking platform jobs
+  # JVM runtime tests on other OSes, required by their platform jobs
   gate-macos:
     name: Gate macOS
     needs: plan
@@ -211,7 +211,7 @@ jobs:
 
   macos:
     name: macOS
-    needs: [plan, gate, gate-sbt-plugin]
+    needs: [plan, gate, gate-sbt-plugin, gate-macos]
     if: needs.plan.outputs.macos != 'off'
     uses: ./.github/workflows/run-tests-macos.yml
     with:
@@ -219,7 +219,7 @@ jobs:
 
   windows:
     name: Windows
-    needs: [plan, gate, gate-sbt-plugin]
+    needs: [plan, gate, gate-sbt-plugin, gate-windows]
     if: needs.plan.outputs.windows != 'off'
     uses: ./.github/workflows/run-tests-windows.yml
     with:
@@ -227,7 +227,7 @@ jobs:
 
   apple:
     name: Apple
-    needs: [plan, gate, gate-sbt-plugin]
+    needs: [plan, gate, gate-sbt-plugin, gate-macos]
     if: needs.plan.outputs.apple != 'off'
     uses: ./.github/workflows/run-tests-apple.yml
     with:

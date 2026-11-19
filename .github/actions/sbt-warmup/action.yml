@@ -14,6 +14,11 @@ runs:
           fi
         done
 
+    # Maven Central rate limits CI, see project/MavenMirror.scala
+    - name: Use Maven Central mirror
+      shell: bash
+      run: echo "MAVEN_CENTRAL_MIRROR=https://maven-central.storage-download.googleapis.com/maven2/" >> "$GITHUB_ENV"
+
     # The build definition includes toolchain sources, see project/build.sbt
     - name: Restore compiled build definition
       id: restore

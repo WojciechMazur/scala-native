@@ -246,7 +246,7 @@ Repository variables control CI without code changes:
 the gate in other jobs.
 
 The sbt commands used by the CI can be run locally, e.g.
-`test-runtime-native 3`, `test-runtime-jvm 3`, `test-gc 3`, `test-tools 3`,
+`test-runtime 3`, `test-gc 3`, `test-tools 3`,
 `test-mima 3` or `test-cross-compile 3`.
 
 The next section has more build and development information for those

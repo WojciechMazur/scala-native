@@ -13,7 +13,7 @@ env:
   SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
 
 jobs:
-  # Native runtime tests, the gate runs them in the default configuration
+  # Runtime tests, the gate runs them in the default configuration
   runtime:
     name: Runtime ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -50,7 +50,7 @@ jobs:
           SCALANATIVE_MODE: ${{ matrix.mode }}
           SCALANATIVE_GC: immix
           SCALANATIVE_OPTIMIZE: ${{ matrix.optimize }}
-        run: sbt "test-runtime-native ${{ matrix.scala }}"
+        run: sbt "test-runtime ${{ matrix.scala }}"
 
   runtime-extended:
     name: Runtime ${{ matrix.name }}
@@ -113,7 +113,7 @@ jobs:
           SCALANATIVE_GC: ${{ matrix.gc }}
           SCALANATIVE_LTO: ${{ matrix.lto }}
           SCALANATIVE_OPTIMIZE: true
-        run: sbt "test-runtime-native ${{ matrix.scala }}"
+        run: sbt "test-runtime ${{ matrix.scala }}"
 
   llvm-versions:
     name: LLVM ${{ matrix.llvm }}
@@ -138,4 +138,4 @@ jobs:
         env:
           SCALANATIVE_MODE: release-fast
           SCALANATIVE_LTO: thin
-        run: sbt "test-runtime-native 3"
+        run: sbt "test-runtime 3"

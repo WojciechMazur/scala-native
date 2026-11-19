@@ -123,12 +123,9 @@ jobs:
       - uses: ./.github/actions/save-build-outputs
         with:
           scala-version: ${{ matrix.scala }}
-      - name: Test runtime on JVM
-        timeout-minutes: 30
-        run: sbt "test-runtime-jvm ${{ matrix.scala }}"
-      - name: Test runtime on Native
-        timeout-minutes: 45
-        run: sbt "test-runtime-native ${{ matrix.scala }}"
+      - name: Test runtime
+        timeout-minutes: 60
+        run: sbt "test-runtime ${{ matrix.scala }}"
       - name: Check binary compatibility
         timeout-minutes: 30
         run: sbt "test-mima ${{ matrix.scala }}"
@@ -167,12 +164,9 @@ jobs:
       - uses: ./.github/actions/macos-setup-env
         with:
           scala-version: "3"
-      - name: Test runtime on JVM and test interface
-        timeout-minutes: 45
-        run: sbt "test-runtime-jvm 3" "testInterface3/test"
-      - name: Test runtime on Native
-        timeout-minutes: 45
-        run: sbt "test-runtime-native 3"
+      - name: Test runtime and test interface
+        timeout-minutes: 60
+        run: sbt "test-runtime 3" "testInterface3/test"
 
   gate-windows:
     name: Gate Windows
@@ -187,14 +181,10 @@ jobs:
       - uses: ./.github/actions/windows-setup-env
         with:
           scala-version: "3"
-      - name: Test runtime on JVM and test interface
-        timeout-minutes: 45
+      - name: Test runtime and test interface
+        timeout-minutes: 60
         shell: cmd
-        run: sbt "test-runtime-jvm 3" "testInterface3/test"
-      - name: Test runtime on Native
-        timeout-minutes: 45
-        shell: cmd
-        run: sbt "test-runtime-native 3"
+        run: sbt "test-runtime 3" "testInterface3/test"
 
   toolchain:
     name: Toolchain

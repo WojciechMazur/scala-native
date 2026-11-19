@@ -1,8 +1,29 @@
 name: "sbt warm-up"
-description: "Bootstrap sbt and load the build with retries to survive transient artifact download failures"
+description: "Bootstrap sbt and load the build with retries to survive transient artifact download failures. Caches the compiled build definition."
 runs:
   using: "composite"
   steps:
+    # The build definition compiles project/ together with the sources of the
+    # toolchain used by the sbt plugin (see project/build.sbt). Its outputs
+    # point into sbt's content store through symlinks, so they are cached as a
+    # dereferenced archive. Only an identical build definition reuses it.
+    - name: Restore compiled build definition
+      id: restore
+      uses: actions/cache/restore@v5
+      with:
+        path: ${{ runner.temp }}/sbt-meta-build
+        key: sbt-meta-build-${{ runner.os }}-${{ hashFiles('project/**', 'build.sbt', '.sbtopts', 'util/**', 'nir/**', 'tools/**', 'sbt-scala-native/**', 'test-interface-common/**', 'test-runner/**') }}
+
+    - name: Unpack compiled build definition
+      if: steps.restore.outputs.cache-hit == 'true'
+      continue-on-error: true
+      shell: bash
+      run: |
+        # GNU tar on Windows would treat 'D:' in the archive path as a remote host
+        flags=""
+        if [[ "$RUNNER_OS" == "Windows" ]]; then flags="--force-local"; fi
+        tar $flags -xzf "$RUNNER_TEMP/sbt-meta-build/meta-build.tgz"
+
     # The sbt launcher ignores the coursier mirror/retry settings from .sbtopts.
     # --server avoids leaving a background server with this step's environment.
     - name: Warm up sbt
@@ -13,3 +34,25 @@ runs:
         retry_wait_seconds: 30
         shell: ${{ runner.os == 'Windows' && 'pwsh' || 'bash' }}
         command: sbt --server exit
+
+    - name: Pack compiled build definition
+      id: pack
+      if: steps.restore.outputs.cache-hit != 'true'
+      continue-on-error: true
+      shell: bash
+      run: |
+        flags=""
+        if [[ "$RUNNER_OS" == "Windows" ]]; then flags="--force-local"; fi
+        mkdir -p "$RUNNER_TEMP/sbt-meta-build"
+        tar $flags -czhf "$RUNNER_TEMP/sbt-meta-build/meta-build.tgz" --mode=u+w \
+          --exclude='streams' target/out/jvm/scala-*/*-build project/target/config-classes
+        ls -lh "$RUNNER_TEMP/sbt-meta-build/meta-build.tgz"
+
+    # Jobs of the same run race to save the same key, all but the first are no-ops
+    - name: Save compiled build definition
+      if: steps.restore.outputs.cache-hit != 'true' && steps.pack.outcome == 'success'
+      continue-on-error: true
+      uses: actions/cache/save@v5
+      with:
+        path: ${{ runner.temp }}/sbt-meta-build
+        key: ${{ steps.restore.outputs.cache-primary-key }}

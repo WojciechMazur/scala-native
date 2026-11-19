@@ -26,7 +26,7 @@ concurrency:
 
 env:
   CI_SHARE_BUILD_OUTPUTS: ${{ vars.CI_SHARE_BUILD_OUTPUTS }}
-  # Maven Central rate limits CI, used by coursier and scala-cli
+  # Maven Central rate limits CI, used by coursier and scala-cli in jobs without sbt-warmup
   COURSIER_REPOSITORIES: "ivy2Local|https://maven-central.storage-download.googleapis.com/maven2|central"
 
 jobs:

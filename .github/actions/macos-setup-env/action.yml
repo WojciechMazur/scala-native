@@ -52,12 +52,15 @@ runs:
         # version instead of falling back to the unversioned (latest) formula.
         packages: ${{ inputs.llvm-version == 'latest' && 'lld llvm' || inputs.lld-version != '' && format('lld@{0} llvm@{1}', inputs.lld-version, inputs.llvm-version) || format('lld llvm@{0}', inputs.llvm-version) }}
 
-    # Preinstalled llvm@18 (without LLD) unless a version is requested
+    # The runner's preinstalled llvm@<version> (without LLD) unless a version is requested
     - name: Expose LLVM toolchain
       id: expose-llvm
       shell: bash
       run: |
-        version="${{ inputs.llvm-version || '18' }}"
+        version="${{ inputs.llvm-version }}"
+        if [[ -z "$version" ]]; then
+          version=$(ls -d "$(brew --prefix)"/opt/llvm@* 2>/dev/null | sed 's/.*@//' | sort -n | tail -1)
+        fi
         if [[ "$version" == "latest" ]]; then
           LLVM_TOOLCHAIN="$(brew --prefix llvm)/bin"
         else

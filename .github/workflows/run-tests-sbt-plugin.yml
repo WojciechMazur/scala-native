@@ -18,8 +18,8 @@ jobs:
       matrix:
         include:
           - { os: Linux, runner: ubuntu-24.04, scala: "3" }
-          - { os: macOS, runner: macos-15, scala: "3" }
-          - { os: Windows, runner: windows-2022, scala: "3" }
+          - { os: macOS, runner: macos-26, scala: "3" }
+          - { os: Windows, runner: windows-2025, scala: "3" }
     steps: &scripted-steps
       # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
       - name: Setup git config
@@ -34,7 +34,6 @@ jobs:
         if: runner.os == 'macOS'
         with:
           scala-version: ${{ matrix.scala }}
-          llvm-version: latest
           gc: boehm
       # For run/ios-static-library
       - uses: ./.github/actions/ios-simulator-setup
@@ -69,6 +68,6 @@ jobs:
       matrix:
         include:
           - { os: Linux, runner: ubuntu-24.04, scala: "2.12" }
-          - { os: macOS, runner: macos-15, scala: "2.12" }
-          - { os: Windows, runner: windows-2022, scala: "2.12" }
+          - { os: macOS, runner: macos-26, scala: "2.12" }
+          - { os: Windows, runner: windows-2025, scala: "2.12" }
     steps: *scripted-steps

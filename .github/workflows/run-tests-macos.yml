@@ -16,13 +16,14 @@ env:
 jobs:
   # Native runtime tests (the JVM part runs in the gate)
   runtime:
-    name: Runtime arm64 (${{ matrix.scala }}, ${{ matrix.mode }})
-    runs-on: macos-15
+    name: Runtime ${{ matrix.arch }} (${{ matrix.scala }}, ${{ matrix.mode }})
+    runs-on: ${{ matrix.runner }}
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - scala: "3"
-            mode: release-fast
+          - { arch: arm64, runner: macos-26, scala: "3", mode: release-fast }
+          - { arch: x64, runner: macos-26-intel, scala: "3", mode: release-fast }
     steps: &runtime-steps
       - uses: actions/checkout@v7
       - uses: ./.github/actions/macos-setup-env
@@ -40,7 +41,7 @@ jobs:
   runtime-extended:
     name: Runtime arm64 (${{ matrix.scala }}, ${{ matrix.mode }})
     if: inputs.extended
-    runs-on: macos-15
+    runs-on: macos-26
     strategy:
       fail-fast: false
       matrix:
@@ -56,7 +57,7 @@ jobs:
   runtime-ext:
     name: Runtime extension
     if: inputs.extended
-    runs-on: macos-15
+    runs-on: macos-26
     strategy:
       fail-fast: false
       matrix:
@@ -81,7 +82,6 @@ jobs:
         with:
           scala-version: ${{ matrix.scala }}
           gc: ${{ matrix.gc }}
-          llvm-version: 19
       - uses: ./.github/actions/restore-build-outputs
         with:
           scala-version: ${{ matrix.scala }}
@@ -104,7 +104,7 @@ jobs:
   llvm-versions:
     name: LLVM ${{ matrix.llvm }}
     if: inputs.extended
-    runs-on: macos-15
+    runs-on: macos-26
     strategy:
       fail-fast: false
       matrix:

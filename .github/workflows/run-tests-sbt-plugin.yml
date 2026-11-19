@@ -36,6 +36,11 @@ jobs:
           scala-version: ${{ matrix.scala }}
           llvm-version: latest
           gc: boehm
+      # For run/ios-static-library
+      - uses: ./.github/actions/ios-simulator-setup
+        if: runner.os == 'macOS'
+        with:
+          target-simulator: false
       - uses: ./.github/actions/windows-setup-env
         if: runner.os == 'Windows'
         with:

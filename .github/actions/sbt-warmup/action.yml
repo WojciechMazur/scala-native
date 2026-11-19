@@ -43,7 +43,7 @@ runs:
         if [[ "$RUNNER_OS" == "Windows" ]]; then flags="--force-local"; fi
         mkdir -p "$RUNNER_TEMP/sbt-meta-build"
         tar $flags -czhf "$RUNNER_TEMP/sbt-meta-build/meta-build.tgz" --mode=u+w \
-          --exclude='streams' target/out/jvm/scala-*/*-build project/target/config-classes
+          --exclude='streams' --exclude='update' target/out/jvm/scala-*/*-build project/target/config-classes
         ls -lh "$RUNNER_TEMP/sbt-meta-build/meta-build.tgz"
 
     # Concurrent jobs may race to save the same key

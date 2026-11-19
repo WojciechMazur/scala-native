@@ -90,7 +90,10 @@ jobs:
           timeout_minutes: 90
           max_attempts: 3
           retry_on: error
-          command: ./ci-docker/run-test-gha.sh "scala-native-testing:${{ matrix.arch }}"
+          # Coursier caches failed downloads, clear them before each attempt
+          command: >
+            sudo find "$HOME/.cache/coursier" -name '*.error' -delete 2>/dev/null;
+            ./ci-docker/run-test-gha.sh "scala-native-testing:${{ matrix.arch }}"
 
       - name: Test runtime
         env:
@@ -113,4 +116,7 @@ jobs:
           timeout_minutes: 90
           max_attempts: 3
           retry_on: error
-          command: ./ci-docker/run-test-gha.sh "scala-native-testing:${{ matrix.arch }}"
+          # Coursier caches failed downloads, clear them before each attempt
+          command: >
+            sudo find "$HOME/.cache/coursier" -name '*.error' -delete 2>/dev/null;
+            ./ci-docker/run-test-gha.sh "scala-native-testing:${{ matrix.arch }}"

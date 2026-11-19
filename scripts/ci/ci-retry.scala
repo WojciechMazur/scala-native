@@ -29,8 +29,7 @@ val NotAcquired = "was not acquired by Runner"
     }
     .map(_("name").str)
 
-  if notAcquired.isEmpty then
-    println("No jobs cancelled for lack of runners")
+  if notAcquired.isEmpty then println("No jobs cancelled for lack of runners")
   else if attempt >= maxAttempts then
     println(s"Attempt $attempt of $maxAttempts, not re-running:")
     notAcquired.foreach(name => println(s"  $name"))

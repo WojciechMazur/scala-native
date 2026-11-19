@@ -14,7 +14,7 @@ env:
   SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
 
 jobs:
-  # Runtime tests in other configurations than the gate
+  # Native runtime tests in other configurations than the gate
   runtime:
     name: Runtime ${{ matrix.arch }} (${{ matrix.scala }}, ${{ matrix.mode }})
     runs-on: ${{ matrix.runner }}
@@ -36,7 +36,7 @@ jobs:
         timeout-minutes: 60
         env:
           SCALANATIVE_MODE: ${{ matrix.mode }}
-        run: sbt "test-runtime ${{ matrix.scala }}"
+        run: sbt "test-runtime-native ${{ matrix.scala }}"
 
   runtime-extended:
     name: Runtime arm64 (${{ matrix.scala }}, ${{ matrix.mode }})
@@ -120,4 +120,4 @@ jobs:
           scala-version: "3"
       - name: Run tests
         timeout-minutes: 60
-        run: sbt "test-runtime 3"
+        run: sbt "test-runtime-native 3"

@@ -149,6 +149,7 @@ jobs:
       - uses: ./.github/actions/linux-setup-env
         with:
           scala-version: ${{ matrix.scala }}
+          native-toolchain: false
       - name: Compile sbt plugin
         timeout-minutes: 30
         run: sbt "compile-sbt-plugin ${{ matrix.scala }}"

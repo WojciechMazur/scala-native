@@ -14,19 +14,15 @@ env:
   SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
 
 jobs:
-  # Builds and runs the tests inside of the iOS simulator
+  # Builds and runs the tests inside of the iOS simulator.
+  # GC tests: run-tests-gc.yml, static library: sbt plugin Scripted macOS
   ios-simulator:
-    name: iOS simulator (3, ${{ matrix.mode }}, ${{ matrix.gc }})
+    name: iOS simulator (3, release-fast, commix)
     runs-on: macos-15
-    strategy:
-      matrix:
-        include:
-          - mode: release-fast
-            gc: commix
     env:
-      SCALANATIVE_MODE: ${{ matrix.mode }}
-      SCALANATIVE_GC: ${{ matrix.gc }}
-    steps: &ios-simulator-steps
+      SCALANATIVE_MODE: release-fast
+      SCALANATIVE_GC: commix
+    steps:
       - uses: actions/checkout@v7
       - &setup-env
         uses: ./.github/actions/macos-setup-env
@@ -34,8 +30,7 @@ jobs:
           scala-version: "3"
           llvm-version: 19
       - uses: ./.github/actions/ios-simulator-setup
-      - &target-simulator
-        name: Target simulator
+      - name: Target simulator
         run: |
           echo "SCALANATIVE_TARGET_RUNNER=$GITHUB_WORKSPACE/scripts/ci/ios-simulator/run.sh" >> "$GITHUB_ENV"
           echo "SCALANATIVE_TARGET_TRIPLE=$(uname -m)-apple-ios${IOS_MIN_VERSION}-simulator" >> "$GITHUB_ENV"
@@ -46,40 +41,6 @@ jobs:
       - name: Run unit tests
         timeout-minutes: 60
         run: sbt -J-Xmx5G "tests3/test"
-
-  ios-simulator-extended:
-    name: iOS simulator (3, ${{ matrix.mode }}, ${{ matrix.gc }})
-    if: inputs.extended
-    runs-on: macos-15
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - mode: release-fast
-            gc: immix
-          - mode: debug
-            gc: immix
-          - mode: debug
-            gc: commix
-    env:
-      SCALANATIVE_MODE: ${{ matrix.mode }}
-      SCALANATIVE_GC: ${{ matrix.gc }}
-    steps: *ios-simulator-steps
-
-  # Scala Native code used as a static library from a foreign host program
-  # running its own threads, the way an iOS application would embed it.
-  ios-static-library:
-    name: iOS static library
-    if: inputs.extended
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v7
-      - *setup-env
-      - uses: ./.github/actions/ios-simulator-setup
-      - *target-simulator
-      - name: Test static library
-        timeout-minutes: 60
-        run: sbt "test-scripted 3 run/ios-static-library"
 
   # There is no way to execute binaries built for physical devices in the CI,
   # tvOS and watchOS have no simulator launcher yet. Ensure at least that the

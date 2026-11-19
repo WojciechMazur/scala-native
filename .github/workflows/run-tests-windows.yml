@@ -23,7 +23,7 @@ jobs:
       matrix:
         include:
           - arch: x64
-            os: windows-2022
+            os: windows-2025
             scala: "3"
             mode: release-fast
           - arch: arm64
@@ -67,7 +67,7 @@ jobs:
       matrix:
         include:
           - arch: x64
-            os: windows-2022
+            os: windows-2025
             scala: "3"
             mode: debug
           - arch: arm64
@@ -75,11 +75,11 @@ jobs:
             scala: "3"
             mode: debug
           - arch: x64
-            os: windows-2022
+            os: windows-2025
             scala: "2.13"
             mode: debug
           - arch: x64
-            os: windows-2022
+            os: windows-2025
             scala: "2.12"
             mode: debug
     steps: *runtime-steps
@@ -87,7 +87,7 @@ jobs:
   runtime-ext:
     name: Runtime extension
     if: inputs.extended
-    runs-on: windows-2022
+    runs-on: windows-2025
     strategy:
       fail-fast: false
       matrix:
@@ -135,7 +135,7 @@ jobs:
   llvm-versions:
     name: LLVM ${{ matrix.llvm }}
     if: inputs.extended
-    runs-on: windows-2022
+    runs-on: windows-2025
     # LLVM 21.1.8 crashes in clang codegen on Windows; keep for visibility.
     continue-on-error: ${{ matrix.llvm == '21.1.8' }}
     strategy:

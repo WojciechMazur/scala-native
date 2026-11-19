@@ -15,7 +15,7 @@ jobs:
       github.event.workflow_run.event == 'schedule' &&
       github.repository == 'scala-native/scala-native' &&
       vars.NIGHTLY_CREATE_ISSUES == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
     permissions:
       contents: read
       actions: write

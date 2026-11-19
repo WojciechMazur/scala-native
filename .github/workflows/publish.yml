@@ -64,7 +64,7 @@ jobs:
 
   save_tag:
     name: Save SHA as last published tag
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
     needs: [publish]
     permissions:
       contents: write
@@ -79,7 +79,7 @@ jobs:
 
   build_docs:
     name: Trigger documentation build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     needs: [save_tag]
     steps:
       - name: Trigger Read the Docs build
@@ -91,7 +91,7 @@ jobs:
 
   dispatch:
     name: Dispatch trigger builds for dependant projects
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [publish]
     if: inputs.snapshot
     strategy:

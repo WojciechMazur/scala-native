@@ -1,11 +1,11 @@
 package build
 
-import sbt._
 import sbt.Keys._
+import sbt._
 
-/** Resolves from the mirror given by MAVEN_CENTRAL_MIRROR before Maven
- *  Central, used in CI where Maven Central rate limits requests. lm-coursier
- *  ignores the coursier.mirrors setting.
+/** Resolves from the mirror given by MAVEN_CENTRAL_MIRROR before Maven Central,
+ *  used in CI where Maven Central rate limits requests. lm-coursier ignores the
+ *  coursier.mirrors setting.
  */
 object MavenMirror extends AutoPlugin {
   override def trigger = allRequirements

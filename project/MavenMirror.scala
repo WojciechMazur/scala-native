@@ -12,14 +12,19 @@ object MavenMirror extends AutoPlugin {
   override def trigger = allRequirements
 
   override def projectSettings: Seq[Setting[?]] =
-    sys.env.get("MAVEN_CENTRAL_MIRROR").filter(_.nonEmpty).toSeq.map { url =>
-      fullResolvers := Def.uncached {
-        val mirror = MavenRepository("maven-central-mirror", url)
-        val others = fullResolvers.value.filterNot {
-          case repo: MavenRepository => repo.root.contains("repo1.maven.org")
-          case _                     => false
-        }
-        others :+ mirror
-      }
+    sys.env.get("MAVEN_CENTRAL_MIRROR").filter(_.nonEmpty).toSeq.flatMap {
+      url =>
+        def useMirror(resolvers: Seq[Resolver]) =
+          resolvers.filterNot {
+            case repo: MavenRepository => repo.root.contains("repo1.maven.org")
+            case _                     => false
+          } :+ MavenRepository("maven-central-mirror", url)
+        Seq(
+          fullResolvers := Def.uncached(useMirror(fullResolvers.value)),
+          // Used to fetch the compiler bridge
+          scalaCompilerBridgeResolvers := Def.uncached(
+            useMirror(scalaCompilerBridgeResolvers.value)
+          )
+        )
     }
 }

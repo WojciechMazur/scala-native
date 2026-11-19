@@ -52,7 +52,7 @@ runs:
         # version instead of falling back to the unversioned (latest) formula.
         packages: ${{ inputs.llvm-version == 'latest' && 'lld llvm' || inputs.lld-version != '' && format('lld@{0} llvm@{1}', inputs.lld-version, inputs.llvm-version) || format('lld llvm@{0}', inputs.llvm-version) }}
 
-    # Preinstalled llvm@18 of the runner image (without LLD), unless a version is requested
+    # Preinstalled llvm@18 (without LLD) unless a version is requested
     - name: Expose LLVM toolchain
       id: expose-llvm
       shell: bash

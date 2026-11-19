@@ -2,17 +2,16 @@
 //> using toolkit default
 //> using file gh.scala
 
-/** Selects the CI jobs to run for the current event, used by the plan job of
+/** Selects the CI jobs to run, used by the plan job of
  *  .github/workflows/ci.yml.
  *
- *  Every `Workflow` runs at one of the levels: off, base (its jobs without a
- *  condition) or extended (also its `if: inputs.extended` jobs). The table
- *  below is the only place deciding when each of them runs. Writes `tier` and
- *  one `<workflow>=off|base|extended` entry per workflow to $GITHUB_OUTPUT.
+ *  Each `Workflow` runs off, base (jobs without a condition) or extended (also
+ *  `if: inputs.extended` jobs). Writes `tier`, `publish` and the level of each
+ *  workflow to $GITHUB_OUTPUT.
  *
  *  Environment: EVENT_NAME, REF, REF_TYPE, GH_REPO, SHA, GH_TOKEN,
  *  GITHUB_OUTPUT; for pull requests PR_NUMBER, PR_DRAFT, PR_BODY, PR_LABELS
- *  (JSON list of names); DISPATCH_TIER for workflow_dispatch.
+ *  (JSON list); DISPATCH_TIER for workflow_dispatch.
  */
 import java.nio.file.{FileSystems, Paths}
 
@@ -37,7 +36,7 @@ extension (patterns: Seq[Pattern])
 
 case class PullRequest(files: Seq[String], labels: Set[String], body: String)
 
-/** When a workflow (or its extended jobs) runs on pull requests */
+/** When a workflow runs on pull requests */
 enum Trigger:
   case Always, Never
   case Changed(paths: Seq[Pattern])
@@ -73,12 +72,11 @@ val posixPaths = globs(
 )
 val applePaths =
   Seq(Re("(?i)darwin|apple|macos|(^|[/_.-])ios([/_.-]|$)".r))
-// Platforms tested on pull requests only for changes to the toolchain, GC or POSIX bindings
+// Platforms tested on pull requests only for toolchain, GC or POSIX changes
 val extraPlatformPaths = toolchainPaths ++ gcPaths ++ posixPaths
 
-/** Workflows called from ci.yml: when they run (`base`) and when they also run
- *  their extended jobs (`extended`) on pull requests. Nightly runs everything
- *  extended.
+/** Workflows called from ci.yml and their pull request triggers. Nightly runs
+ *  all of them extended.
  */
 enum Workflow(
     val output: String,
@@ -100,7 +98,7 @@ enum Workflow(
         extended = Trigger.Changed(gcPaths),
         release = true
       )
-  // test-gc: Linux on every pull request, every OS for native runtime changes
+  // Linux always, every OS for native runtime changes
   case GC
       extends Workflow(
         "gc",
@@ -178,7 +176,7 @@ enum Tier:
 
   def output: String = toString.toLowerCase
 
-/** Changes to the CI or build definition run every workflow at its base level
+/** Changes to CI or the build run every workflow at its base level
  */
 val fullPrPaths = globs(
   ".github/**",
@@ -207,12 +205,12 @@ def lastNightlySha(): Option[String] =
       .map(_("headSha").str)
   catch
     case e: os.SubprocessException =>
-      // e.g. no scheduled run yet: run the nightly
+      // e.g. no scheduled run yet
       println(s"Cannot find the last nightly run: ${e.result.err.text().trim}")
       None
 
 case class Plan(tier: Tier, levels: Map[Workflow, Level]):
-  /** Snapshots are published by nightly runs on main, releases from tags */
+  /** Snapshots from nightly runs on main, releases from tags */
   def publish: String = tier match
     case Tier.Release                                    => "release"
     case Tier.Nightly if env("REF") == "refs/heads/main" => "snapshot"

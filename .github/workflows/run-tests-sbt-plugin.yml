@@ -1,5 +1,5 @@
 name: Run tests sbt plugin
-# Scripted tests of the sbt plugins. Called from ci.yml, see scripts/ci/plan.scala.
+# sbt plugin scripted tests. Called from ci.yml, see scripts/ci/plan.scala
 on:
   workflow_call:
     inputs:
@@ -50,7 +50,7 @@ jobs:
       - name: Test scripted
         if: runner.os == 'Windows'
         timeout-minutes: 120
-        # Default build settings on Windows. Run in the foreground without the boot server's Windows named pipe.
+        # Avoids the boot server's Windows named pipe
         run: sbt --server -Dsbt.server.autostart=false "test-scripted ${{ matrix.scala }}"
         shell: cmd
 

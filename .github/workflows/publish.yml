@@ -1,6 +1,5 @@
 name: Publish
-# Called from ci.yml: snapshots from the nightly run once its gates pass,
-# releases from a v0.5.* tag once the Linux, macOS and Windows tests pass.
+# Called from ci.yml for nightly snapshots and v0.5.* releases
 on:
   workflow_call:
     inputs:
@@ -10,12 +9,11 @@ permissions:
   contents: read
 
 env:
-  # Last published commit, used by the documentation of nightly versions
+  # Last published commit, used by the nightly documentation
   LAST_PUBLISHED_TAG: last-published
 
 jobs:
-  # Scala 3 artifacts are published with the oldest supported Scala 3 version,
-  # other versions are compiled by the CI gate
+  # Other versions are compiled by the CI gate
   check-compiles:
     name: Test compilation with Scala 3 publish version
     if: github.repository == 'scala-native/scala-native'
@@ -40,7 +38,6 @@ jobs:
         include:
           - { scala: "2.12", part: "" }
           - { scala: "2.13", part: "" }
-          # Scala 3 is cross-published for every supported Scala 3 version
           - { scala: "3", part: "base" }
           - { scala: "3", part: "cross 3.1-3.3" }
           - { scala: "3", part: "cross 3.4-3.8" }

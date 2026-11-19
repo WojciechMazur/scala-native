@@ -1,5 +1,5 @@
-# Publishes compiler plugins and the Scala library of a Scala Native release for a new Scala version.
-# For 0.4.x releases run the workflow of the 0.4.x branch.
+# Publishes compiler plugins and scalalib of a release for a new Scala version.
+# For 0.4.x use the workflow of the 0.4.x branch.
 name: Publish for Scala release
 on:
   workflow_dispatch:

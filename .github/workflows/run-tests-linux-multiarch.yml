@@ -1,5 +1,5 @@
 name: Run tests Linux multiarch
-# Called from ci.yml, see scripts/ci/plan.scala.
+# Called from ci.yml, see scripts/ci/plan.scala
 on:
   workflow_call:
 
@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # linux-arm64 runs on a native runner in run-tests-linux.yml
+        # linux-arm64 runs natively in run-tests-linux.yml
         arch: [linux-riscv64, linux-x86, linux-armv6, linux-armv7a]
         # Scala 2.13 only for increased tests coverage (Scala2 partests) while keeping total number of jobs low
         scala: [2.13]

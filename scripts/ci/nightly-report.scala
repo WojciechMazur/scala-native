@@ -2,14 +2,10 @@
 //> using toolkit default
 //> using file gh.scala
 
-/** Reports results of a scheduled CI run as GitHub issues, used by
- *  .github/workflows/nightly-report.yml.
+/** Reports results of a scheduled CI run as GitHub issues.
  *
- *    - First attempt with failed jobs: re-runs the failed jobs once and stops.
- *      The script runs again when the re-run completes.
- *    - Otherwise: one rolling issue per failing job (label `ci-nightly`). A new
- *      failure opens an issue or comments on the open one, a job passing again
- *      gets its issue commented and closed.
+ *  Failed jobs are re-run once first. Then each failing job gets one rolling
+ *  issue (label `ci-nightly`), closed once the job passes again.
  *
  *  Environment: GH_TOKEN, GH_REPO, RUN_ID, RUN_ATTEMPT, HEAD_SHA, RUN_URL
  */

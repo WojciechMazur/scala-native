@@ -13,7 +13,7 @@ jobs:
     name: Test runtime (FreeBSD x86_64, Scala 3)
     env:
       SBT_VERSION: "2.0.9"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
@@ -42,7 +42,7 @@ jobs:
     env:
       SBT_VERSION: "2.0.9"
     if: inputs.extended
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7

@@ -33,7 +33,7 @@ jobs:
   plan:
     name: Plan
     if: github.event_name != 'schedule' || github.repository == 'scala-native/scala-native'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
     permissions:
       contents: read
       pull-requests: read
@@ -157,7 +157,7 @@ jobs:
     name: Gate macOS
     needs: plan
     if: needs.plan.outputs.tier != 'skip' && needs.plan.outputs.tier != 'docs'
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/macos-setup-env
@@ -171,7 +171,7 @@ jobs:
     name: Gate Windows
     needs: plan
     if: needs.plan.outputs.tier != 'skip' && needs.plan.outputs.tier != 'docs'
-    runs-on: windows-2022
+    runs-on: windows-2025
     steps:
       # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
       - name: Setup git config
@@ -298,7 +298,7 @@ jobs:
     name: CI OK
     if: always()
     needs: [plan, checks, gate, gate-sbt-plugin, gate-macos, gate-windows, toolchain, linux, gc, macos, windows, apple, linux-multiarch, bsd, termux, sbt-plugin, partests]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
     steps:
       - name: Check results
         env:

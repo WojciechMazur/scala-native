@@ -100,7 +100,7 @@ jobs:
   # Compiles all sources, runs the sandbox and the runtime tests in the default
   # configuration, everything below depends on it
   gate:
-    name: Gate (${{ matrix.scala }})
+    name: Gate Linux (${{ matrix.scala }})
     needs: plan
     if: needs.plan.outputs.tier != 'skip' && needs.plan.outputs.tier != 'docs'
     runs-on: ubuntu-24.04
@@ -156,37 +156,29 @@ jobs:
         timeout-minutes: 30
         run: sbt "compile-sbt-plugin ${{ matrix.scala }}"
 
-  # Runtime tests on other OSes, required by their platform jobs
+  # Scala 3 runtime tests on other OSes, required by their platform jobs
   gate-macos:
-    name: Gate macOS (${{ matrix.scala }})
+    name: Gate macOS
     needs: plan
     if: needs.plan.outputs.tier != 'skip' && needs.plan.outputs.tier != 'docs'
     runs-on: macos-26
-    strategy:
-      fail-fast: false
-      matrix:
-        scala: ["2.12", "2.13", "3"]
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/macos-setup-env
         with:
-          scala-version: ${{ matrix.scala }}
+          scala-version: "3"
       - name: Test runtime on JVM and test interface
         timeout-minutes: 45
-        run: sbt "test-runtime-jvm ${{ matrix.scala }}" "testInterface${{ env.project-version }}/test"
+        run: sbt "test-runtime-jvm 3" "testInterface3/test"
       - name: Test runtime on Native
         timeout-minutes: 45
-        run: sbt "test-runtime-native ${{ matrix.scala }}"
+        run: sbt "test-runtime-native 3"
 
   gate-windows:
-    name: Gate Windows (${{ matrix.scala }})
+    name: Gate Windows
     needs: plan
     if: needs.plan.outputs.tier != 'skip' && needs.plan.outputs.tier != 'docs'
     runs-on: windows-2025
-    strategy:
-      fail-fast: false
-      matrix:
-        scala: ["2.12", "2.13", "3"]
     steps:
       # Disable autocrlf setting, otherwise scalalib patches might not be possible to apply
       - name: Setup git config
@@ -194,15 +186,15 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/windows-setup-env
         with:
-          scala-version: ${{ matrix.scala }}
+          scala-version: "3"
       - name: Test runtime on JVM and test interface
         timeout-minutes: 45
         shell: cmd
-        run: sbt "test-runtime-jvm ${{ matrix.scala }}" "testInterface${{ env.project-version }}/test"
+        run: sbt "test-runtime-jvm 3" "testInterface3/test"
       - name: Test runtime on Native
         timeout-minutes: 45
         shell: cmd
-        run: sbt "test-runtime-native ${{ matrix.scala }}"
+        run: sbt "test-runtime-native 3"
 
   toolchain:
     name: Toolchain

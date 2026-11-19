@@ -70,4 +70,11 @@ runs:
           echo "::warning::No directory $LLVM_TOOLCHAIN; set LLVM_BIN on the step if needed."
         fi
 
+    # Apport handles core dumps of aborting tests slowly enough to hit their timeouts
+    - name: Disable core dumps
+      shell: bash
+      run: |
+        echo "core_pattern: $(cat /proc/sys/kernel/core_pattern), ulimit -c: $(ulimit -c)"
+        sudo sysctl -w kernel.core_pattern=core
+
     - uses: ./.github/actions/sbt-warmup

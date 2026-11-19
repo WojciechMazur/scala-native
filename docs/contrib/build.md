@@ -214,7 +214,8 @@ Its `plan` job selects which jobs run:
 - every pull request runs a gate first: all sources compiled for Scala
   2.12, 2.13 and 3 (`compile-all <version>`), the sandbox, the test
   interface, the runtime tests on the JVM and MiMa checks. Platform tests
-  start only once the gate passes;
+  start only once the gate passes, macOS, Apple and Windows tests also
+  need the JVM tests on their OS;
 - each platform workflow (`run-tests-*.yml`) then runs off, at its base
   level (jobs without a condition) or extended (also the jobs with
   `if: inputs.extended`). The `Workflow` table in `scripts/ci/plan.scala`

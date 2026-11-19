@@ -3,6 +3,17 @@ description: "Load the sbt build with retries and cache its compiled definition"
 runs:
   using: "composite"
   steps:
+    # Coursier caches failed lookups, don't let a restored cache keep them
+    - name: Drop cached Coursier errors
+      shell: bash
+      run: |
+        for dir in "$HOME/.cache/coursier" "$HOME/Library/Caches/Coursier" "${LOCALAPPDATA:+$(cygpath -u "$LOCALAPPDATA" 2>/dev/null)/Coursier}"; do
+          if [[ -d "$dir" ]]; then
+            echo "$dir: $(find "$dir" -name '*.error' | wc -l) cached errors"
+            find "$dir" -name '*.error' -delete
+          fi
+        done
+
     # The build definition includes toolchain sources, see project/build.sbt
     - name: Restore compiled build definition
       id: restore

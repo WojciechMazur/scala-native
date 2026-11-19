@@ -97,7 +97,8 @@ jobs:
           pip install -r docs/requirements.txt
           cd docs && SPHINXOPTS="-W" make html
 
-  # Compiles all sources and runs the sandbox, everything below depends on it
+  # Compiles all sources, runs the sandbox and the runtime tests in the default
+  # configuration, everything below depends on it
   gate:
     name: Gate (${{ matrix.scala }})
     needs: plan
@@ -125,6 +126,9 @@ jobs:
       - name: Test runtime on JVM
         timeout-minutes: 30
         run: sbt "test-runtime-jvm ${{ matrix.scala }}"
+      - name: Test runtime on Native
+        timeout-minutes: 45
+        run: sbt "test-runtime-native ${{ matrix.scala }}"
       - name: Check binary compatibility
         timeout-minutes: 30
         run: sbt "test-mima ${{ matrix.scala }}"

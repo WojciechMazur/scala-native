@@ -13,7 +13,7 @@ env:
   SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
 
 jobs:
-  # Native runtime tests (the JVM part runs in the gate)
+  # Native runtime tests, the gate runs them in the default configuration
   runtime:
     name: Runtime ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -36,16 +36,6 @@ jobs:
             scala: "3"
             mode: debug
             optimize: false
-          - name: x64 (2.13)
-            os: ubuntu-24.04
-            scala: "2.13"
-            mode: release-fast
-            optimize: true
-          - name: x64 (2.12)
-            os: ubuntu-24.04
-            scala: "2.12"
-            mode: release-fast
-            optimize: true
     steps: &runtime-steps
       - uses: actions/checkout@v7
       - uses: ./.github/actions/linux-setup-env
@@ -70,20 +60,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: x64 debug (3)
-            os: ubuntu-24.04
-            scala: "3"
-            mode: debug
-            optimize: true
-          - name: x64 debug (2.13)
+          - name: x64 (2.13)
             os: ubuntu-24.04
             scala: "2.13"
-            mode: debug
+            mode: release-fast
             optimize: true
-          - name: x64 debug (2.12)
+          - name: x64 (2.12)
             os: ubuntu-24.04
             scala: "2.12"
-            mode: debug
+            mode: release-fast
             optimize: true
     steps: *runtime-steps
 
@@ -99,7 +84,7 @@ jobs:
         lto: [none, thin]
         gc: [boehm, immix, commix]
         exclude:
-          # Covered by runtime-extended
+          # Debug with immix is covered by the gate
           - scala: "3"
             build-mode: debug
           - scala: "2.13"

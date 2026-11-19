@@ -14,8 +14,7 @@ jobs:
       matrix:
         # linux-arm64 runs natively in run-tests-linux.yml
         arch: [linux-riscv64, linux-x86, linux-armv6, linux-armv7a]
-        # Scala 2.13 only for increased tests coverage (Scala2 partests) while keeping total number of jobs low
-        scala: [2.13]
+        scala: ["3"]
         include:
           # dockcross triple `arm-cortexa8_neon-...` would default to ARMv4T
           - arch: linux-armv7a
@@ -104,13 +103,10 @@ jobs:
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
           TEST_COMMAND: >
             set tests.forBinaryVersion("${{ matrix.scala }}")/${{env.set-native-config}};
-            set scalaPartestJunitTests.forBinaryVersion("${{ matrix.scala }}")/${{env.set-native-config}};
             
             testsJVM${{env.project-version}}/test;
             tests${{env.project-version}}/clean;
-            tests${{env.project-version}}/test;
-            scalaPartestJunitTests${{env.project-version}}/clean;
-            scalaPartestJunitTests${{env.project-version}}/test
+            tests${{env.project-version}}/test
         uses: nick-fields/retry@v4
         with:
           timeout_minutes: 90

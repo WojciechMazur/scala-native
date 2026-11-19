@@ -16,14 +16,13 @@ env:
 jobs:
   # Native runtime tests in other configurations than the gate
   runtime:
-    name: Runtime ${{ matrix.arch }} (${{ matrix.scala }}, ${{ matrix.mode }})
-    runs-on: ${{ matrix.runner }}
+    name: Runtime arm64 (${{ matrix.scala }}, ${{ matrix.mode }})
+    runs-on: macos-26
     strategy:
-      fail-fast: false
       matrix:
         include:
-          - { arch: arm64, runner: macos-26, scala: "3", mode: release-fast }
-          - { arch: x64, runner: macos-26-intel, scala: "3", mode: release-fast }
+          - scala: "3"
+            mode: release-fast
     steps: &runtime-steps
       - uses: actions/checkout@v7
       - uses: ./.github/actions/macos-setup-env

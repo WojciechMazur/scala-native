@@ -159,7 +159,8 @@ jobs:
     name: Gate macOS
     needs: plan
     if: needs.plan.outputs.tier != 'skip' && needs.plan.outputs.tier != 'docs'
-    runs-on: macos-26
+    # Intel runners are more available, other macOS tests run on arm64
+    runs-on: macos-26-intel
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/macos-setup-env

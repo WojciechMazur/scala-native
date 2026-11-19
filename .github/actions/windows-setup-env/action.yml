@@ -7,9 +7,10 @@ inputs:
   java-version:
     description: "Java version to use in tests"
     default: "25"
+  # The image's MSVC STL may require a newer Clang than the preinstalled LLVM
   llvm-version:
     description: "LLVM release installed from llvm-project, the runner's preinstalled LLVM when empty"
-    default: ""
+    default: "22.1.8"
 runs:
   using: "composite"
   steps:

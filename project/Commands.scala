@@ -20,6 +20,8 @@ object Commands {
     testRuntimeNative,
     testMima,
     testScripted,
+    publishScripted,
+    runScripted,
     disableActionCache,
     publishLocalDev,
     publishReleaseForVersion,
@@ -174,84 +176,107 @@ object Commands {
       prepareForMiMa ::: tests ::: state
   }
 
-  lazy val testScripted = Command.args("test-scripted", "<args>") {
-    case (state, args) =>
-      val version = args.headOption
-        .flatMap(MultiScalaProject.scalaVersions.get)
-        .orElse(state.getSetting(scalaVersion))
-        .map { version =>
-          (
-            CrossVersion.partialVersion(version),
-            CrossVersion.partialVersion(ScalaVersions.sbt2ScalaVersion)
-          ) match {
-            case (Some((3, minor)), Some((3, sbtScalaVersionMinor)))
-                if minor > sbtScalaVersionMinor =>
-              System.err.println(
-                s"Downgrading Scala ${version} version to ${ScalaVersions.sbt2ScalaVersion} for sbt scripted tests: cannot use forward incompatible artifacts"
-              )
-              ScalaVersions.sbt2ScalaVersion
-            case _ => version
-          }
+  // Scala version of the sbt plugin under test, Scala 3 tests the sbt 2.x plugin
+  private def scriptedScalaVersion(args: Seq[String], state: State): String =
+    args.headOption
+      .flatMap(MultiScalaProject.scalaVersions.get)
+      .orElse(state.getSetting(scalaVersion))
+      .map { version =>
+        (
+          CrossVersion.partialVersion(version),
+          CrossVersion.partialVersion(ScalaVersions.sbt2ScalaVersion)
+        ) match {
+          case (Some((3, minor)), Some((3, sbtScalaVersionMinor)))
+              if minor > sbtScalaVersionMinor =>
+            System.err.println(
+              s"Downgrading Scala ${version} version to ${ScalaVersions.sbt2ScalaVersion} for sbt scripted tests: cannot use forward incompatible artifacts"
+            )
+            ScalaVersions.sbt2ScalaVersion
+          case _ => version
         }
-        .getOrElse(
-          sys.error(
-            "Used command needs explicit Scala version as an argument"
+      }
+      .getOrElse(
+        sys.error("Used command needs explicit Scala version as an argument")
+      )
+
+  private def scriptedSbtProject(version: String): Project =
+    CrossVersion.binaryScalaVersion(version) match {
+      case "3"        => sbtScalaNative.v3
+      case "2.12"     => sbtScalaNative.v2_12
+      case binVersion =>
+        throw new MessageOnlyException(
+          s"Unsupported Scala binary version for sbt scripted tests: $binVersion (for Scala ${version})"
+        )
+    }
+
+  /** Artifacts used by the scripted tests, like publish-release-for-version:
+   *  the runtime for the Scala versions of the tests, see `scriptedLaunchOpts`,
+   *  and the compiler plugins and scalalib for the sbt Scala version. The
+   *  scripted task publishes the sbt plugin and its tooling.
+   */
+  private def scriptedPublishCommands(version: String): List[String] = {
+    def publish(scalaVersion: String, projects: List[MultiScalaProject]) =
+      projects
+        .flatMap(
+          _.forBinaryVersionIfDefined(
+            CrossVersion.binaryScalaVersion(scalaVersion)
           )
         )
-
-      val explicitTestsFilter = args.lift(1).map(_.trim).filterNot(_.isEmpty)
-
-      case class Variant(
-          prepareForMiMa: List[String],
-          sbtProject: Project,
-          testsFilter: Option[String] = None
-      )
-      val Variant(prepareTests, sbtProject, testsFilter) =
-        CrossVersion.binaryScalaVersion(version) match {
-          case "3" =>
-            // Current limmitation test-infra limitation, we're testing sbt 2.x using the same version as it's used to build it's artifacts
-            // scala3.version = sbt2ScalaVersion
-            println(s"Testing sbt 2.x using Scala ${version}")
-            Variant(
-              prepareForMiMa = List(
-                s"++${ScalaVersions.scala213}; publishLocal",
-                s"++${ScalaVersions.sbt2ScalaVersion}; publishLocal",
-                s"++${ScalaVersions.scriptedTestsScala3Version}; publishLocal",
-                // Explicitlly to test using sbt 2.x
-                s"++${ScalaVersions.sbt2ScalaVersion}"
-              ),
-              sbtProject = sbtScalaNative.v3
-            )
-          case "2.12" =>
-            println(s"Testing sbt 1.x using Scala ${version}")
-            Variant(
-              prepareForMiMa = List(
-                s"++${ScalaVersions.scala212}; publishLocal",
-                s"++${ScalaVersions.scala213}; publishLocal",
-                s"++${ScalaVersions.scriptedTestsScala3Version}; publishLocal",
-                // Explicitlly to test using sbt 1.x
-                s"++${ScalaVersions.scala212}"
-              ),
-              sbtProject = sbtScalaNative.v2_12
-            )
-          case binVersion =>
-            throw new MessageOnlyException(
-              s"Unsupported Scala binary version for sbt scripted tests: $binVersion (for Scala ${version})"
-            )
-        }
-
-      val allCommands = prepareTests :::
-        s"show ${sbtProject.id}/sbtVersion" ::
-        s"show ${sbtProject.id}/scalaVersion" ::
-        s"${sbtProject.id}/scripted" + explicitTestsFilter
-          .orElse(testsFilter)
-          .fold("")(" " + _) ::
-        Nil
-
-      println("Will execute following commands:")
-      allCommands.foreach(println)
-      allCommands ::: state
+        .map(project => s"${project.id}/publishLocal")
+        .mkString(s"++$scalaVersion; all ", " ", "")
+    val runtime = Build.runtimeMultiScalaProjects
+    val sbtScalaArtifacts =
+      if (scriptedSbtProject(version) == sbtScalaNative.v3)
+        publish(
+          ScalaVersions.sbt2ScalaVersion,
+          Build.crossPublishedMultiScalaProjects
+        )
+      else publish(ScalaVersions.scala212, runtime)
+    List(
+      publish(ScalaVersions.scala213, runtime),
+      // Libraries compiled with the older Scala 3 can be used by both
+      publish(ScalaVersions.scriptedTestsScala3Version, runtime),
+      sbtScalaArtifacts
+    )
   }
+
+  lazy val publishScripted =
+    Command.args("publish-scripted", "<scala version>") {
+      case (state, args) =>
+        val commands =
+          scriptedPublishCommands(scriptedScalaVersion(args, state))
+        println("Will execute following commands:")
+        commands.foreach(println)
+        commands ::: state
+    }
+
+  // Runs scripted tests using artifacts published with publish-scripted
+  lazy val runScripted =
+    Command.args("run-scripted", "<scala version> [tests]") {
+      case (state, args) =>
+        val version = scriptedScalaVersion(args, state)
+        val sbtProject = scriptedSbtProject(version)
+        val testsFilter =
+          Some(args.drop(1).mkString(" ").trim).filter(_.nonEmpty)
+        val commands = List(
+          s"++$version",
+          s"show ${sbtProject.id}/sbtVersion",
+          s"show ${sbtProject.id}/scalaVersion",
+          s"${sbtProject.id}/scripted" + testsFilter.fold("")(" " + _)
+        )
+        println("Will execute following commands:")
+        commands.foreach(println)
+        commands ::: state
+    }
+
+  lazy val testScripted =
+    Command.args("test-scripted", "<scala version> [tests]") {
+      case (state, args) =>
+        val version = scriptedScalaVersion(args, state)
+        s"publish-scripted $version" ::
+          ("run-scripted" :: version :: args.drop(1).toList).mkString(" ") ::
+          state
+    }
 
   private def projectVersionCommand(
       name: String

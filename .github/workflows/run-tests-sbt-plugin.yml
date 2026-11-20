@@ -9,9 +9,42 @@ permissions:
   contents: read
 
 jobs:
+  # Artifacts used by the scripted tests, the same on every OS
+  publish:
+    name: Publish for scripted (${{ matrix.scala }})
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        scala: ["3"]
+    steps: &publish-steps
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/linux-setup-env
+        with:
+          scala-version: ${{ matrix.scala }}
+          native-toolchain: false
+      - name: Publish locally
+        timeout-minutes: 45
+        run: sbt "publish-scripted ${{ matrix.scala }}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: scripted-ivy-local-${{ matrix.scala }}
+          path: ~/.ivy2/local/org.scala-native
+          if-no-files-found: error
+          retention-days: 3
+
+  publish-extended:
+    name: Publish for scripted (${{ matrix.scala }})
+    if: inputs.extended
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        scala: ["2.12"]
+    steps: *publish-steps
+
   # Scala 3 tests the sbt 2.x plugin
   scripted:
     name: Scripted ${{ matrix.os }} (${{ matrix.scala }})
+    needs: publish
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -46,24 +79,33 @@ jobs:
         if: runner.os == 'Windows'
         with:
           scala-version: ${{ matrix.scala }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: scripted-ivy-local-${{ matrix.scala }}
+          path: ~/.ivy2/local/org.scala-native
       - name: Test scripted
-        if: runner.os != 'Windows'
-        timeout-minutes: 120
+        if: runner.os == 'Linux'
+        timeout-minutes: 90
         env:
           SCALANATIVE_MODE: release-fast
           SCALANATIVE_GC: immix
-        run: sbt "test-scripted ${{ matrix.scala }}"
+        run: sbt "run-scripted ${{ matrix.scala }}"
+      - name: Test scripted
+        if: runner.os == 'macOS'
+        timeout-minutes: 90
+        run: sbt "run-scripted ${{ matrix.scala }}"
       - name: Test scripted
         if: runner.os == 'Windows'
-        timeout-minutes: 120
+        timeout-minutes: 90
         # Avoids the boot server's Windows named pipe
-        run: sbt --server -Dsbt.server.autostart=false "test-scripted ${{ matrix.scala }}"
+        run: sbt --server -Dsbt.server.autostart=false "run-scripted ${{ matrix.scala }}"
         shell: cmd
 
   # Scala 2.12 tests the sbt 1.x plugin
   scripted-extended:
     name: Scripted ${{ matrix.os }} (${{ matrix.scala }})
     if: inputs.extended
+    needs: publish-extended
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false

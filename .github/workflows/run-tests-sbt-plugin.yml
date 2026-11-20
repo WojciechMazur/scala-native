@@ -35,6 +35,8 @@ jobs:
         with:
           scala-version: ${{ matrix.scala }}
           gc: boehm
+          # run/lld-support needs LLD, ThreadSanitizer crashes with LLVM 20
+          llvm-version: latest
       # For run/ios-static-library
       - uses: ./.github/actions/ios-simulator-setup
         if: runner.os == 'macOS'

@@ -39,6 +39,8 @@ runs:
         flags=""
         if [[ "$RUNNER_OS" == "Windows" ]]; then flags="--force-local"; fi
         tar $flags -xzf "$RUNNER_TEMP/sbt-meta-build/meta-build.tgz"
+        # Copies of sbt's read-only content store
+        chmod -R u+w target/out/jvm/scala-*/*-build project/target/config-classes
 
     # The sbt launcher ignores the coursier mirror/retry settings from .sbtopts.
     # --server avoids leaving a background server with this step's environment.
@@ -61,7 +63,7 @@ runs:
         flags=""
         if [[ "$RUNNER_OS" == "Windows" ]]; then flags="--force-local"; fi
         mkdir -p "$RUNNER_TEMP/sbt-meta-build"
-        tar $flags -czhf "$RUNNER_TEMP/sbt-meta-build/meta-build.tgz" --mode=u+w \
+        tar $flags -czhf "$RUNNER_TEMP/sbt-meta-build/meta-build.tgz" \
           --exclude='streams' --exclude='update' target/out/jvm/scala-*/*-build project/target/config-classes
         ls -lh "$RUNNER_TEMP/sbt-meta-build/meta-build.tgz"
 

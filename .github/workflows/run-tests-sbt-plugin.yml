@@ -92,7 +92,8 @@ jobs:
         run: sbt "run-scripted ${{ matrix.scala }}"
       - name: Test scripted
         if: runner.os == 'macOS'
-        timeout-minutes: 90
+        # Debug mode on slower runners
+        timeout-minutes: 120
         run: sbt "run-scripted ${{ matrix.scala }}"
       - name: Test scripted
         if: runner.os == 'Windows'

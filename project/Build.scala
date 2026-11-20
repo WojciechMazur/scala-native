@@ -1330,9 +1330,10 @@ object Build {
                 buildInfoOptions += BuildInfoOption.PackagePrivate
               )
             case Test =>
+              // Keys may depend on the native libraries, compiling the main sources must not evaluate them
               Def.settings(
-                (Test / managedSources) ++= (Compile / buildInfo).value,
-                (Compile / managedSources) --= (Compile / buildInfo).value
+                BuildInfoPlugin.buildInfoScopedSettings(Test),
+                Compile / buildInfo := Def.uncached(Seq.empty[File])
               )
           }
         )

@@ -256,13 +256,13 @@ object Commands {
       case (state, args) =>
         val version = scriptedScalaVersion(args, state)
         val sbtProject = scriptedSbtProject(version)
-        val testsFilter =
-          Some(args.drop(1).mkString(" ").trim).filter(_.nonEmpty)
+        val testsFilter = args.drop(1).mkString(" ").trim
         val commands = List(
           s"++$version",
           s"show ${sbtProject.id}/sbtVersion",
           s"show ${sbtProject.id}/scalaVersion",
-          s"${sbtProject.id}/scripted" + testsFilter.fold("")(" " + _)
+          s"${sbtProject.id}/scripted" +
+            (if (testsFilter.isEmpty) "" else " " + testsFilter)
         )
         println("Will execute following commands:")
         commands.foreach(println)
@@ -272,9 +272,8 @@ object Commands {
   lazy val testScripted =
     Command.args("test-scripted", "<scala version> [tests]") {
       case (state, args) =>
-        val version = scriptedScalaVersion(args, state)
-        s"publish-scripted $version" ::
-          ("run-scripted" :: version :: args.drop(1).toList).mkString(" ") ::
+        s"publish-scripted ${args.take(1).mkString}" ::
+          ("run-scripted" :: args.toList).mkString(" ") ::
           state
     }
 

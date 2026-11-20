@@ -55,6 +55,7 @@ jobs:
         with:
           scala-version: ${{ matrix.scala }}
           java-version: 17
+          native-toolchain: false
       - name: Cross compile compiler plugins and Scala standard library
         timeout-minutes: 120
         run: sbt "test-cross-compile ${{ matrix.scala }}"

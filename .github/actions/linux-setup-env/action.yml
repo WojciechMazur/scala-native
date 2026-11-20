@@ -46,10 +46,12 @@ runs:
         max_attempts: 10
         retry_on: error
         shell: bash
-        # lld is needed for LTO
+        # lld is needed for LTO. apt-get has its own time limit, the retry
+        # action cannot kill a hung process started with sudo.
         command: |
-          sudo apt-get update
-          sudo apt-get install -y libgc-dev ${{ inputs.llvm-version == '' && format('lld-{0}', steps.llvm.outputs.version) || '' }}
+          apt="sudo timeout 240 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30"
+          $apt update
+          $apt install -y libgc-dev ${{ inputs.llvm-version == '' && format('lld-{0}', steps.llvm.outputs.version) || '' }}
 
     - name: Install LLVM toolchain
       shell: bash

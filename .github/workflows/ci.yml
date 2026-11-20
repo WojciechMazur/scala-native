@@ -87,6 +87,8 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
+      - uses: coursier/cache-action@v8
+      - uses: coursier/setup-action@v3
       # Formatting requires clang-format 14
       - name: Install clang-format
         run: pip install clang-format==14.0.6

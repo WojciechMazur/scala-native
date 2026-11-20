@@ -56,6 +56,20 @@ object Build {
     publishedMultiScalaProjects ::: testMultiScalaProjects
   lazy val crossPublishedMultiScalaProjects =
     scalalib :: scala3lib :: compilerPlugins
+  // Libraries used by Scala Native applications, without the build tooling
+  lazy val runtimeMultiScalaProjects = compilerPlugins ++ List(
+    nativelib,
+    clib,
+    posixlib,
+    windowslib,
+    auxlib,
+    javalib,
+    scalalib,
+    scala3lib,
+    testInterface,
+    testInterfaceSbtDefs,
+    junitRuntime
+  )
   lazy val publishedProjects =
     noCrossProjects ::: publishedMultiScalaProjects.flatMap(_.componentProjects)
   lazy val testProjects =
@@ -408,10 +422,7 @@ object Build {
     "sbtScalaNative",
     base = Some(file("sbt-scala-native")),
     crossVersions = Some(
-      Map(
-        "2.12" -> Seq(ScalaVersions.sbt10ScalaVersion),
-        "3" -> Seq(ScalaVersions.sbt2ScalaVersion)
-      )
+      ScalaVersions.sbtScalaVersions.map { case (k, v) => k -> Seq(v) }
     )
   )
     .enablePlugins(ScriptedPlugin)
@@ -1319,9 +1330,10 @@ object Build {
                 buildInfoOptions += BuildInfoOption.PackagePrivate
               )
             case Test =>
+              // Keys may depend on the native libraries, compiling the main sources must not evaluate them
               Def.settings(
-                (Test / managedSources) ++= (Compile / buildInfo).value,
-                (Compile / managedSources) --= (Compile / buildInfo).value
+                BuildInfoPlugin.buildInfoScopedSettings(Test),
+                Compile / buildInfo := Def.uncached(Seq.empty[File])
               )
           }
         )

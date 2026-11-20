@@ -1,25 +1,19 @@
 name: Run tests BSD
+# Called from ci.yml, see scripts/ci/plan.scala
 on:
   workflow_call:
-  pull_request:
-  schedule:
-    - cron: "0 3 * * *"
-  workflow_dispatch:
+    inputs:
+      extended: { type: boolean, default: false }
 
 permissions:
   contents: read
-
-concurrency:
-  group: bsd-${{ github.head_ref || github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
 
 jobs:
   test-freebsd:
     name: Test runtime (FreeBSD x86_64, Scala 3)
     env:
       SBT_VERSION: "2.0.9"
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.repository == 'scala-native/scala-native'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
@@ -47,8 +41,8 @@ jobs:
     name: Test runtime (NetBSD x86_64, Scala 3)
     env:
       SBT_VERSION: "2.0.9"
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.repository == 'scala-native/scala-native'
-    runs-on: ubuntu-latest
+    if: inputs.extended
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7

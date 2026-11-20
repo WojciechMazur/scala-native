@@ -206,6 +206,46 @@ directories exists it will fail. It is also possible to define
 explicitly overrides directory to use by passing it as the third
 argument to the script.
 
+## Continuous integration
+
+All tests are started from the `CI` workflow (`.github/workflows/ci.yml`).
+Its `plan` job selects which jobs run:
+
+- every pull request runs a gate first: all sources compiled for Scala
+  2.12, 2.13 and 3 (`compile-all <version>`), the sandbox, the test
+  interface, the runtime tests on the JVM and on Native in the default
+  configuration and MiMa checks, with the Scala 3 runtime tests also on
+  Windows and the core native tests on macOS (x64). Platform tests start only once all gates pass;
+- each platform workflow (`run-tests-*.yml`) then runs off, at its base
+  level (jobs without a condition) or extended (also the jobs with
+  `if: inputs.extended`). The `Workflow` table in `scripts/ci/plan.scala`
+  decides it from the modified paths, e.g. changes to the GC run the
+  extended Linux tests and the multiarch, BSD, Termux and iOS simulator
+  workflows;
+- draft pull requests run only the gate, documentation-only changes only the
+  lint and documentation checks;
+- the full set of tests runs every night on `main`, unless nothing was
+  committed since the previous run. Adding `[test-extended]` to the pull
+  request description (or the `ci:full` label) runs it for a pull request,
+  `[test-partest]` (or the `ci:partest` label) runs all partests.
+
+Snapshots are published from the nightly run once the gate passes. Pushing
+a `v0.5.*` tag runs the gate and the base Linux, macOS and Windows tests,
+then publishes the release.
+
+The `CI OK` job aggregates the results and is the only required check.
+Jobs that GitHub cancels because no runner picked them up, which happens
+with macOS arm64 runners, are re-run by `ci-retry.yml`, up to 3 attempts.
+
+Repository variables control CI without code changes:
+`NIGHTLY_CREATE_ISSUES=true` reports nightly failures as issues labelled
+`ci-nightly`, `CI_SHARE_BUILD_OUTPUTS=true` reuses compilation outputs of
+the gate in other jobs.
+
+The sbt commands used by the CI can be run locally, e.g.
+`test-runtime 3`, `test-runtime-native 3`, `test-gc 3`, `test-tools 3`,
+`test-mima 3` or `test-cross-compile 3`.
+
 The next section has more build and development information for those
 wanting to work on [compiler](./compiler.md).
 

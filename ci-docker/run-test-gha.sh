@@ -51,8 +51,9 @@ CacheDir=$HOME/.cache
 IvyDir=$HOME/.ivy2
 SbtDir=$HOME/.sbt
 mkdir -p $CacheDir $IvyDir $SbtDir
-# Coursier caches failed downloads, clear them before each attempt
-find "$CacheDir/coursier" -name '*.error' -delete 2>/dev/null || true
+# Coursier caches failed downloads, clear them before each attempt,
+# files written by the container are owned by root
+sudo find "$CacheDir/coursier" -name '*.error' -delete 2>/dev/null || true
 
 docker run --rm \
   --mount type=bind,source=$CacheDir,target=/root/.cache \

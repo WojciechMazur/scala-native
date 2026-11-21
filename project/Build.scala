@@ -455,7 +455,6 @@ object Build {
           sourceTests / "platform-specific/java-net-socket/SocketHelpers.scala"
         )
         val externalThreads = sourceTests / "platform-specific"
-        val externalThreadsCommon = externalThreads / "external-threads-common"
         val runtimeSources = externalThreads / "external-threads-runtime/src"
         copy(
           (nativelib.v2_12 / Compile / resourceDirectory).value / "scala-native/externalThreads.h",
@@ -463,15 +462,15 @@ object Build {
         )
         Seq("main/native", "main/resources/scala-native").foreach { directory =>
           copy(
-            externalThreadsCommon / "external-thread-platform.h",
+            externalThreads / "external-thread-platform.h",
             runtimeSources / directory / "external-thread-platform.h"
           )
         }
-        copy(externalThreadsCommon / "external-thread-host.h", runtimeSources / "main/native/external-thread-host.h")
+        copy(externalThreads / "external-thread-host.h", runtimeSources / "main/native/external-thread-host.h")
 
         Seq("runtime", "shared-library").foreach { name =>
           val fixture = externalThreads / s"external-threads-$name"
-          (externalThreadsCommon * "ExternalThread*.scala").get().foreach { source =>
+          (externalThreads * "ExternalThread*.scala").get().foreach { source =>
             copy(source, fixture / "project" / source.getName)
           }
           if (name != "runtime") {

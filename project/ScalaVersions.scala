@@ -73,7 +73,7 @@ object ScalaVersions {
     crossScala3
   ).flatten.distinct
 
-  // Scala 2.13 cannot be used with Scala 3.8 (see, scala3/cross-version-compat)
+  // Scala 2.13 cannot be used with Scala 3.8 (see, build/scala3-cross-version-compat)
   val scriptedTestsScala3Version: String = "3.7.4".ensuring(
     !crossScala213.contains("2.13.19"),
     "Update scriptedTestsScala3Version when new Scala 3 version is released"

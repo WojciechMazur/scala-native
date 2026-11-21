@@ -211,11 +211,15 @@ object Commands {
   }
 
   /** Artifacts used by the scripted tests, like publish-release-for-version:
-   *  the runtime for the Scala versions of the tests, see `scriptedLaunchOpts`,
-   *  and the compiler plugins and scalalib for the sbt Scala version. The
-   *  scripted task publishes the sbt plugin and its tooling.
+   *  the runtime and the compiler plugins for the sbt Scala version. Tests in
+   *  `build/` also use the runtime for Scala 2.13 and an older Scala 3, see
+   *  `scriptedLaunchOpts`. The scripted task publishes the sbt plugin and its
+   *  tooling.
    */
-  private def scriptedPublishCommands(version: String): List[String] = {
+  private def scriptedPublishCommands(
+      version: String,
+      tests: Seq[String]
+  ): List[String] = {
     def publish(scalaVersion: String, projects: List[MultiScalaProject]) =
       projects
         .flatMap(
@@ -226,28 +230,33 @@ object Commands {
         .map(project => s"${project.id}/publishLocal")
         .mkString(s"++$scalaVersion; all ", " ", "")
     val runtime = Build.runtimeMultiScalaProjects
-    // sbt 1.x tests use the Scala 2.12 runtime
-    val sbtProjects =
+    val sbtScalaVersion =
+      ScalaVersions.sbtScalaVersions(CrossVersion.binaryScalaVersion(version))
+    val crossPublished =
       if (scriptedSbtProject(version) == sbtScalaNative.v3)
         Build.crossPublishedMultiScalaProjects
-      else runtime
-    val sbtScalaArtifacts = publish(
-      ScalaVersions.sbtScalaVersions(CrossVersion.binaryScalaVersion(version)),
-      sbtProjects
-    )
-    List(
-      publish(ScalaVersions.scala213, runtime),
-      // Libraries compiled with the older Scala 3 can be used by both
-      publish(ScalaVersions.scriptedTestsScala3Version, runtime),
-      sbtScalaArtifacts
-    )
+      else Nil
+    if (tests.isEmpty || tests.exists(_.startsWith("build/")))
+      List(
+        publish(ScalaVersions.scala213, runtime),
+        // Libraries compiled with the older Scala 3 can be used by both
+        publish(ScalaVersions.scriptedTestsScala3Version, runtime),
+        // sbt 1.x tests use the Scala 2.12 runtime
+        publish(
+          sbtScalaVersion,
+          if (crossPublished.isEmpty) runtime else crossPublished
+        )
+      )
+    else List(publish(sbtScalaVersion, (runtime ++ crossPublished).distinct))
   }
 
   lazy val publishScripted =
-    Command.args("publish-scripted", "<scala version>") {
+    Command.args("publish-scripted", "<scala version> [tests]") {
       case (state, args) =>
-        val commands =
-          scriptedPublishCommands(scriptedScalaVersion(args, state))
+        val commands = scriptedPublishCommands(
+          scriptedScalaVersion(args, state),
+          args.drop(1)
+        )
         println("Will execute following commands:")
         commands.foreach(println)
         commands ::: state
@@ -275,9 +284,8 @@ object Commands {
   lazy val testScripted =
     Command.args("test-scripted", "<scala version> [tests]") {
       case (state, args) =>
-        s"publish-scripted ${args.take(1).mkString}" ::
-          ("run-scripted" :: args.toList).mkString(" ") ::
-          state
+        List("publish-scripted", "run-scripted")
+          .map(command => (command +: args).mkString(" ")) ::: state
     }
 
   private def projectVersionCommand(

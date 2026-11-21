@@ -10,7 +10,6 @@ permissions:
   contents: read
 
 env:
-  CI_SHARE_BUILD_OUTPUTS: ${{ vars.CI_SHARE_BUILD_OUTPUTS }}
   SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
 
 jobs:
@@ -29,14 +28,6 @@ jobs:
         with:
           scala-version: "3"
       - uses: ./.github/actions/ios-simulator-setup
-      - name: Target simulator
-        run: |
-          echo "SCALANATIVE_TARGET_RUNNER=$GITHUB_WORKSPACE/scripts/ci/ios-simulator/run.sh" >> "$GITHUB_ENV"
-          echo "SCALANATIVE_TARGET_TRIPLE=$(uname -m)-apple-ios${IOS_MIN_VERSION}-simulator" >> "$GITHUB_ENV"
-      - &restore-build-outputs
-        uses: ./.github/actions/restore-build-outputs
-        with:
-          scala-version: "3"
       - name: Run unit tests
         timeout-minutes: 60
         run: sbt -J-Xmx5G "tests3/test"
@@ -67,7 +58,6 @@ jobs:
         run: |
           echo "SCALANATIVE_TARGET_TRIPLE=${{ matrix.target }}" >> "$GITHUB_ENV"
           echo "SDKROOT=$(xcrun --sdk ${{ matrix.sdk }} --show-sdk-path)" >> "$GITHUB_ENV"
-      - *restore-build-outputs
       - name: Link sandbox and unit tests
         timeout-minutes: 60
         run: sbt -J-Xmx5G "sandbox3/nativeLink; tests3/Test/nativeLink"

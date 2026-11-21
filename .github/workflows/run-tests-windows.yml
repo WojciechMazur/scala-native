@@ -8,9 +8,6 @@ on:
 permissions:
   contents: read
 
-env:
-  CI_SHARE_BUILD_OUTPUTS: ${{ vars.CI_SHARE_BUILD_OUTPUTS }}
-
 jobs:
   # Native runtime tests in other configurations than the gate
   runtime:
@@ -41,9 +38,6 @@ jobs:
           scala-version: ${{ matrix.scala }}
       - uses: ./.github/actions/windows-arm-setup-env
         if: matrix.arch == 'arm64'
-        with:
-          scala-version: ${{ matrix.scala }}
-      - uses: ./.github/actions/restore-build-outputs
         with:
           scala-version: ${{ matrix.scala }}
       - name: Test runtime
@@ -117,9 +111,6 @@ jobs:
       - uses: ./.github/actions/windows-setup-env
         with:
           scala-version: ${{ matrix.scala }}
-      - uses: ./.github/actions/restore-build-outputs
-        with:
-          scala-version: ${{ matrix.scala }}
       - name: Run tests
         timeout-minutes: 60
         run: >
@@ -151,9 +142,6 @@ jobs:
         with:
           scala-version: "3"
           llvm-version: ${{ matrix.llvm }}
-      - uses: ./.github/actions/restore-build-outputs
-        with:
-          scala-version: "3"
       - name: Run tests
         shell: cmd
         timeout-minutes: 60

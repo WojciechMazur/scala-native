@@ -1,5 +1,5 @@
 name: "Restore build outputs"
-description: "Enabled by repository variable CI_SHARE_BUILD_OUTPUTS=true. Download sbt compilation outputs produced by the gate job of the same run. Best effort: sbt compiles anything missing."
+description: "Enabled by repository variable CI_SHARE_BUILD_OUTPUTS=true. Download sbt compilation outputs produced by the Linux gate job of the same run, used only on Linux. Best effort: sbt compiles anything missing."
 inputs:
   scala-version:
     description: "Scala binary version of the outputs"
@@ -22,10 +22,7 @@ runs:
       continue-on-error: true
       shell: bash
       run: |
-        # GNU tar on Windows would treat 'D:' in the archive path as a remote host
-        flags=""
-        if [[ "$RUNNER_OS" == "Windows" ]]; then flags="--force-local"; fi
-        tar $flags -xzf "$RUNNER_TEMP/sbt-out/sbt-out.tgz"
+        tar -xzf "$RUNNER_TEMP/sbt-out/sbt-out.tgz"
         # sbt rewrites generated sources
         chmod -R u+w target/out
         du -sh target/out/*

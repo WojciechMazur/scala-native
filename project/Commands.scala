@@ -199,15 +199,16 @@ object Commands {
         sys.error("Used command needs explicit Scala version as an argument")
       )
 
-  private def scriptedSbtProject(version: String): Project =
-    CrossVersion.binaryScalaVersion(version) match {
-      case "3"        => sbtScalaNative.v3
-      case "2.12"     => sbtScalaNative.v2_12
-      case binVersion =>
+  private def scriptedSbtProject(version: String): Project = {
+    val binVersion = CrossVersion.binaryScalaVersion(version)
+    sbtScalaNative
+      .forBinaryVersionIfDefined(binVersion)
+      .getOrElse(
         throw new MessageOnlyException(
           s"Unsupported Scala binary version for sbt scripted tests: $binVersion (for Scala ${version})"
         )
-    }
+      )
+  }
 
   /** Artifacts used by the scripted tests, like publish-release-for-version:
    *  the runtime for the Scala versions of the tests, see `scriptedLaunchOpts`,
@@ -225,13 +226,15 @@ object Commands {
         .map(project => s"${project.id}/publishLocal")
         .mkString(s"++$scalaVersion; all ", " ", "")
     val runtime = Build.runtimeMultiScalaProjects
-    val sbtScalaArtifacts =
+    // sbt 1.x tests use the Scala 2.12 runtime
+    val sbtProjects =
       if (scriptedSbtProject(version) == sbtScalaNative.v3)
-        publish(
-          ScalaVersions.sbt2ScalaVersion,
-          Build.crossPublishedMultiScalaProjects
-        )
-      else publish(ScalaVersions.scala212, runtime)
+        Build.crossPublishedMultiScalaProjects
+      else runtime
+    val sbtScalaArtifacts = publish(
+      ScalaVersions.sbtScalaVersions(CrossVersion.binaryScalaVersion(version)),
+      sbtProjects
+    )
     List(
       publish(ScalaVersions.scala213, runtime),
       // Libraries compiled with the older Scala 3 can be used by both

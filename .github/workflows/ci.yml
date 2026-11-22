@@ -131,28 +131,21 @@ jobs:
         run: sbt "test-mima ${{ matrix.scala }}"
 
   # sbt plugins, compiled with their sbt Scala version
+  # The sbt 2.x plugin is compiled by every job, it is part of the build definition
   gate-sbt-plugin:
-    name: Gate sbt ${{ matrix.sbt }} plugin
+    name: Gate sbt 1.x plugin
     needs: plan
     if: needs.plan.outputs.tier != 'skip' && needs.plan.outputs.tier != 'docs'
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - sbt: "1.x"
-            scala: "2.12"
-          - sbt: "2.x"
-            scala: "3"
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/linux-setup-env
         with:
-          scala-version: ${{ matrix.scala }}
+          scala-version: "2.12"
           native-toolchain: false
       - name: Compile sbt plugin
         timeout-minutes: 30
-        run: sbt "compile-sbt-plugin ${{ matrix.scala }}"
+        run: sbt "compile-sbt-plugin 2.12"
 
   # Scala 3 runtime tests on other OSes
   gate-macos:

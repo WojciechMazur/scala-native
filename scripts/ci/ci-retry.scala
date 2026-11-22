@@ -16,10 +16,8 @@ val NotAcquired = "was not acquired by Runner"
   val attempt = env("RUN_ATTEMPT").toInt
   val maxAttempts = env("MAX_ATTEMPTS").toInt
 
-  val cancelled = ghApiPages(
-    s"repos/$repo/actions/runs/$runId/jobs?filter=latest",
-    _("jobs")
-  ).filter(_("conclusion").strOpt.contains("cancelled"))
+  val cancelled =
+    runJobs(repo, runId).filter(_("conclusion").strOpt.contains("cancelled"))
 
   val notAcquired = cancelled
     .filter { job =>

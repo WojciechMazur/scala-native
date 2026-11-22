@@ -108,4 +108,4 @@ jobs:
       - uses: ./.github/actions/ios-simulator-setup
       - name: Test GC
         timeout-minutes: 45
-        run: sbt -J-Xmx5G "test-gc 3"
+        run: sbt "test-gc 3"

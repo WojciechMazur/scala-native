@@ -32,14 +32,19 @@ object Build {
   lazy val compilerPlugins: List[MultiScalaProject] =  List(nscPlugin, junitPlugin)
   lazy val sbtPlugins: List[MultiScalaProject] = List(sbtScalaNative)
   lazy val noCrossProjects: List[Project] = List(javalibintf)
-  lazy val publishedMultiScalaProjects = compilerPlugins ++ sbtPlugins ++ List(
-    nir, util, tools,
-    nirJVM, utilJVM, toolsJVM,
+  // Libraries used by Scala Native applications
+  lazy val runtimeMultiScalaProjects = List(
     nativelib, clib, posixlib, windowslib,
     auxlib, javalib, scalalib, scala3lib,
-    testInterface, testInterfaceSbtDefs, testRunner,
+    testInterface, testInterfaceSbtDefs,
     junitRuntime
   )
+  lazy val publishedMultiScalaProjects =
+    compilerPlugins ++ sbtPlugins ++ runtimeMultiScalaProjects ++ List(
+      nir, util, tools,
+      nirJVM, utilJVM, toolsJVM,
+      testRunner
+    )
   lazy val testMultiScalaProjects = List(
       javalibExtDummies,
       testingCompiler,
@@ -56,20 +61,6 @@ object Build {
     publishedMultiScalaProjects ::: testMultiScalaProjects
   lazy val crossPublishedMultiScalaProjects =
     scalalib :: scala3lib :: compilerPlugins
-  // Libraries used by Scala Native applications, without the build tooling
-  lazy val runtimeMultiScalaProjects = compilerPlugins ++ List(
-    nativelib,
-    clib,
-    posixlib,
-    windowslib,
-    auxlib,
-    javalib,
-    scalalib,
-    scala3lib,
-    testInterface,
-    testInterfaceSbtDefs,
-    junitRuntime
-  )
   lazy val publishedProjects =
     noCrossProjects ::: publishedMultiScalaProjects.flatMap(_.componentProjects)
   lazy val testProjects =

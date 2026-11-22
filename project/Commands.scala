@@ -80,24 +80,14 @@ object Commands {
       val projects = Build.allMultiScalaProjects
         .filterNot(Build.sbtPlugins.contains)
         .flatMap(_.forBinaryVersionIfDefined(version))
-        .map(p => s"${p.id}/Test/compile")
-      projects.mkString("all ", " ", "") :: state
+      allTasks("Test/compile", projects) :: state
   }
 
   // Compile the sbt plugin with the Scala version of its sbt: 2.12 - sbt 1.x, 3 - sbt 2.x
   lazy val compileSbtPlugin = projectVersionCommand("compile-sbt-plugin") {
     case (version, state) =>
-      val sbtScalaVersion = ScalaVersions
-        .sbtScalaVersion(version)
-        .getOrElse(
-          throw new MessageOnlyException(
-            s"No sbt plugin for Scala binary version $version"
-          )
-        )
-      val plugins = Build.sbtPlugins
-        .flatMap(_.forBinaryVersionIfDefined(version))
-        .map(p => s"${p.id}/compile")
-      s"++$sbtScalaVersion" :: plugins ::: state
+      s"++${sbtScalaVersion(version)}" ::
+        tasks(version, "compile")(Build.sbtPlugins: _*) ::: state
   }
 
   // Compile compiler plugins and the Scala library for every supported Scala version
@@ -113,21 +103,15 @@ object Commands {
   }
 
   private def runtimeJVMTests(version: String): List[String] =
-    List(testsJVM, testsExtJVM, junitTestOutputsJVM)
-      .map(_.forBinaryVersion(version).id)
-      .map(id => s"$id/test")
+    tasks(version, "test")(testsJVM, testsExtJVM, junitTestOutputsJVM)
 
-  private def runtimeNativeTests(version: String): List[String] = {
-    val run = s"${sandbox.forBinaryVersion(version).id}/run"
-    val tests = List(
+  private def runtimeNativeTests(version: String): List[String] =
+    tasks(version, "run")(sandbox) ::: tasks(version, "test")(
       Build.tests,
       testsExt,
       junitTestOutputsNative,
       scalaPartestJunitTests
-    ).map(_.forBinaryVersion(version).id)
-      .map(id => s"$id/test")
-    run :: tests
-  }
+    )
 
   lazy val testRuntime = projectVersionCommand("test-runtime") {
     case (version, state) =>
@@ -142,30 +126,22 @@ object Commands {
 
   lazy val testTools = projectVersionCommand("test-tools") {
     case (version, state) =>
-      val tests = List(
-        nscPlugin, // compiler plugin
-        // Toolchain JVM
+      tasks(version, "test")(
+        nscPlugin,
         nirJVM,
         toolsJVM,
-        // Testing infrastrucutre
         testRunner,
         testInterface,
-        // Toolchain Native
         nir,
         tools
-      )
-        .map(_.forBinaryVersion(version).id)
-        .map(id => s"$id/test")
-      tests ::: state
+      ) ::: state
   }
 
   lazy val testMima = projectVersionCommand("test-mima") {
     case (version, state) =>
       // sbt plugins depend on the other projects, use the Scala version of sbt for all of them
-      val prepareForMiMa = ScalaVersions
-        .sbtScalaVersion(version)
-        .map(v => s"++$v")
-        .toList
+      val prepareForMiMa =
+        ScalaVersions.sbtScalaVersions.get(version).map(v => s"++$v").toList
       val tests = Build.publishedMultiScalaProjects
         .flatMap(_.forBinaryVersionIfDefined(version).map(_.id))
         .flatMap(id =>
@@ -210,56 +186,42 @@ object Commands {
       )
   }
 
-  /** Artifacts used by the scripted tests, like publish-release-for-version:
-   *  the runtime and the compiler plugins for the sbt Scala version. Tests in
-   *  `build/` also use the runtime for Scala 2.13 and an older Scala 3, see
-   *  `scriptedLaunchOpts`. The scripted task publishes the sbt plugin and its
-   *  tooling.
+  /** Runtime artifacts for the sbt Scala version, the scripted task publishes
+   *  the sbt plugin itself. Tests in `build/` also use Scala 2.13 and an older
+   *  Scala 3, see `scriptedLaunchOpts`.
    */
   private def scriptedPublishCommands(
       version: String,
       tests: Seq[String]
   ): List[String] = {
-    def publish(scalaVersion: String, projects: List[MultiScalaProject]) =
-      projects
-        .flatMap(
-          _.forBinaryVersionIfDefined(
-            CrossVersion.binaryScalaVersion(scalaVersion)
-          )
+    def publish(scalaVersion: String, projects: List[MultiScalaProject]) = {
+      val binVersion = CrossVersion.binaryScalaVersion(scalaVersion)
+      s"++$scalaVersion; " +
+        allTasks(
+          "publishLocal",
+          projects.flatMap(_.forBinaryVersionIfDefined(binVersion))
         )
-        .map(project => s"${project.id}/publishLocal")
-        .mkString(s"++$scalaVersion; all ", " ", "")
-    val runtime = Build.runtimeMultiScalaProjects
-    val sbtScalaVersion =
-      ScalaVersions.sbtScalaVersions(CrossVersion.binaryScalaVersion(version))
-    val crossPublished =
-      if (scriptedSbtProject(version) == sbtScalaNative.v3)
-        Build.crossPublishedMultiScalaProjects
-      else Nil
+    }
+    val binVersion = CrossVersion.binaryScalaVersion(version)
+    val runtime = compilerPlugins ++ runtimeMultiScalaProjects
     if (tests.isEmpty || tests.exists(_.startsWith("build/")))
       List(
         publish(ScalaVersions.scala213, runtime),
-        // Libraries compiled with the older Scala 3 can be used by both
         publish(ScalaVersions.scriptedTestsScala3Version, runtime),
-        // sbt 1.x tests use the Scala 2.12 runtime
+        // Overrides the Scala 3 libraries that differ from the older Scala 3 build
         publish(
-          sbtScalaVersion,
-          if (crossPublished.isEmpty) runtime else crossPublished
+          sbtScalaVersion(binVersion),
+          if (binVersion == "3") crossPublishedMultiScalaProjects else runtime
         )
       )
-    else List(publish(sbtScalaVersion, (runtime ++ crossPublished).distinct))
+    else List(publish(sbtScalaVersion(binVersion), runtime))
   }
 
   lazy val publishScripted =
     Command.args("publish-scripted", "<scala version> [tests]") {
       case (state, args) =>
-        val commands = scriptedPublishCommands(
-          scriptedScalaVersion(args, state),
-          args.drop(1)
-        )
-        println("Will execute following commands:")
-        commands.foreach(println)
-        commands ::: state
+        val version = scriptedScalaVersion(args, state)
+        logged(scriptedPublishCommands(version, args.drop(1)), state)
     }
 
   // Runs scripted tests using artifacts published with publish-scripted
@@ -273,12 +235,9 @@ object Commands {
           s"++$version",
           s"show ${sbtProject.id}/sbtVersion",
           s"show ${sbtProject.id}/scalaVersion",
-          s"${sbtProject.id}/scripted" +
-            (if (testsFilter.isEmpty) "" else " " + testsFilter)
+          s"${sbtProject.id}/scripted $testsFilter".trim
         )
-        println("Will execute following commands:")
-        commands.foreach(println)
-        commands ::: state
+        logged(commands, state)
     }
 
   lazy val testScripted =
@@ -287,6 +246,28 @@ object Commands {
         List("publish-scripted", "run-scripted")
           .map(command => (command +: args).mkString(" ")) ::: state
     }
+
+  private def tasks(version: String, task: String)(
+      projects: MultiScalaProject*
+  ): List[String] =
+    projects.toList.map(p => s"${p.forBinaryVersion(version).id}/$task")
+
+  private def allTasks(task: String, projects: Seq[Project]): String =
+    projects.map(p => s"${p.id}/$task").mkString("all ", " ", "")
+
+  private def sbtScalaVersion(binVersion: String): String =
+    ScalaVersions.sbtScalaVersions.getOrElse(
+      binVersion,
+      throw new MessageOnlyException(
+        s"No sbt plugin for Scala binary version $binVersion"
+      )
+    )
+
+  private def logged(commands: List[String], state: State): State = {
+    println("Will execute following commands:")
+    commands.foreach(println)
+    commands ::: state
+  }
 
   private def projectVersionCommand(
       name: String
@@ -404,10 +385,10 @@ object Commands {
       val publishBaseVersion =
         if (publishBase) List(s"++$scalaVersion; $publishCommand") else Nil
       val publishCrossVersions = crossVersions.map { crossVersion =>
-        Build.crossPublishedMultiScalaProjects
-          .map(_.forBinaryVersion(binVersion))
-          .map(project => s"${project.id}/$publishCommand")
-          .mkString(s"++ $crossVersion; all ", " ", "")
+        s"++$crossVersion; " + allTasks(
+          publishCommand,
+          crossPublishedMultiScalaProjects.map(_.forBinaryVersion(binVersion))
+        )
       }
       val isSnapshotVersion =
         state.getSetting(ThisBuild / version).exists(_.endsWith("-SNAPSHOT"))
@@ -418,12 +399,6 @@ object Commands {
           publishCrossVersions :::
           release
 
-      println(
-        s"Publish for Scala $binVersion would execute following commands:"
-      )
-      commandsToExecute.foreach(println)
-      println("")
-
-      commandsToExecute ::: state
+      logged(commandsToExecute, state)
   }
 }

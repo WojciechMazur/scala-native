@@ -14,18 +14,18 @@ runs:
       # update reports point to the local Coursier cache.
       # Dereference symlinks into sbt's read-only content store.
       run: |
-        tar -czhf "$RUNNER_TEMP/sbt-out.tgz" --ignore-failed-read --mode=u+w \
+        tar -I "zstd -T0" -chf "$RUNNER_TEMP/sbt-out.tar.zst" --ignore-failed-read --mode=u+w \
           --exclude='target/out/value' \
           --exclude='native' --exclude='native-test' --exclude='*.dSYM' \
           --exclude='streams' --exclude='update' --exclude='test-reports' \
           target/out
-        ls -lh "$RUNNER_TEMP/sbt-out.tgz"
+        ls -lh "$RUNNER_TEMP/sbt-out.tar.zst"
     - name: Upload build outputs
       if: env.CI_SHARE_BUILD_OUTPUTS == 'true'
       uses: actions/upload-artifact@v7
       with:
         name: sbt-out-${{ inputs.scala-version }}
-        path: ${{ runner.temp }}/sbt-out.tgz
+        path: ${{ runner.temp }}/sbt-out.tar.zst
         retention-days: 1
         compression-level: 0
         if-no-files-found: error

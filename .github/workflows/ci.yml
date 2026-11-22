@@ -115,13 +115,9 @@ jobs:
       - uses: ./.github/actions/linux-setup-env
         with:
           scala-version: ${{ matrix.scala }}
-      - name: Compile all sources and run sandbox
+      - name: Compile all sources
         timeout-minutes: 60
-        run: >
-          sbt
-          "compile-all ${{ matrix.scala }}"
-          "sandbox${{ env.project-version }}/run"
-          "testInterface${{ env.project-version }}/test"
+        run: sbt "compile-all ${{ matrix.scala }}" "testInterface${{ env.project-version }}/test"
       # Scala 2 outputs are used only by the extended Linux and toolchain tests
       - if: matrix.scala == '3' || needs.plan.outputs.linux == 'extended' || needs.plan.outputs.toolchain == 'extended'
         uses: ./.github/actions/save-build-outputs

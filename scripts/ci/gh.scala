@@ -27,3 +27,7 @@ def ghApiPages(
     .takeWhile(_.nonEmpty)
     .flatten
     .toSeq
+
+/** Latest attempt of each job of a workflow run */
+def runJobs(repo: String, runId: String): Seq[ujson.Value] =
+  ghApiPages(s"repos/$repo/actions/runs/$runId/jobs?filter=latest", _("jobs"))

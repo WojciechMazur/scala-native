@@ -99,7 +99,7 @@ jobs:
         if: runner.os == 'Windows'
         timeout-minutes: 75
         # Avoids the boot server's Windows named pipe
-        run: sbt --server -Dsbt.server.autostart=false "run-scripted ${{ matrix.scala }} platform-specific/*"
+        run: sbt --server "run-scripted ${{ matrix.scala }} platform-specific/*"
         shell: cmd
 
   # Scala 2.12 tests the sbt 1.x plugin

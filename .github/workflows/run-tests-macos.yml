@@ -91,7 +91,7 @@ jobs:
             tests${{ env.project-version }}/test;
             junitTestOutputsNative${{ env.project-version }}/test;
             scalaPartestJunitTests${{ env.project-version }}/test
-        run: sbt -J-Xmx5G "${TEST_COMMAND}"
+        run: sbt "${TEST_COMMAND}"
 
   llvm-versions:
     name: LLVM ${{ matrix.llvm }}

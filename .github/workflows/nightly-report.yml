@@ -23,9 +23,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          sparse-checkout: scripts/ci
-      - uses: coursier/cache-action@v8
-      - uses: VirtusLab/scala-cli-setup@v1.19
+          sparse-checkout: |
+            scripts/ci
+            .github/actions/ci-script
       - name: Report
         env:
           GH_TOKEN: ${{ github.token }}
@@ -34,4 +34,6 @@ jobs:
           RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           RUN_URL: ${{ github.event.workflow_run.html_url }}
-        run: scala-cli run --server=false scripts/ci/nightly-report.scala
+        uses: ./.github/actions/ci-script
+        with:
+          script: nightly-report.scala

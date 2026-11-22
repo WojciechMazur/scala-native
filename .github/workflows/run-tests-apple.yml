@@ -30,7 +30,7 @@ jobs:
       - uses: ./.github/actions/ios-simulator-setup
       - name: Run unit tests
         timeout-minutes: 60
-        run: sbt -J-Xmx5G "tests3/test"
+        run: sbt "tests3/test"
 
   # There is no way to execute binaries built for physical devices in the CI,
   # tvOS and watchOS have no simulator launcher yet. Ensure at least that the
@@ -60,4 +60,4 @@ jobs:
           echo "SDKROOT=$(xcrun --sdk ${{ matrix.sdk }} --show-sdk-path)" >> "$GITHUB_ENV"
       - name: Link sandbox and unit tests
         timeout-minutes: 60
-        run: sbt -J-Xmx5G "sandbox3/nativeLink; tests3/Test/nativeLink"
+        run: sbt "sandbox3/nativeLink; tests3/Test/nativeLink"

@@ -11,7 +11,7 @@ runs:
     # everything where it differs from the Linux gate's
     - name: Download build outputs
       id: download
-      if: env.CI_SHARE_BUILD_OUTPUTS == 'true' && runner.os == 'Linux'
+      if: env.CI_SHARE_BUILD_OUTPUTS == 'true'
       continue-on-error: true
       uses: actions/download-artifact@v8
       with:
@@ -22,7 +22,7 @@ runs:
       continue-on-error: true
       shell: bash
       run: |
-        tar -xzf "$RUNNER_TEMP/sbt-out/sbt-out.tgz"
+        tar -I zstd -xf "$RUNNER_TEMP/sbt-out/sbt-out.tar.zst"
         # sbt rewrites generated sources
         chmod -R u+w target/out
         du -sh target/out/*

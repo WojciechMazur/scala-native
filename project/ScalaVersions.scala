@@ -64,8 +64,6 @@ object ScalaVersions {
     "2.12" -> sbt10ScalaVersion,
     "3" -> sbt2ScalaVersion
   )
-  def sbtScalaVersion(binaryVersion: String): Option[String] =
-    sbtScalaVersions.get(binaryVersion)
 
   val libCrossScalaVersions: Seq[String] = Seq(
     crossScala212,

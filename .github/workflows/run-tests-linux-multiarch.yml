@@ -22,9 +22,11 @@ jobs:
             native-flags: -march=armv7-a -mfpu=neon -mfloat-abi=hard
     steps:
       - uses: actions/checkout@v7
+      # Native code is built inside Docker
       - uses: ./.github/actions/linux-setup-env
         with:
           scala-version: ${{matrix.scala}}
+          native-toolchain: false
       - name: Cache docker
         uses: actions/cache@v6
         with:

@@ -18,9 +18,8 @@ val FailedConclusions = Set("failure", "timed_out", "cancelled")
 
 case class Job(name: String, conclusion: Option[String])
 
-def runJobs(repo: String, runId: String): Seq[Job] =
-  ghApiPages(s"repos/$repo/actions/runs/$runId/jobs?filter=latest", _("jobs"))
-    .map(j => Job(j("name").str, j("conclusion").strOpt))
+def jobs(repo: String, runId: String): Seq[Job] =
+  runJobs(repo, runId).map(j => Job(j("name").str, j("conclusion").strOpt))
 
 @main def run(): Unit =
   val repo = env("GH_REPO")
@@ -29,7 +28,7 @@ def runJobs(repo: String, runId: String): Seq[Job] =
   val sha = env("HEAD_SHA")
   val runUrl = env("RUN_URL")
 
-  val executed = runJobs(repo, runId)
+  val executed = jobs(repo, runId)
     .filterNot(job => IgnoredJobs(job.name))
     .filter(_.conclusion.exists(_ != "skipped"))
   if executed.isEmpty then

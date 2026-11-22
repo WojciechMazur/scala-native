@@ -101,11 +101,21 @@ jobs:
           SCALANATIVE_TEST_PREFETCH_DEBUG_INFO: 1
           TEST_COMMAND: >
             set tests.forBinaryVersion("${{ matrix.scala }}")/${{env.set-native-config}};
-            set scalaPartestJunitTests.forBinaryVersion("${{ matrix.scala }}")/${{env.set-native-config}};
-            
             testsJVM${{env.project-version}}/test;
             tests${{env.project-version}}/clean;
-            tests${{env.project-version}}/test;
+            tests${{env.project-version}}/test
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 90
+          max_attempts: 3
+          retry_on: error
+          command: ./ci-docker/run-test-gha.sh "scala-native-testing:${{ matrix.arch }}"
+
+      # Takes about 50 minutes on emulated riscv64
+      - name: Test partest JUnit
+        env:
+          TEST_COMMAND: >
+            set scalaPartestJunitTests.forBinaryVersion("${{ matrix.scala }}")/${{env.set-native-config}};
             scalaPartestJunitTests${{env.project-version}}/clean;
             scalaPartestJunitTests${{env.project-version}}/test
         uses: nick-fields/retry@v4

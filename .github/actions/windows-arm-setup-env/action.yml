@@ -77,16 +77,9 @@ runs:
         VCPKG_DEFAULT_HOST_TRIPLET: arm64-windows
       run: vcpkg install bdwgc zlib --triplet=arm64-windows-static
 
-    # javalib does not link zlib on Windows; pass vcpkg's library explicitly.
-    - name: Link vcpkg zlib
-      shell: pwsh
-      run: |
-        & "${{ github.workspace }}/scripts/ci/windows/export-vcpkg-zlib-link-option.ps1" -LibDir '${{ steps.resolve-env.outputs.VcpkgLibs }}\lib'
-
     - name: Expose libraries to Scala Native builds
       shell: pwsh
       run: |
-        "SCALANATIVE_INCLUDE_DIRS=${{ steps.resolve-env.outputs.VcpkgLibs }}\include" >> $env:GITHUB_ENV
-        "SCALANATIVE_LIB_DIRS=${{ steps.resolve-env.outputs.VcpkgLibs }}\lib" >> $env:GITHUB_ENV
+        & "${{ github.workspace }}/scripts/ci/windows/expose-vcpkg-libs.ps1" -VcpkgLibs '${{ steps.resolve-env.outputs.VcpkgLibs }}'
 
     - uses: ./.github/actions/sbt-warmup

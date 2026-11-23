@@ -33,12 +33,12 @@ object ScalaVersions {
     crossScalaVersions("3.7", 0 to 4),
     crossScalaVersions("3.8", 0 to 4),
     crossScalaVersions("3.9", 0 to 0), // LTS
-    crossScalaVersions("3.10", 0 to 0) // RC
+    crossScalaVersions("3.10", 0 to 1)
   ).flatten.distinct
 
   // Tested in scheduled nightly CI to check compiler plugins
   // List maintains only upcoming releases, removed from the list after reaching stable status
-  lazy val scala3RCVersions = List("3.10.1-RC1")
+  lazy val scala3RCVersions = List("3.10.2-RC1")
 
   // Scala versions used for publishing libraries
   val scala212: String = crossScala212.last
@@ -71,13 +71,26 @@ object ScalaVersions {
 
   private def extraCrossScalaVersion(binVersionPrefix: String) = sys.env
     .get("EXTRA_CROSS_SCALA_VERSION")
-    .filter(_.startsWith(binVersionPrefix))
+    .filter(matchesBinaryPrefix(binVersionPrefix))
+
+  // A shorter minor prefix must not match a later minor. Match at a dot boundary.
+  private def matchesBinaryPrefix(binVersionPrefix: String)(version: String) =
+    val boundary =
+      if binVersionPrefix.endsWith(".") then binVersionPrefix
+      else s"$binVersionPrefix."
+    version.startsWith(boundary)
+
+  private def patchVersions(
+      baseVersion: String,
+      patches: Range.Inclusive
+  ): List[String] =
+    patches.map(v => s"$baseVersion.$v").toList
 
   private def crossScalaVersions(
       baseVersion: String,
       patches: Range.Inclusive
   ): List[String] = {
-    patches.map(v => s"$baseVersion.$v") ++
-      extraCrossScalaVersion(baseVersion)
-  }.distinct.toList
+    val released = patchVersions(baseVersion, patches)
+    released ++ extraCrossScalaVersion(baseVersion).filterNot(released.contains)
+  }
 }

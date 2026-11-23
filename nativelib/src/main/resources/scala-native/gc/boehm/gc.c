@@ -391,6 +391,8 @@ bool scalanative_externalGC_restoreContext(void *context) {
     return scalanative_externalGC_isRegistered() ||
            scalanative_externalGC_register();
 }
+// Boehm scans the stacks of registered threads itself
+void scalanative_externalGC_returnToHost(void) {}
 void scalanative_externalGC_admit(void) {
     executionState = GC_MutatorThreadState_Managed;
 }

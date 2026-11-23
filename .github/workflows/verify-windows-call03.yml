@@ -1,0 +1,40 @@
+# VERIFY-ONLY (fork): external-thread scan fix on Windows, on the ci-restructure
+# setup (windows-2025, LLVM 22.1.8). Not meant for upstream.
+name: Verify Windows external-threads CALL-03
+on:
+  push:
+    branches:
+      - claude/windows-call03-refs
+  workflow_dispatch:
+
+jobs:
+  scenarios:
+    name: ${{ matrix.cell }}
+    runs-on: windows-2025
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { cell: external-threads-runtime, test: external-threads-runtime, debug: false }
+          - { cell: external-threads-shared-library, test: external-threads-shared-library, debug: false }
+          - { cell: immix-mt debug, test: external-threads-runtime, debug: true }
+    steps:
+      - name: Setup git config
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - name: Only immix-mt in debug
+        if: matrix.debug
+        shell: bash
+        run: |
+          t=scripted-tests/platform-specific/external-threads-runtime
+          printf '> set scenarioConfiguration := "immix-mt"\n> runScenarios\n' > $t/test
+          perl -i.bak -pe 's/^immix-mt\timmix\t[a-z-]+\t/immix-mt\timmix\tdebug\t/' $t/configurations.tsv
+          rm $t/configurations.tsv.bak
+      - uses: ./.github/actions/windows-setup-env
+        with:
+          scala-version: 3
+      - name: Run scripted
+        timeout-minutes: 75
+        run: sbt --server "test-scripted 3 platform-specific/${{ matrix.test }}"
+        shell: cmd

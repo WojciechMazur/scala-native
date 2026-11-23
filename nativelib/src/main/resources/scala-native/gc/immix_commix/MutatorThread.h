@@ -28,6 +28,8 @@ typedef struct {
     _Atomic(GC_MutatorThreadState) state;
     atomic_intptr_t stackTop;
     atomic_bool isWaiting;
+    // An external thread back in host code, without Scala frames to scan
+    atomic_bool inHost;
     RegistersBuffer registersBuffer;
     // immutable fields
     word_t **stackBottom;
@@ -88,6 +90,9 @@ void MutatorThread_switchState(MutatorThread *self,
 MutatorThread *MutatorThread_current(void);
 /* Switches to Unmanaged after the caller captured registersBuffer. */
 void MutatorThread_enterUnmanaged(MutatorThread *self);
+/* An unmanaged external thread returned to its host: host frames are not
+ * roots, so its stack and registers are not scanned until it is admitted. */
+void MutatorThread_returnToHost(MutatorThread *self);
 
 // =============================================================================
 // Thread State Checks

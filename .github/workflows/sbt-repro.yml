@@ -27,8 +27,8 @@ jobs:
       - name: Repro A (hold published jar open, republish)
         if: matrix.repro == 'a'
         working-directory: repro-a
-        run: sbt --batch -Dsbt.server.autostart=false "a/publishLocal" "a/holdJar" "a/publishLocal"
+        run: sbt --server --batch "a/publishLocal" "a/holdJar" "a/publishLocal"
       - name: Repro B (dependent project runs from ivy-local jar, republish)
         if: matrix.repro == 'b'
         working-directory: repro-b
-        run: sbt --batch -Dsbt.server.autostart=false "a/publishLocal" "b/run" "a/publishLocal"
+        run: sbt --server --batch "a/publishLocal" "b/run" "a/publishLocal"

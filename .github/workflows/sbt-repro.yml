@@ -23,7 +23,7 @@ jobs:
           java-version: '21'
       - uses: sbt/setup-sbt@v1
       - name: Set sbt version
-        run: echo "sbt.version=${{ matrix.sbt }}" > repro-${{ matrix.repro }}/project/build.properties
+        run: mkdir -p repro-${{ matrix.repro }}/project && echo "sbt.version=${{ matrix.sbt }}" > repro-${{ matrix.repro }}/project/build.properties
       - name: Repro A (hold published jar open, republish)
         if: matrix.repro == 'a'
         working-directory: repro-a

@@ -1,0 +1,34 @@
+name: sbt publishLocal AccessDenied repro
+on:
+  push:
+    branches: ['claude/sbt-publishlocal-repro']
+  workflow_dispatch:
+jobs:
+  repro:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        sbt: ['2.1.1', '2.0.12']
+        repro: [a, b]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: sbt/setup-sbt@v1
+      - name: Set sbt version
+        run: echo "sbt.version=${{ matrix.sbt }}" > repro-${{ matrix.repro }}/project/build.properties
+      - name: Repro A (hold published jar open, republish)
+        if: matrix.repro == 'a'
+        working-directory: repro-a
+        run: sbt --batch -Dsbt.server.autostart=false "a/publishLocal" "a/holdJar" "a/publishLocal"
+      - name: Repro B (dependent project runs from ivy-local jar, republish)
+        if: matrix.repro == 'b'
+        working-directory: repro-b
+        run: sbt --batch -Dsbt.server.autostart=false "a/publishLocal" "b/run" "a/publishLocal"

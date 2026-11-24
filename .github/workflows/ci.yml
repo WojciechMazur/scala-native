@@ -279,11 +279,12 @@ jobs:
     with:
       snapshot: true
 
-  # Release from a tag, requires the release plan to pass
+  # Release from a tag, requires the release plan to pass.
+  # Explicit result check: jobs skipped by the plan would skip it otherwise.
   publish-release:
     name: Publish release
     needs: [plan, ci-ok]
-    if: needs.plan.outputs.publish == 'release'
+    if: ${{ !cancelled() && needs.ci-ok.result == 'success' && needs.plan.outputs.publish == 'release' }}
     permissions:
       contents: write
     uses: ./.github/workflows/publish.yml

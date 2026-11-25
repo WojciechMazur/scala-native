@@ -1,0 +1,30 @@
+# TEMPORARY: #5393 regression test check on macOS Intel. Fork only.
+name: Repro 5393 macOS Intel
+on:
+  push:
+    branches: ["claude/repro-5393*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    name: Regression test (${{ matrix.runner }}, ${{ matrix.gc }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-26-intel]
+        gc: [immix, commix]
+    env:
+      SCALANATIVE_MODE: release-fast
+      SCALANATIVE_GC: ${{ matrix.gc }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/macos-setup-env
+        with:
+          scala-version: "3"
+      - name: Run regression test
+        timeout-minutes: 60
+        run: sbt "tests3/testOnly scala.scalanative.runtime.gc.YieldpointStressTest"

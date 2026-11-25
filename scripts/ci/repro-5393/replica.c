@@ -25,6 +25,8 @@ static atomic_long redirects, polls, bad;
 static atomic_bool done;
 
 void scalanative_gc_safepoint_poll_trampoline(void);
+static __thread uintptr_t resumePc;
+uintptr_t scalanative_gc_safepoint_load_resume_pc(void) { return resumePc; }
 void scalanative_gc_safepoint_poll_run_yield(void) {
     atomic_fetch_add(&redirects, 1);
     while (atomic_load(&armed))
@@ -42,7 +44,11 @@ static void handler(int sig, siginfo_t *si, void *uap) {
     uintptr_t pc = (uintptr_t)uc->uc_mcontext->__ss.__rip;
     uintptr_t sp =
         (uintptr_t)uc->uc_mcontext->__ss.__rsp - 128 - sizeof(uintptr_t);
+#ifdef FIXED /* fixed trampoline writes the return slot itself */
+    resumePc = pc;
+#else
     *(uintptr_t *)sp = pc;
+#endif
     uc->uc_mcontext->__ss.__rsp = (__uint64_t)sp;
     uc->uc_mcontext->__ss.__rip =
         (__uint64_t)(uintptr_t)scalanative_gc_safepoint_poll_trampoline;

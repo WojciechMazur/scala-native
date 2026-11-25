@@ -27,6 +27,10 @@ jobs:
       - uses: actions/checkout@v7
       - name: System info
         run: uname -a; sw_vers; sysctl -n machdep.cpu.brand_string; clang --version
+      - name: Old trampoline from main
+        run: |
+          git fetch -q --depth=1 https://github.com/scala-native/scala-native main
+          git show FETCH_HEAD:nativelib/src/main/resources/scala-native/gc/shared/SafepointPollTrampoline-x86_64.S > old-tramp.S
       - name: Disassemble _sigtramp
         continue-on-error: true
         timeout-minutes: 6
@@ -44,20 +48,28 @@ jobs:
         continue-on-error: true
         timeout-minutes: 6
         run: |
-          clang -O0 $DEFS replica.c $TRAMP -o replica-o0
+          clang -O0 $DEFS replica.c old-tramp.S -o replica-o0
           for i in 1 2 3; do ./with-watchdog.sh 60 ./replica-o0 5000 || true; done
       - name: Replica -O3 (nativelib release flags)
         continue-on-error: true
         timeout-minutes: 6
         run: |
-          clang -O3 $DEFS replica.c $TRAMP -o replica-o3
+          clang -O3 $DEFS replica.c old-tramp.S -o replica-o3
           for i in 1 2 3; do ./with-watchdog.sh 60 ./replica-o3 5000 || true; done
       - name: Replica control, handler on sigaltstack
         continue-on-error: true
         timeout-minutes: 6
         run: |
-          clang -O3 $DEFS -DUSE_ALTSTACK replica.c $TRAMP -o replica-alt
+          clang -O3 $DEFS -DUSE_ALTSTACK replica.c old-tramp.S -o replica-alt
           for i in 1 2 3; do ./with-watchdog.sh 60 ./replica-alt 5000 || true; done
+      - name: Replica with the fix (-O0 and -O3)
+        continue-on-error: true
+        timeout-minutes: 6
+        run: |
+          clang -O0 $DEFS -DFIXED replica.c $TRAMP -o replica-fixed-o0
+          clang -O3 $DEFS -DFIXED replica.c $TRAMP -o replica-fixed-o3
+          for i in 1 2 3; do ./with-watchdog.sh 60 ./replica-fixed-o0 5000 || exit 1; done
+          for i in 1 2 3; do ./with-watchdog.sh 60 ./replica-fixed-o3 5000 || exit 1; done
       - name: Collect crash reports
         if: always()
         run: mkdir -p out && cp ~/Library/Logs/DiagnosticReports/*.ips out/ 2>/dev/null || true

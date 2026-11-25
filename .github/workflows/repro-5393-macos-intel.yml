@@ -29,30 +29,35 @@ jobs:
         run: uname -a; sw_vers; sysctl -n machdep.cpu.brand_string; clang --version
       - name: Disassemble _sigtramp
         continue-on-error: true
+        timeout-minutes: 6
         run: |
           clang -O0 probe.c -o probe
           lldb -b -o 'image lookup -n _sigtramp' -o 'disassemble -n _sigtramp' ./probe 2>&1 | tail -40 || true
           otool -tV /usr/lib/system/libsystem_platform.dylib 2>/dev/null | grep -A30 '^__sigtramp:' || true
       - name: Frame layout probe
         continue-on-error: true
+        timeout-minutes: 6
         run: |
-          clang -O0 probe.c -o probe && ./probe
-          clang -O2 probe.c -o probe2 && ./probe2
+          clang -O0 probe.c -o probe && ./with-watchdog.sh 20 ./probe
+          clang -O2 probe.c -o probe2 && ./with-watchdog.sh 20 ./probe2
       - name: Replica -O0 (redirect as in nativelib)
         continue-on-error: true
+        timeout-minutes: 6
         run: |
           clang -O0 $DEFS replica.c $TRAMP -o replica-o0
-          for i in 1 2 3; do ./replica-o0 5000; echo "exit=$?"; done
+          for i in 1 2 3; do ./with-watchdog.sh 60 ./replica-o0 5000; done
       - name: Replica -O3 (nativelib release flags)
         continue-on-error: true
+        timeout-minutes: 6
         run: |
           clang -O3 $DEFS replica.c $TRAMP -o replica-o3
-          for i in 1 2 3; do ./replica-o3 5000; echo "exit=$?"; done
+          for i in 1 2 3; do ./with-watchdog.sh 60 ./replica-o3 5000; done
       - name: Replica control, handler on sigaltstack
         continue-on-error: true
+        timeout-minutes: 6
         run: |
           clang -O3 $DEFS -DUSE_ALTSTACK replica.c $TRAMP -o replica-alt
-          for i in 1 2 3; do ./replica-alt 5000; echo "exit=$?"; done
+          for i in 1 2 3; do ./with-watchdog.sh 60 ./replica-alt 5000; done
       - name: Collect crash reports
         if: always()
         run: mkdir -p out && cp ~/Library/Logs/DiagnosticReports/*.ips out/ 2>/dev/null || true

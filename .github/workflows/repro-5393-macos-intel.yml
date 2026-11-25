@@ -45,19 +45,19 @@ jobs:
         timeout-minutes: 6
         run: |
           clang -O0 $DEFS replica.c $TRAMP -o replica-o0
-          for i in 1 2 3; do ./with-watchdog.sh 60 ./replica-o0 5000; done
+          for i in 1 2 3; do ./with-watchdog.sh 60 ./replica-o0 5000 || true; done
       - name: Replica -O3 (nativelib release flags)
         continue-on-error: true
         timeout-minutes: 6
         run: |
           clang -O3 $DEFS replica.c $TRAMP -o replica-o3
-          for i in 1 2 3; do ./with-watchdog.sh 60 ./replica-o3 5000; done
+          for i in 1 2 3; do ./with-watchdog.sh 60 ./replica-o3 5000 || true; done
       - name: Replica control, handler on sigaltstack
         continue-on-error: true
         timeout-minutes: 6
         run: |
           clang -O3 $DEFS -DUSE_ALTSTACK replica.c $TRAMP -o replica-alt
-          for i in 1 2 3; do ./with-watchdog.sh 60 ./replica-alt 5000; done
+          for i in 1 2 3; do ./with-watchdog.sh 60 ./replica-alt 5000 || true; done
       - name: Collect crash reports
         if: always()
         run: mkdir -p out && cp ~/Library/Logs/DiagnosticReports/*.ips out/ 2>/dev/null || true
@@ -91,8 +91,7 @@ jobs:
         run: |
           cp scripts/ci/repro-5393/Storm.scala sandbox/src/main/scala/Test.scala
           sbt "show sandbox3/nativeConfig" "sandbox3/nativeLink"
-          bin=$(find sandbox -type f -perm -u+x -path '*target*' -newer sandbox/src/main/scala/Test.scala \
-                  ! -name '*.o' ! -name '*.ll' ! -name '*.dylib' | head -1)
+          bin=$(find target -type f -perm -u+x -path '*native0.5/scala-3*/sandbox/sandbox' | head -1)
           echo "BIN=$bin" >> $GITHUB_ENV
           ls -la "$bin"
       - name: Run storm

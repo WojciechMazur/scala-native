@@ -1,5 +1,4 @@
-# TEMPORARY: reproducer for #5393 (x86_64 macOS trap yieldpoints SIGILL/hang).
-# Fork-only, never merge upstream.
+# TEMPORARY: #5393 regression test check on macOS Intel. Fork only.
 name: Repro 5393 macOS Intel
 on:
   push:
@@ -10,121 +9,22 @@ permissions:
   contents: read
 
 jobs:
-  c-repro:
-    name: C replica (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+  regression:
+    name: Regression test (${{ matrix.runner }}, ${{ matrix.gc }})
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-26-intel, macos-15-intel]
-    defaults:
-      run:
-        working-directory: scripts/ci/repro-5393
-    env:
-      TRAMP: ../../../nativelib/src/main/resources/scala-native/gc/shared/SafepointPollTrampoline-x86_64.S
-      DEFS: -DSCALANATIVE_MULTITHREADING_ENABLED -DSCALANATIVE_GC_USE_YIELDPOINT_TRAPS
-    steps:
-      - uses: actions/checkout@v7
-      - name: System info
-        run: uname -a; sw_vers; sysctl -n machdep.cpu.brand_string; clang --version
-      - name: Old trampoline from main
-        run: |
-          git fetch -q --depth=1 https://github.com/scala-native/scala-native main
-          git show FETCH_HEAD:nativelib/src/main/resources/scala-native/gc/shared/SafepointPollTrampoline-x86_64.S > old-tramp.S
-      - name: Disassemble _sigtramp
-        continue-on-error: true
-        timeout-minutes: 6
-        run: |
-          clang -O0 probe.c -o probe
-          lldb -b -o 'image lookup -n _sigtramp' -o 'disassemble -n _sigtramp' ./probe 2>&1 | tail -40 || true
-          otool -tV /usr/lib/system/libsystem_platform.dylib 2>/dev/null | grep -A30 '^__sigtramp:' || true
-      - name: Frame layout probe
-        continue-on-error: true
-        timeout-minutes: 6
-        run: |
-          clang -O0 probe.c -o probe && ./with-watchdog.sh 20 ./probe
-          clang -O2 probe.c -o probe2 && ./with-watchdog.sh 20 ./probe2
-      - name: Replica -O0 (redirect as in nativelib)
-        continue-on-error: true
-        timeout-minutes: 6
-        run: |
-          clang -O0 $DEFS replica.c old-tramp.S -o replica-o0
-          for i in 1 2 3; do ./with-watchdog.sh 60 ./replica-o0 5000 || true; done
-      - name: Replica -O3 (nativelib release flags)
-        continue-on-error: true
-        timeout-minutes: 6
-        run: |
-          clang -O3 $DEFS replica.c old-tramp.S -o replica-o3
-          for i in 1 2 3; do ./with-watchdog.sh 60 ./replica-o3 5000 || true; done
-      - name: Replica control, handler on sigaltstack
-        continue-on-error: true
-        timeout-minutes: 6
-        run: |
-          clang -O3 $DEFS -DUSE_ALTSTACK replica.c old-tramp.S -o replica-alt
-          for i in 1 2 3; do ./with-watchdog.sh 60 ./replica-alt 5000 || true; done
-      - name: Replica with the fix (-O0 and -O3)
-        continue-on-error: true
-        timeout-minutes: 6
-        run: |
-          clang -O0 $DEFS -DFIXED replica.c $TRAMP -o replica-fixed-o0
-          clang -O3 $DEFS -DFIXED replica.c $TRAMP -o replica-fixed-o3
-          for i in 1 2 3; do ./with-watchdog.sh 60 ./replica-fixed-o0 5000 || exit 1; done
-          for i in 1 2 3; do ./with-watchdog.sh 60 ./replica-fixed-o3 5000 || exit 1; done
-      - name: Collect crash reports
-        if: always()
-        run: mkdir -p out && cp ~/Library/Logs/DiagnosticReports/*.ips out/ 2>/dev/null || true
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: c-repro-${{ matrix.os }}
-          path: scripts/ci/repro-5393/out
-          if-no-files-found: ignore
-
-  storm:
-    name: Scala storm (trap=${{ matrix.trap }})
-    runs-on: macos-26-intel
-    strategy:
-      fail-fast: false
-      matrix:
-        trap: ["1", "0"]
+        runner: [macos-26-intel, macos-26]
+        gc: [immix, commix]
     env:
       SCALANATIVE_MODE: release-fast
-      SCALANATIVE_GC: commix
-      SCALANATIVE_LTO: none
-      SCALANATIVE_OPTIMIZE: true
-      SCALANATIVE_GC_TRAP_BASED_YIELDPOINTS: ${{ matrix.trap }}
+      SCALANATIVE_GC: ${{ matrix.gc }}
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/macos-setup-env
         with:
           scala-version: "3"
-      - name: Link storm reproducer
-        timeout-minutes: 45
-        run: |
-          cp scripts/ci/repro-5393/Storm.scala sandbox/src/main/scala/Test.scala
-          sbt "show sandbox3/nativeConfig" "sandbox3/nativeLink"
-          bin=$(find target -type f -perm -u+x -path '*native0.5/scala-3*/sandbox/sandbox' | head -1)
-          echo "BIN=$bin" >> $GITHUB_ENV
-          ls -la "$bin"
-      - name: Run storm
-        timeout-minutes: 40
-        run: scripts/ci/repro-5393/run-storm.sh "$BIN" 40 15 storm-out
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: storm-trap-${{ matrix.trap }}
-          path: storm-out
-
-  tests-release-fast:
-    name: tests3 release-fast (macOS Intel)
-    runs-on: macos-26-intel
-    env:
-      SCALANATIVE_MODE: release-fast
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/macos-setup-env
-        with:
-          scala-version: "3"
-      - name: Test runtime release-fast
-        timeout-minutes: 90
-        run: sbt "test-runtime-native 3"
+      - name: Run regression test
+        timeout-minutes: 60
+        run: sbt "tests3/testOnly scala.scalanative.runtime.gc.SafepointTrapThreadStackTest scala.scalanative.runtime.gc.YieldpointStressTest"

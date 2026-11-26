@@ -1,3 +1,4 @@
+// CI check: javalib-only change, do not merge
 package java.nio
 package channels
 

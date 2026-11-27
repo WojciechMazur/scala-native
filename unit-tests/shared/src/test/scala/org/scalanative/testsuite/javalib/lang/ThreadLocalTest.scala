@@ -86,7 +86,7 @@ class ThreadLocalTest extends JSR166Test {
       val tl = new ThreadLocal[String]() {
         override def initialValue: String = "foo"
       }
-      assertSame(tl.get(), "foo")
+      assertEquals("foo", tl.get())
     }
   }
 }

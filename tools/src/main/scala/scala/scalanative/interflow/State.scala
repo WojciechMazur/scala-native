@@ -5,7 +5,6 @@ import scala.collection.mutable
 
 import scalanative.codegen.Lower
 import scalanative.linker._
-import scalanative.util.unreachable
 
 private[interflow] final class State(val blockId: nir.Local)(
     preserveDebugInfo: Boolean
@@ -86,7 +85,7 @@ private[interflow] final class State(val blockId: nir.Local)(
     values(analysis.StringCountField.index) = nir.Val.Int(charsArray.length)
     values(analysis.StringCachedHashCodeField.index) =
       nir.Val.Int(Lower.stringHashCode(value))
-    alloc(StringKind, analysis.StringClass, values, zone = None)
+    alloc(StringKind(value), analysis.StringClass, values, zone = None)
   }
   def delay(
       op: nir.Op
@@ -340,18 +339,9 @@ private[interflow] final class State(val blockId: nir.Local)(
         emitVirtual(addr)(
           nir.Op.Box(nir.Type.Ref(cls.name), escapedVal(value))
         )
-      case VirtualInstance(StringKind, _, values, zone)
-          if !hasEscaped(values(analysis.StringValueField.index)) =>
-        val nir.Val.Virtual(charsAddr) = values(
-          analysis.StringValueField.index
-        ): @unchecked
-        val chars = derefVirtual(charsAddr).values
-          .map {
-            case nir.Val.Char(v) => v
-            case _               => unreachable
-          }
-          .toArray[Char]
-        nir.Val.String(new java.lang.String(chars))
+      case VirtualInstance(StringKind(value), _, _, _) =>
+        // The literal, even if its chars escaped, to keep its identity
+        nir.Val.String(value)
       case VirtualInstance(_, cls, values, zone) =>
         emitVirtual(addr)(
           nir.Op.Classalloc(cls.name, zone.map(escapedVal))
@@ -393,8 +383,7 @@ private[interflow] final class State(val blockId: nir.Local)(
         }
       case VirtualInstance(BoxKind, cls, Array(value), _) =>
         ()
-      case VirtualInstance(StringKind, _, values, _)
-          if !hasEscaped(values(analysis.StringValueField.index)) =>
+      case VirtualInstance(_: StringKind, _, _, _) =>
         ()
       case VirtualInstance(_, cls, vals, zone) =>
         cls.fields.zip(vals).foreach {

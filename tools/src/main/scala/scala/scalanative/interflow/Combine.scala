@@ -420,6 +420,14 @@ private[interflow] trait Combine { self: Interflow =>
     import state.{materialize, delay, emit}
 
     (comp, l, r) match {
+      // String literals are interned, distinct virtual strings may be the same
+      case (
+            Ieq | Ine,
+            VirtualRef(StringKind(l), _, _),
+            VirtualRef(StringKind(r), _, _)
+          ) =>
+        nir.Val.Bool((l == r) == (comp == Ieq))
+
       // Two virtual allocations will compare equal if
       // and only if they have the same virtual address.
       case (Ieq, nir.Val.Virtual(l), nir.Val.Virtual(r))

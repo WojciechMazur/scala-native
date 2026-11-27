@@ -848,7 +848,14 @@ private[linker] class Reach(
 
     case nir.Op.Classalloc(n, zoneHandle) =>
       classInfo(n).foreach(reachAllocation)
-      zoneHandle.foreach(reachVal)
+      // Lowered to a virtual call of `SafeZone.allocImpl`
+      zoneHandle.foreach { zone =>
+        reachVal(zone)
+        reachMethodTargets(
+          codegen.Lower.SafeZone,
+          codegen.Lower.safeZoneAllocImpl.sig
+        )
+      }
     case nir.Op.Fieldload(ty, v, n) =>
       reachType(ty)
       reachVal(v)

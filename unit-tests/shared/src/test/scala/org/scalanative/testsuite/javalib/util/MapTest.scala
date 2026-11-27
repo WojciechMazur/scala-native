@@ -562,7 +562,9 @@ trait MapTest {
     // they have the same identity - same object
 
     def assertContainsButNotWhenIdentityBased(value: Double): Unit = {
-      if (factory.isIdentityBased) assertFalse(numValues.contains(value))
+      // Box identity is unspecified, only a new instance surely differs
+      if (factory.isIdentityBased)
+        assertFalse(numValues.contains(new java.lang.Double(value)))
       else assertTrue(numValues.contains(value))
     }
 
@@ -764,7 +766,9 @@ trait MapTest {
     // Behaviour of the Scala Native is diffrent from the Scala.js
     // For more info check comment at the begging of the file
     def assertContainsButNotWhenIdentityBased(key: Double): Unit = {
-      if (factory.isIdentityBased) assertFalse(numkeySet.contains(key))
+      // Box identity is unspecified, only a new instance surely differs
+      if (factory.isIdentityBased)
+        assertFalse(numkeySet.contains(new java.lang.Double(key)))
       else assertTrue(numkeySet.contains(key))
     }
 
